@@ -1,6 +1,6 @@
-# 13 — The admin console and disputes: 28 endpoints, entirely missing from this series until now
+# 13 — The admin console and disputes: 30 endpoints, entirely missing from this series until now
 
-Module `admin`, two surfaces: **`/admin/*`** (26 routes — our own staff
+Module `admin`, two surfaces: **`/admin/*`** (28 routes — our own staff
 only) and **`/disputes`** (2 routes — where a candidate, employer or
 college raises one). **This entire module was recorded in the API
 checklist as having "no HTTP endpoints at all"** — true of `integrity`,
@@ -33,9 +33,10 @@ Four roles: `PLATFORM_ADMIN` (everything), `KYB_REVIEWER`,
 | `integrity` | Admin, Integrity Reviewer |
 | `tenants` (read) | Admin, KYB Reviewer, Support Agent |
 | `suspend`, `seats`, `audit_search`, `accounts`, `discounts` | **Admin only** |
-| `candidate_drilldown` | Admin, Support Agent, Integrity Reviewer |
+| `candidate_drilldown` (the candidate list and the drill-down) | Admin, Support Agent, Integrity Reviewer |
 | `employer_drilldown` | Admin, Support Agent, KYB Reviewer |
 | `college_drilldown`, `disputes`, `suppress_notifications`, `resend_invitation`, `discounts_read` | Admin, Support Agent |
+| `dashboard` | **Every** staff role (sections inside are gated by the rows above — §0.5) |
 
 **Every single route names its capability from this one table** — nowhere
 in the router are roles listed by hand per-route, so "can a Support Agent
@@ -59,6 +60,67 @@ whole point is reading across all of them. **A drill-down or an opened
 record never shows the stored raw score, a whole phone number/email, or a
 CV** — only `display_value`/`band` (the same number the person themself
 sees), `phone_masked`/`email_masked`, and resume *counts*, never content.
+
+---
+
+## 0.5 `GET /admin/dashboard` — the landing page, one request
+
+**Auth required:** any staff role (`dashboard` capability). **Audited:** one
+`admin_bypass_session_opened` row per load (`target_type: "admin_dashboard"`)
+— fewer than building the page from the queue endpoints, which write one
+each.
+
+**A queue section is `null` for a role that can't open that queue.** The
+page shows each person what their other capabilities already let them work:
+
+| Section | Shown to |
+|---|---|
+| `kyb` | Admin, KYB Reviewer |
+| `integrity` | Admin, Integrity Reviewer |
+| `disputes` | Admin, Support Agent |
+| `organisations` | Admin, KYB Reviewer, Support Agent (the `tenants` capability) |
+| `platform_totals`, `oldest_waiting`, `throughput` | Everyone — but the last two are drawn only from the queues that caller sees |
+
+**Response** — `200 OK`, `AdminDashboard`:
+```json
+{
+  "generated_at": "2026-09-23T10:15:00Z",
+  "kyb": { "review_required": false, "awaiting_review": 0, "awaiting_employer": 1,
+           "oldest_waiting_since": null },
+  "integrity": { "open": 7, "open_by_severity": { "HIGH": 2, "MEDIUM": 3, "LOW": 2 },
+                 "candidates_held_back": 2, "oldest_waiting_since": "2026-09-19T06:10:00Z" },
+  "disputes": { "open": 3, "in_review": 1, "unassigned": 2,
+                "by_kind": { "HIRE": 1, "PAYMENT": 2, "ACCOUNT": 1, "OTHER": 0 },
+                "oldest_waiting_since": "2026-09-20T11:00:00Z" },
+  "organisations": { "employers": { "active": 42, "suspended": 1, "closed": 0 },
+                     "colleges":  { "active": 6,  "suspended": 0, "closed": 0 } },
+  "platform_totals": { "candidates": 1840, "employers": 42, "colleges": 6,
+                       "jobs_published": 95, "applications": 3120, "hires": 58 },
+  "oldest_waiting": [
+    { "type": "INTEGRITY", "id": "...", "waiting_since": "2026-09-19T06:10:00Z",
+      "detail": "INJECTED_INSTRUCTIONS", "candidate_id": "9f2e...", "severity": "HIGH",
+      "organisation": null, "tenant_id": null, "party": null },
+    { "type": "DISPUTE", "id": "...", "waiting_since": "2026-09-20T11:00:00Z",
+      "detail": "PAYMENT", "party": "EMPLOYER", "organisation": "Acme Pvt Ltd",
+      "tenant_id": "...", "candidate_id": null, "severity": null }
+  ],
+  "throughput": [ { "date": "2026-09-10", "intake": 2, "cleared": 1 }, "... 14 entries ..." ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `kyb.awaiting_review` | `SUBMITTED` or `UNDER_REVIEW` — waiting on a reviewer. Always 0 while `review_required` is false (R15: every submission is approved on arrival) |
+| `kyb.awaiting_employer` | `MORE_INFO_REQUIRED` — waiting on the employer, not us |
+| `integrity.candidates_held_back` | People with an **OPEN HIGH** signal. They are already out of employer search, before anyone has looked — the most urgent number on the page |
+| `disputes.unassigned` | Open or in review, nobody assigned |
+| `organisations` / `platform_totals.employers` | "Active employers" is `organisations.employers.active` (or `platform_totals.employers`, which every role sees) |
+| `platform_totals.candidates` | Active candidate accounts. `hires` counts only hires confirmed by both sides |
+| `oldest_waiting` | Up to 5, oldest first, from the KYB, integrity and dispute queues the caller sees. `detail` is the KYB state, the integrity rule, or the dispute kind. **Ids, never a person's name**; open the item for the rest |
+| `throughput` | 14 **IST** days ending today (today is partial), zeros included. `intake` = items that entered those queues that day; `cleared` = items decided. Auto-approved KYB is neither |
+
+Everything is read live on each request, never cached: a reviewer who has just
+cleared an item should see it gone.
 
 ---
 
@@ -164,6 +226,13 @@ decision here is final — there's no re-open.
 { "items": [{ "id": "...", "type": "EMPLOYER", "name": "Acme Pvt Ltd", "status": "ACTIVE", "created_at": "..." }], "next_cursor": null }
 ```
 
+**There is no `?type=CANDIDATE`, and it answers `422`.** A candidate is not
+a tenant: they hold no membership and belong to no organisation, so there
+is no `tenants` row to list (`identity.domain.TENANT_TYPES` is `EMPLOYER`,
+`COLLEGE`, `PLATFORM`, and `PLATFORM` is never listed). Candidates are
+listed by [`GET /admin/candidates`](#get-admincandidates--find-a-candidate-audited),
+which is audited where this list is not, because every row names a person.
+
 ### `POST /admin/tenants/{id}/suspend` — stop an organisation operating, immediately
 
 **Auth:** `suspend` (Admin only).
@@ -241,6 +310,55 @@ back against its own plan, not a value trusted to grant access on its own.
 every open, re-opens included — invariant 7′ applied to staff exactly as
 it's applied to an employer's candidate reveal.
 
+Employers and colleges are found through `GET /admin/tenants` (§3).
+Candidates are not tenants, so they have their own list, next.
+
+### `GET /admin/candidates` — find a candidate (audited)
+
+**Auth:** `candidate_drilldown` capability — whoever may open a candidate
+may find one (Admin, Support Agent, Integrity Reviewer; a KYB Reviewer gets
+`403`).
+
+**Request** — all optional:
+
+| Param | Meaning |
+|---|---|
+| `status` | `ACTIVE` \| `SUSPENDED` \| `DELETED` (an erased account: its row stays, emptied, so its name and contacts come back `null`) |
+| `q` | Part of the full name, case-insensitive, max 100 chars. `%` and `_` are matched literally, not as wildcards |
+| `email` | The **exact** address, case and surrounding spaces ignored — for "someone wrote to support from this address". Not a partial match, so it cannot enumerate a domain |
+| `cursor`, `limit` | Keyset paging, `limit` 1–100 (default as elsewhere) |
+
+Newest account first. **Only candidate accounts**: a business account
+(employer, college or staff) never appears, even searched for by its exact
+email.
+
+**Response** — `200 OK` (`CandidatesPage`):
+```json
+{
+  "items": [{
+    "id": "...", "status": "ACTIVE",
+    "full_name": "Priya Sharma", "city": "Pune", "state_code": "MH",
+    "phone_masked": "+91******3210", "email_masked": "p***@example.com",
+    "created_at": "2026-09-20T10:15:00Z"
+  }],
+  "next_cursor": "eyJ0Ijoi..."
+}
+```
+`full_name`, `city`, `state_code` are `null` until the candidate has given
+them. **Deliberately not on the row:** the score or band, the CV,
+subscription, applications — every one of those is behind the drill-down
+below, which audits the one person opened. The list is for picking
+someone, not for reading them.
+
+**Audited on every page**: one `admin_bypass_session_opened` row, target
+type `candidates`, metadata `{"view": "candidates", "status": ..., "by_name":
+true|false, "by_email": true|false}`. **The search terms themselves are not
+recorded** — a name or an email address is personal data, and the audit log
+holds ids. The row says *that* this person searched, not *for whom*.
+
+`422 invalid_cursor` for a mangled cursor; `422` (FastAPI's shape) for a
+bad `status`.
+
 ### `GET /admin/candidates/{user_id}` — `candidate_drilldown` capability
 
 **Response** — `200 OK` (`CandidateDrilldown`):
@@ -267,6 +385,55 @@ named anything with "raw" in it — `score.display_value` is the exact same
 number the candidate's own `GET /candidate/score/me` returns, never the
 internal value — and `resume` counts files and versions but includes no
 content. A CV is never read from this screen, only counted.
+
+### The full candidate page — `GET /admin/candidates/{user_id}/…` (2026-09-29)
+
+The client asked for one page per student with everything on it. It is
+**seven endpoints, not one**, so that each larger reveal is its own
+permission and its own audit row — a member of staff checking where an
+application stands has not thereby read a CV or listened to anyone.
+
+| Endpoint | Capability (roles) | What it returns |
+|---|---|---|
+| `…/onboarding` | `candidate_contact` (admin, support) | Everything given at sign-up and on the profile, **phone and email unmasked**, questionnaire answers in words, college links |
+| `…/resume` | `candidate_resume` (+ integrity reviewer) | The newest CV version and the newest confirmed one (what the score was built from): text or form fields, and the uploaded file by presigned GET |
+| `…/score-timeline` | `candidate_drilldown` | Every score, oldest first |
+| `…/interviews` | `candidate_drilldown` | Every mock-interview session |
+| `…/interviews/{session_id}/recordings` | `candidate_recordings` (admin, support) | One presigned GET per answer, with the question and transcript |
+| `…/courses` | `candidate_drilldown` | Purchase, lessons watched, percent, completion |
+| `…/applications` | `candidate_drilldown` | Every application with job, employer and stage, plus analytics |
+
+The score timeline shows **what the candidate saw**, never the stored number:
+```json
+{ "points": [
+  { "computed_at": "...", "display_value": 760, "band": "DEVELOPING", "change": null, "cause": "FIRST_SCORE" },
+  { "computed_at": "...", "display_value": 780, "band": "DEVELOPING", "change": 20, "cause": "RESUME_CHANGED" },
+  { "computed_at": "...", "display_value": 800, "band": "SOLID", "change": 20, "cause": "ADD_ON" }
+] }
+```
+`cause` is `FIRST_SCORE`, `RESUME_CHANGED` (a new confirmed CV), `ADD_ON` (an
+interview or the course) or `RECOMPUTED`. The candidate is not shown this
+history (the client declined it); staff are, so "why did my score drop?" has
+an answer.
+
+The applications part carries the same analytics a college sees per student:
+```json
+{ "items": [ { "id": "...", "job_title": "Warehouse Supervisor", "employer_name": "Acme Pvt Ltd",
+               "stage": "INTERVIEW", "applied_at": "...", "interview_at": "..." } ],
+  "analytics": { "total": 3, "open": 1,
+                 "by_stage": { "SUBMITTED": 0, "INTERVIEW": 1, "REJECTED": 2, "...": 0 },
+                 "reached": { "SHORTLISTED": 3, "INTERVIEW": 2, "DECISION": 0, "HIRED": 0 } } }
+```
+`reached` counts applications that were ever at each milestone, wherever
+they are now.
+
+### Building the course — `/admin/courses`, `/admin/course-modules/*`, `/admin/course-lessons/*`
+
+Capability `courses`, PLATFORM_ADMIN only: a lesson counts toward a score
+once watched, so what the course contains, and when it goes on sale, is the
+admin's alone. The walk-through (modules → YouTube or uploaded lessons →
+publish) is in [08](08-billing-subscriptions-courses-apis.md) §7. Every change
+writes a `course_content_changed` audit row.
 
 ### `GET /admin/employers/{tenant_id}` — `employer_drilldown` capability
 
@@ -616,6 +783,8 @@ into the thousands the way the console's own queue might.
 |---|---|
 | Can a Support Agent suspend a tenant or allocate seats? | No — both are `PLATFORM_ADMIN`-only capabilities. |
 | Does resolving a dispute automatically undo the thing it's about? | Never — it records an answer for the raiser; any actual fix happens through that module's own service, separately. |
-| Can staff read a candidate's raw stored score or their CV from a drill-down? | No — `display_value`/`band` only, and resume content is counted, never read. |
+| Can staff read a candidate's raw stored score? | Never — `display_value`/`band` only, the timeline included. |
+| Can staff read a CV or hear an interview? | Yes since 2026-09-29, through their own endpoints and capabilities (`candidate_resume`, `candidate_recordings`), each audited. The drill-down itself still only counts. |
+| Why does `GET /admin/tenants?type=CANDIDATE` fail? | A candidate isn't a tenant. Use `GET /admin/candidates` (search by `q` name or exact `email`), then open one with `GET /admin/candidates/{user_id}`. |
 | Is any of this paywalled? | No — the console is internal, and disputing a payment must never itself require one. |
 | Where did HIRE disputes go before this doc existed? | Into the exact same table this doc covers — `POST .../hire/dispute` has always fed this queue; it was simply unread until Day 19. |

@@ -19,10 +19,13 @@ transaction closes.
      callback, and by nothing else. The database refuses it otherwise.
   4. **Session** (`start_session`) -- consumes one purchase, behind another
      fresh passed check. Asking again returns the open session: that is
-     interrupted-session recovery (SRS 1.10.5).
+     interrupted-session recovery (SRS 1.10.5). The session opens with one
+     question the model wrote for this candidate; there are no fixed
+     questions (client, 2026-09-29).
   5. **Answers** -- one presigned PUT per question, then `complete_answer`
      judges what was stored. Idempotent, so a client retrying from its local
-     queue cannot double anything.
+     queue cannot double anything. Between answers, `next_question` hears the
+     last answer and writes the next question (2026-09-29).
   6. **Completion** (`complete_session`) -- every answer stored. A score-moving
      write: audited, and announced to scoring through the outbox.
   7. **Evaluation** (`transcribe_session`, `evaluate_session`) -- a task after
@@ -36,7 +39,7 @@ transaction closes.
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Any, Final
 
@@ -49,17 +52,20 @@ from app.core.errors import ConflictError, NotFoundError
 from app.core.errors import ValidationError as AppValidationError
 from app.core.logging import get_logger
 from app.core.outbox import emit
+from app.modules.identity import service as identity_service
 from app.modules.interview import repository
 from app.modules.interview.bank import (
-    BANK_VERSION,
     DIMENSION_CODES,
+    QUESTION_SETS,
     QUESTIONS_PER_SESSION,
     RUBRIC_VERSION,
+    InterviewQuestion,
     QuestionSet,
-    set_for_session,
 )
 from app.modules.interview.domain import (
     ACCEPTED_AUDIO_TYPES,
+    ADAPTIVE_SET_CODE,
+    ADAPTIVE_SET_TITLE,
     COMPLETED_STATES,
     CONTRIBUTION_VERSION,
     DEVICE_CHECK_VALID_FOR,
@@ -68,21 +74,29 @@ from app.modules.interview.domain import (
     FAILURE_NO_SPEECH,
     MAX_ANSWER_BYTES,
     MAX_ANSWER_MS,
+    MAX_DRAFT_ATTEMPTS,
+    MAX_RESUME_CHARS_FOR_QUESTIONS,
     OPEN_STATES,
     POINTS_PER_SESSION,
     REPORT_VERSION,
+    SOURCE_MODEL,
     DeviceReadings,
     EvaluationInvalid,
     InterviewReport,
     QuestionEvaluation,
+    QuestionInvalid,
     answer_key,
     assemble_report,
+    bank_questions_for,
     can_complete,
     device_check_is_fresh,
     evaluate_device_check,
+    generated_question_code,
     is_spoken,
+    parse_drafted_question,
     parse_evaluation,
     purchase_earns_points,
+    redact_contacts,
     sniff_audio,
     valid_question_index,
     validate_answer,
@@ -102,6 +116,16 @@ from app.modules.interview.models import (
     InterviewProduct,
     InterviewSession,
 )
+from app.modules.interview.questions import (
+    AskedInThisSession,
+    QuestionContext,
+    QuestionProvider,
+    QuestionUnavailableError,
+    get_question_provider,
+)
+from app.modules.questionnaire import service as questionnaire_service
+from app.modules.questionnaire.domain import answers_in_words
+from app.modules.resume import service as resume_service
 from app.modules.subscriptions.catalogue import INTERVIEW_SESSION_PRODUCT
 from app.settings import Settings, get_settings
 
@@ -171,6 +195,22 @@ class InterviewAnswerRejectedError(AppValidationError):
     title = "The recording could not be accepted"
 
 
+class InterviewQuestionNotReadyError(ConflictError):
+    """This question has not been written yet. Ask for it with
+    `POST .../next-question` once the previous answer is stored."""
+
+    code = "interview_question_not_ready"
+    title = "This question is not ready yet"
+
+
+class InterviewPreviousAnswerMissingError(ConflictError):
+    """`params.missing` lists the question indexes still to be stored. The
+    next question follows what was said, so it waits for the answer."""
+
+    code = "interview_previous_answer_not_stored"
+    title = "Store the previous answer first"
+
+
 class InterviewSessionNotCompletedError(ConflictError):
     code = "interview_session_not_completed"
     title = "Feedback exists only for a completed session"
@@ -234,11 +274,12 @@ def check_valid_until(check: DeviceCheck) -> datetime:
 # 2-3. Buying a session
 # ---------------------------------------------------------------------------
 async def _sessions_held(session: AsyncSession, *, user_id: uuid.UUID) -> int:
-    """Completed and in-progress sessions. Historical purchases are receipts,
-    not entitlements: mock interviews are included in the live subscription."""
-    return await repository.count_sessions(
+    """Completed, in progress, and bought but not started. Not abandoned."""
+    started = await repository.count_sessions(
         session, user_id=user_id, states=COMPLETED_STATES | OPEN_STATES
     )
+    unstarted = await repository.count_unstarted_purchases(session, user_id=user_id)
+    return started + unstarted
 
 
 @dataclass(frozen=True, slots=True)
@@ -251,12 +292,9 @@ class Offer:
 
 
 async def offer(session: AsyncSession, *, user_id: uuid.UUID, now: datetime | None = None) -> Offer:
-    """Current interview state for a subscribed candidate.
-
-    One session is available whenever none is open. `product` remains in the
-    response for compatibility with clients from the former one-off checkout
-    model, but it no longer controls access.
-    """
+    """What the purchase screen needs, **including whether to warn**. The app
+    must show "this session will not increase your score" when
+    `will_increase_score` is false, before the payment screen."""
     now = _now(now)
     product = await repository.active_product(session, code=INTERVIEW_SESSION_PRODUCT.code)
     held = await _sessions_held(session, user_id=user_id)
@@ -265,7 +303,7 @@ async def offer(session: AsyncSession, *, user_id: uuid.UUID, now: datetime | No
         product=product,
         will_increase_score=purchase_earns_points(sessions_held=held),
         device_check=await _fresh_passed_check(session, user_id=user_id, now=now),
-        sessions_available=0 if open_row is not None else 1,
+        sessions_available=await repository.count_unstarted_purchases(session, user_id=user_id),
         open_session_id=open_row.id if open_row is not None else None,
     )
 
@@ -343,10 +381,33 @@ class SessionView:
     answers: dict[int, InterviewAnswer]
 
 
+def question_set_title(question_set_code: str) -> str:
+    return next((s.title for s in QUESTION_SETS if s.code == question_set_code), ADAPTIVE_SET_TITLE)
+
+
+async def _questions_of(session: AsyncSession, row: InterviewSession) -> QuestionSet:
+    """What this session has asked so far, in order.
+
+    Stored per session since 2026-09-29: all six for a bank session, one more
+    after each answer for a written one. A session from before then has no
+    rows and asked its bank set.
+    """
+    stored = await repository.questions_for(session, session_id=row.id)
+    if not stored:
+        questions = bank_questions_for(
+            question_set_code=row.question_set_code, session_number=row.session_number
+        )
+    else:
+        questions = tuple(
+            InterviewQuestion(q.code, q.key or "", q.prompt, q.looking_for) for q in stored
+        )
+    return QuestionSet(row.question_set_code, question_set_title(row.question_set_code), questions)
+
+
 async def _view(session: AsyncSession, row: InterviewSession) -> SessionView:
     answers = await repository.answers_for(session, session_id=row.id)
     return SessionView(
-        row, set_for_session(row.session_number), {a.question_index: a for a in answers}
+        row, await _questions_of(session, row), {a.question_index: a for a in answers}
     )
 
 
@@ -357,14 +418,23 @@ class StartedSession:
 
 
 async def start_session(
-    session: AsyncSession, *, user_id: uuid.UUID, now: datetime | None = None
+    session: AsyncSession,
+    *,
+    user_id: uuid.UUID,
+    now: datetime | None = None,
+    question_provider: QuestionProvider | None = None,
 ) -> StartedSession:
-    """Start a subscription-included session.
+    """Consume the oldest unstarted purchase. **An open session is returned
+    rather than a second started**: the client that crashed mid-interview
+    calls this again and resumes, and no purchase is spent twice.
 
-    **An open session is returned rather than a second started**: the client
-    that crashed mid-interview calls this again and resumes.
+    The session opens with its first question written by the model for this
+    candidate, and the rest come one at a time from `next_question`. **If the
+    first question cannot be written the whole start rolls back** -- no
+    purchase is spent -- and the app retries.
     """
     now = _now(now)
+    provider = question_provider or get_question_provider()
     await repository.lock_candidate(session, user_id=user_id)
     existing = await repository.open_session(session, user_id=user_id)
     if existing is not None:
@@ -373,22 +443,259 @@ async def start_session(
     check = await _fresh_passed_check(session, user_id=user_id, now=now)
     if check is None:
         raise DeviceCheckRequiredError()
+    purchase = await repository.oldest_unstarted_purchase(session, user_id=user_id)
+    if purchase is None:
+        raise InterviewPurchaseRequiredError()
 
     # Every session ever started counts, abandoned ones included, so a
     # candidate who abandons one is not handed the same questions again.
     number = await repository.count_sessions(session, user_id=user_id) + 1
-    question_set = set_for_session(number)
     row = await repository.insert_session(
         session,
         user_id=user_id,
-        purchase_id=None,
+        purchase_id=purchase.id,
         device_check_id=check.id,
         session_number=number,
-        question_set_code=question_set.code,
-        question_set_version=BANK_VERSION,
+        question_set_code=ADAPTIVE_SET_CODE,
+        question_set_version=provider.prompt_version[:32],
     )
+    await _write_question(session, row, index=0, provider=provider)
     logger.info("interview_session_started", session_number=number)
-    return StartedSession(SessionView(row, question_set, {}), created=True)
+    return StartedSession(await _view(session, row), created=True)
+
+
+# ---------------------------------------------------------------------------
+# 4b. Questions written for the candidate (2026-09-29)
+# ---------------------------------------------------------------------------
+async def _earlier_questions(
+    session: AsyncSession, row: InterviewSession
+) -> list[InterviewQuestion]:
+    """Every question this candidate was asked in any other session."""
+    others = await repository.earlier_sessions(
+        session, user_id=row.user_id, before_session_id=row.id
+    )
+    stored = await repository.questions_for_sessions(session, session_ids=[o.id for o in others])
+    with_rows = {q.session_id for q in stored}
+    asked = [InterviewQuestion(q.code, q.key or "", q.prompt, q.looking_for) for q in stored]
+    for other in others:
+        if other.id not in with_rows:
+            asked.extend(
+                bank_questions_for(
+                    question_set_code=other.question_set_code,
+                    session_number=other.session_number,
+                )
+            )
+    return asked
+
+
+def _structured_resume_text(parsed: dict[str, Any]) -> str:
+    """A form-built CV has fields, not prose. Name and contact are left out."""
+    lines: list[str] = []
+    for key, value in parsed.items():
+        if key in {"full_name", "name", "phone", "email", "raw_text"} or value in (None, "", []):
+            continue
+        lines.append(f"{key}: {value}")
+    return "\n".join(lines)
+
+
+async def _resume_for_questions(
+    session: AsyncSession, *, user_id: uuid.UUID, known: tuple[str | None, ...]
+) -> str | None:
+    """The confirmed CV, contact details removed, cut to length. Through the
+    confirm gate, like everything else that reads a CV: an unconfirmed parse
+    is not something to interview a person about."""
+    try:
+        version = await resume_service.get_scorable_version(session, user_id=user_id)
+    except resume_service.ResumeNotConfirmedError:
+        return None
+    parsed = version.parsed if isinstance(version.parsed, dict) else {}
+    text = parsed.get("raw_text")
+    if not isinstance(text, str) or not text.strip():
+        text = _structured_resume_text(parsed)
+    name = parsed.get("full_name")
+    text = redact_contacts(text, known=(*known, name if isinstance(name, str) else None))
+    return text[:MAX_RESUME_CHARS_FOR_QUESTIONS].strip() or None
+
+
+async def _question_context(
+    session: AsyncSession,
+    row: InterviewSession,
+    *,
+    index: int,
+    asked_here: list[InterviewQuestion],
+    earlier: list[InterviewQuestion],
+) -> QuestionContext:
+    contact = (await identity_service.contacts(session, user_ids=[row.user_id])).get(row.user_id)
+    known = (contact.phone, contact.email) if contact is not None else ()
+    state = await questionnaire_service.get_state(session, user_id=row.user_id)
+    # Not the free-text answer: it is promised to employers applied to, and
+    # to nobody else.
+    onboarding = tuple(
+        (a.question, a.answer) for a in answers_in_words(state.answers, include_free_text=False)
+    )
+    heard = {
+        t.question_index: t.text
+        for t in await repository.transcripts_for(session, session_id=row.id)
+    }
+    return QuestionContext(
+        session_number=row.session_number,
+        index=index,
+        total=QUESTIONS_PER_SESSION,
+        language=contact.locale if contact is not None else "en",
+        resume_text=await _resume_for_questions(session, user_id=row.user_id, known=known),
+        onboarding=onboarding,
+        earlier_questions=tuple(q.prompt for q in earlier),
+        this_session=tuple(
+            AskedInThisSession(q.prompt, (heard.get(i) or "").strip() or None)
+            for i, q in enumerate(asked_here)
+        ),
+    )
+
+
+async def _hear_stored_answers(
+    session: AsyncSession,
+    row: InterviewSession,
+    *,
+    transcriber: TranscriptionProvider,
+    settings: Settings,
+) -> None:
+    """Transcribe this session's stored answers that have no transcript yet,
+    so the next question can follow what was said. These are the rows the
+    evaluation reads later (idempotent by answer), so nothing is paid twice.
+
+    **Best effort.** A transcription that fails leaves that answer unheard and
+    the next question is written without it; the candidate is never stopped
+    mid-interview because speech-to-text failed.
+    """
+    if transcriber.name == "none":
+        return
+    done = {t.answer_id for t in await repository.transcripts_for(session, session_id=row.id)}
+    for answer in await repository.answers_for(session, session_id=row.id):
+        if answer.upload_state != "STORED" or answer.id in done or answer.s3_key is None:
+            continue
+        try:
+            audio = await storage.read_whole_object(
+                bucket=settings.s3_bucket_interview_audio, key=answer.s3_key
+            )
+            if not audio:
+                continue
+            heard = await transcriber.transcribe(audio=audio, mime=answer.mime or "")
+        except EvaluationUnavailableError:
+            logger.warning("interview_answer_not_heard_in_session", index=answer.question_index)
+            continue
+        await repository.insert_transcript(
+            session,
+            session_id=row.id,
+            answer_id=answer.id,
+            question_index=answer.question_index,
+            provider=transcriber.name,
+            provider_version=transcriber.version,
+            language=heard.language,
+            text_value=heard.text,
+        )
+
+
+async def _write_question(
+    session: AsyncSession,
+    row: InterviewSession,
+    *,
+    index: int,
+    provider: QuestionProvider,
+) -> None:
+    """Write question `index` for this session, by the model. Exactly one row.
+
+    A draft that may not be asked -- a repeat of anything the candidate has
+    been asked, a kind this position cannot have, text out of bounds -- is
+    refused and the model is asked again, told what was refused and why, up
+    to `MAX_DRAFT_ATTEMPTS`. **There is no fixed-question fallback** (client,
+    2026-09-29): if no usable question comes back, this raises
+    `QuestionUnavailableError` (503), nothing is written, and the app retries.
+    """
+    asked_here = list((await _questions_of(session, row)).questions)
+    if row.question_set_code != ADAPTIVE_SET_CODE or index < len(asked_here):
+        return
+    earlier = await _earlier_questions(session, row)
+    every_prompt = [q.prompt for q in (*earlier, *asked_here)]
+    context = await _question_context(
+        session, row, index=index, asked_here=asked_here, earlier=earlier
+    )
+    refused: list[str] = []
+    for attempt in range(1, MAX_DRAFT_ATTEMPTS + 1):
+        try:
+            raw = await provider.draft(context=replace(context, refused=tuple(refused)))
+        except QuestionUnavailableError:
+            logger.warning("interview_question_unavailable", index=index, attempt=attempt)
+            continue
+        try:
+            drafted = parse_drafted_question(raw, index=index, already_asked=every_prompt)
+        except QuestionInvalid as exc:
+            logger.warning("interview_question_refused", index=index, attempt=attempt)
+            prompt = raw.get("prompt") if isinstance(raw, dict) else None
+            refused.append(f"{prompt!s} -- refused: {exc}")
+            continue
+        await repository.insert_question(
+            session,
+            session_id=row.id,
+            question_index=index,
+            code=generated_question_code(session_number=row.session_number, index=index),
+            key=None,
+            prompt=drafted.prompt,
+            looking_for=drafted.looking_for,
+            kind=drafted.kind,
+            source=SOURCE_MODEL,
+            model_id=provider.model_id,
+            prompt_version=provider.prompt_version,
+        )
+        logger.info("interview_question_written", index=index, kind=drafted.kind)
+        return
+    raise QuestionUnavailableError()
+
+
+async def next_question(
+    session: AsyncSession,
+    *,
+    user_id: uuid.UUID,
+    session_id: uuid.UUID,
+    question_provider: QuestionProvider | None = None,
+    transcriber: TranscriptionProvider | None = None,
+    settings: Settings | None = None,
+) -> SessionView:
+    """Write the next question, once every question so far has a stored
+    answer, and return the session with it. **Idempotent**: asked again
+    before that answer is stored, it returns the session unchanged, so a
+    client retrying after a dropped response gets the same question rather
+    than a second one or an error.
+
+    The previous answers are transcribed first (`_hear_stored_answers`) so a
+    follow-up can follow what was actually said. A bank session already holds
+    all six questions and is returned as it is.
+    """
+    settings = settings or get_settings()
+    row = await repository.get_session(session, user_id=user_id, session_id=session_id, lock=True)
+    if row is None:
+        raise InterviewSessionNotFoundError()
+    if row.state not in OPEN_STATES:
+        raise InterviewSessionNotOpenError()
+    view = await _view(session, row)
+    index = len(view.question_set.questions)
+    if index >= QUESTIONS_PER_SESSION or row.question_set_code != ADAPTIVE_SET_CODE:
+        return view
+    missing = [
+        i for i in range(index) if i not in view.answers or view.answers[i].upload_state != "STORED"
+    ]
+    if missing == [index - 1]:
+        # The latest question is still waiting for its answer: this is a
+        # retry, and the question to answer is the one already written.
+        return view
+    if missing:
+        raise InterviewPreviousAnswerMissingError(params={"missing": missing})
+    await _hear_stored_answers(
+        session, row, transcriber=transcriber or get_transcription_provider(), settings=settings
+    )
+    await _write_question(
+        session, row, index=index, provider=question_provider or get_question_provider()
+    )
+    return await _view(session, row)
 
 
 async def get_session(
@@ -416,7 +723,10 @@ async def _open_session_for_write(
         raise InterviewSessionNotFoundError()
     if not valid_question_index(question_index):
         raise InterviewQuestionNotFoundError()
-    return row, set_for_session(row.session_number)
+    question_set = await _questions_of(session, row)
+    if question_index >= len(question_set.questions):
+        raise InterviewQuestionNotReadyError()
+    return row, question_set
 
 
 @dataclass(frozen=True, slots=True)
@@ -589,7 +899,7 @@ async def complete_session(
     view = await _view(session, row)
     stored = {i for i, a in view.answers.items() if a.upload_state == "STORED"}
     if not can_complete(stored_indexes=stored):
-        missing = sorted(set(range(len(view.question_set.questions))) - stored)
+        missing = sorted(set(range(QUESTIONS_PER_SESSION)) - stored)
         raise InterviewAnswersMissingError(params={"missing": missing})
 
     row.state = "COMPLETED"
@@ -740,7 +1050,7 @@ async def evaluate_session(
     if row.state != "COMPLETED":
         raise InterviewSessionNotCompletedError()
 
-    question_set = set_for_session(row.session_number)
+    question_set = await _questions_of(session, row)
     transcripts = await repository.transcripts_for(session, session_id=row.id)
     heard = {t.question_index: t.text for t in transcripts}
     if len(heard) < QUESTIONS_PER_SESSION:
@@ -840,7 +1150,7 @@ async def get_report(
         return ReportView("FAILED", evaluation.failure_reason, None, evaluation.created_at)
     transcripts = await repository.transcripts_for(session, session_id=row.id)
     report = assemble_report(
-        question_set_code=row.question_set_code,
+        questions=(await _questions_of(session, row)).questions,
         transcripts={t.question_index: t.text for t in transcripts},
         evaluations=tuple(
             QuestionEvaluation(
@@ -852,6 +1162,138 @@ async def get_report(
         ),
     )
     return ReportView("READY", None, report, evaluation.created_at)
+
+
+# ---------------------------------------------------------------------------
+# 8. History and recordings (2026-09-29)
+# ---------------------------------------------------------------------------
+# The client asked that a candidate can go back through every interview they
+# sat and hear themselves, and that platform staff can hear them too. A
+# recording is personal data of the most direct kind -- a person's voice -- so
+# it is only ever handed out as a short-lived presigned GET, never a public
+# link, and staff reach it through the console's audited bypass read.
+
+
+@dataclass(frozen=True, slots=True)
+class Recording:
+    question_index: int
+    question_code: str
+    prompt: str
+    url: str
+    expires_in_seconds: int
+    mime: str | None
+    duration_ms: int | None
+    uploaded_at: datetime | None
+    #: What the speech model heard, once it has been transcribed.
+    transcript: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryItem:
+    session: InterviewSession
+    questions_asked: int
+    answers_stored: int
+    #: NOT_COMPLETED while being recorded or abandoned; then PENDING, READY
+    #: or FAILED as `get_report` would say.
+    report_status: str
+
+
+async def _recordings(
+    session: AsyncSession, row: InterviewSession, *, settings: Settings
+) -> list[Recording]:
+    questions = (await _questions_of(session, row)).questions
+    heard = {
+        t.question_index: t.text
+        for t in await repository.transcripts_for(session, session_id=row.id)
+    }
+    ttl = settings.presigned_url_ttl_seconds
+    out: list[Recording] = []
+    for answer in await repository.answers_for(session, session_id=row.id):
+        if answer.upload_state != "STORED" or answer.s3_key is None:
+            continue
+        index = answer.question_index
+        question = questions[index] if index < len(questions) else None
+        out.append(
+            Recording(
+                question_index=answer.question_index,
+                question_code=answer.question_code,
+                prompt=question.prompt if question is not None else "",
+                url=await storage.presign_get(
+                    bucket=settings.s3_bucket_interview_audio, key=answer.s3_key, expires_in=ttl
+                ),
+                expires_in_seconds=ttl,
+                mime=answer.mime,
+                duration_ms=answer.duration_ms,
+                uploaded_at=answer.uploaded_at,
+                transcript=heard.get(answer.question_index),
+            )
+        )
+    return out
+
+
+async def recordings(
+    session: AsyncSession,
+    *,
+    user_id: uuid.UUID,
+    session_id: uuid.UUID,
+    settings: Settings | None = None,
+) -> list[Recording]:
+    """The candidate's own answers, to play back. Someone else's is a 404."""
+    row = await repository.get_session(session, user_id=user_id, session_id=session_id)
+    if row is None:
+        raise InterviewSessionNotFoundError()
+    return await _recordings(session, row, settings=settings or get_settings())
+
+
+async def _history(session: AsyncSession, rows: list[InterviewSession]) -> list[HistoryItem]:
+    items: list[HistoryItem] = []
+    for row in rows:
+        view = await _view(session, row)
+        if row.state not in COMPLETED_STATES:
+            status = "NOT_COMPLETED"
+        else:
+            evaluation = await repository.get_evaluation(session, session_id=row.id)
+            status = (
+                "PENDING"
+                if evaluation is None
+                else ("FAILED" if evaluation.outcome == "FAILED" else "READY")
+            )
+        items.append(
+            HistoryItem(
+                session=row,
+                questions_asked=len(view.question_set.questions),
+                answers_stored=sum(1 for a in view.answers.values() if a.upload_state == "STORED"),
+                report_status=status,
+            )
+        )
+    return items
+
+
+async def history(session: AsyncSession, *, user_id: uuid.UUID) -> list[HistoryItem]:
+    """Every session the candidate has started, newest first."""
+    return await _history(session, await repository.list_sessions(session, user_id=user_id))
+
+
+async def history_for_staff(session: AsyncSession, *, candidate_id: uuid.UUID) -> list[HistoryItem]:
+    """**Staff only, on the console's bypass reader.** The admin service has
+    already written the audit row naming this candidate."""
+    return await _history(session, await repository.list_sessions(session, user_id=candidate_id))
+
+
+async def recordings_for_staff(
+    session: AsyncSession,
+    *,
+    candidate_id: uuid.UUID,
+    session_id: uuid.UUID,
+    settings: Settings | None = None,
+) -> list[Recording]:
+    """**Staff only, on the console's bypass reader**, after its audit row.
+    Scoped to the candidate the member of staff opened, so a session id from
+    somewhere else is a 404 rather than someone else's voice."""
+    row = await repository.get_session(session, user_id=candidate_id, session_id=session_id)
+    if row is None:
+        raise InterviewSessionNotFoundError()
+    return await _recordings(session, row, settings=settings or get_settings())
 
 
 # ---------------------------------------------------------------------------

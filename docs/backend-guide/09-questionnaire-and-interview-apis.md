@@ -4,7 +4,10 @@ Two candidate "extras" that sit next to the resume/score core, and that make
 an interesting contrast: **the questionnaire is worth zero points, on
 purpose and enforced**, while **the mock interview genuinely adds up to +60**
 — but only the first three sessions count, and the candidate must be told
-that *before* they pay for a fourth. 4 endpoints + 10 endpoints.
+that *before* they pay for a fourth. 4 endpoints + 13 endpoints.
+
+**Since 2026-09-29 every interview question is written by an AI model for
+that one candidate** — there are no fixed questions any more (§8a).
 
 Read [04-resume-and-scoring-apis.md](04-resume-and-scoring-apis.md) first —
 both modules plug into the same score, from opposite directions.
@@ -24,9 +27,14 @@ Save answers (any number of times)     Device check (mic/audio/network)
    Ever. Structurally.                  an explicit "this won't move your
                                          score" acknowledgement)
                                                  │
-                                          Start session (6 questions)
+                                          Start session → the AI writes
+                                          question 1 from the CV + onboarding
                                                  │
-                                          Answer each (upload audio)
+                                          Answer it (upload audio)
+                                                 │
+                                          next-question → the AI *hears* that
+                                          answer and writes question 2
+                                          (…repeat until 6)
                                                  │
                                           Complete session → +20,
                                           if this is session 1-3
@@ -267,16 +275,34 @@ was disclosed, that can never be edited after the fact.
 ```json
 {
   "id": "3a1c...", "session_number": 1, "state": "CREATED",
-  "question_set_code": "SET_A", "question_set_title": "General Interview Set A",
-  "question_set_version": "v1", "created_at": "...", "started_at": null, "completed_at": null,
+  "question_set_code": "ADAPTIVE", "question_set_title": "Questions written for you",
+  "question_set_version": "openai-questions-v2-2026-09-29",
+  "created_at": "...", "started_at": null, "completed_at": null,
+  "questions_total": 6,
   "questions": [
-    { "index": 0, "code": "Q1", "key": "interview.q1", "prompt": "Tell me about a challenging project.", "preparation_seconds": 30, "answer_seconds": 120, "looking_for": null }
+    { "index": 0, "code": "S1Q1", "key": null,
+      "prompt": "You are a warehouse supervisor in Pune. Tell me about your night shift and the change you made that cut truck turnaround time.",
+      "preparation_seconds": 30, "answer_seconds": 120, "looking_for": null }
   ],
   "answers": [
-    { "question_index": 0, "upload_state": "PENDING", "duration_ms": null, "uploaded_at": null }
+    { "question_index": 0, "upload_state": "PENDING", "duration_ms": null, "uploaded_at": null },
+    { "question_index": 1, "upload_state": "PENDING", "duration_ms": null, "uploaded_at": null }
   ]
 }
 ```
+(`answers` always has all six entries; trimmed here.)
+
+**Only one question comes back.** `questions` holds what has been asked *so
+far*; `questions_total` says how many there will be. The next five are
+written one at a time, after each answer (§10a). `key` is `null` because the
+question was written in the candidate's own language (their account locale)
+and there is nothing to translate. Start takes about **3 seconds**, because
+the model is writing question 1 while you wait.
+
+**If the model cannot write the first question** (unreachable, or three
+unusable drafts in a row), this answers **`503 interview_question_unavailable`
+and nothing happens**: no session is created and the purchase is not spent.
+Show "try again" and call it again.
 **If a session is already open (`CREATED`/`IN_PROGRESS`), this returns that
 same session rather than starting a new one.** That's the recovery path for
 an interrupted attempt — a crashed app, a lost connection — not a bug: the
@@ -290,6 +316,35 @@ field — "what a good answer contains" — is deliberately withheld until
 *after* that specific answer has been recorded (§10 shows it appearing).
 Showing the rubric before the answer would turn the exercise into reading a
 script aloud instead of an actual answer.
+
+## 8a. Where the questions come from
+
+This is the part most likely to surprise you, so it gets its own section.
+
+- **Who writes them:** an OpenAI model (`INTERVIEW_QUESTION_PROVIDER=openai`,
+  a pinned `INTERVIEW_QUESTION_MODEL_ID`), code in `interview/questions.py`
+  and `interview/openai_questioner.py`. Tests use a deterministic stub.
+- **What it is shown:** the candidate's confirmed CV **with phone, email,
+  links and name stripped out** (`domain.redact_contacts`), their onboarding
+  answers in words (never the free-text accessibility answer), the language to
+  ask in, **every question they were asked in any earlier session**, and this
+  session's questions with what the candidate said (the transcripts). Never
+  the score, never a name.
+- **What it returns:** exactly `{kind, prompt, looking_for}`. `kind` is
+  `OPENING` for question 1, then `FOLLOW_UP` (digging into the last answer) or
+  `NEW_TOPIC`.
+- **No repeats, enforced twice.** The model is told not to repeat an earlier
+  question, *and* `domain.parse_drafted_question` refuses a draft that matches
+  any earlier question after ignoring case, punctuation and spacing. A refused
+  draft is sent back to the model with the reason, up to three tries
+  (`MAX_DRAFT_ATTEMPTS`). The client asked for this because a second paid
+  interview that repeats the first feels like money wasted.
+- **No fixed fallback.** If no usable question comes back, the request is a
+  `503` and the app retries. The old fixed question sets in `bank.py` are
+  only read for sessions started before 2026-09-29.
+- Every question is stored (`interview_session_questions`) with the model and
+  prompt version that wrote it, so a report, a replay or a dispute always
+  shows exactly what was asked.
 
 ## 9. `GET /candidate/interview/sessions` and `GET .../sessions/{session_id}`
 
@@ -311,7 +366,8 @@ current state.
 **Auth required:** `CANDIDATE` role + active subscription. `question_index`
 must be between `0` and `QUESTIONS_PER_SESSION - 1` (6 questions per
 session) — anything outside that range is a `422` before the handler even
-runs.
+runs. A question that has not been written yet is
+`409 interview_question_not_ready`: ask for it first (§10a).
 
 **Request:** no body.
 
@@ -338,6 +394,36 @@ answer, then `PUT` the bytes to `url`.
 stored, feedback about what a good answer would contain is finally shown
 (useful for the candidate's own learning, harmless once they've already
 answered).
+
+### 10a. `POST /candidate/interview/sessions/{session_id}/next-question`
+
+**Auth required:** `CANDIDATE` role + active subscription. **Request:** no body.
+
+Call it right after an answer's `/complete` returns `STORED`. The server
+transcribes that answer (Sarvam, in-session), shows the model everything in
+§8a, and writes the next question.
+
+**Response** — `200 OK`, the whole `SessionResponse` with one more entry in
+`questions`; the new question is the last one:
+```json
+{ "question_set_code": "ADAPTIVE", "questions_total": 6,
+  "questions": [
+    { "index": 0, "code": "S1Q1", "prompt": "…", "looking_for": "What you were responsible for, and one thing you changed." },
+    { "index": 1, "code": "S1Q2", "key": null,
+      "prompt": "You said you re-sequenced the dock slots. How did you decide the new order, and what changed on a typical night?",
+      "looking_for": null }
+  ], "...": "..." }
+```
+- **It takes about 9 seconds** (≈6 s hearing the answer, ≈3 s writing).
+  Show an "interviewer is thinking" state.
+- **Safe to retry.** Called again before the new question's answer is
+  stored, it returns the same session unchanged — a dropped response never
+  produces a second question.
+- `409 interview_previous_answer_not_stored` only if an *earlier* answer is
+  missing. `503 interview_question_unavailable` if the model could not write
+  one: nothing was written, call again.
+- If transcription fails, the question is still written — just without
+  hearing that answer — so the candidate is never stuck mid-interview.
 
 ---
 
@@ -401,6 +487,44 @@ than silently retried forever.
 
 ---
 
+## 13. `GET /candidate/interview/history` — every session, for the history screen
+
+**Auth required:** `CANDIDATE` role + active subscription. **Request:** no body.
+
+**Response** — `200 OK`, newest first:
+```json
+[
+  { "id": "3a1c...", "session_number": 2, "state": "EVALUATED",
+    "question_set_code": "ADAPTIVE", "question_set_title": "Questions written for you",
+    "created_at": "...", "completed_at": "...",
+    "questions_asked": 6, "answers_stored": 6, "report_status": "READY" }
+]
+```
+`report_status` is `NOT_COMPLETED` (still being recorded, or abandoned),
+`PENDING`, `READY` or `FAILED` — exactly what §12 would say, so the list can
+show a badge without one call per session.
+
+## 14. `GET /candidate/interview/sessions/{session_id}/recordings` — hear yourself
+
+**Auth required:** `CANDIDATE` role + active subscription. **Request:** no body.
+
+**Response** — `200 OK`, one entry per stored answer:
+```json
+[
+  { "question_index": 0, "question_code": "S1Q1", "prompt": "…",
+    "url": "https://…/interview-audio/…?X-Amz-Signature=…", "expires_in_seconds": 900,
+    "mime": "audio/ogg", "duration_ms": 12000, "uploaded_at": "...",
+    "transcript": "मैं चाकण में वेयरहाउस सुपरवाइज़र हूँ…" }
+]
+```
+`url` is a **presigned GET that expires** — put it straight in an `<audio>`
+element, and fetch the list again for fresh links rather than storing them.
+`transcript` is `null` until that answer has been heard. Someone else's
+session is a `404`. Staff hear the same recordings through the admin console,
+audited ([13](13-admin-console-and-disputes-apis.md)).
+
+---
+
 ## Quick reference
 
 | | Questionnaire | Mock interview |
@@ -409,4 +533,6 @@ than silently retried forever.
 | Needs its own purchase? | No (subscription only) | **Yes** — one purchase per session |
 | Has a device check gate? | No | Yes, required and time-limited |
 | Produces feedback? | A recap of what was shared | Per-dimension levels, transcript, comments |
+| Where the questions come from | A fixed bank | **Written by AI per candidate**, one after each answer, never repeating an earlier session |
+| Can you replay it? | — | Yes: history (§13) and recordings (§14) |
 | Auth on every endpoint | `CANDIDATE` + active subscription | `CANDIDATE` + active subscription |

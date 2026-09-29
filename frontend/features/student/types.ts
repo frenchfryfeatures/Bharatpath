@@ -14,6 +14,46 @@ export interface StudentProfile {
   updatedAt: string | null;
 }
 
+export type StreakStatus =
+  | "NONE"
+  | "ACTIVE_TODAY"
+  | "AT_RISK"
+  | "BROKEN";
+
+export interface StreakMilestone {
+  days: number;
+  points: number;
+}
+
+export interface StudentStreak {
+  status: StreakStatus;
+  currentStreak: number;
+  longestStreak: number;
+  lastActiveOn: string | null;
+  today: string;
+  pointsBalance: number;
+  nextMilestone: StreakMilestone | null;
+  milestones: StreakMilestone[];
+  breakPenalty: number;
+  rulesVersion: string;
+}
+
+export interface StreakPointsChange {
+  kind: "STREAK_BREAK_PENALTY" | "MILESTONE_AWARD";
+  points: number;
+  balanceAfter: number;
+  streakLength: number;
+  milestoneDays: number | null;
+  activityOn: string;
+  createdAt: string;
+}
+
+export interface StudentStreakCheckIn {
+  counted: boolean;
+  streak: StudentStreak;
+  changes: StreakPointsChange[];
+}
+
 export type JobEligibility =
   | "ELIGIBLE"
   | "BELOW_THRESHOLD"

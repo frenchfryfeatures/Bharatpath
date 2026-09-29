@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAppDispatch } from "@/store/hooks";
 import { clearUser } from "@/store/common/slices/auth.slice";
 import { clearTenant } from "@/store/common/slices/tenant.slice";
+import { clearStoredToken } from "@/lib/auth/token";
 import { ConfirmModal } from "@/components/ui";
 
 import { StudentHeader } from "./student-header";
@@ -37,10 +38,11 @@ export function StudentAppShell({ children }: { children: ReactNode }) {
   }, [pathname]);
 
   const handleLogout = () => {
+    clearStoredToken();
     dispatch(clearUser());
     dispatch(clearTenant());
     setLogoutOpen(false);
-    router.push("/login");
+    router.push("/api/auth/logout");
   };
 
   return (
@@ -115,4 +117,3 @@ export function StudentAppShell({ children }: { children: ReactNode }) {
     </div>
   );
 }
-

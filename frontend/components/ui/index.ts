@@ -13,6 +13,7 @@ export * from "./progress-list";
 export * from "./status-badge";
 export * from "./tooltip";
 export * from "./confirm-modal";
+export * from "./modal";
 export * from "./error-state";
 export {
   Dropdown,

@@ -216,7 +216,10 @@ export const collegeSettingsApi = baseApi.injectEndpoints({
 
     saveCollegeOnboarding: builder.mutation<
       CollegeOnboarding,
-      { answers: Record<string, unknown> }
+      {
+        answers: Record<string, unknown>;
+        __suppressSuccessFeedback?: boolean;
+      }
     >({
       query: (payload) => ({
         url: "/college/onboarding/answers",

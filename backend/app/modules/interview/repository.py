@@ -32,6 +32,7 @@ from app.modules.interview.models import (
     InterviewProduct,
     InterviewPurchase,
     InterviewSession,
+    InterviewSessionQuestion,
     InterviewTranscript,
 )
 
@@ -202,7 +203,7 @@ async def insert_session(
     session: AsyncSession,
     *,
     user_id: uuid.UUID,
-    purchase_id: uuid.UUID | None,
+    purchase_id: uuid.UUID,
     device_check_id: uuid.UUID,
     session_number: int,
     question_set_code: str,
@@ -261,6 +262,79 @@ async def save_session(session: AsyncSession, row: InterviewSession) -> Intervie
     await session.flush()
     await session.refresh(row)
     return row
+
+
+# --- questions (2026-09-29) --------------------------------------------------------
+async def questions_for(
+    session: AsyncSession, *, session_id: uuid.UUID
+) -> list[InterviewSessionQuestion]:
+    result = await session.execute(
+        select(InterviewSessionQuestion)
+        .where(InterviewSessionQuestion.session_id == session_id)
+        .order_by(InterviewSessionQuestion.question_index)
+    )
+    return list(result.scalars())
+
+
+async def insert_question(
+    session: AsyncSession,
+    *,
+    session_id: uuid.UUID,
+    question_index: int,
+    code: str,
+    key: str | None,
+    prompt: str,
+    looking_for: str,
+    kind: str,
+    source: str,
+    model_id: str | None,
+    prompt_version: str | None,
+) -> None:
+    """Insert-only. A position already asked is left as it was: the caller
+    holds the session row lock, so this only meets a row it wrote itself."""
+    await session.execute(
+        pg_insert(InterviewSessionQuestion)
+        .values(
+            id=uuid.uuid4(),
+            session_id=session_id,
+            question_index=question_index,
+            code=code,
+            key=key,
+            prompt=prompt,
+            looking_for=looking_for,
+            kind=kind,
+            source=source,
+            model_id=model_id,
+            prompt_version=prompt_version,
+        )
+        .on_conflict_do_nothing(constraint="uq_interview_session_question_slot")
+    )
+
+
+async def earlier_sessions(
+    session: AsyncSession, *, user_id: uuid.UUID, before_session_id: uuid.UUID
+) -> list[InterviewSession]:
+    """Every other session this candidate has started, abandoned ones too:
+    a question put to them once is not to be put again."""
+    result = await session.execute(
+        select(InterviewSession)
+        .where(InterviewSession.user_id == user_id, InterviewSession.id != before_session_id)
+        .order_by(InterviewSession.session_number)
+    )
+    return list(result.scalars())
+
+
+async def questions_for_sessions(
+    session: AsyncSession, *, session_ids: list[uuid.UUID]
+) -> list[InterviewSessionQuestion]:
+    if not session_ids:
+        return []
+    result = await session.execute(
+        select(InterviewSessionQuestion)
+        .where(InterviewSessionQuestion.session_id.in_(session_ids))
+        .order_by(InterviewSessionQuestion.session_id, InterviewSessionQuestion.question_index)
+    )
+    return list(result.scalars())
 
 
 # --- answers --------------------------------------------------------------------

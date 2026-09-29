@@ -26,14 +26,17 @@ import {
   useUpdateNotificationPreferencesMutation,
 } from "@/store/api/notification-api";
 import { getApiErrorMessage } from "@/lib/api/error-message";
+import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
 import { initials } from "@/features/student/formatters";
 import type { StudentProfile as StudentProfileData } from "@/features/student/types";
 import {
+  interactiveCardClass,
   NoteStrip,
   PillButton,
   SectionEyebrow,
   StudentCard,
 } from "@/features/student/components";
+import { StudentProfileSkeleton } from "@/features/student/loading";
 import { StudentPage } from "@/features/student/shell";
 
 export function StudentProfile() {
@@ -50,6 +53,17 @@ export function StudentProfile() {
   const notificationsEnabled = preferences.data?.push_enabled ?? false;
   const activeCollegeLinks =
     colleges.data?.filter((link) => link.revokedAt === null).length ?? 0;
+
+  if (
+    profile.isLoading ||
+    score.isLoading ||
+    applications.isLoading ||
+    courses.isLoading ||
+    colleges.isLoading ||
+    preferences.isLoading
+  ) {
+    return <StudentProfileSkeleton />;
+  }
 
   return (
     <StudentPage>
@@ -140,7 +154,7 @@ export function StudentProfile() {
             <button
               type="button"
               onClick={() => router.push("/student/privacy")}
-              className="flex items-center gap-3 rounded-2xl border border-[#E7E0D4] bg-white p-4 text-left"
+              className={`flex items-center gap-3 rounded-2xl border border-[#E7E0D4] bg-white p-4 text-left ${interactiveCardClass}`}
             >
               <Eye size={20} className="text-[#0A1931]" />
               <span className="flex flex-1 flex-col">
@@ -173,10 +187,10 @@ export function StudentProfile() {
                   })
                 }
                 className={[
-                  "flex h-7 w-12 items-center rounded-full p-1 transition-colors disabled:opacity-60",
+                  "flex h-7 w-12 cursor-pointer items-center rounded-full p-1 transition-colors disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30",
                   notificationsEnabled
-                    ? "justify-end bg-[#5F4DB2]"
-                    : "justify-start bg-[rgba(10,25,49,0.2)]",
+                    ? "justify-end bg-[#5F4DB2] enabled:hover:bg-[#4A3E8F]"
+                    : "justify-start bg-[rgba(10,25,49,0.2)] enabled:hover:bg-[rgba(10,25,49,0.3)]",
                 ].join(" ")}
               >
                 <span className="h-5 w-5 rounded-full bg-white" />
@@ -207,8 +221,10 @@ function ProfileForm({
 
   const saveProfile = async () => {
     try {
+      let saved = false;
       if (fullName.trim() !== (profile.fullName ?? "")) {
         await updateName(fullName.trim()).unwrap();
+        saved = true;
       }
       if (
         city.trim() !== (profile.city ?? "") ||
@@ -218,6 +234,10 @@ function ProfileForm({
           city: city.trim() || null,
           stateCode: stateCode.trim().toUpperCase() || null,
         }).unwrap();
+        saved = true;
+      }
+      if (saved) {
+        showSuccessFeedback("Profile updated.");
       }
     } catch {
       // The mutation error is rendered below the form.
@@ -315,6 +335,11 @@ function StatTile({
         indigo
           ? "border-[#5F4DB2] bg-[#5F4DB2] text-white"
           : "border-[#E7E0D4] bg-white text-[#0A1931]",
+        onClick
+          ? indigo
+            ? `${interactiveCardClass} hover:border-[#4A3E8F] hover:bg-[#5646A6]`
+            : interactiveCardClass
+          : "cursor-default",
       ].join(" ")}
     >
       <span className="text-[22px] font-extrabold leading-6">{value}</span>

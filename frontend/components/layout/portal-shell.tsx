@@ -96,7 +96,7 @@ export function PortalShell({
                     isQueuePage ||
                     isUsersPage ||
                     isDisputesPage
-                  ? "overflow-y-auto px-4 py-0"
+                  ? "overflow-y-auto px-4 pt-0 pb-4"
                   : "overflow-y-auto p-4",
             ].join(" ")}
           >

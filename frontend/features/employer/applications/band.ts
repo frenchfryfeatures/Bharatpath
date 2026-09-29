@@ -4,7 +4,15 @@ export interface ScoreBand {
   color: string;
 }
 
-export function getScoreBand(score: number): ScoreBand {
+export function getScoreBand(score: number | null): ScoreBand {
+  if (score === null) {
+    return {
+      label: "Profile not opened",
+      background: "#f0f2f5",
+      color: "#687384",
+    };
+  }
+
   if (score >= 900) {
     return {
       label: "Exceptional",

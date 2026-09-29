@@ -25,6 +25,7 @@ import {
   StatusChip,
   StudentCard,
 } from "@/features/student/components";
+import { StudentApplicationDetailSkeleton } from "@/features/student/loading";
 import { StudentPage, StudentTopBar } from "@/features/student/shell";
 
 export function ApplicationDetail() {
@@ -35,18 +36,12 @@ export function ApplicationDetail() {
   const [disputeHire, disputeState] = useDisputeStudentHireMutation();
 
   if (application.isLoading) {
-    return (
-      <StudentPage width="narrow">
-        <div className="rounded-2xl border border-[#E7E0D4] bg-white p-5 text-sm text-[#5F6B80]">
-          Loading application…
-        </div>
-      </StudentPage>
-    );
+    return <StudentApplicationDetailSkeleton />;
   }
 
   if (!application.data || application.error) {
     return (
-      <StudentPage width="narrow">
+      <StudentPage>
         <StudentTopBar title="Application" />
         <EmptyState
           title="Application unavailable"
@@ -68,7 +63,7 @@ export function ApplicationDetail() {
     withdrawState.error ?? confirmState.error ?? disputeState.error;
 
   return (
-    <StudentPage width="medium">
+    <StudentPage>
       <StudentTopBar title={item.jobTitle ?? "Application"} />
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
         <div className="flex flex-col gap-4">
@@ -158,7 +153,7 @@ export function ApplicationDetail() {
                 href={item.interview.meetingUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-3 inline-flex items-center gap-2 text-[14px] font-semibold text-[#5F4DB2]"
+                className="mt-3 inline-flex items-center gap-2 text-[14px] font-semibold text-[#5F4DB2] underline-offset-2 transition-colors hover:text-[#4A3E8F] hover:underline"
               >
                 Join interview <ExternalLink size={14} />
               </a>

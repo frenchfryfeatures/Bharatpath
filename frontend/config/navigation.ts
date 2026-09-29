@@ -10,6 +10,8 @@ import {
   ShieldCheck,
   LayoutDashboard,
   Gavel,
+  ScrollText,
+  Tags,
 } from "lucide-react";
 
 export const employerNavigation = [
@@ -93,11 +95,23 @@ export const adminNavigation = [
     icon: Users,
   },
   {
-    key: "disputes-audit",
-    label: "Disputes & Audit",
+    key: "disputes",
+    label: "Disputes",
     href: "/admin/disputes",
     icon: Gavel,
     badge: 3,
+  },
+  {
+    key: "audit",
+    label: "Audit trail",
+    href: "/admin/audit",
+    icon: ScrollText,
+  },
+  {
+    key: "search-filters",
+    label: "Attributes",
+    href: "/admin/search-filters",
+    icon: Tags,
   },
   {
     key: "settings",

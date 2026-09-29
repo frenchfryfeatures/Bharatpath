@@ -1,6 +1,8 @@
 export interface BarChartItem {
   label: string;
   value: number;
+  /** Shown above the bar instead of `value`, e.g. "—" for a withheld count. */
+  display?: string;
 }
 
 export interface BarChartProps {
@@ -34,7 +36,7 @@ export function BarChart({
             className="flex min-w-0 flex-1 flex-col items-center"
           >
             <span className="mb-1.5 text-[12px] font-semibold text-[#151b2b]">
-              {item.value}
+              {item.display ?? item.value}
             </span>
 
             <div

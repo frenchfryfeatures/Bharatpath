@@ -40,6 +40,7 @@ from app.core.i18n import DEFAULT_LOCALE, load_bundle
 from app.core.logging import get_logger
 from app.core.pagination import clamp_limit, decode_cursor, encode_cursor
 from app.core.tenant import TenantContext
+from app.modules.applications import service as applications_service
 from app.modules.college import service as college_service
 from app.modules.identity import service as identity_service
 from app.modules.notifications import repository, unsubscribe
@@ -54,6 +55,7 @@ from app.modules.notifications.domain import (
     delivery_decision,
     format_amount,
     format_date,
+    format_moment,
     nudge_due,
     nudge_rules_from_config,
     plan_for,
@@ -284,6 +286,26 @@ async def _variables(
             values[name] = int(payload["amount_minor"])
         elif name == "date" and payload.get("debit_not_before"):
             values[name] = datetime.fromisoformat(str(payload["debit_not_before"]))
+    if {"message", "when", "link"} & set(plan.variables):
+        values.update(await _message_variables(session, payload))
+    return values
+
+
+async def _message_variables(session: AsyncSession, payload: dict[str, Any]) -> dict[str, Any]:
+    """An employer's message, read at dispatch: the payload names it and
+    carries none of its words. A template that does not use a value ignores
+    it; a missing link becomes an empty line, never a visible `{link}`."""
+    message_id = _uuid(payload.get("message_id"))
+    found = (
+        await applications_service.message_for_delivery(session, message_id=message_id)
+        if message_id is not None
+        else None
+    )
+    if found is None:
+        return {}
+    values: dict[str, Any] = {"message": found.body, "link": found.link or ""}
+    if found.scheduled_at is not None:
+        values["when"] = found.scheduled_at
     return values
 
 
@@ -294,6 +316,8 @@ def _for_channel(values: dict[str, Any], channel: str) -> dict[str, str]:
             rendered[name] = format_amount(int(value), channel=channel)
         elif name == "date":
             rendered[name] = format_date(value)
+        elif name == "when":
+            rendered[name] = format_moment(value)
         else:
             rendered[name] = str(value)
     return rendered

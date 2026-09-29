@@ -19,6 +19,16 @@ export interface UserRow {
   joined: string;
 }
 
+/** Server-driven (cursor) pagination controls shared by the user tabs. */
+export interface UsersPagination {
+  pageSize: number;
+  currentPage: number;
+  hasNextPage: boolean;
+  onNextPage: () => void;
+  onPreviousPage: () => void;
+  onPageSizeChange: (pageSize: number) => void;
+}
+
 export interface AdminUsersState {
   segment: UserSegment;
   search: string;

@@ -1,9 +1,7 @@
 export {
   default as employerJobsReducer,
-
   setJobsSearch,
   setJobsStatusFilter,
-  setJobsCurrentPage,
 } from "./jobs.slice";
 export type {
   JobsStatusFilter,
@@ -13,12 +11,12 @@ export type {
 export {
   selectJobsSearch,
   selectJobsStatusFilter,
-  selectJobsCurrentPage,
 } from "./jobs.selectors";
 
 export {
   employerJobsApi,
   useGetEmployerJobsQuery,
+  useLazyGetEmployerJobsQuery,
   useGetEmployerJobQuery,
   usePreviewEmployerJobThresholdQuery,
   useCreateEmployerJobMutation,

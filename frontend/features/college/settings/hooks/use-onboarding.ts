@@ -100,7 +100,10 @@ export function useCollegeOnboarding() {
     setFormError(null);
     try {
       /* Persist the latest answers first, then submit for validation. */
-      await saveOnboarding({ answers }).unwrap();
+      await saveOnboarding({
+        answers,
+        __suppressSuccessFeedback: true,
+      }).unwrap();
       await submitOnboarding().unwrap();
       setFieldErrors({});
     } catch (error) {

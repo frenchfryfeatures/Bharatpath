@@ -23,17 +23,20 @@ is how a seated student gets access at all; putting it behind a subscription
 would ask them to pay for the thing their college has paid for. Granting and
 revoking consent are the student's, and never wait on anyone's payment.
 
-**Day 18.** A college sees a student as a person only through `/college/students`,
-behind a live INDIVIDUAL consent read on every request, audited on every
-read, and behind payment like the analytics beside it.
+**Day 18.** `/college/students` combines names from the college's own roster
+with individually visible candidates. A candidate id and profile open are
+available only behind live INDIVIDUAL consent, read on every request. List
+pages and profile opens are audited and paywalled like the analytics beside
+them.
 """
 
 from __future__ import annotations
 
 import uuid
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
+from pydantic import BeforeValidator
 
 from app.core.deps import (
     CANDIDATE,
@@ -47,9 +50,13 @@ from app.core.deps import (
     require_active_subscription,
     require_role,
 )
+from app.modules.applications.domain import stage_summary
 from app.modules.college import service
+from app.modules.college.domain import (
+    StudentStageFilter,
+    format_code,
+)
 from app.modules.college.domain import consent_terms as terms_for
-from app.modules.college.domain import format_code
 from app.modules.college.models import ReferralCode
 from app.modules.college.schemas import (
     AddTeamMemberRequest,
@@ -58,7 +65,9 @@ from app.modules.college.schemas import (
     ChangeRoleRequest,
     CollegeLinkResponse,
     CollegeResponse,
+    CollegeStudentDetailsResponse,
     CollegeStudentResponse,
+    CollegeStudentResumeResponse,
     ConsentTermsResponse,
     CreateCollegeRequest,
     FormOption,
@@ -69,23 +78,40 @@ from app.modules.college.schemas import (
     LinkByCodeRequest,
     OnboardingResponse,
     ReferralCodeResponse,
+    ReferralCodesPage,
     RevokeConsentRequest,
     RevokeConsentResponse,
     RosterImportResponse,
+    RosterImportsPage,
     RosterRowResponse,
     RosterRowsPage,
     RosterUploadRequest,
     SaveOnboardingRequest,
     SeatsResponse,
+    StudentAnswer,
+    StudentApplicationAnalytics,
+    StudentApplicationResponse,
+    StudentCourseResponse,
     StudentHireResponse,
     TeamMemberResponse,
     UpdateCollegeRequest,
     VisibleStudentResponse,
     VisibleStudentsPage,
 )
+from app.modules.questionnaire.domain import answers_in_words
 
 router = APIRouter()
 candidate_router = APIRouter()
+
+
+def _normalise_student_stage(value: object) -> object:
+    return value.upper() if isinstance(value, str) else value
+
+
+StudentStageQuery = Annotated[
+    StudentStageFilter,
+    BeforeValidator(_normalise_student_stage),
+]
 
 AnyCollegeRole = Depends(require_role(COLLEGE_ADMIN, COLLEGE_STAFF))
 AdminOnly = Depends(require_role(COLLEGE_ADMIN))
@@ -335,12 +361,28 @@ async def issue_code(
 
 @router.get(
     "/referral-codes",
-    response_model=list[ReferralCodeResponse],
+    response_model=ReferralCodesPage,
     dependencies=[AnyCollegeRole],
     summary="The college's referral codes, newest first",
 )
-async def list_codes(user: CurrentUser, session: DbSession) -> list[ReferralCodeResponse]:
-    return [_code(row) for row in await service.list_codes(session, ctx=user)]
+async def list_codes(
+    user: CurrentUser,
+    session: DbSession,
+    cursor: str | None = None,
+    limit: int = Query(default=30, ge=1, le=100),
+    active_only: bool = False,
+) -> ReferralCodesPage:
+    page = await service.list_codes(
+        session,
+        ctx=user,
+        cursor=cursor,
+        limit=limit,
+        active_only=active_only,
+    )
+    return ReferralCodesPage(
+        items=[_code(row) for row in page.items],
+        next_cursor=page.next_cursor,
+    )
 
 
 @router.post(
@@ -371,8 +413,9 @@ async def upload_roster(
     payload: RosterUploadRequest, response: Response, user: CurrentUser, session: DbSession
 ) -> RosterImportResponse:
     """Nothing is invited until the import is committed. Every row comes back
-    with its state and issues. The same file again answers 200 with the
-    import it already made. 422 `roster_*` when the file itself is unusable."""
+    with its state and issues. The same retained file answers 200 with the
+    import it already made; a discarded file creates a fresh preview. 422
+    `roster_*` when the file itself is unusable."""
     view = await service.upload_roster(
         session, ctx=user, file_name=payload.file_name, csv_text=payload.csv
     )
@@ -383,12 +426,22 @@ async def upload_roster(
 
 @router.get(
     "/roster-imports",
-    response_model=list[RosterImportResponse],
+    response_model=RosterImportsPage,
     dependencies=[AnyCollegeRole],
     summary="The college's roster imports, newest first",
 )
-async def list_imports(user: CurrentUser, session: DbSession) -> list[RosterImportResponse]:
-    return [_import(view) for view in await service.list_imports(session, ctx=user)]
+async def list_imports(
+    user: CurrentUser,
+    session: DbSession,
+    cursor: str | None = None,
+    limit: int = Query(default=30, ge=1, le=100),
+) -> RosterImportsPage:
+    page = await service.list_imports(session, ctx=user, cursor=cursor, limit=limit)
+    return RosterImportsPage(
+        items=[_import(view) for view in page.items],
+        next_cursor=page.next_cursor,
+        invitation_totals=_counts(page.invitation_totals),
+    )
 
 
 @router.get(
@@ -671,28 +724,139 @@ async def revoke_consent(
     "/students",
     response_model=VisibleStudentsPage,
     dependencies=[AnyCollegeRole, Paid],
-    summary="Students who let the college see them by name",
+    summary="The college roster by link stage",
 )
 async def list_students(
     request: Request,
     user: CurrentUser,
     session: DbSession,
-    cursor: str | None = None,
+    q: Annotated[
+        str | None,
+        Query(max_length=100, description="Part of the student's name"),
+    ] = None,
+    stage: StudentStageQuery = "ALL",
+    cursor: Annotated[str | None, Query(max_length=512)] = None,
     limit: int | None = Query(default=None, ge=1, le=100),
 ) -> VisibleStudentsPage:
-    """Only students with a live individual-visibility consent; everyone else
-    is counted in analytics and never named. Every page read is audited."""
+    """`q` matches part of the displayed student name, case-insensitively.
+
+    LINKED rows use the student's live individual-visibility grant. INVITED
+    and CONSENT_PENDING rows use only names from the college's own roster and
+    never expose a candidate id. Every page read is audited.
+    """
     page = await service.list_visible_students(
-        session, ctx=user, cursor=cursor, limit=limit, request_id=get_request_id(request)
+        session,
+        ctx=user,
+        cursor=cursor,
+        limit=limit,
+        query=q,
+        stage=stage,
+        request_id=get_request_id(request),
     )
     return VisibleStudentsPage(
         items=[
             VisibleStudentResponse(
-                candidate_id=s.candidate_id, full_name=s.full_name, visible_since=s.visible_since
+                candidate_id=s.candidate_id,
+                roster_entry_id=s.roster_entry_id,
+                full_name=s.full_name,
+                stage_since=s.stage_since,
+                visible_since=s.visible_since,
+                link_state=s.link_state,
             )
             for s in page.items
         ],
         next_cursor=page.next_cursor,
+    )
+
+
+@router.get(
+    "/students/{candidate_id}/details",
+    response_model=CollegeStudentDetailsResponse,
+    dependencies=[AnyCollegeRole, Paid],
+    summary="A student's sign-up details, interviews, courses and applications",
+)
+async def get_student_details(
+    candidate_id: uuid.UUID, request: Request, user: CurrentUser, session: DbSession
+) -> CollegeStudentDetailsResponse:
+    """Only for a student whose visibility consent is to the current words
+    (2026-09-29), which name all of this. 409
+    `college_student_details_not_shared` for a student who agreed to earlier
+    words -- only they can agree to these -- and 404 unless their consent is
+    live. Every open is audited."""
+    view = await service.open_student_details(
+        session, ctx=user, candidate_id=candidate_id, request_id=get_request_id(request)
+    )
+    summary = stage_summary(current=[a.stage for a in view.applications], reached=view.reached)
+    return CollegeStudentDetailsResponse(
+        candidate_id=view.candidate_id,
+        consent_version=view.consent_version,
+        email=view.email,
+        phone=view.phone,
+        city=view.city,
+        state_code=view.state_code,
+        locale=view.locale,
+        questionnaire=[
+            StudentAnswer(code=a.code, question=a.question, answer=a.answer)
+            for a in answers_in_words(view.questionnaire, include_free_text=False)
+        ],
+        questionnaire_submitted_at=view.questionnaire_submitted_at,
+        resume_confirmed_at=view.resume_confirmed_at,
+        has_resume_file=view.has_resume_file,
+        interviews_completed=view.interviews_completed,
+        courses=[
+            StudentCourseResponse(
+                code=c.code,
+                title=c.title,
+                purchased_at=c.purchased_at,
+                lessons_total=c.lessons_total,
+                lessons_completed=c.lessons_completed,
+                percent_complete=c.percent_complete,
+                completed_at=c.completed_at,
+            )
+            for c in view.courses
+        ],
+        applications=[
+            StudentApplicationResponse(
+                job_title=a.job_title,
+                employer_name=a.employer_name,
+                job_location=a.job_location,
+                stage=a.stage,
+                applied_at=a.applied_at,
+                updated_at=a.updated_at,
+            )
+            for a in view.applications
+        ],
+        analytics=StudentApplicationAnalytics(
+            total=summary.total,
+            open=summary.open,
+            by_stage=summary.by_stage,
+            reached=summary.reached,
+        ),
+    )
+
+
+@router.get(
+    "/students/{candidate_id}/resume",
+    response_model=CollegeStudentResumeResponse,
+    dependencies=[AnyCollegeRole, Paid],
+    summary="The student's CV (audited)",
+)
+async def get_student_resume(
+    candidate_id: uuid.UUID, request: Request, user: CurrentUser, session: DbSession
+) -> CollegeStudentResumeResponse:
+    """The confirmed CV the score was built from. Same consent rule as
+    `/details`; 404 `college_student_resume_not_found` before the student has
+    one. `file_url` is a presigned GET that expires."""
+    resume = await service.open_student_resume(
+        session, ctx=user, candidate_id=candidate_id, request_id=get_request_id(request)
+    )
+    return CollegeStudentResumeResponse(
+        confirmed_at=resume.confirmed_at,
+        source=resume.source,
+        text=resume.text,
+        fields=resume.fields,
+        file_url=resume.file_url,
+        file_mime=resume.file_mime,
     )
 
 

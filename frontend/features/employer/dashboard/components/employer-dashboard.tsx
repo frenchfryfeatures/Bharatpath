@@ -8,11 +8,12 @@ import {
   CardSkeletonGrid,
   Skeleton,
 } from "@/components/common/loading";
+import { RecentActivityList } from "@/components/common/dashboard/recent-activity";
+import { ErrorState } from "@/components/ui";
 
 import { DashboardStats } from "./dashboard-stats";
 import { QuickActions } from "./quick-actions";
 import { TopJobs } from "./top-jobs";
-import { EmployerRecentActivity } from "./employer-recent-activity";
 
 export function EmployerDashboard() {
   const router = useRouter();
@@ -22,7 +23,15 @@ export function EmployerDashboard() {
     "Overview of your hiring activity and account status",
   );
 
-  const { data, isLoading } = useDashboard();
+  const {
+    data,
+    isLoading,
+    isError,
+    hasMoreActivities,
+    isLoadingMoreActivities,
+    loadMoreActivities,
+    refetch,
+  } = useDashboard();
 
   /*
    * ==========================================
@@ -38,8 +47,11 @@ export function EmployerDashboard() {
 
         {/* Main dashboard */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.65fr)_minmax(300px,0.95fr)]">
-          <Skeleton height={300} radius={12} />
-          <Skeleton height={520} radius={12} />
+          <div className="flex flex-col gap-4">
+            <Skeleton height={180} radius={12} />
+            <Skeleton height={220} radius={12} />
+          </div>
+          <Skeleton height={416} radius={12} />
         </div>
       </div>
     );
@@ -53,39 +65,19 @@ export function EmployerDashboard() {
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      {/* ========================================
-          STATS
-          4 columns from 1024px+
-      ======================================== */}
+      {isError ? (
+        <ErrorState
+          fallback="Some dashboard data could not be loaded. Please try again."
+          onRetry={refetch}
+        />
+      ) : null}
 
       <DashboardStats stats={data.stats} />
 
-      {/* ========================================
-          MAIN CONTENT
-
-          Left:
-          - Quick Actions
-          - Top Jobs
-
-          Right:
-          - Recent Activity
-
-          Two-column layout from 1024px+
-      ======================================== */}
-
-      <div
-        className="
-          grid
-          min-w-0
-          grid-cols-1
-          gap-4
-          lg:grid-cols-[minmax(0,1.65fr)_minmax(300px,0.95fr)]
-        "
-      >
-        {/* LEFT COLUMN */}
-
+      <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.65fr)_minmax(300px,0.95fr)]">
         <div className="flex min-w-0 flex-col gap-4">
           <QuickActions
+            disabled={!data.stats.hasAccess}
             onPostJob={() =>
               router.push("/employer/jobs/create")
             }
@@ -97,20 +89,14 @@ export function EmployerDashboard() {
             }
           />
 
-          <TopJobs
-            jobs={data.topJobs}
-            onJobClick={(jobId) =>
-              router.push(
-                `/employer/jobs/${jobId}`,
-              )
-            }
-          />
+          <TopJobs jobs={data.topJobs} />
         </div>
 
-        {/* RIGHT COLUMN */}
-
-        <EmployerRecentActivity
-          activities={data.recentActivity}
+        <RecentActivityList
+          activities={data.activities}
+          hasMore={hasMoreActivities}
+          isLoadingMore={isLoadingMoreActivities}
+          onLoadMore={loadMoreActivities}
         />
       </div>
     </div>

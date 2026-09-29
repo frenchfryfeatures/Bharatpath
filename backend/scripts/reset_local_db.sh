@@ -71,6 +71,13 @@ ENVIRONMENT=local \
 AUTH_ALLOW_LOCAL_TOKENS=true \
   "${PYTHON:-python}" scripts/seed_config.py
 
+echo "==> search filter options (placeholder content)"
+DATABASE_URL="postgresql+asyncpg://bharatpath_migrator:bharatpath_migrator@localhost:5432/${DB}" \
+REDIS_URL="redis://localhost:6379/0" \
+ENVIRONMENT=local \
+AUTH_ALLOW_LOCAL_TOKENS=true \
+  "${PYTHON:-python}" scripts/seed_filter_options.py
+
 POLICIES=$(psql_run -tAc "SELECT count(*) FROM pg_policies WHERE schemaname='public'")
 TABLES=$(psql_run -tAc "SELECT count(*) FROM pg_tables WHERE schemaname='public'")
 echo "==> done: ${TABLES} tables, ${POLICIES} row-level security policies"

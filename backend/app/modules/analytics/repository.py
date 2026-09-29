@@ -21,7 +21,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.models import ConfigValue
-from app.modules.analytics.domain import CohortCounts, Hire
+from app.modules.analytics.domain import CohortApplication, CohortCounts, Hire
 
 
 async def current_config(session: AsyncSession, *, key: str, now: datetime) -> ConfigValue | None:
@@ -68,3 +68,9 @@ async def cohort_hires(session: AsyncSession) -> list[Hire]:
         text("SELECT hired_at, job_location FROM college_cohort_hires()")
     )
     return [Hire(hired_at=r.hired_at, job_location=r.job_location) for r in result]
+
+
+async def cohort_applications(session: AsyncSession) -> list[CohortApplication]:
+    """One row per application of a linked student, and nothing saying whose."""
+    result = await session.execute(text("SELECT stage, reached FROM college_cohort_applications()"))
+    return [CohortApplication(stage=r.stage, reached=tuple(r.reached or ())) for r in result]

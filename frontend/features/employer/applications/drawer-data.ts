@@ -130,5 +130,5 @@ export const APPLICATION_STAGES: StageDefinition[] = [
   { value: 1, label: "Viewed" },
   { value: 2, label: "Shortlisted" },
   { value: 3, label: "Interview" },
-  { value: 4, label: "Hired / Rejected" },
+  { value: 4, label: "Decision" },
 ];

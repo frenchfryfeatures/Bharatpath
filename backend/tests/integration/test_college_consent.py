@@ -37,6 +37,7 @@ from tests.integration.test_college import (
     _link,
 )
 from tests.integration.test_payments import _candidate, _scalar
+from tests.integration.test_roster_import import _committed_and_sent, _phone, _student
 
 pytestmark = pytest.mark.integration
 
@@ -417,6 +418,7 @@ async def test_the_college_sees_a_consenting_student_and_every_read_is_audited(
     assert set(ids) == {str(visible), str(unscored)} and str(counted) not in ids
     names = {item["candidate_id"]: item["full_name"] for item in listed.json()["items"]}
     assert names[str(visible)] == "Asha Rao" and names[str(unscored)] is None
+    assert {item["link_state"] for item in listed.json()["items"]} == {"LINKED"}
 
     opened = await client.get(f"{STUDENTS}/{visible}", headers=college["headers"])
     assert opened.status_code == 200, opened.text
@@ -469,6 +471,151 @@ async def test_the_list_pages_and_a_bad_cursor_is_refused(client: Any, mint_toke
     assert {i["candidate_id"] for i in first["items"] + second["items"]} == seeded
     bad = await client.get(STUDENTS, params={"cursor": "e30"}, headers=college["headers"])
     assert bad.status_code == 422
+
+
+async def test_the_list_searches_names_before_paginating(client: Any, mint_token: Any) -> None:
+    college = await _college(client, mint_token)
+    code = await _code(client, college)
+    matching = {
+        str(
+            await _seed_student(
+                college,
+                code["id"],
+                individual=True,
+                name=f"Searchable Student {suffix}",
+            )
+        )
+        for suffix in ("Alpha", "Beta", "Gamma")
+    }
+    await _seed_student(
+        college,
+        code["id"],
+        individual=True,
+        name="Different Name",
+    )
+
+    first_response = await client.get(
+        STUDENTS,
+        params={"q": "  sEaRcHaBlE  ", "limit": 2},
+        headers=college["headers"],
+    )
+    assert first_response.status_code == 200, first_response.text
+    first = first_response.json()
+    assert len(first["items"]) == 2 and first["next_cursor"]
+
+    second_response = await client.get(
+        STUDENTS,
+        params={"q": "searchable", "limit": 2, "cursor": first["next_cursor"]},
+        headers=college["headers"],
+    )
+    assert second_response.status_code == 200, second_response.text
+    second = second_response.json()
+    assert second["next_cursor"] is None
+    assert {item["candidate_id"] for item in first["items"] + second["items"]} == matching
+
+    no_match = await client.get(
+        STUDENTS,
+        params={"q": "Nobody has this name", "limit": 10},
+        headers=college["headers"],
+    )
+    assert no_match.status_code == 200
+    assert no_match.json() == {"items": [], "next_cursor": None}
+
+    too_long = await client.get(
+        STUDENTS,
+        params={"q": "x" * 101},
+        headers=college["headers"],
+    )
+    assert too_long.status_code == 422
+
+
+async def test_the_list_filters_every_link_stage(client: Any, mint_token: Any) -> None:
+    college = await _college(client, mint_token)
+    code = await _code(client, college)
+    linked = await _seed_student(
+        college,
+        code["id"],
+        individual=True,
+        name="Linked Student",
+    )
+
+    invited_phone = _phone()
+    await _committed_and_sent(
+        client,
+        college,
+        f"name,phone\nInvited Student,{invited_phone}\n",
+    )
+
+    pending_phone = _phone()
+    await _committed_and_sent(
+        client,
+        college,
+        f"name,phone\nConsent Pending Student,{pending_phone}\n",
+    )
+    pending_student = await _student(mint_token, pending_phone)
+    invitation = (
+        await client.get(f"{STUDENT}/invitations", headers=pending_student["headers"])
+    ).json()[0]
+    accepted = await client.post(
+        f"{STUDENT}/invitations/{invitation['id']}/accept",
+        json={"consent_version": CONSENT_VERSION},
+        headers=pending_student["headers"],
+    )
+    # 200, as `test_roster_import.py` holds: accepting answers with the link.
+    assert accepted.status_code == 200, accepted.text
+
+    expected = {
+        "LINKED": ("Linked Student", str(linked)),
+        "INVITED": ("Invited Student", None),
+        "CONSENT_PENDING": ("Consent Pending Student", None),
+    }
+    for stage, (name, candidate_id) in expected.items():
+        response = await client.get(
+            STUDENTS,
+            params={"stage": stage, "q": name.split()[0]},
+            headers=college["headers"],
+        )
+        assert response.status_code == 200, response.text
+        assert len(response.json()["items"]) == 1
+        item = response.json()["items"][0]
+        assert (item["full_name"], item["link_state"], item["candidate_id"]) == (
+            name,
+            stage,
+            candidate_id,
+        )
+        assert (item["roster_entry_id"] is None) == (stage == "LINKED")
+        assert item["stage_since"]
+
+    all_stages = await client.get(
+        STUDENTS,
+        params={"stage": "ALL"},
+        headers=college["headers"],
+    )
+    assert all_stages.status_code == 200, all_stages.text
+    assert {item["link_state"] for item in all_stages.json()["items"]} == {
+        "LINKED",
+        "INVITED",
+        "CONSENT_PENDING",
+    }
+
+    title_case_all = await client.get(
+        STUDENTS,
+        params={"stage": "All"},
+        headers=college["headers"],
+    )
+    assert title_case_all.status_code == 200, title_case_all.text
+    assert {item["link_state"] for item in title_case_all.json()["items"]} == {
+        "LINKED",
+        "INVITED",
+        "CONSENT_PENDING",
+    }
+
+    invalid = await client.get(
+        STUDENTS,
+        params={"stage": "UNKNOWN"},
+        headers=college["headers"],
+    )
+    assert invalid.status_code == 422
 
 
 async def test_a_student_visible_to_one_college_is_not_visible_to_another(

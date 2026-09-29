@@ -313,3 +313,76 @@ def build_placements(
         by_month=list(trend.items()),
         by_location=by_location,
     )
+
+
+# ---------------------------------------------------------------------------
+# Where the cohort's applications stand (2026-09-29)
+# ---------------------------------------------------------------------------
+#: The stages a college is shown, current and reached. Kept here rather than
+#: imported so this module stays free of `applications` (invariant 9's
+#: source check covers the college-facing files).
+APPLICATION_STAGES: Final = (
+    "SUBMITTED",
+    "VIEWED",
+    "SHORTLISTED",
+    "INTERVIEW",
+    "DECISION",
+    "HIRED",
+    "REJECTED",
+    "WITHDRAWN",
+    "EXPIRED",
+)
+APPLICATION_MILESTONES: Final = ("SHORTLISTED", "INTERVIEW", "DECISION", "HIRED")
+
+
+@dataclass(frozen=True, slots=True)
+class CohortApplication:
+    """One application of a linked student. No identity."""
+
+    stage: str
+    reached: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ApplicationFunnel:
+    min_cohort_size: int
+    below_floor: bool
+    total: int | None
+    #: Every stage, with small cells withheld as None (`suppress_cells`).
+    by_stage: dict[str, int | None]
+    #: Applications that ever reached each milestone, floored the same way.
+    reached: dict[str, int | None]
+
+
+def build_application_funnel(
+    connected: int, applications: Sequence[CohortApplication], floors: PrivacyFloors
+) -> ApplicationFunnel:
+    """The cohort's applications by stage, and how many ever reached each
+    milestone. Nothing under the cohort floor; below it, every figure is None.
+
+    Each distribution is suppressed on its own, as the score bands are: a
+    small cell and its complement are withheld, so no single student's
+    application can be read off the numbers.
+    """
+    if connected < floors.min_cohort_size:
+        return ApplicationFunnel(
+            min_cohort_size=floors.min_cohort_size,
+            below_floor=True,
+            total=None,
+            by_stage=dict.fromkeys(APPLICATION_STAGES),
+            reached=dict.fromkeys(APPLICATION_MILESTONES),
+        )
+    by_stage = dict.fromkeys(APPLICATION_STAGES, 0)
+    reached = dict.fromkeys(APPLICATION_MILESTONES, 0)
+    for application in applications:
+        by_stage[application.stage] = by_stage.get(application.stage, 0) + 1
+        for milestone in set(application.reached) | {application.stage}:
+            if milestone in reached:
+                reached[milestone] += 1
+    return ApplicationFunnel(
+        min_cohort_size=floors.min_cohort_size,
+        below_floor=False,
+        total=len(applications),
+        by_stage=suppress_cells(by_stage, min_cell_size=floors.min_cell_size),
+        reached=suppress_cells(reached, min_cell_size=floors.min_cell_size),
+    )

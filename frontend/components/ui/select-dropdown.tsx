@@ -1,56 +1,49 @@
-import React, { SelectHTMLAttributes, forwardRef } from "react";
-import { ChevronDown } from "lucide-react";
+"use client";
+
+import { Dropdown } from "./dropdown";
 
 export interface SelectOption {
   value: string;
   label: string;
 }
 
-export interface SelectDropdownProps
-  extends SelectHTMLAttributes<HTMLSelectElement> {
+export interface SelectDropdownProps {
   options: SelectOption[];
+  value: string;
+  onChange: (value: string) => void;
+  ariaLabel?: string;
+  placeholder?: string;
+  disabled?: boolean;
   containerClassName?: string;
+  className?: string;
 }
 
-export const SelectDropdown = forwardRef<
-  HTMLSelectElement,
-  SelectDropdownProps
->(
-  (
-    {
-      options,
-      value,
-      onChange,
-      className = "",
-      containerClassName = "",
-      ...props
-    },
-    ref,
-  ) => {
-    return (
-      <div className={`relative flex items-center ${containerClassName}`}>
-        <select
-          ref={ref}
-          value={value}
-          onChange={onChange}
-          className={`h-[40px] w-full appearance-none rounded-xl border border-[#dfe2e8] bg-white px-3.5 pr-9 text-[13px] font-medium text-[#303747] outline-none transition-colors hover:border-[#cfd3dc] focus:border-[#5b4fcf] focus:ring-1 focus:ring-[#5b4fcf]/20 cursor-pointer ${className}`}
-          style={{ fontFamily: "'General Sans', sans-serif" }}
-          {...props}
-        >
-          {options.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-        <ChevronDown
-          size={15}
-          strokeWidth={2}
-          className="pointer-events-none absolute right-3 text-[#777f90]"
-        />
-      </div>
-    );
-  },
-);
-
-SelectDropdown.displayName = "SelectDropdown";
+/*
+ * A filter-bar select: the shared custom `Dropdown` at the 40px height and
+ * rounded-xl shape the filter bars use. No portal renders a native <select>,
+ * so every dropdown looks and behaves the same.
+ */
+export function SelectDropdown({
+  options,
+  value,
+  onChange,
+  ariaLabel,
+  placeholder,
+  disabled,
+  containerClassName = "",
+  className = "",
+}: SelectDropdownProps) {
+  return (
+    <Dropdown
+      value={value}
+      options={options}
+      onChange={onChange}
+      ariaLabel={ariaLabel}
+      placeholder={placeholder}
+      disabled={disabled}
+      width="w-full"
+      className={containerClassName}
+      buttonClassName={`h-[40px] rounded-xl border-[#dfe2e8] px-3.5 text-[13px] font-medium text-[#303747] hover:border-[#cfd3dc] focus:border-[#5b4fcf] focus:ring-[#5b4fcf]/20 ${className}`}
+    />
+  );
+}

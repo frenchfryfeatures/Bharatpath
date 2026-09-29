@@ -2,6 +2,7 @@
 
 import {
   ArrowLeft,
+  Copy,
   LockKeyhole,
   UsersRound,
 } from "lucide-react";
@@ -14,18 +15,31 @@ import {
 import { ConfigurableForm } from "@/components/forms/configurable-form";
 import type { FormFieldConfig } from "@/components/forms/configurable-form.types";
 import { usePageHeader } from "@/components/layout/header-context";
+import { ConfirmModal } from "@/components/ui";
 import { getApiErrorMessage } from "@/lib/api/error-message";
+import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
 
 import { useJobCreateForm } from "../hooks/use-job-create-form";
+import {
+  hasThreshold,
+  previewThreshold,
+  SCORE_FLOOR,
+  THRESHOLD_MAX,
+  THRESHOLD_MIN,
+  THRESHOLD_STEP,
+} from "../threshold";
 import type { CreateJobFormValues } from "../types";
 import { JobSkillsField } from "./job-skills-field";
 import {
+  useCloseEmployerJobMutation,
   useCreateEmployerJobMutation,
+  usePauseEmployerJobMutation,
   usePublishEmployerJobMutation,
   usePreviewEmployerJobThresholdQuery,
   useUpdateEmployerJobMutation,
 } from "@/store/employer/jobs";
 import { useGetEmployerOrganisationQuery } from "@/store/employer/settings";
+import type { ApiJobStatus } from "../../types";
 
 const employmentOptions = [
   {
@@ -46,14 +60,28 @@ export interface JobCreatePageProps {
   initialValues?: CreateJobFormValues;
   heading?: string;
   jobId?: string;
+  jobStatus?: ApiJobStatus;
 }
 
 export function JobCreatePage({
   initialValues,
   heading = "Create job",
   jobId,
+  jobStatus,
 }: JobCreatePageProps) {
   const router = useRouter();
+  const [statusOverride, setStatusOverride] =
+    useState<ApiJobStatus | undefined>();
+  const currentStatus = statusOverride ?? jobStatus;
+  const [closeConfirmationOpen, setCloseConfirmationOpen] =
+    useState(false);
+  const isEditing = Boolean(jobId);
+  const isDraft = currentStatus === "DRAFT";
+  const isPublished = currentStatus === "PUBLISHED";
+  const isPaused = currentStatus === "PAUSED";
+  const isClosed = currentStatus === "CLOSED";
+  const isFormEditable = !isEditing || isDraft || isPaused;
+  const canChangeToPublished = !isEditing || isDraft || isPaused;
 
   const {
     values,
@@ -61,20 +89,39 @@ export function JobCreatePage({
     setValue,
     validate,
   } = useJobCreateForm(initialValues);
-  const { data: organisation } = useGetEmployerOrganisationQuery();
+  const { data: organisation } = useGetEmployerOrganisationQuery(undefined, {
+    skip: !canChangeToPublished,
+  });
   const canPublish = organisation?.kybStatus === "APPROVED";
-  const { data: thresholdPreview } = usePreviewEmployerJobThresholdQuery(values.minScore);
+  const { data: thresholdPreview } = usePreviewEmployerJobThresholdQuery(
+    previewThreshold(values.minScore),
+    {
+      skip:
+        !isFormEditable ||
+        !hasThreshold(values.minScore),
+    },
+  );
+  const thresholdSet = hasThreshold(values.minScore);
   const [createJob, { isLoading: isCreating }] = useCreateEmployerJobMutation();
   const [updateJob, { isLoading: isUpdating }] = useUpdateEmployerJobMutation();
   const [publish, { isLoading: isPublishing }] = usePublishEmployerJobMutation();
-  const isSaving = isCreating || isUpdating || isPublishing;
+  const [pauseJob, { isLoading: isPausing }] = usePauseEmployerJobMutation();
+  const [closeJob, { isLoading: isClosing }] = useCloseEmployerJobMutation();
+  const isSaving =
+    isCreating ||
+    isUpdating ||
+    isPublishing ||
+    isPausing ||
+    isClosing;
 
   const [toast, setToast] =
     useState<string | null>(null);
 
   usePageHeader(
     heading,
-    "Set requirements once. Every applicant is matched against them",
+    isClosed
+      ? "Closed jobs cannot reopen. Duplicate this job to create a new posting"
+      : "Set requirements once. Every applicant is matched against them",
   );
 
   const fields: Array<
@@ -122,12 +169,18 @@ export function JobCreatePage({
     );
   };
 
-  const saveDraft = async () => {
+  const saveJob = async () => {
     if (!validate()) return;
     try {
-      if (jobId) await updateJob({ id: jobId, values }).unwrap();
-      else await createJob(values).unwrap();
-      showToast("Draft saved");
+      if (jobId) {
+        const updated = await updateJob({ id: jobId, values }).unwrap();
+        setStatusOverride(updated.status);
+        showSuccessFeedback("Job updated.");
+        return;
+      }
+
+      await createJob(values).unwrap();
+      showSuccessFeedback("Job saved as a draft.");
       window.setTimeout(() => router.push("/employer/jobs"), 450);
     } catch (error) {
       showToast(getApiErrorMessage(error, "Could not save the job"));
@@ -147,12 +200,46 @@ export function JobCreatePage({
       const saved = jobId
         ? await updateJob({ id: jobId, values }).unwrap()
         : await createJob(values).unwrap();
-      await publish(saved.id).unwrap();
-      showToast("Job published");
-      window.setTimeout(() => router.push("/employer/jobs"), 650);
+      const published = await publish(saved.id).unwrap();
+      setStatusOverride(published.status);
+      showSuccessFeedback("Job published.");
+      if (!jobId) {
+        window.setTimeout(() => router.push("/employer/jobs"), 650);
+      }
     } catch (error) {
       showToast(getApiErrorMessage(error, "Could not publish the job"));
     }
+  };
+
+  const pauseCurrentJob = async () => {
+    if (!jobId) return;
+
+    try {
+      const paused = await pauseJob(jobId).unwrap();
+      setStatusOverride(paused.status);
+    } catch (error) {
+      showToast(getApiErrorMessage(error, "Could not pause the job"));
+    }
+  };
+
+  const closeCurrentJob = async () => {
+    if (!jobId) return;
+
+    try {
+      const closed = await closeJob(jobId).unwrap();
+      setStatusOverride(closed.status);
+      setCloseConfirmationOpen(false);
+    } catch (error) {
+      setCloseConfirmationOpen(false);
+      showToast(getApiErrorMessage(error, "Could not close the job"));
+    }
+  };
+
+  const duplicateJob = () => {
+    if (!jobId) return;
+    router.push(
+      `/employer/jobs/create?duplicateFrom=${encodeURIComponent(jobId)}`,
+    );
   };
 
   return (
@@ -183,6 +270,7 @@ export function JobCreatePage({
             values={values}
             fields={fields}
             errors={errors}
+            disabled={!isFormEditable}
             onChange={(name, value) =>
               setValue(
                 name,
@@ -236,6 +324,7 @@ export function JobCreatePage({
             <JobSkillsField
               value={values.skills}
               error={errors.skills}
+              disabled={!isFormEditable}
               onChange={(skills) =>
                 setValue("skills", skills)
               }
@@ -249,6 +338,7 @@ export function JobCreatePage({
                 <input
                   type="number"
                   min={0}
+                  disabled={!isFormEditable}
                   value={values.salaryMin}
                   onChange={(event) =>
                     setValue(
@@ -271,6 +361,7 @@ export function JobCreatePage({
                 <input
                   type="number"
                   min={0}
+                  disabled={!isFormEditable}
                   value={values.salaryMax}
                   onChange={(event) =>
                     setValue(
@@ -291,16 +382,23 @@ export function JobCreatePage({
               label="Minimum score threshold"
               trailing={
                 <span className="text-[15px] font-bold text-[#151b2b]">
-                  {values.minScore}
+                  {thresholdSet ? values.minScore : `${values.minScore} · No minimum`}
                 </span>
               }
               error={errors.minScore}
             >
               <input
                 type="range"
-                min={700}
-                max={990}
+                min={THRESHOLD_MIN}
+                max={THRESHOLD_MAX}
+                step={THRESHOLD_STEP}
                 value={values.minScore}
+                disabled={!isFormEditable}
+                aria-valuetext={
+                  thresholdSet
+                    ? `Minimum score ${values.minScore}`
+                    : "No minimum score"
+                }
                 onChange={(event) =>
                   setValue(
                     "minScore",
@@ -309,38 +407,66 @@ export function JobCreatePage({
                     ),
                   )
                 }
-                className="w-full cursor-pointer accent-[#2f5da8]"
+                className="w-full cursor-pointer accent-[#2f5da8] disabled:cursor-not-allowed disabled:opacity-60"
               />
 
               <div className="mt-1.5 flex justify-between text-[11px] text-[#7b8493]">
-                <span>700</span>
-                <span>990</span>
+                <span>{THRESHOLD_MIN}</span>
+                <span>{THRESHOLD_MAX}</span>
               </div>
+              <p className="mt-1 text-[11px] leading-4 text-[#7b8493]">
+                Candidate scores start at {SCORE_FLOOR}, so anything below it
+                sets no minimum.
+              </p>
             </FieldShell>
 
-            <div className="flex items-center gap-2.5 rounded-[10px] bg-[#edf2fa] px-3.5 py-3">
-              <UsersRound
-                size={17}
-                strokeWidth={2}
-                className="shrink-0 text-[#28578f]"
-              />
+            {isFormEditable ? (
+              <div className="flex items-center gap-2.5 rounded-[10px] bg-[#edf2fa] px-3.5 py-3">
+                <UsersRound
+                  size={17}
+                  strokeWidth={2}
+                  className="shrink-0 text-[#28578f]"
+                />
 
-              <span className="text-[13px] font-medium leading-[17px] text-[#28578f]">
-                {thresholdPreview?.fewer_than_ten
-                  ? "Fewer than 10 candidates"
-                  : `${thresholdPreview?.approximate_count ?? "—"} candidates`} in your pool currently meet this bar
-              </span>
-            </div>
+                <span className="text-[13px] font-medium leading-[17px] text-[#28578f]">
+                  {!thresholdSet
+                    ? "No minimum score. Every scored candidate in your pool meets this bar"
+                    : `${thresholdPreview?.fewer_than_ten
+                        ? "Fewer than 10 candidates"
+                        : `${thresholdPreview?.approximate_count ?? "—"} candidates`} in your pool currently meet this bar`}
+                </span>
+              </div>
+            ) : null}
           </div>
         </section>
 
         {/* REVIEW & PUBLISH */}
         <section className="mt-5 rounded-[14px] border border-[#e1e5ea] bg-white p-5 shadow-[0_4px_12px_rgba(19,26,38,0.025)] sm:p-6">
           <SectionTitle>
-            Review &amp; publish
+            {isEditing ? "Job actions" : "Review & publish"}
           </SectionTitle>
 
-          {!canPublish ? (
+          {isPublished ? (
+            <div className="mb-4 rounded-[10px] bg-[#edf2fa] px-4 py-3.5 text-xs leading-[17px] text-[#28578f]">
+              This job is live. Pause it before changing its details.
+            </div>
+          ) : null}
+
+          {isPaused ? (
+            <div className="mb-4 rounded-[10px] bg-[#fff7e8] px-4 py-3.5 text-xs leading-[17px] text-[#8a5a00]">
+              This job is paused and hidden from candidates. You can update
+              its details, publish it again, or close it.
+            </div>
+          ) : null}
+
+          {isClosed ? (
+            <div className="mb-4 rounded-[10px] bg-[#f4f5f7] px-4 py-3.5 text-xs leading-[17px] text-[#5d6673]">
+              This job is permanently closed. Duplicate it to create a new
+              draft with the same details.
+            </div>
+          ) : null}
+
+          {canChangeToPublished && !canPublish ? (
             <div className="mb-4 flex items-start gap-2.5 rounded-[10px] bg-[#fff7e8] px-4 py-3.5">
               <LockKeyhole
                 size={17}
@@ -358,24 +484,83 @@ export function JobCreatePage({
             </div>
           ) : null}
 
-          <div className="flex flex-col gap-2.5 sm:flex-row">
-            <button
-              type="button"
-              onClick={saveDraft}
-              disabled={isSaving}
-              className="flex-1 cursor-pointer rounded-[8px] border border-[#e1e5ea] bg-white px-4 py-3 text-sm font-semibold text-[#151b2b] transition hover:bg-[#f7f8fa]"
-            >
-              Save as draft
-            </button>
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
+            {!isEditing ? (
+              <>
+                <button
+                  type="button"
+                  onClick={saveJob}
+                  disabled={isSaving}
+                  className="flex-1 cursor-pointer rounded-[8px] border border-[#e1e5ea] bg-white px-4 py-3 text-sm font-semibold text-[#151b2b] transition hover:bg-[#f7f8fa] disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  Save as draft
+                </button>
 
-            <button
-              type="button"
-              onClick={publishJob}
-              disabled={!canPublish || isSaving}
-              className="flex-[1.5] cursor-pointer rounded-[8px] bg-[#151b2b] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#222b3e] disabled:cursor-not-allowed disabled:opacity-45"
-            >
-              Publish job
-            </button>
+                <button
+                  type="button"
+                  onClick={publishJob}
+                  disabled={!canPublish || isSaving}
+                  className="flex-[1.5] cursor-pointer rounded-[8px] bg-[#151b2b] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#222b3e] disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  Publish job
+                </button>
+              </>
+            ) : null}
+
+            {isEditing && isFormEditable ? (
+              <button
+                type="button"
+                onClick={saveJob}
+                disabled={isSaving}
+                className="min-w-[150px] flex-1 cursor-pointer rounded-[8px] border border-[#e1e5ea] bg-white px-4 py-3 text-sm font-semibold text-[#151b2b] transition hover:bg-[#f7f8fa] disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                Update job
+              </button>
+            ) : null}
+
+            {isEditing && canChangeToPublished ? (
+              <button
+                type="button"
+                onClick={publishJob}
+                disabled={!canPublish || isSaving}
+                className="min-w-[150px] flex-1 cursor-pointer rounded-[8px] bg-[#151b2b] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#222b3e] disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                Publish job
+              </button>
+            ) : null}
+
+            {isEditing && isPublished ? (
+              <button
+                type="button"
+                onClick={pauseCurrentJob}
+                disabled={isSaving}
+                className="min-w-[150px] flex-1 cursor-pointer rounded-[8px] border border-[#e8d7b5] bg-[#fffaf0] px-4 py-3 text-sm font-semibold text-[#8a5a00] transition hover:bg-[#fff4dc] disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                {isPausing ? "Pausing…" : "Pause job"}
+              </button>
+            ) : null}
+
+            {isEditing && !isClosed ? (
+              <button
+                type="button"
+                onClick={() => setCloseConfirmationOpen(true)}
+                disabled={isSaving}
+                className="min-w-[150px] flex-1 cursor-pointer rounded-[8px] border border-[#efc8c4] bg-white px-4 py-3 text-sm font-semibold text-[#b42318] transition hover:bg-[#fff4f2] disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                Close job
+              </button>
+            ) : null}
+
+            {isEditing && isClosed ? (
+              <button
+                type="button"
+                onClick={duplicateJob}
+                className="inline-flex min-w-[180px] flex-1 cursor-pointer items-center justify-center gap-2 rounded-[8px] bg-[#151b2b] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#222b3e]"
+              >
+                <Copy aria-hidden="true" size={16} />
+                Duplicate job
+              </button>
+            ) : null}
           </div>
         </section>
 
@@ -387,6 +572,16 @@ export function JobCreatePage({
             {toast}
           </div>
         ) : null}
+
+        <ConfirmModal
+          open={closeConfirmationOpen}
+          title="Close this job?"
+          description="Closing is permanent. Candidates will no longer see the job, and it cannot be reopened. You can duplicate it later to create a new posting."
+          confirmLabel="Close job"
+          confirmLoading={isClosing}
+          onClose={() => setCloseConfirmationOpen(false)}
+          onConfirm={() => void closeCurrentJob()}
+        />
       </div>
     </main>
   );
@@ -435,4 +630,4 @@ function FieldShell({
 }
 
 const inputClasses =
-  "w-full rounded-[10px] border border-[#e1e5ea] bg-white px-4 py-3 text-[14px] font-medium leading-5 text-[#151b2b] outline-none transition focus:border-[#2f5da8] focus:ring-2 focus:ring-[#2f5da8]/10";
+  "w-full rounded-[10px] border border-[#e1e5ea] bg-white px-4 py-3 text-[14px] font-medium leading-5 text-[#151b2b] outline-none transition focus:border-[#2f5da8] focus:ring-2 focus:ring-[#2f5da8]/10 disabled:cursor-not-allowed disabled:bg-[#f7f8fa]";

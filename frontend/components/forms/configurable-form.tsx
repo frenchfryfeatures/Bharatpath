@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { Dropdown } from "@/components/ui/dropdown";
+
 import type {
   ConfigurableFormProps,
   FormFieldConfig,
@@ -155,22 +157,27 @@ function ConfigurableField<TValues extends FormValues>({
           className={`${inputClasses} resize-y`}
         />
       ) : field.type === "select" ? (
-        <select
+        <div
           id={inputId}
-          value={String(value ?? "")}
-          disabled={disabled}
           aria-invalid={showError && Boolean(error)}
           aria-describedby={describedBy}
-          onChange={(event) => onChange(event.target.value)}
           onBlur={onBlur}
-          className={inputClasses}
         >
-          {field.options?.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+          <Dropdown
+            value={String(value ?? "")}
+            options={field.options ?? []}
+            onChange={(next) => onChange(next)}
+            disabled={disabled}
+            ariaLabel={field.label}
+            placeholder={field.placeholder ?? "Select"}
+            width="w-full"
+            buttonClassName={`h-[46px] rounded-[10px] px-4 text-[14px] font-medium leading-5 ${
+              showError && error
+                ? "border-[#e02424] focus:border-[#e02424] focus:ring-[#e02424]/10"
+                : "border-[#e1e5ea] focus:border-[#2f5da8] focus:ring-[#2f5da8]/10"
+            }`}
+          />
+        </div>
       ) : field.type === "range" ? (
         <div>
           <input

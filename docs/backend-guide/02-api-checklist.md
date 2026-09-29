@@ -9,7 +9,9 @@ because nobody has regenerated it recently.
 **Status key:** ✅ fully walked through in conversation · 🟡 mentioned in
 passing, not walked through in detail · ⬜ not covered yet.
 
-Total: **160 endpoints** across 21 modules. Only one module — `integrity` —
+Total: **208 operations** in a local build (dev-only routes included), across
+21 modules — 26 added 2026-09-29 for the portal dashboards, and 26 older
+ones this list had missed, now at the end. Only one module — `integrity` —
 exposes **no** HTTP endpoints at all; it only runs as a background task,
 triggered by other modules' events, and is never called directly. (An
 earlier version of this doc also filed `admin`, `notifications` and
@@ -132,6 +134,7 @@ Covered in [05-jobs-and-discovery-apis.md §10](05-jobs-and-discovery-apis.md#10
 | ✅ | POST | `/candidate/applications/{application_id}/withdraw` |
 | ✅ | POST | `/candidate/applications/{application_id}/hire/confirm` |
 | ✅ | POST | `/candidate/applications/{application_id}/hire/dispute` |
+| ✅ | GET | `/candidate/applications/{application_id}/messages` |
 
 ## Employer — the hiring pipeline (`applications`, prefix `/employer/applications`)
 
@@ -142,6 +145,8 @@ Covered in [05-jobs-and-discovery-apis.md §10](05-jobs-and-discovery-apis.md#10
 | ✅ | POST | `/employer/applications/{application_id}/stage` |
 | ✅ | PUT | `/employer/applications/{application_id}/interview` |
 | ✅ | POST | `/employer/applications/{application_id}/hire` |
+| ✅ | POST | `/employer/applications/{application_id}/messages` |
+| ✅ | GET | `/employer/applications/{application_id}/messages` |
 
 ## Payments (`billing`, prefix `/billing`)
 
@@ -167,6 +172,8 @@ Covered in [05-jobs-and-discovery-apis.md §10](05-jobs-and-discovery-apis.md#10
 |---|---|---|
 | ✅ | GET | `/candidate/courses` |
 | ✅ | POST | `/candidate/courses/{course_id}/checkout` |
+| ✅ | GET | `/candidate/courses/{course_id}` |
+| ✅ | POST | `/candidate/courses/{course_id}/lessons/{lesson_id}/progress` |
 
 ## Candidate — questionnaire, worth zero score (`questionnaire`, prefix `/candidate/questionnaire`)
 
@@ -191,6 +198,9 @@ Covered in [05-jobs-and-discovery-apis.md §10](05-jobs-and-discovery-apis.md#10
 | ✅ | POST | `/candidate/interview/sessions/{session_id}/answers/{question_index}/complete` |
 | ✅ | POST | `/candidate/interview/sessions/{session_id}/complete` |
 | ✅ | GET | `/candidate/interview/sessions/{session_id}/report` |
+| ✅ | POST | `/candidate/interview/sessions/{session_id}/next-question` |
+| ✅ | GET | `/candidate/interview/sessions/{session_id}/recordings` |
+| ✅ | GET | `/candidate/interview/history` |
 
 ## Candidate — daily streaks (`engagement`, prefix `/candidate/streak`)
 
@@ -235,6 +245,8 @@ Covered in [12-engagement-streak-apis.md](12-engagement-streak-apis.md).
 | ✅ | POST | `/college/roster-imports/{import_id}/invitations/send` |
 | ✅ | GET | `/college/students` |
 | ✅ | GET | `/college/students/{candidate_id}` |
+| ✅ | GET | `/college/students/{candidate_id}/details` |
+| ✅ | GET | `/college/students/{candidate_id}/resume` |
 
 ## College — analytics (`analytics`, prefix `/college/analytics`)
 
@@ -244,6 +256,7 @@ Covered in [11-college-analytics-apis.md](11-college-analytics-apis.md).
 |---|---|---|
 | ✅ | GET | `/college/analytics/overview` |
 | ✅ | GET | `/college/analytics/placements` |
+| ✅ | GET | `/college/analytics/applications` |
 
 ## System
 
@@ -274,7 +287,23 @@ Covered in [13-admin-console-and-disputes-apis.md](13-admin-console-and-disputes
 | ✅ | POST | `/admin/tenants/{tenant_id}/reinstate` |
 | ✅ | GET | `/admin/tenants/{tenant_id}/suspensions` |
 | ✅ | PUT | `/admin/colleges/{tenant_id}/seats` |
+| ✅ | GET | `/admin/candidates` |
 | ✅ | GET | `/admin/candidates/{user_id}` |
+| ✅ | GET | `/admin/candidates/{user_id}/onboarding` |
+| ✅ | GET | `/admin/candidates/{user_id}/resume` |
+| ✅ | GET | `/admin/candidates/{user_id}/score-timeline` |
+| ✅ | GET | `/admin/candidates/{user_id}/interviews` |
+| ✅ | GET | `/admin/candidates/{user_id}/interviews/{session_id}/recordings` |
+| ✅ | GET | `/admin/candidates/{user_id}/courses` |
+| ✅ | GET | `/admin/candidates/{user_id}/applications` |
+| ✅ | GET | `/admin/courses` |
+| ✅ | POST | `/admin/courses/{code}/modules` |
+| ✅ | PATCH | `/admin/course-modules/{module_id}` |
+| ✅ | POST | `/admin/course-modules/{module_id}/lessons` |
+| ✅ | PATCH | `/admin/course-lessons/{lesson_id}` |
+| ✅ | POST | `/admin/course-lessons/{lesson_id}/upload` |
+| ✅ | POST | `/admin/course-lessons/{lesson_id}/upload/confirm` |
+| ✅ | PUT | `/admin/courses/{code}/published` |
 | ✅ | GET | `/admin/employers/{tenant_id}` |
 | ✅ | GET | `/admin/colleges/{tenant_id}` |
 | ✅ | POST | `/admin/users/{user_id}/notification-suppressions` |
@@ -347,3 +376,28 @@ backend now has a walkthrough somewhere in this series. (Was 121 before
 this pass turned up the entire admin console, `/disputes`, `notifications`
 and `privacy` — 39 endpoints that a prior version of this checklist had
 marked as not existing.)
+
+## Routes this list missed until 2026-09-29
+
+Found by comparing this file with the app's own route table. All are
+walked through in the linked docs; they were simply never added here.
+
+| Status | Method | Path | What it's for |
+|---|---|---|---|
+| ✅ | GET | `/admin/dashboard` | Console landing page ([13](13-admin-console-and-disputes-apis.md) §0.5) |
+| ✅ | GET | `/admin/search-filters` | Curated skills/cities for employer search |
+| ✅ | POST | `/admin/search-filters` | Add an option |
+| ✅ | POST | `/admin/search-filters/import` | Import up to 500, all or none |
+| ✅ | GET | `/admin/search-filters/{option_id}` | One option |
+| ✅ | PATCH | `/admin/search-filters/{option_id}` | Edit / switch off an option |
+| ✅ | GET | `/employer/dashboard` | Employer landing tiles ([06](06-applications-pipeline-apis.md) §8) |
+| ✅ | GET | `/employer/dashboard/activity` | Recent activity feed |
+| ✅ | GET | `/employer/discovery/filters` | Filter panel options, no counts |
+| ✅ | GET | `/employer/discovery/filters/skills` | Skill typeahead |
+| ✅ | GET | `/employer/discovery/filters/locations` | City typeahead |
+| ✅ | GET | `/{candidate,employer,college}/subscription/plans` | Plans — the subscription routes are mounted three times ([08](08-billing-subscriptions-courses-apis.md) §4) |
+| ✅ | GET | `/{employer,college}/subscription` | Current subscription |
+| ✅ | POST | `/{employer,college}/subscription/checkout` | Buy a period |
+| ✅ | POST | `/{candidate,employer,college}/subscription/checkout/discount-preview` | Price with a discount code |
+| ✅ | POST | `/{employer,college}/subscription/cancel` | Stop auto-renewing |
+| ✅ | POST | `/{employer,college}/subscription/mandate` | UPI AutoPay |

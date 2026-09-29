@@ -1,6 +1,11 @@
 "use client";
 
+import { useEffect } from "react";
+import { useSearchParams } from "next/navigation";
+
 import { usePageHeader } from "@/components/layout/header-context";
+import { useAppDispatch } from "@/store/hooks";
+import { setQueueTab } from "@/store/admin/queue/slice";
 
 import { DataTable } from "@/components/ui/table";
 import type { ColumnDef } from "@/components/ui/table";
@@ -28,6 +33,9 @@ export function QueuePage() {
     items,
     kybCount,
     integrityCount,
+    kybHasMore,
+    integrityHasMore,
+    pagination,
     isLoading,
     error,
     isActing,
@@ -38,6 +46,15 @@ export function QueuePage() {
   } = useQueue();
 
   const isKyb = tab === "kyb";
+
+  // Links such as the dashboard's "Integrity flags" card name the tab to open.
+  const dispatch = useAppDispatch();
+  const requestedTab = useSearchParams().get("tab");
+  useEffect(() => {
+    if (requestedTab === "kyb" || requestedTab === "integrity") {
+      dispatch(setQueueTab(requestedTab));
+    }
+  }, [dispatch, requestedTab]);
 
   const columns: ColumnDef<QueueItem>[] = [
     {
@@ -159,11 +176,11 @@ export function QueuePage() {
   > = [
     [
       "kyb",
-      `KYB · ${kybCount}`,
+      `KYB · ${kybCount}${kybHasMore ? "+" : ""}`,
     ],
     [
       "integrity",
-      `Integrity · ${integrityCount}`,
+      `Integrity · ${integrityCount}${integrityHasMore ? "+" : ""}`,
     ],
   ];
 
@@ -233,9 +250,14 @@ export function QueuePage() {
             keyExtractor={(item) =>
               item.id
             }
-            pageSize={10}
-            totalCount={items.length}
-            itemLabel=""
+            paginationMode="cursor"
+            pageSize={pagination.pageSize}
+            currentPage={pagination.currentPage}
+            hasNextPage={pagination.hasNextPage}
+            onNextPage={pagination.onNextPage}
+            onPreviousPage={pagination.onPreviousPage}
+            onPageSizeChange={pagination.onPageSizeChange}
+            itemLabel={isKyb ? "submissions" : "flags"}
             isLoading={isLoading}
             emptyTitle={
               isKyb

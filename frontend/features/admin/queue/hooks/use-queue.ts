@@ -19,6 +19,10 @@ import {
   useGetAdminKybSubmissionsQuery,
   useResolveAdminIntegritySignalMutation,
 } from "@/store/api/admin-api";
+import {
+  tablePagination,
+  useCursorPagination,
+} from "@/lib/pagination/use-cursor-pagination";
 
 import type { QueueItem, QueueRisk, QueueTab } from "../types";
 
@@ -50,10 +54,25 @@ export function useQueue() {
 
   const state = useAppSelector(selectAdminQueue);
 
-  const kybQuery = useGetAdminKybSubmissionsQuery({ state: "SUBMITTED", limit: 100 });
-  const integrityQuery = useGetAdminIntegritySignalsQuery({ state: "OPEN", limit: 100 });
+  const pager = useCursorPagination([state.tab]);
+
+  const kybQuery = useGetAdminKybSubmissionsQuery({
+    state: "SUBMITTED",
+    limit: pager.pageSize,
+    cursor: state.tab === "kyb" ? pager.cursor : undefined,
+  });
+  const integrityQuery = useGetAdminIntegritySignalsQuery({
+    state: "OPEN",
+    limit: pager.pageSize,
+    cursor: state.tab === "integrity" ? pager.cursor : undefined,
+  });
   const [decideKyb, kybDecision] = useDecideAdminKybMutation();
   const [resolveSignal, signalDecision] = useResolveAdminIntegritySignalMutation();
+
+  const kybNextCursor = kybQuery.data?.next_cursor ?? null;
+  const integrityNextCursor = integrityQuery.data?.next_cursor ?? null;
+  const activeNextCursor =
+    state.tab === "kyb" ? kybNextCursor : integrityNextCursor;
 
   const kybItems: QueueItem[] = (kybQuery.data?.items ?? []).map((item) => ({
     id: item.id,
@@ -107,6 +126,12 @@ export function useQueue() {
     kybCount: kybItems.length,
 
     integrityCount: integrityItems.length,
+
+    kybHasMore: Boolean(kybNextCursor),
+
+    integrityHasMore: Boolean(integrityNextCursor),
+
+    pagination: tablePagination(pager, activeNextCursor),
 
     isLoading: state.tab === "kyb" ? kybQuery.isLoading : integrityQuery.isLoading,
 

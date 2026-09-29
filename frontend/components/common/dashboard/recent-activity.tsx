@@ -1,9 +1,17 @@
+"use client";
+
 import {
   FileText,
   GraduationCap,
+  LoaderCircle,
   Receipt,
   UserPlus,
 } from "lucide-react";
+import {
+  useEffect,
+  useRef,
+  type UIEvent,
+} from "react";
 
 type RecentActivityType =
   | "link"
@@ -20,6 +28,9 @@ interface RecentActivity {
 
 interface RecentActivityProps {
   activities: RecentActivity[];
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMore?: () => void;
 }
 
 const icons = {
@@ -38,9 +49,39 @@ const toneClasses = {
 
 export function RecentActivityList({
   activities,
+  hasMore = false,
+  isLoadingMore = false,
+  onLoadMore,
 }: RecentActivityProps) {
+  const loadRequested = useRef(false);
+
+  useEffect(() => {
+    if (!isLoadingMore) {
+      loadRequested.current = false;
+    }
+  }, [activities.length, isLoadingMore]);
+
+  function handleScroll(event: UIEvent<HTMLDivElement>) {
+    const viewport = event.currentTarget;
+    const distanceFromBottom =
+      viewport.scrollHeight -
+      viewport.scrollTop -
+      viewport.clientHeight;
+
+    if (
+      distanceFromBottom <= 80 &&
+      hasMore &&
+      !isLoadingMore &&
+      !loadRequested.current &&
+      onLoadMore
+    ) {
+      loadRequested.current = true;
+      onLoadMore();
+    }
+  }
+
   return (
-    <div className="flex min-h-[220px] flex-col rounded-xl border border-[#e5e7ec] bg-white p-5">
+    <div className="flex min-h-[220px] flex-col rounded-xl border border-[#e5e7ec] bg-white p-5 transition-all duration-150 hover:-translate-y-px hover:border-[#d9dce4] hover:shadow-[0_6px_18px_rgba(19,26,38,0.05)]">
       <h2 className="text-sm font-semibold text-[#252b3b]">
         Recent activity
       </h2>
@@ -48,12 +89,16 @@ export function RecentActivityList({
       {activities.length === 0 ? (
         <div className="flex flex-1 items-center justify-center px-6 py-8 text-center">
           <p className="text-[13px] leading-[18px] text-[#8a91a0]">
-            No recent activity yet. Actions on your jobs, applications and
-            billing will show up here.
+            Recent activity will appear here when the activity feed becomes
+            available.
           </p>
         </div>
       ) : (
         <div
+          aria-busy={isLoadingMore}
+          aria-label="Recent activity feed"
+          tabIndex={0}
+          onScroll={handleScroll}
           className="
             mt-5
             max-h-[320px]
@@ -98,6 +143,16 @@ export function RecentActivityList({
               </div>
             );
           })}
+
+          {isLoadingMore ? (
+            <div
+              role="status"
+              className="flex items-center justify-center gap-2 py-2 text-xs text-[#8a91a0]"
+            >
+              <LoaderCircle className="h-4 w-4 animate-spin" />
+              Loading more activity...
+            </div>
+          ) : null}
         </div>
       )}
     </div>

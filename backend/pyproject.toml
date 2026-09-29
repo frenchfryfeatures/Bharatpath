@@ -12,7 +12,7 @@ dependencies = [
     "pydantic-settings>=2.6",
     "python-multipart>=0.0.12",
     # db
-    "sqlalchemy[asyncio]>=2.0.36",
+    "sqlalchemy[asyncio]>=2.0.36,<2.1",  # 2.1 changes typing; upgrade deliberately
     "asyncpg>=0.30",
     "alembic>=1.14",
     # cache / locks / throttles

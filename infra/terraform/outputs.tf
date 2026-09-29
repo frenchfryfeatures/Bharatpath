@@ -196,6 +196,12 @@ output "host_env_file" {
     INTERVIEW_EVALUATION_PROVIDER=none
     INTERVIEW_EVALUATION_MODEL_ID=gpt-5.4-mini-2026-03-17
     SARVAM_API_KEY=<SET_ME_OR_LEAVE_TRANSCRIPTION_DISABLED>
+    # Interview questions are always written by OpenAI (2026-09-29): there is
+    # no fixed-question fallback, so a real OPENAI_API_KEY is required for
+    # anyone to start an interview. Set Sarvam above too, or questions cannot
+    # follow up what the candidate said.
+    INTERVIEW_QUESTION_PROVIDER=openai
+    INTERVIEW_QUESTION_MODEL_ID=gpt-5.4-mini-2026-03-17
 
     # ---- malware scanning: off (blockers E1) ----
     # There is no scanner behind the seam. Off records PENDING, which is what

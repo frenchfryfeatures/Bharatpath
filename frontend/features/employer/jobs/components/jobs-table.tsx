@@ -6,7 +6,10 @@ import {
   ChevronRight,
 } from "lucide-react";
 
-import { DataTable } from "@/components/ui/table";
+import {
+  DataTable,
+  type ColumnDef,
+} from "@/components/ui/table";
 
 import type { EmployerJob, JobStatus } from "../types";
 
@@ -14,9 +17,10 @@ interface JobsTableProps {
   jobs: EmployerJob[];
   currentPage: number;
   pageSize: number;
-  totalCount: number;
+  hasNextPage: boolean;
   isLoading?: boolean;
-  onPageChange: (page: number) => void;
+  onNextPage: () => void;
+  onPreviousPage: () => void;
   onPageSizeChange: (pageSize: number) => void;
   onViewApplicants: (job: EmployerJob) => void;
   onEditJob: (job: EmployerJob) => void;
@@ -29,7 +33,9 @@ function formatSalary(min: number, max: number) {
   return `₹${minLpa.toFixed(1)}–${maxLpa.toFixed(1)} LPA`;
 }
 
-function StatusBadge({ status }: { status: JobStatus }) {
+function StatusBadge({
+  status,
+}: Readonly<{ status: JobStatus }>) {
   const config = {
     live: {
       label: "Live",
@@ -68,18 +74,18 @@ function CountButton({
   value,
   disabled = false,
   onClick,
-}: {
+}: Readonly<{
   value: number;
   disabled?: boolean;
   onClick?: () => void;
-}) {
+}>) {
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={onClick}
       className={[
-        "inline-flex min-w-[40px] items-center justify-center",
+        "inline-flex min-w-10 items-center justify-center",
         "gap-1 rounded-full px-2.5 py-1",
         "text-[12px] font-medium",
         "transition-colors",
@@ -100,42 +106,19 @@ function CountButton({
   );
 }
 
-export function JobsTable({
-  jobs,
-  currentPage,
-  pageSize,
-  totalCount,
-  isLoading = false,
-  onPageChange,
-  onPageSizeChange,
+function createJobColumns({
   onViewApplicants,
   onEditJob,
-}: JobsTableProps) {
-  const columns = [
+}: Pick<JobsTableProps, "onViewApplicants" | "onEditJob">): ColumnDef<EmployerJob>[] {
+  return [
     {
       id: "job",
       header: "Job",
-      cell: (job: EmployerJob) => {
-        const initials = job.title
-          .split(" ")
-          .filter(Boolean)
-          .slice(0, 2)
-          .map((word) => word[0])
-          .join("")
-          .toUpperCase();
-
-        return (
-          <div className="flex min-w-[210px] items-center gap-3">
-            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] bg-[#edf3fc] text-[10px] font-bold text-[#3566b8]">
-              {initials}
-            </div>
-
-            <span className="font-semibold text-[#151b2b]">
-              {job.title}
-            </span>
-          </div>
-        );
-      },
+      cell: (job: EmployerJob) => (
+        <span className="font-semibold text-[#151b2b]">
+          {job.title}
+        </span>
+      ),
       headerClassName: "min-w-[220px]",
     },
 
@@ -248,7 +231,7 @@ export function JobsTable({
             type="button"
             aria-label={`View applicants for ${job.title}`}
             onClick={() => onViewApplicants(job)}
-            className="grid h-8 w-8 place-items-center rounded-[8px] border border-[#e2e5eb] bg-white text-[#151b2b] transition-colors hover:bg-[#f7f8fa]"
+            className="grid h-8 w-8 place-items-center rounded-lg border border-[#e2e5eb] bg-white text-[#151b2b] transition-colors hover:bg-[#f7f8fa]"
           >
             <Users size={15} strokeWidth={1.8} />
           </button>
@@ -257,7 +240,7 @@ export function JobsTable({
             type="button"
             aria-label={`Edit ${job.title}`}
             onClick={() => onEditJob(job)}
-            className="grid h-8 w-8 place-items-center rounded-[8px] border border-[#e2e5eb] bg-white text-[#151b2b] transition-colors hover:bg-[#f7f8fa]"
+            className="grid h-8 w-8 place-items-center rounded-lg border border-[#e2e5eb] bg-white text-[#151b2b] transition-colors hover:bg-[#f7f8fa]"
           >
             <Pencil size={15} strokeWidth={1.8} />
           </button>
@@ -265,16 +248,36 @@ export function JobsTable({
       ),
     },
   ];
+}
+
+export function JobsTable({
+  jobs,
+  currentPage,
+  pageSize,
+  hasNextPage,
+  isLoading = false,
+  onNextPage,
+  onPreviousPage,
+  onPageSizeChange,
+  onViewApplicants,
+  onEditJob,
+}: Readonly<JobsTableProps>) {
+  const columns = createJobColumns({
+    onViewApplicants,
+    onEditJob,
+  });
 
   return (
     <DataTable
       columns={columns}
       data={jobs}
       keyExtractor={(job) => job.id}
-      totalCount={totalCount}
+      paginationMode="cursor"
       pageSize={pageSize}
       currentPage={currentPage}
-      onPageChange={onPageChange}
+      hasNextPage={hasNextPage}
+      onNextPage={onNextPage}
+      onPreviousPage={onPreviousPage}
       onPageSizeChange={onPageSizeChange}
       itemLabel="jobs"
       isLoading={isLoading}

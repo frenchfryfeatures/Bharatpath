@@ -2,9 +2,9 @@
  * Analytics view model.
  *
  * Everything here is derived from the real cohort-overview and placement-report
- * endpoints plus live seat usage. Where a figure is withheld — a cohort or a
- * placement cell below the privacy floor — the value is `null` and the UI shows
- * a neutral placeholder rather than a fabricated number.
+ * endpoints plus live seat usage. Monthly placements are exact once the cohort
+ * floor is met, with zero for an empty month. When the whole report is below
+ * that floor, the API returns `null` and the UI shows a neutral placeholder.
  */
 
 export interface AnalyticsMetric {
@@ -15,7 +15,8 @@ export interface AnalyticsMetric {
 
 export interface MonthPlacement {
   month: string;
-  hires: number;
+  /** `null` when the month is withheld: too few hires to show safely. */
+  hires: number | null;
 }
 
 export interface LocationPlacement {

@@ -23,16 +23,20 @@ the pipeline does not allow on the flush.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import insert, literal, or_, select, tuple_
+from sqlalchemy import Date, cast, distinct, func, insert, literal, or_, select, tuple_
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.models import ConfigValue
-from app.modules.applications.domain import TERMINAL_STAGES
-from app.modules.applications.models import Application, ApplicationEvent
+from app.modules.applications.domain import INTERVIEW_STAGE, STAGES, TERMINAL_STAGES
+from app.modules.applications.models import (
+    Application,
+    ApplicationEvent,
+    ApplicationMessage,
+)
 
 
 async def insert_if_absent(
@@ -136,21 +140,23 @@ async def list_for_candidate(
     return list(result.scalars().all())
 
 
-async def list_for_job(
+async def list_for_employer(
     session: AsyncSession,
     *,
     tenant_id: uuid.UUID,
-    job_id: uuid.UUID,
+    job_id: uuid.UUID | None,
     stage: str | None,
     after: tuple[datetime, uuid.UUID] | None,
     limit: int,
 ) -> list[Application]:
     """**Oldest first**, unlike the candidate's board: a pipeline is worked in
     the order people applied, and the oldest are the ones nearest expiry.
-    `ix_applications_job_stage`."""
-    stmt = select(Application).where(
-        Application.tenant_id == tenant_id, Application.job_id == job_id
-    )
+
+    One job (`ix_applications_job_stage`) or, with `job_id` None, every job
+    the organisation has (`ix_applications_tenant_created`)."""
+    stmt = select(Application).where(Application.tenant_id == tenant_id)
+    if job_id is not None:
+        stmt = stmt.where(Application.job_id == job_id)
     if stage is not None:
         stmt = stmt.where(Application.stage == stage)
     if after is not None:
@@ -245,3 +251,244 @@ async def current_config(session: AsyncSession, *, key: str, now: datetime) -> C
         .limit(1)
     )
     return result.scalar_one_or_none()
+
+
+# ---------------------------------------------------------------------------
+# The employer dashboard
+# ---------------------------------------------------------------------------
+# Every query here runs with `app.tenant_id` bound, and reads nothing about a
+# candidate but the id the pipeline already shows. Aggregates, not rows, except
+# for the upcoming interviews and the activity feed, which are the employer's
+# own pipeline in another order.
+_OPEN = Application.stage.not_in(TERMINAL_STAGES)
+
+
+async def dashboard_counts(
+    session: AsyncSession,
+    *,
+    tenant_id: uuid.UUID,
+    now: datetime,
+    recent_since: datetime,
+    trend_since: datetime,
+    interviews_until: datetime,
+    expiry_horizon: datetime,
+) -> dict[str, int]:
+    """Every headline number in one pass over the organisation's applications.
+
+    `FILTER` clauses rather than a query per tile, so the tiles are counted
+    from the same snapshot and always add up.
+    """
+    last_activity = func.greatest(
+        Application.employer_active_at,
+        func.coalesce(Application.interview_at, Application.employer_active_at),
+    )
+    proposed = Application.employer_confirmed_at.is_not(None)
+    at_decision = Application.stage == "DECISION"
+    at_interview = Application.stage == INTERVIEW_STAGE
+    row = (
+        await session.execute(
+            select(
+                func.count().label("total"),
+                func.count().filter(_OPEN).label("open"),
+                func.count(distinct(Application.candidate_id)).label("distinct_candidates"),
+                func.count().filter(Application.created_at >= recent_since).label("new_recent"),
+                func.count().filter(Application.created_at >= trend_since).label("new_trend"),
+                func.count()
+                .filter(
+                    at_interview,
+                    Application.interview_at >= now,
+                    Application.interview_at < interviews_until,
+                )
+                .label("interviews_upcoming"),
+                func.count()
+                .filter(at_interview, Application.interview_at.is_(None))
+                .label("interviews_to_schedule"),
+                func.count()
+                .filter(at_decision, proposed, Application.hire_disputed_at.is_(None))
+                .label("hires_awaiting_candidate"),
+                func.count()
+                .filter(at_decision, proposed, Application.hire_disputed_at.is_not(None))
+                .label("hires_disputed"),
+                func.count()
+                .filter(_OPEN, Application.employer_confirmed_at.is_(None))
+                .filter(last_activity < expiry_horizon)
+                .label("expiring"),
+            ).where(Application.tenant_id == tenant_id)
+        )
+    ).one()
+    return dict(row._mapping)
+
+
+async def stage_totals(session: AsyncSession, *, tenant_id: uuid.UUID) -> dict[str, int]:
+    """Where the organisation's applications stand now, every stage present."""
+    counts = dict.fromkeys(STAGES, 0)
+    rows = await session.execute(
+        select(Application.stage, func.count())
+        .where(Application.tenant_id == tenant_id)
+        .group_by(Application.stage)
+    )
+    for stage, at_stage in rows:
+        counts[stage] = at_stage
+    return counts
+
+
+async def top_jobs(
+    session: AsyncSession, *, tenant_id: uuid.UUID, recent_since: datetime, limit: int
+) -> list[Any]:
+    """The jobs with the most applications, busiest first.
+
+    Ties go to the job applied to most recently, then to the id, so the order
+    is stable between two loads of the same page.
+    """
+    last_applied = func.max(Application.created_at)
+    total = func.count()
+    result = await session.execute(
+        select(
+            Application.job_id,
+            total.label("applications"),
+            func.count().filter(_OPEN).label("open"),
+            func.count().filter(Application.created_at >= recent_since).label("new_recent"),
+            last_applied.label("last_applied_at"),
+        )
+        .where(Application.tenant_id == tenant_id)
+        .group_by(Application.job_id)
+        .order_by(total.desc(), last_applied.desc(), Application.job_id)
+        .limit(limit)
+    )
+    return list(result.all())
+
+
+async def submissions_by_day(
+    session: AsyncSession, *, tenant_id: uuid.UUID, since: datetime, zone: str
+) -> dict[date, int]:
+    """Applications received per calendar day in `zone`, from `since`."""
+    day = cast(func.timezone(zone, Application.created_at), Date)
+    rows = await session.execute(
+        select(day, func.count())
+        .where(Application.tenant_id == tenant_id, Application.created_at >= since)
+        .group_by(day)
+    )
+    return dict(rows.tuples().all())
+
+
+async def upcoming_interviews(
+    session: AsyncSession, *, tenant_id: uuid.UUID, now: datetime, limit: int
+) -> list[Application]:
+    """The next interviews booked, soonest first."""
+    result = await session.execute(
+        select(Application)
+        .where(
+            Application.tenant_id == tenant_id,
+            Application.stage == INTERVIEW_STAGE,
+            Application.interview_at >= now,
+        )
+        .order_by(Application.interview_at.asc(), Application.id.asc())
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
+async def recent_events(
+    session: AsyncSession,
+    *,
+    tenant_id: uuid.UUID,
+    actor_type: str | None,
+    after: tuple[datetime, uuid.UUID] | None,
+    limit: int,
+) -> list[Any]:
+    """The organisation's pipeline history, newest first, across every job.
+
+    **`application_events` has no RLS of its own**, and this is still only a
+    read of events for applications the caller has been shown: the join to
+    `applications` runs under the tenant policy, so another organisation's
+    applications -- and with them their events -- are not there to join to.
+    The tenant predicate is belt and braces, as everywhere in this file.
+    """
+    query = (
+        select(
+            ApplicationEvent.id,
+            ApplicationEvent.application_id,
+            Application.job_id,
+            ApplicationEvent.kind,
+            ApplicationEvent.from_stage,
+            ApplicationEvent.to_stage,
+            ApplicationEvent.actor_type,
+            ApplicationEvent.actor_id,
+            ApplicationEvent.occurred_at,
+        )
+        .join(Application, Application.id == ApplicationEvent.application_id)
+        .where(Application.tenant_id == tenant_id)
+    )
+    if actor_type is not None:
+        query = query.where(ApplicationEvent.actor_type == actor_type)
+    if after is not None:
+        query = query.where(
+            tuple_(ApplicationEvent.occurred_at, ApplicationEvent.id)
+            < tuple_(
+                literal(after[0], ApplicationEvent.occurred_at.type),
+                literal(after[1], ApplicationEvent.id.type),
+            )
+        )
+    result = await session.execute(
+        query.order_by(ApplicationEvent.occurred_at.desc(), ApplicationEvent.id.desc()).limit(limit)
+    )
+    return list(result.all())
+
+
+# --- messages (2026-09-29) --------------------------------------------------------
+# Read only by application id, after the application was loaded under the
+# caller's policy -- the same rule as `application_events`.
+async def insert_message(
+    session: AsyncSession,
+    *,
+    application_id: uuid.UUID,
+    sender_id: uuid.UUID,
+    kind: str,
+    body: str,
+    scheduled_at: datetime | None,
+    link: str | None,
+) -> ApplicationMessage:
+    row = ApplicationMessage(
+        application_id=application_id,
+        sender_id=sender_id,
+        kind=kind,
+        body=body,
+        scheduled_at=scheduled_at,
+        link=link,
+    )
+    session.add(row)
+    await session.flush()
+    await session.refresh(row)
+    return row
+
+
+async def messages_for(
+    session: AsyncSession, *, application_id: uuid.UUID
+) -> list[ApplicationMessage]:
+    result = await session.execute(
+        select(ApplicationMessage)
+        .where(ApplicationMessage.application_id == application_id)
+        .order_by(ApplicationMessage.created_at, ApplicationMessage.id)
+    )
+    return list(result.scalars())
+
+
+async def count_messages_since(
+    session: AsyncSession, *, application_id: uuid.UUID, since: datetime
+) -> int:
+    result = await session.execute(
+        select(func.count(ApplicationMessage.id)).where(
+            ApplicationMessage.application_id == application_id,
+            ApplicationMessage.created_at >= since,
+        )
+    )
+    return int(result.scalar_one())
+
+
+async def message_by_id(
+    session: AsyncSession, *, message_id: uuid.UUID
+) -> ApplicationMessage | None:
+    """**For notification dispatch only**, which binds no tenant -- so it
+    must not touch `applications`, whose policy would hide the row. The
+    event payload already names the tenant."""
+    return await session.get(ApplicationMessage, message_id)

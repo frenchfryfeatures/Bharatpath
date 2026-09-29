@@ -178,3 +178,38 @@ def build_report(answers: Mapping[str, object]) -> tuple[ReportSection, ...]:
             )
         )
     return tuple(sections)
+
+
+@dataclass(frozen=True, slots=True)
+class AnswerInWords:
+    code: str
+    question: str
+    answer: str
+
+
+def answers_in_words(
+    answers: Mapping[str, object], *, include_free_text: bool
+) -> tuple[AnswerInWords, ...]:
+    """Saved answers as a person would read them, in the bank's order: option
+    labels rather than codes, "Yes"/"No" rather than booleans. For the
+    console, a college's consented view and the interview question writer
+    (2026-09-29).
+
+    `include_free_text=False` leaves out the one free-text question, about
+    adjustments a candidate needs at work, which its help text promises is
+    shared only with an employer they apply to.
+    """
+    out: list[AnswerInWords] = []
+    for question in QUESTIONS:
+        value = answers.get(question.code)
+        if value in (None, "", []) or (question.type == "TEXT" and not include_free_text):
+            continue
+        labels = {o.code: o.label for o in question.options}
+        if isinstance(value, list):
+            words = ", ".join(labels.get(str(v), str(v)) for v in value)
+        elif isinstance(value, bool):
+            words = "Yes" if value else "No"
+        else:
+            words = labels.get(str(value), str(value))
+        out.append(AnswerInWords(question.code, question.prompt, words))
+    return tuple(out)

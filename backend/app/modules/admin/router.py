@@ -31,34 +31,57 @@ from app.modules.admin import service
 from app.modules.admin.domain import CONSOLE_ROLES, DISPUTE_RAISER_ROLES, Capability
 from app.modules.admin.schemas import (
     AddOrganisationMemberRequest,
+    AdminCourseView,
+    AdminDashboard,
+    AdminLessonView,
     AllocateSeatsRequest,
     AuditEventsPage,
+    CandidateApplications,
     CandidateDrilldown,
+    CandidateOnboarding,
+    CandidateResumeView,
+    CandidatesPage,
     CollegeDrilldown,
+    CourseStatusRow,
+    CreateCourseLessonRequest,
+    CreateCourseModuleRequest,
     CreateDiscountCodeRequest,
+    CreateSearchFilterOptionRequest,
     DiscountCodeResponse,
     DiscountCodesPage,
     DiscountRedemptionsPage,
     DisputeDetail,
     DisputesPage,
     EmployerDrilldown,
+    ImportSearchFilterOptionsRequest,
+    ImportSearchFilterOptionsResponse,
     IntegritySignalDetail,
     IntegritySignalsPage,
+    InterviewRecordingRow,
+    InterviewSessionRow,
     InvitationResentResponse,
     KybDecisionRequest,
     KybSubmissionsPage,
+    LessonUploadResponse,
     MyDisputeResponse,
     ProvisionCandidateRequest,
     ProvisionCollegeRequest,
     ProvisionedAccountResponse,
     ProvisionEmployerRequest,
+    PublishCourseRequest,
     RaiseDisputeRequest,
     ResolveDisputeRequest,
     ResolveSignalRequest,
+    ScoreTimeline,
+    SearchFilterOptionResponse,
+    SearchFilterOptionsPage,
     SeatAllocationResponse,
     SuspendTenantRequest,
     SuspensionResponse,
     TenantsPage,
+    UpdateCourseLessonRequest,
+    UpdateCourseModuleRequest,
+    UpdateSearchFilterOptionRequest,
 )
 from app.modules.kyb.schemas import KybSubmissionResponse
 from app.modules.notifications import service as notifications_service
@@ -73,6 +96,22 @@ def can(capability: Capability) -> list[Any]:
 
 
 Limit = Query(default=None, ge=1, le=100)
+
+
+# ---------------------------------------------------------------------------
+# Dashboard
+# ---------------------------------------------------------------------------
+@router.get(
+    "/dashboard",
+    response_model=AdminDashboard,
+    dependencies=can("dashboard"),
+    summary="The console's landing page: every queue the caller can open, counted (audited)",
+)
+async def dashboard(request: Request, user: CurrentUser, session: DbSession) -> AdminDashboard:
+    """A queue section (`kyb`, `integrity`, `disputes`, `organisations`) is
+    null for a role that cannot open that queue. `oldest_waiting` and
+    `throughput` are drawn from the queues shown. Days are IST."""
+    return await service.dashboard(session, ctx=user, request_id=get_request_id(request))
 
 
 # ---------------------------------------------------------------------------
@@ -308,6 +347,39 @@ async def allocate_seats(
 # Drill-downs
 # ---------------------------------------------------------------------------
 @router.get(
+    "/candidates",
+    response_model=CandidatesPage,
+    dependencies=can("candidate_drilldown"),
+    summary="Candidate accounts, newest first (audited)",
+)
+async def list_candidates(
+    request: Request,
+    user: CurrentUser,
+    session: DbSession,
+    status_filter: Literal["ACTIVE", "SUSPENDED", "DELETED"] | None = Query(
+        default=None, alias="status"
+    ),
+    q: str | None = Query(default=None, max_length=100, description="Part of the full name"),
+    email: str | None = Query(default=None, max_length=320, description="The exact address"),
+    cursor: str | None = None,
+    limit: int | None = Limit,
+) -> CandidatesPage:
+    """Candidates are not tenants, so `GET /admin/tenants` never lists them;
+    this does. Whoever may open a candidate may find one -- the same
+    capability. Contacts are masked; open `/candidates/{user_id}` for the rest."""
+    return await service.list_candidates(
+        session,
+        ctx=user,
+        status=status_filter,
+        name_contains=q,
+        email=email,
+        cursor=cursor,
+        limit=limit,
+        request_id=get_request_id(request),
+    )
+
+
+@router.get(
     "/candidates/{user_id}",
     response_model=CandidateDrilldown,
     dependencies=can("candidate_drilldown"),
@@ -317,6 +389,120 @@ async def candidate_drilldown(
     user_id: uuid.UUID, request: Request, user: CurrentUser, session: DbSession
 ) -> CandidateDrilldown:
     return await service.candidate_drilldown(
+        session, ctx=user, user_id=user_id, request_id=get_request_id(request)
+    )
+
+
+# --- the full candidate page (2026-09-29) --------------------------------------
+@router.get(
+    "/candidates/{user_id}/onboarding",
+    response_model=CandidateOnboarding,
+    dependencies=can("candidate_contact"),
+    summary="Everything the candidate gave at onboarding, contact unmasked (audited)",
+)
+async def candidate_onboarding(
+    user_id: uuid.UUID, request: Request, user: CurrentUser, session: DbSession
+) -> CandidateOnboarding:
+    return await service.candidate_onboarding(
+        session, ctx=user, user_id=user_id, request_id=get_request_id(request)
+    )
+
+
+@router.get(
+    "/candidates/{user_id}/resume",
+    response_model=CandidateResumeView,
+    dependencies=can("candidate_resume"),
+    summary="The candidate's CV: text and the uploaded file (audited)",
+)
+async def candidate_resume(
+    user_id: uuid.UUID, request: Request, user: CurrentUser, session: DbSession
+) -> CandidateResumeView:
+    """`latest` is the newest version; `confirmed` the newest confirmed one,
+    what the score was built from, when that is a different version.
+    `file_url` is a presigned GET that expires."""
+    return await service.candidate_resume(
+        session, ctx=user, user_id=user_id, request_id=get_request_id(request)
+    )
+
+
+@router.get(
+    "/candidates/{user_id}/score-timeline",
+    response_model=ScoreTimeline,
+    dependencies=can("candidate_drilldown"),
+    summary="Every change in the candidate's score, oldest first (audited)",
+)
+async def candidate_score_timeline(
+    user_id: uuid.UUID, request: Request, user: CurrentUser, session: DbSession
+) -> ScoreTimeline:
+    """Display value and band per point -- the number the candidate saw --
+    with the change from the previous point and its cause."""
+    return await service.candidate_score_timeline(
+        session, ctx=user, user_id=user_id, request_id=get_request_id(request)
+    )
+
+
+@router.get(
+    "/candidates/{user_id}/interviews",
+    response_model=list[InterviewSessionRow],
+    dependencies=can("candidate_drilldown"),
+    summary="The mock interviews the candidate sat (audited)",
+)
+async def candidate_interviews(
+    user_id: uuid.UUID, request: Request, user: CurrentUser, session: DbSession
+) -> list[InterviewSessionRow]:
+    return await service.candidate_interviews(
+        session, ctx=user, user_id=user_id, request_id=get_request_id(request)
+    )
+
+
+@router.get(
+    "/candidates/{user_id}/interviews/{session_id}/recordings",
+    response_model=list[InterviewRecordingRow],
+    dependencies=can("candidate_recordings"),
+    summary="Play back one interview's recorded answers (audited)",
+)
+async def candidate_interview_recordings(
+    user_id: uuid.UUID,
+    session_id: uuid.UUID,
+    request: Request,
+    user: CurrentUser,
+    session: DbSession,
+) -> list[InterviewRecordingRow]:
+    """One presigned GET per stored answer, with the question and the
+    transcript. The links expire; ask again rather than keeping them."""
+    return await service.candidate_interview_recordings(
+        session,
+        ctx=user,
+        user_id=user_id,
+        session_id=session_id,
+        request_id=get_request_id(request),
+    )
+
+
+@router.get(
+    "/candidates/{user_id}/courses",
+    response_model=list[CourseStatusRow],
+    dependencies=can("candidate_drilldown"),
+    summary="The candidate's course purchases and progress (audited)",
+)
+async def candidate_courses(
+    user_id: uuid.UUID, request: Request, user: CurrentUser, session: DbSession
+) -> list[CourseStatusRow]:
+    return await service.candidate_courses(
+        session, ctx=user, user_id=user_id, request_id=get_request_id(request)
+    )
+
+
+@router.get(
+    "/candidates/{user_id}/applications",
+    response_model=CandidateApplications,
+    dependencies=can("candidate_drilldown"),
+    summary="Every job the candidate applied to, its stage, and stage analytics (audited)",
+)
+async def candidate_applications(
+    user_id: uuid.UUID, request: Request, user: CurrentUser, session: DbSession
+) -> CandidateApplications:
+    return await service.candidate_applications(
         session, ctx=user, user_id=user_id, request_id=get_request_id(request)
     )
 
@@ -662,6 +848,113 @@ async def discount_redemptions(
 
 
 # ---------------------------------------------------------------------------
+# Search filter options (2026-09-24)
+# ---------------------------------------------------------------------------
+@router.get(
+    "/search-filters",
+    response_model=SearchFilterOptionsPage,
+    dependencies=can("search_filters"),
+    summary="The skills and cities employers filter by",
+)
+async def list_search_filter_options(
+    session: DbSession,
+    kind: Literal["SKILL", "CITY"] | None = None,
+    q: str | None = Query(default=None, max_length=100, description="In the key or an alias"),
+    include_inactive: bool = False,
+    cursor: str | None = None,
+    limit: int | None = Limit,
+) -> SearchFilterOptionsPage:
+    """By kind, then key. Switched-off options only with `include_inactive`."""
+    return await service.list_search_filter_options(
+        session,
+        kind=kind,
+        query=q,
+        include_inactive=include_inactive,
+        cursor=cursor,
+        limit=limit,
+    )
+
+
+@router.post(
+    "/search-filters",
+    response_model=SearchFilterOptionResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=can("search_filters"),
+    summary="Add a skill or a city to the search filters",
+)
+async def create_search_filter_option(
+    payload: CreateSearchFilterOptionRequest,
+    request: Request,
+    user: CurrentUser,
+    session: DbSession,
+) -> SearchFilterOptionResponse:
+    """422 `search_filter_option_invalid` with a reason; 409
+    `search_filter_option_conflict` naming a spelling (label or alias) that
+    another option already holds, switched off or not."""
+    [created] = await service.create_search_filter_options(
+        session, ctx=user, items=[payload], request_id=get_request_id(request)
+    )
+    return created
+
+
+@router.post(
+    "/search-filters/import",
+    response_model=ImportSearchFilterOptionsResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=can("search_filters"),
+    summary="Import up to 500 skills or cities at once, all or none",
+)
+async def import_search_filter_options(
+    payload: ImportSearchFilterOptionsRequest,
+    request: Request,
+    user: CurrentUser,
+    session: DbSession,
+) -> ImportSearchFilterOptionsResponse:
+    """One bad item refuses the lot: 422 with `params.index`, or 409 with the
+    clashing spellings."""
+    items = await service.create_search_filter_options(
+        session, ctx=user, items=payload.items, request_id=get_request_id(request)
+    )
+    return ImportSearchFilterOptionsResponse(items=items)
+
+
+@router.get(
+    "/search-filters/{option_id}",
+    response_model=SearchFilterOptionResponse,
+    dependencies=can("search_filters"),
+    summary="One search filter option",
+)
+async def get_search_filter_option(
+    option_id: uuid.UUID, session: DbSession
+) -> SearchFilterOptionResponse:
+    return await service.get_search_filter_option(session, option_id=option_id)
+
+
+@router.patch(
+    "/search-filters/{option_id}",
+    response_model=SearchFilterOptionResponse,
+    dependencies=can("search_filters"),
+    summary="Change, feature, reorder or switch off a search filter option",
+)
+async def update_search_filter_option(
+    option_id: uuid.UUID,
+    payload: UpdateSearchFilterOptionRequest,
+    request: Request,
+    user: CurrentUser,
+    session: DbSession,
+) -> SearchFilterOptionResponse:
+    """Only the fields sent change; `aliases` replaces the list. Options are
+    switched off (`active: false`), never deleted."""
+    return await service.update_search_filter_option(
+        session,
+        ctx=user,
+        option_id=option_id,
+        payload=payload,
+        request_id=get_request_id(request),
+    )
+
+
+# ---------------------------------------------------------------------------
 # /disputes -- raised by candidates, employers and colleges
 # ---------------------------------------------------------------------------
 Raisers = [Depends(require_role(*sorted(DISPUTE_RAISER_ROLES)))]
@@ -696,3 +989,147 @@ async def raise_dispute(
 )
 async def my_disputes(user: CurrentUser, session: DbSession) -> list[MyDisputeResponse]:
     return await service.my_disputes(session, ctx=user)
+
+
+# ---------------------------------------------------------------------------
+# Building the course (2026-09-29)
+# ---------------------------------------------------------------------------
+@router.get(
+    "/courses",
+    response_model=list[AdminCourseView],
+    dependencies=can("courses"),
+    summary="Every course with all its modules and lessons",
+)
+async def list_courses(session: DbSession) -> list[AdminCourseView]:
+    return await service.list_courses(session)
+
+
+@router.post(
+    "/courses/{code}/modules",
+    response_model=AdminCourseView,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=can("courses"),
+    summary="Add a module to a course",
+)
+async def create_course_module(
+    code: str,
+    payload: CreateCourseModuleRequest,
+    request: Request,
+    user: CurrentUser,
+    session: DbSession,
+) -> AdminCourseView:
+    return await service.create_course_module(
+        session, ctx=user, code=code, payload=payload, request_id=get_request_id(request)
+    )
+
+
+@router.patch(
+    "/course-modules/{module_id}",
+    response_model=AdminCourseView,
+    dependencies=can("courses"),
+    summary="Rename, reorder or switch off a module",
+)
+async def update_course_module(
+    module_id: uuid.UUID,
+    payload: UpdateCourseModuleRequest,
+    request: Request,
+    user: CurrentUser,
+    session: DbSession,
+) -> AdminCourseView:
+    return await service.update_course_module(
+        session, ctx=user, module_id=module_id, payload=payload, request_id=get_request_id(request)
+    )
+
+
+@router.post(
+    "/course-modules/{module_id}/lessons",
+    response_model=AdminLessonView,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=can("courses"),
+    summary="Add a lesson: a YouTube link, or a video to upload",
+)
+async def create_course_lesson(
+    module_id: uuid.UUID,
+    payload: CreateCourseLessonRequest,
+    request: Request,
+    user: CurrentUser,
+    session: DbSession,
+) -> AdminLessonView:
+    """With `youtube_url` the lesson is playable at once (an unlisted video
+    is watchable by anyone holding its link). Without it, upload the file:
+    `POST .../upload`, PUT to the URL, then `POST .../upload/confirm`. 422
+    `course_lesson_media_invalid` with `params.reason` for a link that is not
+    YouTube's."""
+    return await service.create_course_lesson(
+        session, ctx=user, module_id=module_id, payload=payload, request_id=get_request_id(request)
+    )
+
+
+@router.patch(
+    "/course-lessons/{lesson_id}",
+    response_model=AdminLessonView,
+    dependencies=can("courses"),
+    summary="Edit a lesson, replace its YouTube video, or switch it off",
+)
+async def update_course_lesson(
+    lesson_id: uuid.UUID,
+    payload: UpdateCourseLessonRequest,
+    request: Request,
+    user: CurrentUser,
+    session: DbSession,
+) -> AdminLessonView:
+    return await service.update_course_lesson(
+        session, ctx=user, lesson_id=lesson_id, payload=payload, request_id=get_request_id(request)
+    )
+
+
+@router.post(
+    "/course-lessons/{lesson_id}/upload",
+    response_model=LessonUploadResponse,
+    dependencies=can("courses"),
+    summary="A presigned URL to PUT a lesson's video (MP4 or WebM)",
+)
+async def issue_lesson_upload(lesson_id: uuid.UUID, session: DbSession) -> LessonUploadResponse:
+    """Re-issuing replaces the video: the lesson leaves the course until the
+    new file is confirmed."""
+    return await service.issue_lesson_upload(session, lesson_id=lesson_id)
+
+
+@router.post(
+    "/course-lessons/{lesson_id}/upload/confirm",
+    response_model=AdminLessonView,
+    dependencies=can("courses"),
+    summary="Check the uploaded video and make the lesson playable",
+)
+async def confirm_lesson_upload(
+    lesson_id: uuid.UUID, request: Request, user: CurrentUser, session: DbSession
+) -> AdminLessonView:
+    """Size from S3, format from the bytes. A file that is not MP4 or WebM is
+    deleted: 422 `course_lesson_media_invalid` with `params.reason`."""
+    return await service.confirm_lesson_upload(
+        session, ctx=user, lesson_id=lesson_id, request_id=get_request_id(request)
+    )
+
+
+@router.put(
+    "/courses/{code}/published",
+    response_model=AdminCourseView,
+    dependencies=can("courses"),
+    summary="Put a course on sale, or take it off",
+)
+async def publish_course(
+    code: str,
+    payload: PublishCourseRequest,
+    request: Request,
+    user: CurrentUser,
+    session: DbSession,
+) -> AdminCourseView:
+    """409 `course_not_publishable` without at least one playable lesson.
+    Taking a course off sale stops new purchases; buyers keep their lessons."""
+    return await service.publish_course(
+        session,
+        ctx=user,
+        code=code,
+        published=payload.published,
+        request_id=get_request_id(request),
+    )

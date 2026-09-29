@@ -40,12 +40,14 @@ never shows a state its history does not explain.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from typing import Any, Final
 
 from fastapi import status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.audit import AuditAction, audit_event
 from app.core.db import set_transaction_tenant
 from app.core.errors import (
     AppError,
@@ -57,22 +59,33 @@ from app.core.errors import (
 from app.core.logging import get_logger
 from app.core.outbox import emit
 from app.core.pagination import Page, clamp_limit, decode_cursor, encode_cursor
+from app.core.ratelimit import enforce
 from app.core.tenant import TenantContext
 from app.modules.applications import repository
 from app.modules.applications.domain import (
+    DASHBOARD_WINDOW,
     DEFAULT_EXPIRY_RULES,
+    DEFAULT_TOP_JOBS,
     INTERVIEW_STAGE,
+    IST_ZONE_NAME,
+    MAX_MESSAGES_PER_APPLICATION_PER_DAY,
+    MESSAGEABLE_STAGES,
+    UPCOMING_INTERVIEWS,
     ExpiryRules,
     ExpiryRulesError,
     HireState,
     candidate_confirm,
     candidate_dispute,
+    daily_series,
     employer_hire,
     employer_move,
     expires,
+    expiry_horizon,
     expiry_rules_from_config,
     hire_state,
     refuse_meeting,
+    refuse_message,
+    trend_start,
     withdrawal,
 )
 from app.modules.applications.events import (
@@ -84,15 +97,27 @@ from app.modules.applications.events import (
     HIRE_DISPUTED,
     HIRE_PROPOSED,
     INTERVIEW_SCHEDULED,
+    MESSAGE_SENT,
 )
+from app.modules.applications.models import ApplicationMessage
 from app.modules.applications.schemas import (
+    ActivityItem,
+    ApplicationCounts,
     ApplicationDetailResponse,
     ApplicationResponse,
     CandidateHistoryItem,
+    DailyApplications,
     EmployerApplicationDetail,
+    EmployerApplicationListItem,
     EmployerApplicationSummary,
+    EmployerDashboard,
     EmployerHistoryItem,
     InterviewDetails,
+    JobCounts,
+    NeedsAttention,
+    RevealCounts,
+    TopJob,
+    UpcomingInterview,
 )
 from app.modules.discovery import service as discovery_service
 from app.modules.jobs import service as jobs_service
@@ -560,25 +585,28 @@ async def _detail(session: AsyncSession, row: Any) -> EmployerApplicationDetail:
     )
 
 
-async def list_for_job(
+async def list_for_employer(
     session: AsyncSession,
     *,
     ctx: TenantContext,
-    job_id: uuid.UUID,
+    job_id: uuid.UUID | None,
     stage: str | None,
     cursor: str | None,
     limit: int | None,
-) -> Page[EmployerApplicationSummary]:
-    """A job's applications, oldest first, optionally at one stage.
+) -> Page[EmployerApplicationListItem]:
+    """The organisation's applications, oldest first, optionally for one job
+    and optionally at one stage. Each row names its job.
 
-    The job is looked up first, so another organisation's job id is
-    `job_not_found` rather than an empty page that confirms nothing and
-    explains nothing.
+    Without `job_id` the page spans every job, so a pipeline board fills from
+    one request rather than one per job. With it, the job is looked up first,
+    so another organisation's job id is `job_not_found` rather than an empty
+    page that confirms nothing and explains nothing.
     """
     tenant_id = await _bind_tenant(session, ctx)
-    await jobs_service.get_job(session, ctx=ctx, job_id=job_id)
+    if job_id is not None:
+        await jobs_service.get_job(session, ctx=ctx, job_id=job_id)
     page_size = clamp_limit(limit)
-    rows = await repository.list_for_job(
+    rows = await repository.list_for_employer(
         session,
         tenant_id=tenant_id,
         job_id=job_id,
@@ -587,9 +615,16 @@ async def list_for_job(
         limit=page_size + 1,
     )
     page, more = rows[:page_size], len(rows) > page_size
-    return Page[EmployerApplicationSummary](
-        items=[_summary(r) for r in page], next_cursor=_cursor(page, more)
-    )
+    labels = await jobs_service.labels(session, ctx=ctx, job_ids=list({r.job_id for r in page}))
+    items = []
+    for row in page:
+        title, location = labels.get(row.job_id, (None, None))
+        items.append(
+            EmployerApplicationListItem(
+                **_summary(row).model_dump(), job_title=title, job_location=location
+            )
+        )
+    return Page[EmployerApplicationListItem](items=items, next_cursor=_cursor(page, more))
 
 
 async def open_application(
@@ -812,3 +847,308 @@ async def expire_for_tenant(session: AsyncSession, *, tenant_id: uuid.UUID, now:
             "applications_expired", tenant_id=str(tenant_id), count=expired, rules=rules.version
         )
     return expired
+
+
+# ---------------------------------------------------------------------------
+# The employer dashboard
+# ---------------------------------------------------------------------------
+async def dashboard(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    top_jobs: int = DEFAULT_TOP_JOBS,
+    now: datetime | None = None,
+) -> EmployerDashboard:
+    """The landing page of the employer portal: the organisation's pipeline, counted.
+
+    **Read live, never cached.** Every number is something a recruiter acts on
+    and then looks for the change -- a cached count that still says three
+    unreviewed after they opened all three reads as a bug.
+
+    Counted the way the rest of the pipeline counts: an application whose
+    candidate is later held back from search is still in the employer's
+    pipeline and still counted, exactly as `list_for_employer` lists it.
+
+    `expiring_within_7_days` uses the expiry rules in force, so a malformed
+    `applications.expiry` row is a 500 here as it is in the sweep, rather than
+    a count against a period nobody configured.
+    """
+    now = now or datetime.now(UTC)
+    tenant_id = await _bind_tenant(session, ctx)
+    rules = await load_expiry_rules(session, now=now)
+    trend_since = trend_start(now)
+    recent_since = now - DASHBOARD_WINDOW
+
+    counts = await repository.dashboard_counts(
+        session,
+        tenant_id=tenant_id,
+        now=now,
+        recent_since=recent_since,
+        trend_since=trend_since,
+        interviews_until=now + DASHBOARD_WINDOW,
+        expiry_horizon=expiry_horizon(now=now, rules=rules, within=DASHBOARD_WINDOW),
+    )
+    by_stage = await repository.stage_totals(session, tenant_id=tenant_id)
+    busiest = await repository.top_jobs(
+        session, tenant_id=tenant_id, recent_since=recent_since, limit=top_jobs
+    )
+    interviews = await repository.upcoming_interviews(
+        session, tenant_id=tenant_id, now=now, limit=UPCOMING_INTERVIEWS
+    )
+    per_day = await repository.submissions_by_day(
+        session, tenant_id=tenant_id, since=trend_since, zone=IST_ZONE_NAME
+    )
+    jobs = await jobs_service.status_counts(session, ctx=ctx)
+    revealed, revealed_recently = await discovery_service.revealed_counts(
+        session, ctx=ctx, since=recent_since
+    )
+    titles = await jobs_service.titles(
+        session,
+        ctx=ctx,
+        job_ids=list({row.job_id for row in busiest} | {row.job_id for row in interviews}),
+    )
+
+    return EmployerDashboard(
+        generated_at=now,
+        jobs=JobCounts(
+            total=sum(jobs.values()),
+            active=jobs["PUBLISHED"],
+            draft=jobs["DRAFT"],
+            paused=jobs["PAUSED"],
+            closed=jobs["CLOSED"],
+        ),
+        applications=ApplicationCounts(
+            total=counts["total"],
+            open=counts["open"],
+            distinct_candidates=counts["distinct_candidates"],
+            new_last_7_days=counts["new_recent"],
+            new_last_30_days=counts["new_trend"],
+            by_stage=by_stage,
+        ),
+        needs_attention=NeedsAttention(
+            unreviewed=by_stage["SUBMITTED"],
+            interviews_to_schedule=counts["interviews_to_schedule"],
+            interviews_next_7_days=counts["interviews_upcoming"],
+            hires_awaiting_candidate=counts["hires_awaiting_candidate"],
+            hires_disputed=counts["hires_disputed"],
+            expiring_within_7_days=counts["expiring"],
+        ),
+        candidates_revealed=RevealCounts(total=revealed, last_7_days=revealed_recently),
+        top_jobs=[
+            TopJob(
+                job_id=row.job_id,
+                title=titles[row.job_id][0],
+                status=titles[row.job_id][1],
+                applications=row.applications,
+                open=row.open,
+                new_last_7_days=row.new_recent,
+                last_applied_at=row.last_applied_at,
+            )
+            for row in busiest
+        ],
+        upcoming_interviews=[
+            UpcomingInterview(
+                application_id=row.id,
+                job_id=row.job_id,
+                job_title=titles[row.job_id][0],
+                interview_at=row.interview_at,
+                meeting_url=row.meeting_url,
+            )
+            for row in interviews
+        ],
+        applications_per_day=[
+            DailyApplications(date=day, count=count)
+            for day, count in daily_series(per_day, now=now)
+        ],
+    )
+
+
+def _activity_after(cursor: str | None) -> tuple[datetime, uuid.UUID] | None:
+    if cursor is None:
+        return None
+    payload = decode_cursor(cursor)
+    try:
+        return datetime.fromisoformat(str(payload["o"])), uuid.UUID(str(payload["i"]))
+    except (KeyError, ValueError) as exc:
+        raise ValidationError(code="invalid_cursor") from exc
+
+
+async def activity(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    actor: str | None,
+    cursor: str | None,
+    limit: int | None,
+) -> Page[ActivityItem]:
+    """The organisation's pipeline history across every job, newest first.
+
+    `actor` narrows it to what candidates did, what the team did, or what the
+    clock did. Paged by `(occurred_at, id)`, which is the order the events
+    were written in.
+    """
+    tenant_id = await _bind_tenant(session, ctx)
+    page_size = clamp_limit(limit)
+    rows = await repository.recent_events(
+        session,
+        tenant_id=tenant_id,
+        actor_type=actor,
+        after=_activity_after(cursor),
+        limit=page_size + 1,
+    )
+    page, more = rows[:page_size], len(rows) > page_size
+    titles = await jobs_service.titles(session, ctx=ctx, job_ids=list({r.job_id for r in page}))
+    next_cursor = (
+        encode_cursor({"o": page[-1].occurred_at.isoformat(), "i": str(page[-1].id)})
+        if more and page
+        else None
+    )
+    return Page[ActivityItem](
+        items=[
+            ActivityItem(
+                id=r.id,
+                application_id=r.application_id,
+                job_id=r.job_id,
+                job_title=titles.get(r.job_id, (None, None))[0],
+                kind=r.kind,
+                from_stage=r.from_stage,
+                to_stage=r.to_stage,
+                by=r.actor_type,
+                actor_id=r.actor_id if r.actor_type == "EMPLOYER" else None,
+                occurred_at=r.occurred_at,
+            )
+            for r in page
+        ],
+        next_cursor=next_cursor,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Messages to an applicant (2026-09-29)
+# ---------------------------------------------------------------------------
+class MessageInvalidError(ValidationError):
+    """`code` is the domain's refusal, e.g. `message_time_required`."""
+
+    code = "message_invalid"
+    title = "The message cannot be sent"
+
+
+class MessageNotAllowedError(ConflictError):
+    """The application is finished: hired, rejected, withdrawn or expired."""
+
+    code = "message_not_allowed_at_stage"
+    title = "This application is closed"
+
+
+class MessageLimitError(AppError):
+    status_code = status.HTTP_429_TOO_MANY_REQUESTS
+    code = "message_limit_reached"
+    title = "Too many messages to this candidate today"
+
+
+async def send_message(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    application_id: uuid.UUID,
+    kind: str,
+    body: str,
+    scheduled_at: datetime | None,
+    link: str | None,
+    now: datetime | None = None,
+    request_id: str | None = None,
+) -> ApplicationMessage:
+    """Write to an applicant. **The platform sends it**, by email and in the
+    app, so the employer never learns the candidate's address.
+
+    Checked before the application is looked up, as for an interview: a bad
+    message is bad whoever it is for. Audited without its words, and counted
+    as employer activity so the application does not expire under a live
+    conversation.
+    """
+    now = now or datetime.now(UTC)
+    body = body.strip()
+    refused = refuse_message(kind=kind, body=body, scheduled_at=scheduled_at, link=link, now=now)
+    if refused is not None:
+        raise MessageInvalidError(code=refused)
+    await enforce("applications.message", subject=str(ctx.tenant_id))
+
+    row = await _theirs(session, ctx, application_id, for_update=True)
+    if row.stage not in MESSAGEABLE_STAGES:
+        raise MessageNotAllowedError(params={"stage": row.stage})
+    sent_today = await repository.count_messages_since(
+        session, application_id=row.id, since=now - timedelta(days=1)
+    )
+    if sent_today >= MAX_MESSAGES_PER_APPLICATION_PER_DAY:
+        raise MessageLimitError()
+
+    message = await repository.insert_message(
+        session,
+        application_id=row.id,
+        sender_id=ctx.user_id,
+        kind=kind,
+        body=body,
+        scheduled_at=scheduled_at,
+        link=link,
+    )
+    await repository.save(session, application=row, employer_active_at=now)
+    await audit_event(
+        session,
+        action=AuditAction.APPLICATION_MESSAGE_SENT,
+        actor_id=ctx.user_id,
+        actor_role=ctx.role,
+        target_type="application",
+        target_id=row.id,
+        tenant_id=row.tenant_id,
+        request_id=request_id,
+        metadata={"message_id": str(message.id), "kind": kind},
+    )
+    await emit(
+        session,
+        event_type=MESSAGE_SENT,
+        aggregate_type="application_message",
+        aggregate_id=message.id,
+        payload={
+            **_payload(row, message_id=str(message.id), kind=kind),
+            "has_time": scheduled_at is not None,
+        },
+    )
+    logger.info("application_message_sent", application_id=str(row.id), kind=kind)
+    return message
+
+
+async def messages_for_employer(
+    session: AsyncSession, *, ctx: TenantContext, application_id: uuid.UUID
+) -> list[ApplicationMessage]:
+    row = await _theirs(session, ctx, application_id, for_update=False)
+    return await repository.messages_for(session, application_id=row.id)
+
+
+async def messages_for_candidate(
+    session: AsyncSession, *, ctx: TenantContext, application_id: uuid.UUID
+) -> tuple[str | None, list[ApplicationMessage]]:
+    """The candidate's own messages, with the employer's name. Not paywalled,
+    like reading their applications: a lapsed subscriber keeps what was
+    sent to them."""
+    row = await _mine(session, ctx, application_id, for_update=False)
+    summary = (await _respond(session, ctx, [row]))[0]
+    return summary.employer_name, await repository.messages_for(session, application_id=row.id)
+
+
+@dataclass(frozen=True, slots=True)
+class MessageForDelivery:
+    kind: str
+    body: str
+    scheduled_at: datetime | None
+    link: str | None
+
+
+async def message_for_delivery(
+    session: AsyncSession, *, message_id: uuid.UUID
+) -> MessageForDelivery | None:
+    """**Notifications only**, resolving a `message_sent` event's words at
+    dispatch -- the outbox payload carries ids, never content."""
+    message = await repository.message_by_id(session, message_id=message_id)
+    if message is None:
+        return None
+    return MessageForDelivery(message.kind, message.body, message.scheduled_at, message.link)

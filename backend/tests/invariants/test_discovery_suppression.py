@@ -37,7 +37,19 @@ READS_NO_CANDIDATE: dict[str, str] = {
     "current_config": "reads config_values: the abuse limits, not a person",
     "lock_tenant_views": "takes an advisory lock; reads no table",
     "view_counts": "counts the organisation's own view log to enforce its caps",
+    "revealed_counts": "counts the organisation's own view log for its dashboard",
     "ensure_view_partitions": "creates view-log partitions; reads no rows",
+    # 2026-09-24: the search filter catalogue -- skill and city names staff
+    # curate, never drawn from candidates.
+    "featured_filter_options": "reads the filter catalogue",
+    "suggest_filter_options": "reads the filter catalogue",
+    "options_naming": "reads the filter catalogue",
+    "options_claiming": "reads the filter catalogue",
+    "lock_filter_catalogue": "takes an advisory lock; reads no table",
+    "get_filter_option": "reads the filter catalogue",
+    "list_filter_options": "reads the filter catalogue",
+    "insert_filter_options": "writes the filter catalogue",
+    "save_filter_option": "writes the filter catalogue",
 }
 
 #: Tables that hold something about a candidate, as SQL would name them.

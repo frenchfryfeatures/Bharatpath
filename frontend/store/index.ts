@@ -7,6 +7,7 @@ import notificationUIReducer from "./common/slices/notification-slice";
 
 import { baseApi } from "./api/base-api";
 import { notificationApi } from "./api/notification-api";
+import { successFeedbackMiddleware } from "./success-feedback-middleware";
 
 import { collegeBillingReducer } from "./college/billing";
 import collegeSettingsReducer from "./college/settings/college-settings.slice";
@@ -97,6 +98,8 @@ export const store = configureStore({
 
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(
+      successFeedbackMiddleware,
+
       /*
        * Existing application API
        */

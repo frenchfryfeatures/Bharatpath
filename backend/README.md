@@ -38,6 +38,11 @@ row-level security, which is what makes the RLS tests mean anything. On
 Windows, pass the interpreter explicitly:
 `PYTHON=.venv/Scripts/python.exe bash scripts/reset_local_db.sh`.
 
+Container startup runs Uvicorn only. Apply schema changes separately with
+`python -m alembic upgrade head` using `DATABASE_URL_MIGRATOR` before
+deploying the new application image. The official production Compose
+deployment does this through its dedicated `migrate` service.
+
 **`source .test-env.sh` before running the tests**, or four RLS tests fail in
 a way that looks exactly like a regression: without it the app connects as a
 role that bypasses RLS, and a test asserting "this write is refused" reports

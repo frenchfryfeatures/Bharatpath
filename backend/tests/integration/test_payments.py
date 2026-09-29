@@ -40,7 +40,7 @@ APP_URL = os.environ.get("DATABASE_URL_APP") or os.environ["DATABASE_URL"]
 CANDIDATE_SUBSCRIPTION = f"{API}/candidate/subscription"
 EMPLOYER_SUBSCRIPTION = f"{API}/employer/subscription"
 CALLBACK = f"{API}/billing/callbacks/stub"
-COMPLETE = CourseProgress(modules_total=6, modules_completed=6, assessment_score=0.8)
+COMPLETE = CourseProgress(lessons_total=6, lessons_completed=6)
 
 
 @pytest.fixture(autouse=True)
@@ -934,8 +934,8 @@ async def test_a_course_is_bought_by_a_verified_payment_and_completed_only_by_th
     with pytest.raises(PermissionDeniedError):
         await _complete(me["id"], course_id, role="CANDIDATE")
     with pytest.raises(courses_service.CourseNotCompleteError) as incomplete:
-        await _complete(me["id"], course_id, progress=CourseProgress(6, 5, 0.9))
-    assert incomplete.value.params == {"reason": "modules_incomplete"}
+        await _complete(me["id"], course_id, progress=CourseProgress(6, 5))
+    assert incomplete.value.params == {"reason": "lessons_incomplete"}
 
     first = await _complete(me["id"], course_id)
     second = await _complete(me["id"], course_id)
@@ -960,7 +960,9 @@ async def test_a_course_is_bought_by_a_verified_payment_and_completed_only_by_th
 
 
 def test_no_route_records_a_course_completion(app: Any) -> None:
-    """A completion moves a score, and the rule for one is not decided (C1)."""
+    """A completion moves a score. Candidates report progress through a
+    lesson; the server records the completion when the rule is met, and no
+    route lets anyone post one (2026-09-29)."""
     paths = [path for path in app.openapi()["paths"] if "course" in path]
     assert paths and not [p for p in paths if "complet" in p.lower()]
 

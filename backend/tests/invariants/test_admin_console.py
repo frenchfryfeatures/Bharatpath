@@ -134,6 +134,8 @@ ROUTE_CAPABILITY: dict[str, Any] = {
     "suspension_history": "tenants",
     "allocate_seats": "seats",
     "candidate_drilldown": "candidate_drilldown",
+    # 2026-09-23: whoever may open a candidate may find one.
+    "list_candidates": "candidate_drilldown",
     "employer_drilldown": "employer_drilldown",
     "college_drilldown": "college_drilldown",
     "suppress_notifications": "suppress_notifications",
@@ -153,6 +155,33 @@ ROUTE_CAPABILITY: dict[str, Any] = {
     "list_discount_codes": "discounts_read",
     "get_discount_code": "discounts_read",
     "discount_redemptions": "discounts_read",
+    # 2026-09-23: the landing page, for all staff; its sections are gated inside.
+    "dashboard": "dashboard",
+    # 2026-09-24: the skills and cities employers filter by; support edits too.
+    "list_search_filter_options": "search_filters",
+    "create_search_filter_option": "search_filters",
+    "import_search_filter_options": "search_filters",
+    "get_search_filter_option": "search_filters",
+    "update_search_filter_option": "search_filters",
+    # 2026-09-29: the full candidate page. The CV and the recordings are
+    # larger reveals than the drill-down, each with its own capability; the
+    # onboarding page is the one with a whole contact.
+    "candidate_onboarding": "candidate_contact",
+    "candidate_resume": "candidate_resume",
+    "candidate_score_timeline": "candidate_drilldown",
+    "candidate_interviews": "candidate_drilldown",
+    "candidate_interview_recordings": "candidate_recordings",
+    "candidate_courses": "candidate_drilldown",
+    "candidate_applications": "candidate_drilldown",
+    # 2026-09-29: building the course, the admin's alone.
+    "list_courses": "courses",
+    "create_course_module": "courses",
+    "update_course_module": "courses",
+    "create_course_lesson": "courses",
+    "update_course_lesson": "courses",
+    "issue_lesson_upload": "courses",
+    "confirm_lesson_upload": "courses",
+    "publish_course": "courses",
 }
 
 
@@ -193,11 +222,15 @@ async def test_no_audit_row_means_no_reveal(client: Any, mint_token: Any, monkey
     tenant_id = uuid.UUID(employer["tenant_id"])
     for call in (
         lambda s: admin_service.candidate_drilldown(s, ctx=ctx, user_id=candidate["id"]),
+        lambda s: admin_service.list_candidates(
+            s, ctx=ctx, status=None, name_contains=None, email=None, cursor=None, limit=None
+        ),
         lambda s: admin_service.employer_drilldown(s, ctx=ctx, tenant_id=tenant_id),
         lambda s: admin_service.college_drilldown(s, ctx=ctx, tenant_id=tenant_id),
         lambda s: admin_service.integrity_queue(
             s, ctx=ctx, state="OPEN", severity=None, cursor=None, limit=None
         ),
+        lambda s: admin_service.dashboard(s, ctx=ctx),
         lambda s: admin_service.search_audit(
             s,
             ctx=ctx,

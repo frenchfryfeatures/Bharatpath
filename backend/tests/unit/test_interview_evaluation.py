@@ -128,7 +128,7 @@ def test_the_report_carries_no_number_about_the_candidate() -> None:
         QuestionEvaluation(CODES[1], _ratings(1), ""),
     )
     report = assemble_report(
-        question_set_code=SET_ONE.code,
+        questions=SET_ONE.questions,
         transcripts={0: "I built the billing system.", 1: "We did many things.", 2: ""},
         evaluations=evaluations,
     )
@@ -164,7 +164,7 @@ def test_the_report_carries_no_number_about_the_candidate() -> None:
 def test_strengths_and_focus_areas_follow_the_levels() -> None:
     strong = {d.code: 4 for d in DIMENSIONS} | {"CLARITY": 0}
     report = assemble_report(
-        question_set_code=SET_ONE.code,
+        questions=SET_ONE.questions,
         transcripts={0: "An answer."},
         evaluations=(QuestionEvaluation(SET_ONE.questions[0].code, strong, ""),),
     )

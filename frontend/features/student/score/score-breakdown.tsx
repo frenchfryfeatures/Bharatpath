@@ -7,7 +7,7 @@ import { StudentPage, StudentTopBar } from "@/features/student/shell";
 
 export function ScoreBreakdown() {
   return (
-    <StudentPage width="narrow">
+    <StudentPage>
       <StudentTopBar title="Score details" />
       <div className="flex flex-col gap-4">
         <h1 className="text-[26px] font-bold text-[#0A1931]">

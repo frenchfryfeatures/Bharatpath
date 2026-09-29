@@ -371,11 +371,73 @@ itself a tool that's gated behind having already subscribed).
 
 **Response** — `200 OK`, array of `CourseResponse`:
 ```json
-[{ "id": "...", "code": "INTERVIEW_PREP_101", "title": "Interview Preparation", "price_minor": 49900, "currency": "INR", "purchased": false, "completed": false }]
+[{ "id": "...", "code": "COURSE_RESUME_FOUNDATION", "title": "Presenting Your Work",
+   "price_minor": 49900, "currency": "INR", "purchased": false, "completed": false,
+   "locked": true, "lessons_total": 6, "lessons_completed": 0, "percent_complete": 0 }]
 ```
-`purchased` and `completed` are **per this specific candidate** — the same
-list endpoint doubles as "what's on sale" and "what have I already bought
-and finished."
+`purchased`, `completed`, `locked` and the progress fields are **per this
+specific candidate** — the same list endpoint doubles as "what's on sale" and
+"what have I already bought, and how far am I". Ownership goes by course
+*code*: a candidate who bought at an old price keeps the course when staff
+reprice it (which makes a new version row).
+
+**A course appears here only once staff have published it** with at least
+one playable lesson (§7). An empty course is never sold.
+
+## 5a. `GET /candidate/courses/{course_id}` — the syllabus, locked until bought
+
+**Auth required:** `CANDIDATE` + active subscription. **Request:** no body.
+
+**Response** — `200 OK` (`CourseDetailResponse`): everything in §5, plus the
+modules and their lessons:
+```json
+{ "id": "...", "code": "COURSE_RESUME_FOUNDATION", "locked": false, "percent_complete": 50,
+  "modules": [
+    { "id": "...", "title": "Writing Practice", "lessons": [
+      { "id": "...", "title": "Writing an Email", "description": null, "duration_seconds": 600,
+        "media_kind": "YOUTUBE",
+        "media_url": "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
+        "position_seconds": 240, "completed": false },
+      { "id": "...", "title": "Short Story Writing", "duration_seconds": 1980,
+        "media_kind": "UPLOAD",
+        "media_url": "https://…/course-media/…?X-Amz-Signature=…",
+        "position_seconds": 0, "completed": false }
+    ] }
+  ] }
+```
+- **While `locked` is true every `media_url` is `null`.** The titles and
+  lengths show so the student can see what they would get (the locked tab);
+  nothing is playable.
+- `YOUTUBE` → put `media_url` in an `<iframe>` (the no-cookie embed).
+  `UPLOAD` → a presigned GET for a `<video>` element, valid for four hours;
+  fetch the course again for fresh links.
+- `position_seconds` is where to resume.
+- **An unlisted YouTube video is not behind the paywall** — anyone with the
+  link can watch it. Uploaded videos are. The client chose to allow both.
+
+## 5b. `POST /candidate/courses/{course_id}/lessons/{lesson_id}/progress` — report watching
+
+**Auth required:** `CANDIDATE` + active subscription.
+
+**Request body:**
+```json
+{ "position_seconds": 540 }
+```
+Send it every ~15 seconds while the video plays, and on pause and close.
+
+**Response** — `200 OK`:
+```json
+{ "lesson_id": "...", "position_seconds": 540, "completed": true,
+  "lessons_total": 6, "lessons_completed": 6, "percent_complete": 100,
+  "course_completed": true }
+```
+**The server decides "watched", not the app.** A lesson counts once the
+student has reached 90% of it **and** at least half its length has actually
+passed since they first opened it — dragging the slider to the end does not
+count. `completed` is a latch. When the last published lesson is watched the
+server records the course completion (+30 toward the score) **as the system**
+(§6's "why there's no completion endpoint" still holds: nobody posts a
+completion). `409 course_not_purchased` for a course not bought.
 
 ## 6. `POST /candidate/courses/{course_id}/checkout` — buy one
 
@@ -398,12 +460,35 @@ subscription checkout in §4. Same rule: **nothing is granted by this call**
 Worth calling out because its absence is deliberate, not a gap: a course
 completion is written **only** by `courses.service.record_completion`,
 callable only as `SYSTEM` or `PLATFORM_ADMIN` — never through any HTTP
-route a candidate or even an employer could reach. If a candidate could
+route a candidate or even an employer could reach. Since 2026-09-29 the
+system calls it from §5b, when the rule (`lessons-watched-1-2026-09-29`:
+every published lesson watched) is met by what the server itself measured. If a candidate could
 call an endpoint to mark their own course "done," the +30 points it awards
 toward the score would be self-certified — exactly the kind of thing the
 whole scoring design (Layer 1 model / Layer 2-3 code split, from
 [04](04-resume-and-scoring-apis.md)) exists to prevent happening anywhere
 in the system.
+
+## 7. Building the course — the admin console
+
+Staff (PLATFORM_ADMIN only) build courses; the routes live under `/admin`
+and are listed with the console in [13](13-admin-console-and-disputes-apis.md).
+The order of operations:
+
+1. `POST /admin/courses/{code}/modules` `{ "title": "Writing Practice" }`
+2. `POST /admin/course-modules/{module_id}/lessons` with either
+   - `{ "title", "duration_seconds", "youtube_url": "https://youtu.be/…" }` —
+     playable at once (YouTube hosts only; anything else is `422`), or
+   - `{ "title", "duration_seconds" }` then
+     `POST /admin/course-lessons/{id}/upload` → PUT the MP4/WebM to the URL →
+     `POST /admin/course-lessons/{id}/upload/confirm` (the server checks the
+     bytes really are a video, and deletes them if not).
+3. `PUT /admin/courses/{code}/published` `{ "published": true }` — refused
+   (`409 course_not_publishable`) until at least one lesson can play.
+
+Staff give each lesson's duration because a YouTube embed tells the server
+nothing, and the "watched" rule in §5b is measured against it. Modules and
+lessons are switched off, never deleted; every change is audited.
 
 ---
 

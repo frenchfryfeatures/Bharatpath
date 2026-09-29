@@ -31,7 +31,7 @@ import io
 import re
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
-from typing import Final
+from typing import Final, Literal
 
 # ---------------------------------------------------------------------------
 # Consent
@@ -56,21 +56,39 @@ ROSTER_CONSENT_TEXT: Final = (
 #: separately** (PRD 3.8): nothing on the linking path offers it, and it is
 #: versioned apart from the roster text because the two change independently.
 #: Placeholder words, ours, not counsel's, like the roster text above.
-INDIVIDUAL_CONSENT_VERSION: Final = "placeholder-1-2026-09-17"
+#:
+#: **Version 2 (2026-09-29) widens what is shown**, at the client's request:
+#: the details given at sign-up (contact included), the CV, practice
+#: interviews completed, course progress, and each application with its
+#: stage. Those are served only to a college whose student agreed to these
+#: words (`INDIVIDUAL_DETAILS_VERSIONS`); a student who agreed to version 1
+#: keeps version 1's narrower view until they agree again.
+INDIVIDUAL_CONSENT_VERSION: Final = "placeholder-2-2026-09-29"
 INDIVIDUAL_CONSENT_KEY: Final = "college.consent.individual"
 INDIVIDUAL_CONSENT_TEXT: Final = (
-    "Your college will be able to see you by name: your current BharatPath "
-    "score and band, how many jobs you have applied to and been interviewed "
-    "for, and the jobs you were hired into through BharatPath. It will not see "
-    "your phone number, your email, your CV, or anything an employer wrote "
-    "about you. Every time someone at your college opens your details it is "
-    "recorded. You can turn this off at any time, and your college loses this "
-    "view at once."
+    "Your college will be able to see you by name: the details you gave "
+    "BharatPath when you signed up, including your phone number, email, city "
+    "and your answers to the profile questions; your CV; your current "
+    "BharatPath score and band; how many practice interviews you have "
+    "completed; your progress through BharatPath courses; the jobs you have "
+    "applied to through BharatPath, with the stage each application has "
+    "reached, how many you have been interviewed for, and the jobs you were "
+    "hired into. It will not hear your practice interview recordings or see "
+    "anything an employer wrote about you. Every time someone at your college opens your "
+    "details it is recorded. You can turn this off at any time, and your "
+    "college loses this view at once."
 )
+#: The INDIVIDUAL consent versions whose words name the details above. The
+#: consent-joined reads that serve them (`college_student_details` and its
+#: siblings, migration 0005) hold the same list in SQL, and a test keeps the
+#: two equal.
+INDIVIDUAL_DETAILS_VERSIONS: Final = frozenset({INDIVIDUAL_CONSENT_VERSION})
 
 ROSTER: Final = "ROSTER"
 INDIVIDUAL: Final = "INDIVIDUAL"
 SCOPES: Final = (ROSTER, INDIVIDUAL)
+StudentLinkState = Literal["LINKED", "INVITED", "CONSENT_PENDING"]
+StudentStageFilter = Literal["ALL", "LINKED", "INVITED", "CONSENT_PENDING"]
 GRANTED_VIA_REFERRAL_CODE: Final = "REFERRAL_CODE"
 GRANTED_VIA_INVITE: Final = "INVITE"
 #: INDIVIDUAL scope, granted by the student from their own settings. **The

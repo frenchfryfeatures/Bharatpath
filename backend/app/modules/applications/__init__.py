@@ -16,7 +16,10 @@ def get_router() -> APIRouter | None:
 
 
 def get_extra_routers() -> tuple[tuple[str, APIRouter], ...]:
-    """Candidates apply; employers work the pipeline."""
+    """Candidates apply; employers work the pipeline and read it counted."""
     from . import router as _router
 
-    return (("/employer/applications", _router.employer_router),)
+    return (
+        ("/employer/applications", _router.employer_router),
+        ("/employer/dashboard", _router.dashboard_router),
+    )

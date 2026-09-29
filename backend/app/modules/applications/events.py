@@ -30,3 +30,8 @@ HIRE_DISPUTED: Final = f"{MODULE}.hire_disputed"
 #: event. Billing is deliberately not built: the client has deferred it
 #: (`answers-log.md` 0.8), and the SRS says it "must not be assumed".
 HIRE_CONFIRMED: Final = f"{MODULE}.hire_confirmed"
+
+#: An employer wrote to an applicant (2026-09-29): an interview or assessment
+#: invitation, or a message. Notifications emails and posts it in the app.
+#: The payload carries the message id; the words are read at dispatch.
+MESSAGE_SENT: Final = f"{MODULE}.message_sent"

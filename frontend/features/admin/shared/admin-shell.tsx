@@ -10,6 +10,8 @@ const navigation = [
   ["Queue", "/admin/queue"],
   ["Users", "/admin/users"],
   ["Disputes", "/admin/disputes"],
+  ["Audit trail", "/admin/audit"],
+  ["Attributes", "/admin/search-filters"],
   ["Settings", "/admin/settings"],
 ] as const;
 

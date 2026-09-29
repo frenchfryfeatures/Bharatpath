@@ -24,7 +24,7 @@ export function InterviewIntro() {
         }).format(offer.data.priceMinor / 100);
 
   return (
-    <StudentPage width="narrow">
+    <StudentPage>
       <div className="flex flex-col gap-5">
         <StudentTopBar
           title="Mock interview"

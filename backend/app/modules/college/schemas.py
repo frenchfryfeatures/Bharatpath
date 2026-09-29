@@ -6,17 +6,13 @@ Separate Create / Update / Read schemas. ORM models are never exposed
 directly - the schema IS the API contract, and for several modules it is also
 where an invariant is enforced structurally.
 
-**No college-facing schema names a student.** A college sees seat counts and
-invitation counts, and the rows of its own uploaded files. Which of those
-students have accounts, who they are once linked, and anything about their
-score is absent here by construction: ROSTER consent is counting, not seeing
-(PRD 3.8), and INDIVIDUAL visibility is Day 18's separate grant.
-
-**The one exception is `CollegeStudentResponse`**, and it exists only behind a
-live INDIVIDUAL consent, read on every request and audited on every open. It
-has no field for a phone number, an email, a CV, a raw score, a breakdown, or
-anything an employer wrote: `tests/invariants/test_invariant_09_consent.py`
-holds its field list.
+**No college-facing schema reveals a candidate before individual consent.**
+The roster list may repeat a name the college itself uploaded for an invitation,
+but its `candidate_id` stays null until the student grants INDIVIDUAL visibility.
+`CollegeStudentResponse` is the only detailed view, behind live INDIVIDUAL
+consent and audited on every open. It has no phone number, email, CV, raw score,
+breakdown, or anything an employer wrote:
+`tests/invariants/test_invariant_09_consent.py` holds its field list.
 """
 
 from __future__ import annotations
@@ -33,6 +29,7 @@ from app.modules.college.domain import (
     MAX_CODE_USES,
     MAX_CODE_VALID_DAYS,
     MAX_ROSTER_BYTES,
+    StudentLinkState,
 )
 
 InstitutionType = Literal[
@@ -139,6 +136,11 @@ class ReferralCodeResponse(_Base):
     created_at: datetime
 
 
+class ReferralCodesPage(_Base):
+    items: list[ReferralCodeResponse]
+    next_cursor: str | None = None
+
+
 # --- roster imports --------------------------------------------------------------
 class RosterUploadRequest(_Base):
     """A CSV with a header row: `name`, `phone`, `email`, `student_ref`. Phone
@@ -177,6 +179,12 @@ class RosterImportResponse(_Base):
     created_at: datetime
     committed_at: datetime | None
     invitations: InvitationCounts
+
+
+class RosterImportsPage(_Base):
+    items: list[RosterImportResponse]
+    next_cursor: str | None = None
+    invitation_totals: InvitationCounts
 
 
 class RosterRowResponse(_Base):
@@ -270,9 +278,20 @@ class RevokeConsentResponse(_Base):
 
 # --- students who let their college see them (Day 18) ------------------------------
 class VisibleStudentResponse(_Base):
-    candidate_id: uuid.UUID
-    full_name: str | None = Field(description="None when the student has not given one.")
-    visible_since: datetime
+    candidate_id: uuid.UUID | None = Field(
+        description="Present only after the student grants individual visibility."
+    )
+    roster_entry_id: uuid.UUID | None = Field(
+        description="Present for invited and consent-pending roster rows."
+    )
+    full_name: str | None = Field(
+        description="Student-approved name when LINKED; otherwise the college's roster name."
+    )
+    stage_since: datetime
+    visible_since: datetime | None = Field(
+        description="When individual visibility began; present only for LINKED students."
+    )
+    link_state: StudentLinkState
 
 
 class VisibleStudentsPage(_Base):
@@ -305,3 +324,74 @@ class CollegeStudentResponse(_Base):
     applications: int
     interviews: int = Field(description="Applications that reached an interview.")
     hires: list[StudentHireResponse]
+
+
+# --- a student's details (2026-09-29): consent version 2 only -----------------------
+class StudentAnswer(_Base):
+    code: str
+    question: str
+    answer: str
+
+
+class StudentCourseResponse(_Base):
+    code: str
+    title: str
+    purchased_at: datetime
+    lessons_total: int
+    lessons_completed: int
+    percent_complete: int = Field(ge=0, le=100)
+    completed_at: datetime | None
+
+
+class StudentApplicationResponse(_Base):
+    job_title: str
+    employer_name: str
+    job_location: str | None
+    stage: str
+    applied_at: datetime
+    updated_at: datetime
+
+
+class StudentApplicationAnalytics(_Base):
+    total: int
+    open: int
+    by_stage: dict[str, int]
+    reached: dict[str, int] = Field(
+        description="Applications that were ever at SHORTLISTED, INTERVIEW, DECISION or "
+        "HIRED, wherever they are now."
+    )
+
+
+class CollegeStudentDetailsResponse(_Base):
+    """What the current INDIVIDUAL consent words name beyond the core view:
+    served only to a college whose student agreed to them. Every open is
+    audited. The CV is its own endpoint and its own audit row."""
+
+    candidate_id: uuid.UUID
+    consent_version: str
+    email: str | None
+    phone: str | None
+    city: str | None
+    state_code: str | None
+    locale: str
+    questionnaire: list[StudentAnswer]
+    questionnaire_submitted_at: datetime | None
+    resume_confirmed_at: datetime | None = Field(
+        description="When the CV the score was built from was confirmed. None: no CV yet."
+    )
+    has_resume_file: bool
+    interviews_completed: int = Field(description="Practice interviews completed on BharatPath.")
+    courses: list[StudentCourseResponse]
+    applications: list[StudentApplicationResponse]
+    analytics: StudentApplicationAnalytics
+
+
+class CollegeStudentResumeResponse(_Base):
+    confirmed_at: datetime | None
+    source: str
+    text: str | None = Field(description="The CV as read, or as the student edited it.")
+    fields: dict[str, Any] = Field(
+        default_factory=dict, description="A form-built CV's fields, when it has no text."
+    )
+    file_url: str | None = Field(description="Presigned GET of the uploaded file; expires.")
+    file_mime: str | None = None

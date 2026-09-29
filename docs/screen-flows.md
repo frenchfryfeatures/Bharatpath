@@ -896,21 +896,24 @@ server still returns 403 if called.
 ### 3.6 Screens
 
 #### D1 · Dashboard — mockup "Dashboard"
-- **Tiles:** Active jobs (published count) · Applicants in pipeline · Access
-  ends (date). A "Profiles opened" tile would need an API that does not exist yet.
+- **Tiles:** Active jobs (published count) · Applicants in pipeline ·
+  Interviews in progress · Access ends (date). A "Profiles opened" tile would
+  need an API that does not exist yet.
 - **Quick actions:** Post a job · Search candidates · Review applications.
   Disable them without an active subscription (the banner explains why).
 - **Top jobs by applicants**, as in the mockup.
-- **Recent activity:** needs an activity feed API, which is not built. Hide the
-  block or keep it static behind a flag. Replace "You unlocked…" and "purchased
-  a credit pack" items.
+- **Recent activity:** keep the right-hand panel from the approved layout, but
+  show its empty state until an activity-feed API exists. Never restore the
+  static "You unlocked…" or "purchased a credit pack" items.
 - Empty (new org): "Post your first job" hero card.
 
 #### J1 · Jobs list — mockup "Jobs"
-`GET /employer/jobs?status=`
+`GET /employer/jobs?status=&q=&limit=&cursor=`. Use `next_cursor` for the
+Next control; do not download the full list and paginate it in the browser.
 
 - Filters: All · **Published** · Draft · **Paused** · Closed. Search by title
-  or location (client-side over the list).
+  or location with `q` (server-side, so it covers every page, not just the
+  ones loaded). There are no page numbers or total.
 - Columns: Job (title + initials) · Status · Location · Pay (monthly range, or
   LPA as mockup) · Applicants · Viewed · Shortlisted · Interview · Hired ·
   Rejected · Actions.
@@ -993,10 +996,13 @@ logged**, including re-opens.
 | 404 | "This candidate is no longer available." |
 
 #### A1 · Applications (pipeline) — mockup "Applications"
-`GET /employer/applications?job_id=&stage=` (`job_id` **required**, so the page
-always has a job selected; default to the most recent published job).
+`GET /employer/applications?job_id=&stage=`. **`job_id` is optional**
+(2026-09-23): leave it out and one request returns every job's applications,
+each row carrying `job_title` and `job_location` for the card.
 
-- Job selector at the top ("All jobs" is not possible, so remove it).
+- Job selector at the top. "All jobs" = no `job_id`; choosing a job adds it.
+  Never fetch per job and merge, and never open each card
+  (`GET /employer/applications/{id}` records VIEWED) to fill the board.
 - Columns: **Submitted · Viewed · Shortlisted · Interview · Decision** plus
   **Hired** and **Rejected**. Withdrawn and Expired sit in a collapsed
   "Closed" group.

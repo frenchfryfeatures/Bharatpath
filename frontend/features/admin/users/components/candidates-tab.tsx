@@ -5,14 +5,20 @@ import type { ColumnDef } from "@/components/ui/table";
 
 import { StateBadge } from "../../shared/status-badge";
 
-import type { UserRow } from "../types";
+import type { UsersPagination, UserRow } from "../types";
 
 interface CandidatesTabProps {
   users: UserRow[];
+  isLoading?: boolean;
+  onOpen: (id: string) => void;
+  pagination: UsersPagination;
 }
 
 export function CandidatesTab({
   users,
+  isLoading,
+  onOpen,
+  pagination,
 }: CandidatesTabProps) {
   const columns: ColumnDef<UserRow>[] = [
     {
@@ -41,7 +47,7 @@ export function CandidatesTab({
 
     {
       id: "identifier",
-      header: "Identifier",
+      header: "Contact",
       headerClassName: "min-w-[185px]",
       cellClassName:
         "min-w-[185px] whitespace-nowrap text-[12px] text-[#344054]",
@@ -72,9 +78,10 @@ export function CandidatesTab({
       header: "Actions",
       headerClassName: "min-w-[100px]",
       cellClassName: "min-w-[100px]",
-      cell: () => (
+      cell: (user) => (
         <button
           type="button"
+          onClick={() => onOpen(user.id)}
           className="cursor-pointer rounded-lg border border-[#e2e5eb] bg-white px-3 py-2 text-[11px] font-semibold text-[#172033] transition-colors hover:bg-[#f8f9fb]"
         >
           View
@@ -88,11 +95,17 @@ export function CandidatesTab({
       columns={columns}
       data={users}
       keyExtractor={(user) => user.id}
-      totalCount={users.length}
-      pageSize={10}
-      itemLabel=""
+      paginationMode="cursor"
+      pageSize={pagination.pageSize}
+      currentPage={pagination.currentPage}
+      hasNextPage={pagination.hasNextPage}
+      onNextPage={pagination.onNextPage}
+      onPreviousPage={pagination.onPreviousPage}
+      onPageSizeChange={pagination.onPageSizeChange}
+      itemLabel="candidates"
       emptyTitle="No candidates found"
-      emptySubtitle="Candidate listing is not available from the Admin API. Candidate drill-down remains available when a candidate ID is known."
+      emptySubtitle="Try a different name in the search box above."
+      isLoading={isLoading}
     />
   );
 }

@@ -1,83 +1,192 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useLazyGetEmployerApplicationsQuery } from "@/store/employer/applications";
-import { useGetEmployerJobsQuery } from "@/store/employer/jobs";
-import type { EmployerJob } from "@/features/employer/jobs/types";
-import type { EmployerDashboardData } from "../types";
+import { useMemo } from "react";
 
-const EMPTY_JOBS: EmployerJob[] = [];
-const EMPTY_COUNTS: Record<string, number> = {};
+import { useGetEmployerSubscriptionQuery } from "@/store/employer/billing";
+import {
+  useGetEmployerDashboardActivityInfiniteQuery,
+  useGetEmployerDashboardQuery,
+} from "@/store/employer/dashboard";
 
-interface ApplicationCountsState {
-  jobKey: string;
-  counts: Record<string, number>;
+import type {
+  EmployerDashboardActivityItemApiResponse,
+  EmployerDashboardApplicationStage,
+  EmployerDashboardApiResponse,
+} from "@/types/employer/dashboard";
+import type {
+  EmployerDashboardActivity,
+  EmployerDashboardData,
+} from "../types";
+
+const STAGE_LABELS: Record<
+  EmployerDashboardApplicationStage,
+  string
+> = {
+  SUBMITTED: "submitted",
+  VIEWED: "viewed",
+  SHORTLISTED: "shortlisted",
+  INTERVIEW: "interview",
+  DECISION: "decision",
+  HIRED: "hired",
+  REJECTED: "rejected",
+  WITHDRAWN: "withdrawn",
+  EXPIRED: "expired",
+};
+
+function formatActivityTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Time unavailable";
+  }
+
+  return date.toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
-export function useDashboard(): { data: EmployerDashboardData; isLoading: boolean } {
-  const { data: jobsData, isLoading: jobsLoading, error: jobsError } = useGetEmployerJobsQuery();
-  const jobs = jobsError ? EMPTY_JOBS : jobsData ?? EMPTY_JOBS;
-  const [loadApplications] = useLazyGetEmployerApplicationsQuery();
-  const [countsState, setCountsState] = useState<ApplicationCountsState>({
-    jobKey: "",
-    counts: {},
-  });
-  const jobKey = jobs.map((job) => job.id).join(":");
-  const counts = countsState.jobKey === jobKey ? countsState.counts : EMPTY_COUNTS;
-  const countsLoading =
-    !jobsError && jobs.length > 0 && countsState.jobKey !== jobKey;
+function toActivity(
+  activity: EmployerDashboardActivityItemApiResponse,
+): EmployerDashboardActivity {
+  const job = activity.job_title ?? "a job";
 
-  useEffect(() => {
-    let active = true;
-
-    if (jobsLoading || jobsError || jobs.length === 0) {
-      return () => { active = false; };
-    }
-
-    void Promise.all(jobs.map(async (job) => {
-      let count = 0;
-      let cursor: string | undefined;
-
-      do {
-        const response = await loadApplications({
-          jobId: job.id,
-          cursor,
-          limit: 100,
-        }).unwrap();
-        count += response.items.length;
-        cursor = response.nextCursor ?? undefined;
-      } while (cursor);
-
-      return [job.id, count] as const;
-    })).then((entries) => {
-      if (active) {
-        setCountsState({ jobKey, counts: Object.fromEntries(entries) });
-      }
-    }).catch(() => {
-      if (active) {
-        setCountsState({ jobKey, counts: {} });
-      }
-    });
-    return () => { active = false; };
-  }, [jobKey, jobs, jobsError, jobsLoading, loadApplications]);
-
-  const data = useMemo<EmployerDashboardData>(() => {
-    const topJobs = jobs.map((job) => ({ id: job.id, title: job.title, applicants: counts[job.id] ?? 0 }))
-      .sort((a, b) => b.applicants - a.applicants).slice(0, 3);
+  if (activity.kind === "INTERVIEW_SCHEDULED") {
     return {
-      stats: {
-        activeJobs: jobs.filter((job) => job.status === "live").length,
-        totalApplicants: Object.values(counts).reduce((total, count) => total + count, 0),
-        candidatesUnlocked: 0,
-        creditBalance: 0,
-      },
-      topJobs,
-      recentActivity: [],
+      id: activity.id,
+      text: `Interview scheduled for ${job}`,
+      time: formatActivityTime(activity.occurred_at),
+      type: "upload",
     };
-  }, [counts, jobs]);
+  }
+
+  if (activity.kind === "HIRE_PROPOSED") {
+    return {
+      id: activity.id,
+      text: `Hire proposed for ${job}`,
+      time: formatActivityTime(activity.occurred_at),
+      type: "hire",
+    };
+  }
+
+  if (activity.kind === "HIRE_DISPUTED") {
+    return {
+      id: activity.id,
+      text: `Hire disputed for ${job}`,
+      time: formatActivityTime(activity.occurred_at),
+      type: "hire",
+    };
+  }
+
+  if (activity.to_stage === "SUBMITTED") {
+    return {
+      id: activity.id,
+      text: `New application received for ${job}`,
+      time: formatActivityTime(activity.occurred_at),
+      type: "link",
+    };
+  }
+
+  if (activity.to_stage === "HIRED") {
+    return {
+      id: activity.id,
+      text: `Hire confirmed for ${job}`,
+      time: formatActivityTime(activity.occurred_at),
+      type: "hire",
+    };
+  }
+
+  return {
+    id: activity.id,
+    text: `Application moved to ${STAGE_LABELS[activity.to_stage]} for ${job}`,
+    time: formatActivityTime(activity.occurred_at),
+    type: "upload",
+  };
+}
+
+function toDashboardData(
+  dashboard: EmployerDashboardApiResponse | undefined,
+  activities: EmployerDashboardActivityItemApiResponse[],
+  hasAccess: boolean,
+): EmployerDashboardData {
+  return {
+    stats: {
+      activeJobs: dashboard?.jobs.active ?? 0,
+      applicantsInPipeline: dashboard?.applications.open ?? 0,
+      interviewsInProgress:
+        dashboard?.applications.by_stage.INTERVIEW ?? 0,
+      newApplicationsLast7Days:
+        dashboard?.applications.new_last_7_days ?? 0,
+      hasAccess,
+    },
+    topJobs:
+      dashboard?.top_jobs.map((job) => ({
+        id: job.job_id,
+        title: job.title,
+        applicants: job.applications,
+      })) ?? [],
+    activities: activities.map(toActivity),
+  };
+}
+
+export function useDashboard() {
+  const subscriptionQuery = useGetEmployerSubscriptionQuery();
+  const hasAccess = subscriptionQuery.data?.has_access ?? false;
+  const dashboardQuery = useGetEmployerDashboardQuery(
+    { topJobs: 3 },
+    { skip: !hasAccess },
+  );
+  const activityQuery = useGetEmployerDashboardActivityInfiniteQuery(
+    { limit: 10 },
+    { skip: !hasAccess },
+  );
+  const activityItems = useMemo(
+    () =>
+      activityQuery.data?.pages.flatMap((page) => page.items) ?? [],
+    [activityQuery.data],
+  );
+
+  const data = useMemo(
+    () =>
+      toDashboardData(
+        dashboardQuery.data,
+        activityItems,
+        hasAccess,
+      ),
+    [
+      activityItems,
+      dashboardQuery.data,
+      hasAccess,
+    ],
+  );
 
   return {
     data,
-    isLoading: jobsLoading || countsLoading,
+    isLoading:
+      subscriptionQuery.isLoading ||
+      (hasAccess &&
+        (dashboardQuery.isLoading || activityQuery.isLoading)),
+    isError:
+      subscriptionQuery.isError ||
+      (hasAccess &&
+        (dashboardQuery.isError || activityQuery.isError)),
+    hasMoreActivities: Boolean(activityQuery.hasNextPage),
+    isLoadingMoreActivities: activityQuery.isFetchingNextPage,
+    loadMoreActivities: () => {
+      if (
+        activityQuery.hasNextPage &&
+        !activityQuery.isFetchingNextPage
+      ) {
+        void activityQuery.fetchNextPage();
+      }
+    },
+    refetch: () => {
+      void subscriptionQuery.refetch();
+      if (hasAccess) {
+        void dashboardQuery.refetch();
+        void activityQuery.refetch();
+      }
+    },
   };
 }

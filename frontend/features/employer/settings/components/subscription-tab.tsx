@@ -2,7 +2,43 @@
 
 import { useCancelEmployerSubscriptionMutation, useCheckoutEmployerSubscriptionMutation, useCreateEmployerMandateMutation, useGetEmployerPlansQuery, useGetEmployerSubscriptionQuery } from "@/store/employer/billing";
 import { ErrorState } from "@/components/ui";
-import { Spinner } from "@/components/common/loading";
+import { Skeleton } from "@/components/common/loading";
+
+function SubscriptionTabSkeleton() {
+  return (
+    <div
+      className="max-w-[760px] space-y-4"
+      aria-label="Loading subscription"
+      aria-busy="true"
+    >
+      <span className="sr-only">Loading subscription…</span>
+
+      <section className="rounded-xl border border-[#e0e4e9] bg-white p-5">
+        <Skeleton width={132} height={16} radius={6} />
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <Skeleton width={54} height={14} radius={6} />
+          <Skeleton width={142} height={14} radius={6} />
+          <Skeleton width={94} height={14} radius={6} />
+        </div>
+        <Skeleton className="mt-4" width={120} height={36} radius={8} />
+      </section>
+
+      <div className="grid gap-3 md:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <section
+            key={index}
+            className="rounded-xl border border-[#e0e4e9] bg-white p-5"
+          >
+            <Skeleton width={90} height={17} radius={6} />
+            <Skeleton className="mt-3" width={120} height={29} radius={7} />
+            <Skeleton className="mt-2" width={72} height={13} radius={6} />
+            <Skeleton className="mt-4" height={34} radius={8} />
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export function SubscriptionTab() {
   const { data: subscription, isLoading } = useGetEmployerSubscriptionQuery();
@@ -28,12 +64,9 @@ export function SubscriptionTab() {
     }
   };
 
-  if (isLoading || plansLoading)
-    return (
-      <div className="flex items-center py-6">
-        <Spinner label="Loading subscription…" />
-      </div>
-    );
+  if (isLoading || plansLoading) {
+    return <SubscriptionTabSkeleton />;
+  }
 
   return (
     <div className="max-w-[760px] space-y-4">

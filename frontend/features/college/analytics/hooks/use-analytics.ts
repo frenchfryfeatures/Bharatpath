@@ -50,7 +50,7 @@ function metricsFrom(
 function monthsFrom(report: PlacementReport | undefined): MonthPlacement[] {
   return (report?.byMonth ?? []).map((entry) => ({
     month: entry.month,
-    hires: entry.hires ?? 0,
+    hires: entry.hires,
   }));
 }
 

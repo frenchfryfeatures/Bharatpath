@@ -18,7 +18,7 @@ export function ScoreReveal() {
   const score = useGetStudentScoreQuery();
 
   return (
-    <StudentPage width="medium">
+    <StudentPage>
       <StudentTopBar title="Your resume score" />
       {score.isLoading ? (
         <div className="rounded-2xl border border-[#E7E0D4] bg-white p-5 text-sm text-[#5F6B80]">

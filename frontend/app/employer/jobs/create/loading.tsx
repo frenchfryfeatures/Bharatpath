@@ -1,9 +1,5 @@
-import { FormSkeleton } from "@/components/common/loading";
+import { JobFormSkeleton } from "@/features/employer/jobs/components/job-form-skeleton";
 
 export default function EmployerJobCreateLoading() {
-  return (
-    <div className="mx-auto max-w-[860px] py-1">
-      <FormSkeleton fields={6} />
-    </div>
-  );
+  return <JobFormSkeleton />;
 }

@@ -32,6 +32,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.models import ConfigValue
+from app.modules.discovery.models import SearchFilterOption
 
 #: The candidates an employer may see, as a CTE named `visible_candidates`
 #: with columns `(user_id, resume_version_id)`. Compose it with
@@ -158,11 +159,11 @@ async def search_candidates(
     session: AsyncSession,
     *,
     bands: list[str],
-    skill_keys: list[str],
+    skill_groups: list[tuple[str, ...]],
     badges: list[str],
     min_experience_months: int | None,
     state_code: str | None,
-    city: str | None,
+    city_spellings: list[str],
     query: str | None,
     after: tuple[int, uuid.UUID] | None,
     limit: int,
@@ -179,15 +180,21 @@ async def search_candidates(
     of the GIN indexes, because the planner must assume any predicate might be
     switched off. Composing the WHERE clause from constant fragments keeps
     every value a bind parameter and every index usable.
+
+    **A skill group is one chosen skill and its catalogued spellings**, and
+    every group must match: `&&` per group, served by the same GIN index as
+    `@>`, and a group of one is exactly the old containment test. **Cities
+    are any-of**: every spelling of every chosen city is one contains-match,
+    ORed.
     """
     predicates: list[str] = []
     params: dict[str, Any] = {"limit": limit}
     if bands:
         predicates.append("d.band = ANY(CAST(:bands AS text[]))")
         params["bands"] = bands
-    if skill_keys:
-        predicates.append("d.skill_keys @> CAST(:skill_keys AS text[])")
-        params["skill_keys"] = skill_keys
+    for index, group in enumerate(skill_groups):
+        predicates.append(f"d.skill_keys && CAST(:skills_{index} AS text[])")
+        params[f"skills_{index}"] = list(group)
     if badges:
         predicates.append("d.badges @> CAST(:badges AS text[])")
         params["badges"] = badges
@@ -197,10 +204,14 @@ async def search_candidates(
     if state_code:
         predicates.append("p.state_code = :state_code")
         params["state_code"] = state_code
-    if city:
-        # `ix_candidate_profiles_city_trgm` serves a contains-match.
-        predicates.append("p.city ILIKE :city ESCAPE '\\'")
-        params["city"] = _contains(city)
+    if city_spellings:
+        # `ix_candidate_profiles_city_trgm` serves each contains-match; the
+        # ORs become a BitmapOr of them.
+        terms = []
+        for index, spelling in enumerate(city_spellings):
+            terms.append(f"p.city ILIKE :city_{index} ESCAPE '\\'")
+            params[f"city_{index}"] = _contains(spelling)
+        predicates.append("(" + " OR ".join(terms) + ")")
     if query:
         predicates.append("d.search_vector @@ plainto_tsquery('simple', :query)")
         params["query"] = query
@@ -326,6 +337,26 @@ async def lock_tenant_views(session: AsyncSession, *, tenant_id: uuid.UUID) -> N
     )
 
 
+async def revealed_counts(
+    session: AsyncSession, *, tenant_id: uuid.UUID, since: datetime
+) -> tuple[int, int]:
+    """Distinct candidates this organisation has opened: ever, and since `since`.
+
+    The organisation's own view log, counted for its dashboard. Ids are
+    counted, never returned.
+    """
+    query = text(
+        """
+        SELECT count(DISTINCT e.candidate_id),
+               count(DISTINCT e.candidate_id) FILTER (WHERE e.viewed_at >= :since)
+          FROM candidate_view_events e
+         WHERE e.tenant_id = CAST(:tenant AS uuid)
+        """
+    )
+    row = (await session.execute(query, {"tenant": str(tenant_id), "since": since})).one()
+    return int(row[0]), int(row[1])
+
+
 async def view_counts(
     session: AsyncSession,
     *,
@@ -385,3 +416,162 @@ async def ensure_view_partitions(session: AsyncSession, *, first_month: date, mo
         {"first_month": first_month, "months": months},
     )
     return int(created or 0)
+
+
+# ---------------------------------------------------------------------------
+# Search filter options (2026-09-24)
+# ---------------------------------------------------------------------------
+# The catalogue staff curate. None of these reads a candidate, and each is
+# named in `READS_NO_CANDIDATE`.
+_OPTION_CONTAINS = (
+    "(key LIKE :contains ESCAPE '\\'"
+    " OR EXISTS (SELECT 1 FROM unnest(aliases) a WHERE a LIKE :contains ESCAPE '\\'))"
+)
+
+
+def _prefix(value: str) -> str:
+    """A LIKE pattern for values starting with `value`, wildcards and all."""
+    return _contains(value)[1:]
+
+
+async def featured_filter_options(
+    session: AsyncSession, *, kind: str, limit: int
+) -> list[SearchFilterOption]:
+    result = await session.execute(
+        select(SearchFilterOption)
+        .where(
+            SearchFilterOption.kind == kind,
+            SearchFilterOption.featured,
+            SearchFilterOption.active,
+        )
+        .order_by(SearchFilterOption.sort_order, SearchFilterOption.label)
+        .limit(limit)
+    )
+    return list(result.scalars())
+
+
+async def suggest_filter_options(
+    session: AsyncSession, *, kind: str, query: str, state_code: str | None, limit: int
+) -> list[SearchFilterOption]:
+    """Active options whose key or an alias contains `query` (an `option_key`
+    already). An exact key first, then a key starting with it, then an alias
+    starting with it, then anything containing it."""
+    state = " AND state_code = :state" if state_code else ""
+    sql = (
+        "SELECT * FROM search_filter_options"  # noqa: S608 - constant fragments only
+        " WHERE kind = :kind AND active AND "
+        + _OPTION_CONTAINS
+        + state
+        + """
+         ORDER BY CASE
+                    WHEN key = :exact THEN 0
+                    WHEN key LIKE :prefix ESCAPE '\\' THEN 1
+                    WHEN EXISTS (SELECT 1 FROM unnest(aliases) a
+                                  WHERE a LIKE :prefix ESCAPE '\\') THEN 2
+                    ELSE 3
+                  END,
+                  featured DESC, sort_order, label
+         LIMIT :limit
+        """
+    )
+    params: dict[str, Any] = {
+        "kind": kind,
+        "exact": query,
+        "prefix": _prefix(query),
+        "contains": _contains(query),
+        "limit": limit,
+    }
+    if state_code:
+        params["state"] = state_code
+    result = await session.execute(select(SearchFilterOption).from_statement(text(sql)), params)
+    return list(result.scalars())
+
+
+async def options_naming(
+    session: AsyncSession, *, kind: str, keys: list[str]
+) -> list[SearchFilterOption]:
+    """Active options whose key or an alias is one of `keys`: what a search
+    expands a chosen value into."""
+    if not keys:
+        return []
+    result = await session.execute(
+        select(SearchFilterOption).where(
+            SearchFilterOption.kind == kind,
+            SearchFilterOption.active,
+            SearchFilterOption.key.in_(keys) | SearchFilterOption.aliases.overlap(keys),
+        )
+    )
+    return list(result.scalars())
+
+
+async def options_claiming(
+    session: AsyncSession, *, kind: str, keys: list[str], except_id: uuid.UUID | None = None
+) -> list[SearchFilterOption]:
+    """Every option, active or not, already holding one of `keys` as its key
+    or an alias. A switched-off option keeps its spellings, so switching it
+    back on never finds them taken."""
+    if not keys:
+        return []
+    statement = select(SearchFilterOption).where(
+        SearchFilterOption.kind == kind,
+        SearchFilterOption.key.in_(keys) | SearchFilterOption.aliases.overlap(keys),
+    )
+    if except_id is not None:
+        statement = statement.where(SearchFilterOption.id != except_id)
+    return list((await session.execute(statement)).scalars())
+
+
+async def lock_filter_catalogue(session: AsyncSession, *, kind: str) -> None:
+    """Serialise catalogue writes of one kind, so two staff adding the same
+    alias to different options cannot both pass the clash check."""
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+        {"key": f"discovery.filter_options:{kind}"},
+    )
+
+
+async def get_filter_option(
+    session: AsyncSession, *, option_id: uuid.UUID
+) -> SearchFilterOption | None:
+    return await session.get(SearchFilterOption, option_id)
+
+
+async def list_filter_options(
+    session: AsyncSession,
+    *,
+    kind: str | None,
+    query: str | None,
+    include_inactive: bool,
+    after: tuple[str, str] | None,
+    limit: int,
+) -> list[SearchFilterOption]:
+    """The console's list, by kind then key: a stable keyset."""
+    statement = select(SearchFilterOption)
+    if kind is not None:
+        statement = statement.where(SearchFilterOption.kind == kind)
+    if not include_inactive:
+        statement = statement.where(SearchFilterOption.active)
+    if query:
+        statement = statement.where(text(_OPTION_CONTAINS).bindparams(contains=_contains(query)))
+    if after is not None:
+        statement = statement.where(
+            (SearchFilterOption.kind > after[0])
+            | ((SearchFilterOption.kind == after[0]) & (SearchFilterOption.key > after[1]))
+        )
+    result = await session.execute(
+        statement.order_by(SearchFilterOption.kind, SearchFilterOption.key).limit(limit)
+    )
+    return list(result.scalars())
+
+
+async def insert_filter_options(session: AsyncSession, options: list[SearchFilterOption]) -> None:
+    session.add_all(options)
+    await session.flush()
+    for option in options:
+        await session.refresh(option)
+
+
+async def save_filter_option(session: AsyncSession, option: SearchFilterOption) -> None:
+    """Write the changes the service made to a loaded option."""
+    await session.flush()
+    await session.refresh(option)

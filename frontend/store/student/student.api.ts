@@ -9,6 +9,8 @@ import type {
   QuestionnaireView,
   StudentProfile,
   StudentScore,
+  StudentStreak,
+  StudentStreakCheckIn,
 } from "@/features/student/types";
 
 interface StudentScoreResponse {
@@ -23,6 +25,40 @@ interface StudentProfileResponse {
   city: string | null;
   state_code: string | null;
   updated_at: string | null;
+}
+
+interface StreakMilestoneResponse {
+  days: number;
+  points: number;
+}
+
+interface StreakResponse {
+  status: StudentStreak["status"];
+  current_streak: number;
+  longest_streak: number;
+  last_active_on: string | null;
+  today: string;
+  points_balance: number;
+  next_milestone: StreakMilestoneResponse | null;
+  milestones: StreakMilestoneResponse[];
+  break_penalty: number;
+  rules_version: string;
+}
+
+interface StreakPointsChangeResponse {
+  kind: StudentStreakCheckIn["changes"][number]["kind"];
+  points: number;
+  balance_after: number;
+  streak_length: number;
+  milestone_days: number | null;
+  activity_on: string;
+  created_at: string;
+}
+
+interface StreakCheckInResponse {
+  counted: boolean;
+  streak: StreakResponse;
+  changes: StreakPointsChangeResponse[];
 }
 
 interface JobResponse {
@@ -138,6 +174,39 @@ function mapScore(response: StudentScoreResponse): StudentScore {
   };
 }
 
+function mapStreak(response: StreakResponse): StudentStreak {
+  return {
+    status: response.status,
+    currentStreak: response.current_streak,
+    longestStreak: response.longest_streak,
+    lastActiveOn: response.last_active_on,
+    today: response.today,
+    pointsBalance: response.points_balance,
+    nextMilestone: response.next_milestone,
+    milestones: response.milestones,
+    breakPenalty: response.break_penalty,
+    rulesVersion: response.rules_version,
+  };
+}
+
+function mapStreakCheckIn(
+  response: StreakCheckInResponse,
+): StudentStreakCheckIn {
+  return {
+    counted: response.counted,
+    streak: mapStreak(response.streak),
+    changes: response.changes.map((change) => ({
+      kind: change.kind,
+      points: change.points,
+      balanceAfter: change.balance_after,
+      streakLength: change.streak_length,
+      milestoneDays: change.milestone_days,
+      activityOn: change.activity_on,
+      createdAt: change.created_at,
+    })),
+  };
+}
+
 function mapJob(response: JobResponse): JobListing {
   return {
     id: response.id,
@@ -237,6 +306,13 @@ export const studentApi = baseApi.injectEndpoints({
       query: () => "/candidate/score/me",
       transformResponse: mapScore,
       providesTags: [{ type: "Student", id: "SCORE" }],
+    }),
+    checkInStudentStreak: builder.mutation<StudentStreakCheckIn, void>({
+      query: () => ({
+        url: "/candidate/streak/me/check-in",
+        method: "POST",
+      }),
+      transformResponse: mapStreakCheckIn,
     }),
     getStudentJobs: builder.query<
       Page<JobListing>,
@@ -346,12 +422,15 @@ export const studentApi = baseApi.injectEndpoints({
     }),
     saveQuestionnaireAnswers: builder.mutation<
       QuestionnaireView,
-      Record<string, unknown>
+      {
+        answers: Record<string, unknown>;
+        __suppressSuccessFeedback?: boolean;
+      }
     >({
-      query: (answers) => ({
+      query: (payload) => ({
         url: "/candidate/questionnaire/answers",
         method: "PUT",
-        body: { answers },
+        body: { answers: payload.answers },
       }),
       transformResponse: mapQuestionnaire,
       invalidatesTags: [{ type: "Student", id: "QUESTIONNAIRE" }],
@@ -416,7 +495,9 @@ export const {
   useUpdateStudentNameMutation,
   useUpdateStudentLocationMutation,
   useGetStudentScoreQuery,
+  useCheckInStudentStreakMutation,
   useGetStudentJobsQuery,
+  useLazyGetStudentJobsQuery,
   useGetStudentJobQuery,
   useGetStudentApplicationsQuery,
   useGetStudentApplicationQuery,

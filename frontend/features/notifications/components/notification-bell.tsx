@@ -20,11 +20,6 @@ export function NotificationBell() {
       {
         limit: 10,
       },
-      {
-        pollingInterval: 30_000,
-        refetchOnFocus: true,
-        refetchOnReconnect: true,
-      },
     );
 
   const unreadCount = data?.unreadCount ?? 0;

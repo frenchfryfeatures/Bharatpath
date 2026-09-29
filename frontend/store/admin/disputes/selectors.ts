@@ -23,10 +23,14 @@ export const selectResolvedDisputes = (
   state: RootState,
 ) =>
   state.admin.disputes.disputes.filter(
-    (item) =>
-      ["Resolved", "Rejected"].includes(
-        item.status,
-      ),
+    (item) => item.status === "Resolved",
+  );
+
+export const selectRejectedDisputes = (
+  state: RootState,
+) =>
+  state.admin.disputes.disputes.filter(
+    (item) => item.status === "Rejected",
   );
 
 export const selectSelectedDispute = (

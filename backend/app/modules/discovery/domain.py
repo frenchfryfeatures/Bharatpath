@@ -21,6 +21,8 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, fields
 from typing import Final, Literal
 
+from app.modules.candidate.domain import STATE_CODES, normalise_city
+
 #: `scores.contributing_events[].kind` -> the badge an employer sees.
 #:
 #: A badge says an add-on was completed and folded into the score. It never
@@ -221,3 +223,188 @@ def anomalies(limits: DiscoveryLimits, counts: ViewCounts) -> tuple[AnomalyKind,
     if not counts.seen_by_tenant_last_day and counts.tenant_last_day + 1 == limits.views_per_day:
         found.append("DAILY_CAP_REACHED")
     return tuple(found)
+
+
+# ---------------------------------------------------------------------------
+# Search filter options (2026-09-24)
+# ---------------------------------------------------------------------------
+#
+# The skills and cities an employer picks from when filtering, curated by
+# staff in `search_filter_options`. **A suggestion, never a restriction**:
+# search still takes any text, so an employer can filter on a skill nobody
+# has catalogued. What the catalogue adds is spellings. Skills are whatever
+# Layer 1 wrote and cities are whatever the candidate typed, so "Forklift
+# certified" and "forklift operation", or "Bengaluru" and "Bangalore", never
+# meet by exact match. An option's aliases are searched with it.
+#
+# **The catalogue is ours, not drawn from the pool.** A suggestion taken from
+# candidates' own skills would tell an employer that somebody holds a rare
+# one -- the same leak `Page.total` is withheld to prevent. For the same
+# reason no option ever carries a count.
+
+FilterKind = Literal["SKILL", "CITY"]
+FILTER_KINDS: Final[tuple[FilterKind, ...]] = ("SKILL", "CITY")
+
+#: Cities one search may name. Any of them matches (a location is where
+#: someone is, so "Pune or Nashik"); skills, by contrast, must all match.
+MAX_CITY_FILTERS: Final = 5
+#: Aliases one option may carry. Each becomes a term of the search, so this
+#: bounds the query: five cities of eleven spellings is 55 ILIKEs at most.
+MAX_OPTION_ALIASES: Final = 10
+MAX_CITY_LABEL_LENGTH: Final = 100
+#: Typeahead answers, and the featured options the panel shows unasked.
+MAX_SUGGESTIONS: Final = 20
+MAX_FEATURED_OPTIONS: Final = 40
+#: What an option's `sort_order` may be. Lower is shown first.
+MAX_SORT_ORDER: Final = 10_000
+
+#: "N+ years" steps the panel offers. The search takes any whole number.
+EXPERIENCE_STEPS: Final[tuple[int, ...]] = (1, 3, 5, 10)
+
+#: Display names for `scoring.domain.BANDS`, which this module may not
+#: import. An invariant test holds the keys equal to the band labels. No
+#: score range is given: employers see the band, never the number (R4).
+BAND_LABELS: Final[dict[str, str]] = {
+    "ENTRY": "Entry",
+    "DEVELOPING": "Developing",
+    "SOLID": "Solid",
+    "STRONG": "Strong",
+}
+BADGE_LABELS: Final[dict[str, str]] = {
+    "COURSE_COMPLETED": "Course completed",
+    "MOCK_INTERVIEW_COMPLETED": "Mock interview completed",
+}
+
+
+class FilterOptionError(ValueError):
+    """An option, alias or filter value that cannot be catalogued or searched."""
+
+
+@dataclass(frozen=True, slots=True)
+class FilterOptionTerms:
+    """One option, normalised: what is stored and what it matches."""
+
+    kind: FilterKind
+    label: str
+    #: `label` as matched -- trimmed and lower-cased, as the search
+    #: document stores skill keys.
+    key: str
+    #: Other spellings, in the same form as `key`, never including it.
+    aliases: tuple[str, ...]
+    state_code: str | None
+
+    @property
+    def keys(self) -> tuple[str, ...]:
+        return (self.key, *self.aliases)
+
+
+def option_key(value: str) -> str:
+    """How any option or filter value is matched: whitespace collapsed,
+    lower-cased. The same key `skill_key` gives a skill once it is trimmed."""
+    return " ".join(value.split()).lower()
+
+
+def normalise_option_text(kind: FilterKind, value: str) -> str:
+    """A label or alias as it is shown. Raises `FilterOptionError`.
+
+    A skill is any text a card could show. A city follows the candidate's own
+    city rule -- letters, spaces and `. ' -` -- because a city option exists to
+    match what candidates type, and no candidate can type anything else.
+    """
+    if kind == "CITY":
+        try:
+            return normalise_city(value)
+        except ValueError as exc:
+            raise FilterOptionError(str(exc)) from exc
+    text = " ".join(value.split())
+    if not text:
+        raise FilterOptionError("a skill is empty")
+    if len(text) > MAX_SKILL_LENGTH:
+        raise FilterOptionError(f"a skill is longer than {MAX_SKILL_LENGTH} characters")
+    if looks_like_contact(text):
+        raise FilterOptionError("a skill cannot look like a phone number or an email address")
+    return text
+
+
+def filter_option_terms(
+    kind: FilterKind,
+    *,
+    label: str,
+    aliases: Iterable[str] = (),
+    state_code: str | None = None,
+) -> FilterOptionTerms:
+    """Validate one option. Raises `FilterOptionError` with a reason a person
+    can act on.
+
+    A city must name its state: the panel shows "Aurangabad, MH", and without
+    it two Aurangabads are indistinguishable. A skill has none. Aliases that
+    repeat the label or each other are dropped rather than refused -- typing
+    "Pune" as an alias of Pune is not a mistake worth a 422.
+    """
+    if kind not in FILTER_KINDS:
+        raise FilterOptionError(f"kind must be one of {list(FILTER_KINDS)}")
+    shown = normalise_option_text(kind, label)
+    key = option_key(shown)
+    if kind == "CITY":
+        if state_code is None:
+            raise FilterOptionError("a city needs its state_code")
+        if state_code not in STATE_CODES:
+            raise FilterOptionError(f"{state_code!r} is not a state or union territory code")
+    elif state_code is not None:
+        raise FilterOptionError("only a city has a state_code")
+
+    seen = {key}
+    kept: list[str] = []
+    for alias in aliases:
+        alias_key = option_key(normalise_option_text(kind, alias))
+        if alias_key not in seen:
+            seen.add(alias_key)
+            kept.append(alias_key)
+    if len(kept) > MAX_OPTION_ALIASES:
+        raise FilterOptionError(f"an option may have at most {MAX_OPTION_ALIASES} aliases")
+    return FilterOptionTerms(kind, shown, key, tuple(kept), state_code)
+
+
+def clashing_keys(terms: Iterable[FilterOptionTerms]) -> list[str]:
+    """Keys that more than one of `terms` claims, as a key or an alias.
+
+    One spelling must lead to one option, or choosing "Bombay" would search a
+    different set of cities depending on which option happened to be read
+    first. Checked across a bulk import here, and against the stored
+    catalogue by the service.
+    """
+    owners: dict[tuple[str, str], int] = {}
+    clashes: set[str] = set()
+    for index, term in enumerate(terms):
+        for key in term.keys:
+            claimed = owners.setdefault((term.kind, key), index)
+            if claimed != index:
+                clashes.add(key)
+    return sorted(clashes)
+
+
+def filter_groups(
+    values: Iterable[str], options: Iterable[tuple[str, Iterable[str]]]
+) -> list[tuple[str, ...]]:
+    """Each filter value, as every spelling it should match.
+
+    `options` is `(key, aliases)` for the catalogued options any value named.
+    A value that is an option's key or one of its aliases becomes that
+    option's whole group; any other value is itself alone, so custom text
+    still searches exactly as it did before the catalogue existed. Values
+    naming the same option collapse into one group.
+    """
+    group_of: dict[str, tuple[str, ...]] = {}
+    for key, aliases in options:
+        group = (key, *(a for a in aliases if a != key))
+        for spelling in group:
+            group_of.setdefault(spelling, group)
+    groups: list[tuple[str, ...]] = []
+    for value in values:
+        # Custom text keeps the search document's own form (`skill_key`,
+        # which trims but does not collapse inner spaces), so it matches
+        # exactly what it matched before the catalogue existed.
+        group = group_of.get(option_key(value), (skill_key(value),))
+        if group not in groups:
+            groups.append(group)
+    return groups

@@ -5,6 +5,7 @@ import studentReducer from "./student.slice";
 export { studentReducer };
 export * from "./student.slice";
 export * from "./student.api";
+export * from "./resume.api";
 
 export const selectSavedJobIds = (state: RootState) =>
   state.student.savedJobIds;

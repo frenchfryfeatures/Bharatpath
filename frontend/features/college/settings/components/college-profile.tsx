@@ -3,9 +3,18 @@
 import { BadgeCheck, Loader2 } from "lucide-react";
 
 import { Skeleton } from "@/components/common/loading";
+import { Dropdown } from "@/components/ui/dropdown";
 
 import { useSettings } from "../hooks/use-settings";
 import { INSTITUTION_TYPE_OPTIONS } from "../types";
+
+const institutionTypeOptions = [
+  { value: "", label: "Select a type" },
+  ...INSTITUTION_TYPE_OPTIONS.map((option) => ({
+    value: option.code,
+    label: option.label,
+  })),
+];
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-IN", {
@@ -25,7 +34,7 @@ export function CollegeProfile() {
     setDraftInstitutionType,
     saveProfile,
     isSavingProfile,
-  } = useSettings();
+  } = useSettings("profile");
 
   if (isLoadingProfile) {
     return (
@@ -85,27 +94,23 @@ export function CollegeProfile() {
       </label>
 
       {/* Institution type */}
-      <label className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2">
         <span className="text-[13px] font-semibold leading-[17px] text-[#131A26]">
           Institution type
         </span>
 
-        <select
+        <Dropdown
           value={draftInstitutionType ?? ""}
-          aria-label="Institution type"
-          onChange={(event) =>
-            setDraftInstitutionType(event.target.value || null)
+          options={institutionTypeOptions}
+          placeholder="Select a type"
+          onChange={(value) =>
+            setDraftInstitutionType(value || null)
           }
-          className="w-full rounded-[10px] border border-[#e1e5eb] bg-white px-4 py-3 text-[14px] font-medium leading-5 text-[#131A26] outline-none transition focus:border-[#3566b8] focus:ring-2 focus:ring-[#3566b8]/10"
-        >
-          <option value="">Select a type</option>
-          {INSTITUTION_TYPE_OPTIONS.map((option) => (
-            <option key={option.code} value={option.code}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
+          ariaLabel="Institution type"
+          width="w-full"
+          buttonClassName="h-[46px] rounded-[10px] border-[#e1e5eb] px-4 text-[14px] font-medium leading-5 text-[#131A26] focus:border-[#3566b8] focus:ring-[#3566b8]/10"
+        />
+      </div>
 
       {/* Verification */}
       {organisation?.verifiedAt && (

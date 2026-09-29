@@ -101,6 +101,8 @@ class User(Base, UUIDPrimaryKey, Timestamps):
             "OR phone IS NOT NULL OR email IS NOT NULL OR cognito_sub IS NOT NULL",
             name="ck_users_has_identifier",
         ),
+        # The console's candidate list (`GET /admin/candidates`), newest first.
+        Index("ix_users_pool_created", "pool", "created_at", "id"),
     )
 
 

@@ -5,18 +5,20 @@ import type { ColumnDef } from "@/components/ui/table";
 
 import { StateBadge } from "../../shared/status-badge";
 
-import type { UserRow } from "../types";
+import type { UsersPagination, UserRow } from "../types";
 
 interface EmployersTabProps {
   users: UserRow[];
   isLoading?: boolean;
   onOpen: (id: string) => void;
+  pagination: UsersPagination;
 }
 
 export function EmployersTab({
   users,
   isLoading,
   onOpen,
+  pagination,
 }: EmployersTabProps) {
   const columns: ColumnDef<UserRow>[] = [
     {
@@ -93,9 +95,14 @@ export function EmployersTab({
       columns={columns}
       data={users}
       keyExtractor={(user) => user.id}
-      totalCount={users.length}
-      pageSize={10}
-      itemLabel=""
+      paginationMode="cursor"
+      pageSize={pagination.pageSize}
+      currentPage={pagination.currentPage}
+      hasNextPage={pagination.hasNextPage}
+      onNextPage={pagination.onNextPage}
+      onPreviousPage={pagination.onPreviousPage}
+      onPageSizeChange={pagination.onPageSizeChange}
+      itemLabel="employers"
       emptyTitle="No employers found"
       emptySubtitle=""
       isLoading={isLoading}

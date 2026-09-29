@@ -188,6 +188,16 @@ actually downloaded yet.
 
 ---
 
+
+**What the archive holds** (one JSON file per section): `account`,
+`profile`, `resumes`, `scores` (the number, never how it was worked out),
+`applications`, `subscriptions`, `purchases`, `interviews`,
+`interview_questions` (the questions written for them — 2026-09-29),
+`courses` (lessons watched — 2026-09-29), `messages` (what employers sent
+them, never which recruiter — 2026-09-29), `questionnaire`, `streaks`,
+`colleges`, `notifications`, `requests`. Erasure deletes the three new ones
+too (`erase_candidate`, replaced in migration 0005).
+
 ## 7. What actually happens between "requested" and "ready" — and why nothing lingers
 
 **The export archive is not kept indefinitely.** Once built, it sits in

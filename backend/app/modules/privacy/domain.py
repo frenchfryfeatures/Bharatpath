@@ -233,9 +233,22 @@ ERASURE_PLAN: Final[Mapping[str, TablePlan]] = {
         "session_id", "Recordings of their voice. The S3 objects go with the rows."
     ),
     "interview_transcripts": _erase("answer_id", "Their words, transcribed."),
+    "interview_session_questions": _erase(
+        "session_id",
+        "The questions a session put to them, written from their CV and onboarding "
+        "answers (2026-09-29), so they describe the person.",
+    ),
     "interview_evaluations": _erase("session_id", "Feedback written about them."),
     "interview_checkout_notices": _erase("user_id", "What they were told before paying."),
     "notifications": _erase("user_id", "Messages addressed to them, with what was rendered."),
+    "application_messages": _erase(
+        "application_id",
+        "An employer's messages to them about an application (2026-09-29): invitations "
+        "addressed to a person, erased with the application they rode on.",
+    ),
+    "course_lesson_progress": _erase(
+        "user_id", "How far they got through each lesson, and when they watched it."
+    ),
     "notification_preferences": _erase("user_id", "Their choices about being contacted."),
     "notification_suppressions": _erase("user_id", "Our decision to stop contacting them."),
     "profile_nudges": _erase("user_id", "Nudges we sent them."),
@@ -301,6 +314,10 @@ ERASURE_PLAN: Final[Mapping[str, TablePlan]] = {
     "discount_codes": _not_personal(
         "A code staff created. Names the member of staff who made it, never a payer."
     ),
+    "search_filter_options": _not_personal(
+        "A skill or a city name staff curate for the search filters. Names the member of "
+        "staff who changed it, never a candidate."
+    ),
     "tenant_suspensions": _not_personal("Our decision about an organisation, taken by staff."),
     "employers": _not_personal("An organisation's profile."),
     "colleges": _not_personal("An organisation's profile."),
@@ -321,6 +338,12 @@ ERASURE_PLAN: Final[Mapping[str, TablePlan]] = {
     "referral_codes": _not_personal("A college's credential; who used it is a consent row."),
     "plans": _not_personal("The catalogue."),
     "courses": _not_personal("The catalogue."),
+    "course_modules": _not_personal(
+        "The course's sections, built by staff. Names the member of staff who made one."
+    ),
+    "course_lessons": _not_personal(
+        "The course's videos, built by staff. The uploaded file is course material, not a person's."
+    ),
     "interview_products": _not_personal("The catalogue."),
     "config_values": _not_personal("Configuration."),
     "outbox": _not_personal("Event payloads carry identifiers only, never names or contacts."),
@@ -368,6 +391,9 @@ EXPORT_SECTIONS: Final = (
     "subscriptions",
     "purchases",
     "interviews",
+    "interview_questions",
+    "courses",
+    "messages",
     "questionnaire",
     "streaks",
     "colleges",
@@ -385,4 +411,6 @@ EXPORT_FORBIDDEN_FIELDS: Final = (
     "actor_id",
     "notes",
     "employer_notes",
+    # Which recruiter wrote a message is the employer's (2026-09-29).
+    "sender_id",
 )

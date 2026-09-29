@@ -13,13 +13,15 @@ import {
 } from "@/store/admin/disputes/selectors";
 
 import {
-  type AuditEventRow,
   type DisputeRow,
-  useGetAdminAuditEventsQuery,
   useGetAdminDisputesQuery,
 } from "@/store/api/admin-api";
+import {
+  tablePagination,
+  useCursorPagination,
+} from "@/lib/pagination/use-cursor-pagination";
 
-import type { AuditIcon, AuditItem, Dispute, DisputeStatus, DisputeTab } from "../types";
+import type { Dispute, DisputeStatus, DisputeTab } from "../types";
 
 function age(value: string) {
   const hours = Math.floor(Math.max(0, Date.now() - new Date(value).getTime()) / 3_600_000);
@@ -44,17 +46,6 @@ function disputeView(item: DisputeRow): Dispute {
   };
 }
 
-function auditView(item: AuditEventRow): AuditItem {
-  const icon: AuditIcon = item.action.includes("dispute") ? "gavel" : item.action.includes("integrity") ? "alert" : "check";
-  return {
-    id: String(item.id),
-    description: `${item.action.replaceAll("_", " ")} · ${item.target_type}`,
-    operator: item.actor_role,
-    timestamp: new Date(item.occurred_at).toLocaleString(),
-    icon,
-  };
-}
-
 export function useDisputes() {
   const dispatch = useAppDispatch();
 
@@ -62,16 +53,30 @@ export function useDisputes() {
     selectAdminDisputes,
   );
 
-  const openQuery = useGetAdminDisputesQuery({ limit: 100 });
-  const resolvedQuery = useGetAdminDisputesQuery({ state: "RESOLVED", limit: 100 });
-  const rejectedQuery = useGetAdminDisputesQuery({ state: "REJECTED", limit: 100 });
-  const auditQuery = useGetAdminAuditEventsQuery({ limit: 10 });
+  const openPage = useCursorPagination([], 10);
+  const resolvedPage = useCursorPagination([], 10);
+  const rejectedPage = useCursorPagination([], 10);
+  const openQuery = useGetAdminDisputesQuery({
+    state_group: "ACTIVE",
+    limit: openPage.pageSize,
+    cursor: openPage.cursor,
+  });
+  const resolvedQuery = useGetAdminDisputesQuery({
+    state: "RESOLVED",
+    limit: resolvedPage.pageSize,
+    cursor: resolvedPage.cursor,
+  });
+  const rejectedQuery = useGetAdminDisputesQuery({
+    state: "REJECTED",
+    limit: rejectedPage.pageSize,
+    cursor: rejectedPage.cursor,
+  });
+  const openNextCursor = openQuery.data?.next_cursor ?? null;
+  const resolvedNextCursor = resolvedQuery.data?.next_cursor ?? null;
+  const rejectedNextCursor = rejectedQuery.data?.next_cursor ?? null;
   const openDisputes = (openQuery.data?.items ?? []).map(disputeView);
-  const resolvedDisputes = [
-    ...(resolvedQuery.data?.items ?? []),
-    ...(rejectedQuery.data?.items ?? []),
-  ].map(disputeView);
-  const auditItems = (auditQuery.data?.items ?? []).map(auditView);
+  const resolvedDisputes = (resolvedQuery.data?.items ?? []).map(disputeView);
+  const rejectedDisputes = (rejectedQuery.data?.items ?? []).map(disputeView);
 
   return {
     state,
@@ -80,18 +85,39 @@ export function useDisputes() {
 
     resolvedDisputes,
 
-    auditItems,
+    rejectedDisputes,
 
-    isLoading: openQuery.isLoading || resolvedQuery.isLoading || rejectedQuery.isLoading,
+    openLoading: openQuery.isLoading,
 
-    auditLoading: auditQuery.isLoading,
+    resolvedLoading: resolvedQuery.isLoading,
 
-    error: openQuery.error || resolvedQuery.error || rejectedQuery.error,
+    rejectedLoading: rejectedQuery.isLoading,
+
+    disputeError:
+      state.tab === "open"
+        ? openQuery.error
+        : state.tab === "resolved"
+          ? resolvedQuery.error
+          : rejectedQuery.error,
+
+    retryDisputes:
+      state.tab === "open"
+        ? openQuery.refetch
+        : state.tab === "resolved"
+          ? resolvedQuery.refetch
+          : rejectedQuery.refetch,
 
     openCount: openDisputes.length,
+    openHasMore: Boolean(openNextCursor),
+    openPagination: tablePagination(openPage, openNextCursor),
 
-    resolvedCount:
-      resolvedDisputes.length,
+    resolvedCount: resolvedDisputes.length,
+    resolvedHasMore: Boolean(resolvedNextCursor),
+    resolvedPagination: tablePagination(resolvedPage, resolvedNextCursor),
+
+    rejectedCount: rejectedDisputes.length,
+    rejectedHasMore: Boolean(rejectedNextCursor),
+    rejectedPagination: tablePagination(rejectedPage, rejectedNextCursor),
 
     setTab: (tab: DisputeTab) => {
       dispatch(setDisputeTab(tab));

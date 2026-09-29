@@ -12,24 +12,6 @@ export const selectOpenApplicationId = (
   state: RootState,
 ) => state.employerApplications.openApplicationId;
 
-/*
- * IMPORTANT:
- *
- * The sidebar badge uses ALL applications.
- *
- * It does NOT use the currently selected job filter.
- *
- * Therefore the badge remains "5" even if the user
- * is looking at a specific job.
- */
-export const selectPendingApplicationsCount = (
-  state: RootState,
-) =>
-  state.employerApplications.items.filter(
-    (application) =>
-      application.stage < 4,
-  ).length;
-
 export const selectFilteredEmployerApplications = (
   state: RootState,
 ) => {

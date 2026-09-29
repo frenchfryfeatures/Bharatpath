@@ -21,7 +21,6 @@ from app.core.forms import (
 )
 from app.modules.college.forms import COLLEGE_FORM
 from app.modules.courses.catalogue import (
-    ASSESSMENT_PASS_FRACTION,
     HAS_MEDIA,
     MODULES,
     lesson_count,
@@ -29,7 +28,7 @@ from app.modules.courses.catalogue import (
     module_count,
     total_minutes,
 )
-from app.modules.courses.domain import MIN_ASSESSMENT_SCORE, CourseProgress, evaluate_completion
+from app.modules.courses.domain import CourseProgress, evaluate_completion
 from app.modules.interview.bank import (
     DIMENSIONS,
     QUESTION_SETS,
@@ -245,15 +244,14 @@ def test_every_lesson_states_what_the_learner_can_do_afterwards() -> None:
             assert lesson.minutes > 0
 
 
-def test_the_syllabus_and_the_completion_rule_agree() -> None:
-    """The catalogue says how many modules there are; `domain.py` decides when
-    they are all done. If these two drift, completion becomes unreachable or
-    trivial, and either way it silently moves scores."""
-    assert ASSESSMENT_PASS_FRACTION == MIN_ASSESSMENT_SCORE
-    finished = CourseProgress(module_count(), module_count(), ASSESSMENT_PASS_FRACTION)
-    assert evaluate_completion(finished).complete
-    one_short = CourseProgress(module_count(), module_count() - 1, 1.0)
-    assert not evaluate_completion(one_short).complete
+def test_the_outline_is_not_what_is_sold() -> None:
+    """Since 2026-09-29 the course a candidate buys is the lessons staff
+    publish in the console, each with a playable video, and completing it
+    means watching every one of them. This outline stays a proposal: it has
+    no media, and `sync_catalogue` never puts a course on sale."""
+    assert all(lesson.asset_key is None for m in MODULES for lesson in m.lessons)
+    assert not evaluate_completion(CourseProgress(0, 0)).complete
+    assert evaluate_completion(CourseProgress(lesson_count(), lesson_count())).complete
 
 
 def test_the_syllabus_never_names_a_scoring_weight() -> None:
@@ -616,15 +614,26 @@ def test_the_student_consent_text_is_still_ours_rather_than_counsels() -> None:
 def test_the_individual_visibility_text_is_ours_and_names_what_the_college_sees() -> None:
     """Day 18. Versioned separately from the roster text, and a placeholder
     like it. The words must name every field the college's view returns, so
-    widening the view without changing them fails here and in invariant 9."""
-    from app.modules.college.domain import INDIVIDUAL_CONSENT_TEXT, INDIVIDUAL_CONSENT_VERSION
+    widening the view without changing them fails here and in invariant 9.
+
+    Version 2 (client, 2026-09-29) shows the sign-up details, contact
+    included, the CV, practice interviews, course progress and each
+    application's stage. What it still withholds must still be said."""
+    from app.modules.college.domain import (
+        INDIVIDUAL_CONSENT_TEXT,
+        INDIVIDUAL_CONSENT_VERSION,
+        INDIVIDUAL_DETAILS_VERSIONS,
+    )
 
     assert INDIVIDUAL_CONSENT_VERSION.startswith("placeholder-")
+    assert INDIVIDUAL_CONSENT_VERSION in INDIVIDUAL_DETAILS_VERSIONS
     text = INDIVIDUAL_CONSENT_TEXT.lower()
     for shown in ("by name", "score", "band", "applied", "interviewed", "hired"):
         assert shown in text, shown
-    for withheld in ("phone", "email", "cv"):
-        assert withheld in text, f"the terms must say the college does not see the {withheld}"
+    for shown in ("phone", "email", "cv", "practice interviews", "courses", "stage"):
+        assert shown in text, f"the terms must say the college sees {shown}"
+    for withheld in ("recordings", "employer wrote"):
+        assert withheld in text, f"the terms must say the college does not see {withheld}"
     assert "recorded" in text and "turn this off" in text
 
 

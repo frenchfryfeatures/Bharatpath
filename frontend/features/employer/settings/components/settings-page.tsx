@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { usePageHeader } from "@/components/layout/header-context";
+import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   cancelRemoveMember,
@@ -35,11 +36,8 @@ export function EmployerSettingsPage() {
   useEffect(() => {
     if (!settings.toast) return;
 
-    const timer = window.setTimeout(() => {
-      dispatch(clearToast());
-    }, 2200);
-
-    return () => window.clearTimeout(timer);
+    showSuccessFeedback(settings.toast);
+    dispatch(clearToast());
   }, [dispatch, settings.toast]);
 
   const renderTab = () => {
@@ -65,7 +63,7 @@ export function EmployerSettingsPage() {
     <div className="min-h-full bg-[#f7f8fa] font-sans text-[#111827]">
       <SettingsTabs />
 
-      <main className="w-full max-w-[1000px] py-4">
+      <main className="w-full max-w-[1000px] pt-4">
         {renderTab()}
       </main>
 
@@ -109,11 +107,6 @@ export function EmployerSettingsPage() {
         </div>
       )}
 
-      {settings.toast && (
-        <div className="fixed bottom-6 left-1/2 z-[100] -translate-x-1/2 rounded-lg bg-[#121a28] px-[15px] py-2.5 text-[11px] text-white shadow-[0_8px_25px_rgba(15,23,42,0.18)]">
-          {settings.toast}
-        </div>
-      )}
     </div>
   );
 }

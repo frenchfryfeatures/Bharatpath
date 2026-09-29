@@ -31,6 +31,8 @@ const ROLE_LABELS: Record<CollegeTeamRole, UserRole> = {
   COLLEGE_STAFF: "Staff",
 };
 
+type SettingsDataScope = "header" | "profile" | "users" | "billing";
+
 function initialsFor(email: string): string {
   const parts = email
     .split("@")[0]
@@ -70,16 +72,17 @@ function toUser(member: CollegeTeamMember): CollegeUser {
 }
 
 /*
- * Single source of truth for the college settings screen. Organisation
- * profile, team, seat usage and the subscription all come from the backend
- * through RTK Query. Only the transient UI state — the active tab and the
- * editable profile draft — is held locally.
+ * Single source of truth for the college settings screen. Each mounted
+ * surface explicitly selects the data it needs so inactive tabs do not start
+ * network requests.
  */
-export function useSettings() {
+export function useSettings(scope: SettingsDataScope) {
   const [activeTab, setActiveTab] = useState<SettingsTab>("profile");
 
   /* Profile */
-  const organisationQuery = useGetCollegeOrganisationQuery();
+  const organisationQuery = useGetCollegeOrganisationQuery(undefined, {
+    skip: scope !== "profile",
+  });
   const [updateOrganisation, updateOrganisationState] =
     useUpdateCollegeOrganisationMutation();
 
@@ -107,7 +110,9 @@ export function useSettings() {
   }, [updateOrganisation, draftName, draftInstitutionType]);
 
   /* Team */
-  const teamQuery = useGetCollegeTeamQuery();
+  const teamQuery = useGetCollegeTeamQuery(undefined, {
+    skip: scope !== "users",
+  });
   const [addMember, addMemberState] = useAddCollegeTeamMemberMutation();
   const [changeRole] = useChangeCollegeTeamMemberRoleMutation();
   const [removeMember] = useRemoveCollegeTeamMemberMutation();
@@ -135,11 +140,17 @@ export function useSettings() {
   );
 
   /* Seats */
-  const seatsQuery = useGetCollegeSeatsQuery();
+  const seatsQuery = useGetCollegeSeatsQuery(undefined, {
+    skip: scope !== "header" && scope !== "billing",
+  });
 
   /* Billing */
-  const subscriptionQuery = useGetCollegeSubscriptionQuery();
-  const plansQuery = useGetCollegePlansQuery();
+  const subscriptionQuery = useGetCollegeSubscriptionQuery(undefined, {
+    skip: scope !== "billing",
+  });
+  const plansQuery = useGetCollegePlansQuery(undefined, {
+    skip: scope !== "billing",
+  });
   const [createCheckout, checkoutState] = useCreateCollegeCheckoutMutation();
   const [cancelSubscription, cancelState] =
     useCancelCollegeSubscriptionMutation();

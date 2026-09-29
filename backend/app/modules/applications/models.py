@@ -128,6 +128,8 @@ class Application(Base, UUIDPrimaryKey, TenantScoped, Timestamps):
         ),
         Index("ix_applications_candidate", "candidate_id", "created_at"),
         Index("ix_applications_job_stage", "job_id", "stage", "created_at"),
+        # The pipeline across every job, oldest first (`list_for_employer`).
+        Index("ix_applications_tenant_created", "tenant_id", "created_at", "id"),
         # The expiry sweep, per tenant, over open applications only.
         Index(
             "ix_applications_expiring",
@@ -182,4 +184,54 @@ class ApplicationEvent(Base, UUIDPrimaryKey):
             "actor_type <> 'SYSTEM' OR actor_id IS NULL", name="ck_app_events_system_has_no_actor"
         ),
         Index("ix_app_events_app_time", "application_id", "occurred_at"),
+    )
+
+
+class ApplicationMessage(Base, UUIDPrimaryKey):
+    """An employer writing to an applicant (2026-09-29): an interview or
+    online-assessment invitation, or a plain message. Sent to the candidate by
+    email and in the app (`applications.message_sent`).
+
+    **Not under RLS**, like `application_events`: it is read only by
+    application id, after the application was loaded under the caller's own
+    policy -- the employer's tenant or the candidate's own binding. Insert-only:
+    what was sent to someone is not rewritten afterwards.
+
+    `sender_id` is the recruiter who wrote it, for the employer's own view and
+    for disputes. **No candidate schema carries it.**
+    """
+
+    __tablename__ = "application_messages"
+
+    application_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("applications.id", ondelete="CASCADE"), nullable=False
+    )
+    sender_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
+    )
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    body: Mapped[str] = mapped_column(String(2000), nullable=False)
+    scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    link: Mapped[str | None] = mapped_column(String(1024))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("clock_timestamp()"), nullable=False
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN ('INTERVIEW', 'ASSESSMENT', 'GENERAL')", name="ck_application_messages_kind"
+        ),
+        CheckConstraint(
+            "kind <> 'INTERVIEW' OR scheduled_at IS NOT NULL",
+            name="ck_application_messages_interview_time",
+        ),
+        CheckConstraint(
+            "kind <> 'ASSESSMENT' OR link IS NOT NULL",
+            name="ck_application_messages_assessment_link",
+        ),
+        CheckConstraint(
+            "link IS NULL OR link LIKE 'https://%'", name="ck_application_messages_https"
+        ),
+        Index("ix_application_messages_application", "application_id", "created_at"),
+        Index("ix_application_messages_sender", "sender_id"),
     )

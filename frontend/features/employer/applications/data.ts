@@ -29,6 +29,13 @@ export const APPLICATION_COLUMNS: ApplicationColumnDefinition[] = [
     emptyMessage: "No interviews scheduled",
   },
   {
+    id: "decision",
+    label: "Decision",
+    stage: 4,
+    outcome: null,
+    emptyMessage: "No applications awaiting a decision",
+  },
+  {
     id: "hired",
     label: "Hired",
     stage: 4,
@@ -42,12 +49,27 @@ export const APPLICATION_COLUMNS: ApplicationColumnDefinition[] = [
     outcome: "rejected",
     emptyMessage: "No rejections recorded yet",
   },
+  {
+    id: "withdrawn",
+    label: "Withdrawn",
+    stage: 4,
+    outcome: "withdrawn",
+    emptyMessage: "No withdrawn applications",
+  },
+  {
+    id: "expired",
+    label: "Expired",
+    stage: 4,
+    outcome: "expired",
+    emptyMessage: "No expired applications",
+  },
 ];
 
 export const INITIAL_APPLICATIONS: EmployerApplication[] = [
   {
     id: "a1",
     jobId: "j1",
+    jobLocation: null,
     candidate: {
       id: "c2",
       name: "A. Kulkarni",
@@ -66,6 +88,7 @@ export const INITIAL_APPLICATIONS: EmployerApplication[] = [
   {
     id: "a2",
     jobId: "j1",
+    jobLocation: null,
     candidate: {
       id: "c3",
       name: "R. Patil",
@@ -87,6 +110,7 @@ export const INITIAL_APPLICATIONS: EmployerApplication[] = [
   {
     id: "a3",
     jobId: "j1",
+    jobLocation: null,
     candidate: {
       id: "c5",
       name: "V. Joshi",
@@ -105,6 +129,7 @@ export const INITIAL_APPLICATIONS: EmployerApplication[] = [
   {
     id: "a4",
     jobId: "j2",
+    jobLocation: null,
     candidate: {
       id: "c6",
       name: "N. Gaikwad",
@@ -123,6 +148,7 @@ export const INITIAL_APPLICATIONS: EmployerApplication[] = [
   {
     id: "a5",
     jobId: "j2",
+    jobLocation: null,
     candidate: {
       id: "c1",
       name: "S. Deshmukh",
@@ -141,6 +167,7 @@ export const INITIAL_APPLICATIONS: EmployerApplication[] = [
   {
     id: "a6",
     jobId: "j4",
+    jobLocation: null,
     candidate: {
       id: "c4",
       name: "M. Shaikh",
@@ -159,6 +186,7 @@ export const INITIAL_APPLICATIONS: EmployerApplication[] = [
   {
     id: "a7",
     jobId: "j1",
+    jobLocation: null,
     candidate: {
       id: "c6",
       name: "N. Gaikwad",

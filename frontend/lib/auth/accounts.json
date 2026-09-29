@@ -1,0 +1,534 @@
+[
+  {
+    "email": "staff.admin@demo.bharatpath.test",
+    "subject": "local-staff-admin",
+    "pool": "BUSINESS",
+    "role": "PLATFORM_ADMIN",
+    "group": "staff"
+  },
+  {
+    "email": "staff.kyb@demo.bharatpath.test",
+    "subject": "local-staff-kyb",
+    "pool": "BUSINESS",
+    "role": "KYB_REVIEWER",
+    "group": "staff"
+  },
+  {
+    "email": "staff.integrity@demo.bharatpath.test",
+    "subject": "local-staff-integrity",
+    "pool": "BUSINESS",
+    "role": "INTEGRITY_REVIEWER",
+    "group": "staff"
+  },
+  {
+    "email": "staff.support@demo.bharatpath.test",
+    "subject": "local-staff-support",
+    "pool": "BUSINESS",
+    "role": "SUPPORT_AGENT",
+    "group": "staff"
+  },
+  {
+    "email": "acme.owner@demo.bharatpath.test",
+    "subject": "local-acme-owner",
+    "pool": "BUSINESS",
+    "role": "EMPLOYER_OWNER",
+    "group": "employer"
+  },
+  {
+    "email": "acme.recruiter1@demo.bharatpath.test",
+    "subject": "local-acme-recruiter1",
+    "pool": "BUSINESS",
+    "role": "EMPLOYER_RECRUITER",
+    "group": "employer"
+  },
+  {
+    "email": "acme.recruiter2@demo.bharatpath.test",
+    "subject": "local-acme-recruiter2",
+    "pool": "BUSINESS",
+    "role": "EMPLOYER_RECRUITER",
+    "group": "employer"
+  },
+  {
+    "email": "acme.viewer@demo.bharatpath.test",
+    "subject": "local-acme-viewer",
+    "pool": "BUSINESS",
+    "role": "EMPLOYER_VIEWER",
+    "group": "employer"
+  },
+  {
+    "email": "cand00@demo.bharatpath.test",
+    "subject": "local-cand-cand00",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE",
+    "group": "candidate"
+  },
+  {
+    "email": "cand01@demo.bharatpath.test",
+    "subject": "local-cand-cand01",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE",
+    "group": "candidate"
+  },
+  {
+    "email": "cand02@demo.bharatpath.test",
+    "subject": "local-cand-cand02",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE",
+    "group": "candidate"
+  },
+  {
+    "email": "cand03@demo.bharatpath.test",
+    "subject": "local-cand-cand03",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE",
+    "group": "candidate"
+  },
+  {
+    "email": "cand04@demo.bharatpath.test",
+    "subject": "local-cand-cand04",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE",
+    "group": "candidate"
+  },
+  {
+    "email": "cand05@demo.bharatpath.test",
+    "subject": "local-cand-cand05",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE",
+    "group": "candidate"
+  },
+  {
+    "email": "cand06@demo.bharatpath.test",
+    "subject": "local-cand-cand06",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE",
+    "group": "candidate"
+  },
+  {
+    "email": "cand07@demo.bharatpath.test",
+    "subject": "local-cand-cand07",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE",
+    "group": "candidate"
+  },
+  {
+    "email": "cand08@demo.bharatpath.test",
+    "subject": "local-cand-cand08",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE",
+    "group": "candidate"
+  },
+  {
+    "email": "cand09@demo.bharatpath.test",
+    "subject": "local-cand-cand09",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE",
+    "group": "candidate"
+  },
+  {
+    "email": "cand10@demo.bharatpath.test",
+    "subject": "local-cand-cand10",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE",
+    "group": "candidate"
+  },
+  {
+    "email": "cand11@demo.bharatpath.test",
+    "subject": "local-cand-cand11",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE",
+    "group": "candidate"
+  },
+  {
+    "email": "cand12@demo.bharatpath.test",
+    "subject": "local-cand-cand12",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE",
+    "group": "candidate"
+  },
+  {
+    "email": "cand13@demo.bharatpath.test",
+    "subject": "local-cand-cand13",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE",
+    "group": "candidate"
+  },
+  {
+    "email": "cand14@demo.bharatpath.test",
+    "subject": "local-cand-cand14",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE",
+    "group": "candidate"
+  },
+  {
+    "email": "cand15@demo.bharatpath.test",
+    "subject": "local-cand-cand15",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE",
+    "group": "candidate"
+  },
+  {
+    "email": "cand16@demo.bharatpath.test",
+    "subject": "local-cand-cand16",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE",
+    "group": "candidate"
+  },
+  {
+    "email": "cand17@demo.bharatpath.test",
+    "subject": "local-cand-cand17",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE",
+    "group": "candidate"
+  },
+  {
+    "email": "cand18@demo.bharatpath.test",
+    "subject": "local-cand-cand18",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE",
+    "group": "candidate"
+  },
+  {
+    "email": "cand19@demo.bharatpath.test",
+    "subject": "local-cand-cand19",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE",
+    "group": "candidate"
+  },
+  {
+    "email": "college0.admin@demo.bharatpath.test",
+    "subject": "local-college-0-admin",
+    "pool": "BUSINESS",
+    "role": "COLLEGE_ADMIN",
+    "group": "college0"
+  },
+  {
+    "email": "c0.student00@demo.bharatpath.test",
+    "subject": "local-cand-c0.student00",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college0"
+  },
+  {
+    "email": "c0.student01@demo.bharatpath.test",
+    "subject": "local-cand-c0.student01",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college0"
+  },
+  {
+    "email": "c0.student02@demo.bharatpath.test",
+    "subject": "local-cand-c0.student02",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college0"
+  },
+  {
+    "email": "c0.student03@demo.bharatpath.test",
+    "subject": "local-cand-c0.student03",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college0"
+  },
+  {
+    "email": "c0.student04@demo.bharatpath.test",
+    "subject": "local-cand-c0.student04",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college0"
+  },
+  {
+    "email": "c0.student05@demo.bharatpath.test",
+    "subject": "local-cand-c0.student05",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college0"
+  },
+  {
+    "email": "c0.student06@demo.bharatpath.test",
+    "subject": "local-cand-c0.student06",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college0"
+  },
+  {
+    "email": "c0.student07@demo.bharatpath.test",
+    "subject": "local-cand-c0.student07",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college0"
+  },
+  {
+    "email": "c0.student08@demo.bharatpath.test",
+    "subject": "local-cand-c0.student08",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college0"
+  },
+  {
+    "email": "c0.student09@demo.bharatpath.test",
+    "subject": "local-cand-c0.student09",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college0"
+  },
+  {
+    "email": "c0.student10@demo.bharatpath.test",
+    "subject": "local-cand-c0.student10",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college0"
+  },
+  {
+    "email": "c0.student11@demo.bharatpath.test",
+    "subject": "local-cand-c0.student11",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college0"
+  },
+  {
+    "email": "c0.student12@demo.bharatpath.test",
+    "subject": "local-cand-c0.student12",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college0"
+  },
+  {
+    "email": "c0.student13@demo.bharatpath.test",
+    "subject": "local-cand-c0.student13",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college0"
+  },
+  {
+    "email": "c0.student14@demo.bharatpath.test",
+    "subject": "local-cand-c0.student14",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college0"
+  },
+  {
+    "email": "college1.admin@demo.bharatpath.test",
+    "subject": "local-college-1-admin",
+    "pool": "BUSINESS",
+    "role": "COLLEGE_ADMIN",
+    "group": "college1"
+  },
+  {
+    "email": "c1.student00@demo.bharatpath.test",
+    "subject": "local-cand-c1.student00",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college1"
+  },
+  {
+    "email": "c1.student01@demo.bharatpath.test",
+    "subject": "local-cand-c1.student01",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college1"
+  },
+  {
+    "email": "c1.student02@demo.bharatpath.test",
+    "subject": "local-cand-c1.student02",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college1"
+  },
+  {
+    "email": "c1.student03@demo.bharatpath.test",
+    "subject": "local-cand-c1.student03",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college1"
+  },
+  {
+    "email": "c1.student04@demo.bharatpath.test",
+    "subject": "local-cand-c1.student04",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college1"
+  },
+  {
+    "email": "c1.student05@demo.bharatpath.test",
+    "subject": "local-cand-c1.student05",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college1"
+  },
+  {
+    "email": "c1.student06@demo.bharatpath.test",
+    "subject": "local-cand-c1.student06",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college1"
+  },
+  {
+    "email": "c1.student07@demo.bharatpath.test",
+    "subject": "local-cand-c1.student07",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college1"
+  },
+  {
+    "email": "c1.student08@demo.bharatpath.test",
+    "subject": "local-cand-c1.student08",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college1"
+  },
+  {
+    "email": "c1.student09@demo.bharatpath.test",
+    "subject": "local-cand-c1.student09",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college1"
+  },
+  {
+    "email": "c1.student10@demo.bharatpath.test",
+    "subject": "local-cand-c1.student10",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college1"
+  },
+  {
+    "email": "c1.student11@demo.bharatpath.test",
+    "subject": "local-cand-c1.student11",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college1"
+  },
+  {
+    "email": "c1.student12@demo.bharatpath.test",
+    "subject": "local-cand-c1.student12",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college1"
+  },
+  {
+    "email": "c1.student13@demo.bharatpath.test",
+    "subject": "local-cand-c1.student13",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college1"
+  },
+  {
+    "email": "c1.student14@demo.bharatpath.test",
+    "subject": "local-cand-c1.student14",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college1"
+  },
+  {
+    "email": "college2.admin@demo.bharatpath.test",
+    "subject": "local-college-2-admin",
+    "pool": "BUSINESS",
+    "role": "COLLEGE_ADMIN",
+    "group": "college2"
+  },
+  {
+    "email": "c2.student00@demo.bharatpath.test",
+    "subject": "local-cand-c2.student00",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college2"
+  },
+  {
+    "email": "c2.student01@demo.bharatpath.test",
+    "subject": "local-cand-c2.student01",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college2"
+  },
+  {
+    "email": "c2.student02@demo.bharatpath.test",
+    "subject": "local-cand-c2.student02",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college2"
+  },
+  {
+    "email": "c2.student03@demo.bharatpath.test",
+    "subject": "local-cand-c2.student03",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college2"
+  },
+  {
+    "email": "c2.student04@demo.bharatpath.test",
+    "subject": "local-cand-c2.student04",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college2"
+  },
+  {
+    "email": "c2.student05@demo.bharatpath.test",
+    "subject": "local-cand-c2.student05",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college2"
+  },
+  {
+    "email": "c2.student06@demo.bharatpath.test",
+    "subject": "local-cand-c2.student06",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college2"
+  },
+  {
+    "email": "c2.student07@demo.bharatpath.test",
+    "subject": "local-cand-c2.student07",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college2"
+  },
+  {
+    "email": "c2.student08@demo.bharatpath.test",
+    "subject": "local-cand-c2.student08",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college2"
+  },
+  {
+    "email": "c2.student09@demo.bharatpath.test",
+    "subject": "local-cand-c2.student09",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college2"
+  },
+  {
+    "email": "c2.student10@demo.bharatpath.test",
+    "subject": "local-cand-c2.student10",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college2"
+  },
+  {
+    "email": "c2.student11@demo.bharatpath.test",
+    "subject": "local-cand-c2.student11",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college2"
+  },
+  {
+    "email": "c2.student12@demo.bharatpath.test",
+    "subject": "local-cand-c2.student12",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college2"
+  },
+  {
+    "email": "c2.student13@demo.bharatpath.test",
+    "subject": "local-cand-c2.student13",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college2"
+  },
+  {
+    "email": "c2.student14@demo.bharatpath.test",
+    "subject": "local-cand-c2.student14",
+    "pool": "CANDIDATE",
+    "role": "CANDIDATE (student)",
+    "group": "college2"
+  }
+]

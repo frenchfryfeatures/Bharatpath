@@ -457,6 +457,46 @@ EMAIL_TEMPLATES: Final[tuple[MessageTemplate, ...]] = (
         (),
         subject="Your verification needs more information",
     ),
+    # 2026-09-29: an employer writing to an applicant. `{message}` is their
+    # own words; `{link}` is a bare https link, or nothing, so no sentence
+    # depends on it. An assessment with a deadline has its own template
+    # because "by {when}" cannot be made optional in every language.
+    MessageTemplate(
+        "EMAIL_INTERVIEW_INVITATION",
+        "EMAIL",
+        "email.interview_invitation",
+        "{employer} would like to interview you on {when}.\n{link}\n\n{message}\n\n"
+        "Open BharatPath to see your application.",
+        ("employer", "when", "link", "message"),
+        subject="An interview invitation",
+    ),
+    MessageTemplate(
+        "EMAIL_ASSESSMENT_INVITATION",
+        "EMAIL",
+        "email.assessment_invitation",
+        "{employer} has asked you to take an online assessment.\n{link}\n\n{message}\n\n"
+        "Open BharatPath to see your application.",
+        ("employer", "link", "message"),
+        subject="An online assessment",
+    ),
+    MessageTemplate(
+        "EMAIL_ASSESSMENT_INVITATION_DEADLINE",
+        "EMAIL",
+        "email.assessment_invitation_deadline",
+        "{employer} has asked you to take an online assessment by {when}.\n{link}\n\n"
+        "{message}\n\nOpen BharatPath to see your application.",
+        ("employer", "when", "link", "message"),
+        subject="An online assessment",
+    ),
+    MessageTemplate(
+        "EMAIL_EMPLOYER_MESSAGE",
+        "EMAIL",
+        "email.employer_message",
+        "{employer} has sent you a message about your application:\n\n{message}\n\n"
+        "Open BharatPath to see your application.",
+        ("employer", "message"),
+        subject="A message about your application",
+    ),
 )
 
 # ---------------------------------------------------------------------------
@@ -551,6 +591,28 @@ IN_APP_TEMPLATES: Final[tuple[MessageTemplate, ...]] = (
         "IN_APP",
         "in_app.profile_incomplete",
         "Upload your CV or type your details in to build your profile.",
+    ),
+    # 2026-09-29. Short: the message itself is on the application.
+    MessageTemplate(
+        "IN_APP_INTERVIEW_INVITATION",
+        "IN_APP",
+        "in_app.interview_invitation",
+        "{employer} would like to interview you on {when}.",
+        ("employer", "when"),
+    ),
+    MessageTemplate(
+        "IN_APP_ASSESSMENT_INVITATION",
+        "IN_APP",
+        "in_app.assessment_invitation",
+        "{employer} has asked you to take an online assessment.",
+        ("employer",),
+    ),
+    MessageTemplate(
+        "IN_APP_EMPLOYER_MESSAGE",
+        "IN_APP",
+        "in_app.employer_message",
+        "{employer} has sent you a message about your application.",
+        ("employer",),
     ),
 )
 

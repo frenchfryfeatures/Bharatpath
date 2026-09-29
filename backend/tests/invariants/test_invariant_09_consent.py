@@ -66,20 +66,39 @@ STUDENT_TABLES = (
 )
 
 
-def _baseline() -> ModuleType:
-    path = ROOT / "alembic" / "versions" / "0001_baseline_schema.py"
-    spec = importlib.util.spec_from_file_location("baseline_for_invariant_9", path)
+def _migration(path: Path) -> ModuleType:
+    spec = importlib.util.spec_from_file_location(f"invariant_9_{path.stem}", path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
+def _registered_reads() -> dict[str, str]:
+    """`COLLEGE_STUDENT_READS` from the baseline and from every later
+    migration that adds a college read (0005 onwards), merged. A function a
+    migration creates without listing it here fails the test below."""
+    reads: dict[str, str] = {}
+    for path in sorted((ROOT / "alembic" / "versions").glob("*.py")):
+        if "COLLEGE_STUDENT_READS" in path.read_text(encoding="utf-8"):
+            reads.update(getattr(_migration(path), "COLLEGE_STUDENT_READS", {}))
+    return reads
+
+
+def test_the_details_reads_serve_exactly_the_words_that_name_them() -> None:
+    """2026-09-29: the widened view is served only under consent to words
+    that name it. The SQL's list of versions and the domain's are one list."""
+    from app.modules.college.domain import INDIVIDUAL_DETAILS_VERSIONS
+
+    migration = _migration(ROOT / "alembic" / "versions" / "0005_portal_dashboards.py")
+    assert set(migration.DETAILS_CONSENT_VERSIONS) == set(INDIVIDUAL_DETAILS_VERSIONS)
+
+
 # ---------------------------------------------------------------------------
 # 1. The join is in the query
 # ---------------------------------------------------------------------------
 async def test_every_college_read_of_a_student_joins_live_consent() -> None:
-    reads: dict[str, str] = _baseline().COLLEGE_STUDENT_READS
+    reads: dict[str, str] = _registered_reads()
     assert reads, "the list of college reads is empty"
     async with sessions(_seed_url())() as session:
         rows = (

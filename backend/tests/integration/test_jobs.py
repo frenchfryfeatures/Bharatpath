@@ -13,6 +13,7 @@ from typing import Any
 import pytest
 from sqlalchemy import text
 
+from app.core.pagination import encode_cursor
 from tests.conftest import _seed_url, sessions, subscribe_tenant
 
 pytestmark = pytest.mark.integration
@@ -263,8 +264,56 @@ async def test_the_job_list_can_be_filtered_by_status(client: Any, mint_token: A
     await client.post(f"{JOBS}/{live['id']}/publish", headers=owner["headers"])
 
     published = await client.get(JOBS, params={"status": "PUBLISHED"}, headers=owner["headers"])
-    ids = {j["id"] for j in published.json()}
+    ids = {j["id"] for j in published.json()["items"]}
     assert live["id"] in ids and draft["id"] not in ids
+
+
+async def test_the_job_list_honours_limit_and_pages_by_cursor(client: Any, mint_token: Any) -> None:
+    """`limit` used to be ignored -- the route did not declare it, so FastAPI
+    dropped it and every job came back. Five jobs at two a page is three pages,
+    newest first, nothing repeated or skipped, and no cursor on the last."""
+    owner = await _organisation(client, mint_token)
+    made = [(await _draft(client, owner["headers"]))["id"] for _ in range(5)]
+
+    seen: list[str] = []
+    cursor: str | None = None
+    for expected in (2, 2, 1):
+        params = {"limit": 2} if cursor is None else {"limit": 2, "cursor": cursor}
+        page = await client.get(JOBS, params=params, headers=owner["headers"])
+        assert page.status_code == 200, page.text
+        body = page.json()
+        assert len(body["items"]) == expected
+        assert body["total"] is None
+        seen += [j["id"] for j in body["items"]]
+        cursor = body["next_cursor"]
+    assert cursor is None
+    assert seen == list(reversed(made))
+
+
+@pytest.mark.parametrize("params", [{"limit": 0}, {"limit": 101}])
+async def test_the_job_list_refuses_a_limit_out_of_range(
+    client: Any, mint_token: Any, params: dict
+) -> None:
+    owner = await _organisation(client, mint_token)
+    response = await client.get(JOBS, params=params, headers=owner["headers"])
+    assert response.status_code == 422, response.text
+
+
+@pytest.mark.parametrize(
+    "cursor",
+    [
+        "not-a-cursor",
+        # A candidate board cursor is keyed on `published_at`, not `created_at`.
+        encode_cursor({"p": "2026-09-23T00:00:00+00:00", "i": str(uuid.uuid4())}),
+    ],
+)
+async def test_the_job_list_refuses_a_cursor_it_did_not_issue(
+    client: Any, mint_token: Any, cursor: str
+) -> None:
+    owner = await _organisation(client, mint_token)
+    response = await client.get(JOBS, params={"cursor": cursor}, headers=owner["headers"])
+    assert response.status_code == 422, response.text
+    assert response.json()["code"] == "invalid_cursor"
 
 
 # --- threshold preview ----------------------------------------------------

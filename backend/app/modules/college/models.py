@@ -197,9 +197,10 @@ class RosterImport(Base, UUIDPrimaryKey, TenantScoped, Timestamps):
     """One uploaded roster file: previewed, then committed or discarded.
 
     The preview identifies malformed and duplicate rows *before* anything is
-    invited (SRS 2.25.3). **Idempotent by content**: uploading the same file
-    again returns this import rather than a second one, so a double tap or a
-    retried request cannot stage every student twice.
+    invited (SRS 2.25.3). **Idempotent by content while retained**: uploading
+    the same file again returns its PREVIEW or COMMITTED import, so a double
+    tap or retried request cannot stage every student twice. A DISCARDED
+    import has no rows and does not prevent uploading that content again.
 
     Discarding deletes the staged rows. Contact details the college decided
     not to use are not ours to keep.
@@ -235,7 +236,14 @@ class RosterImport(Base, UUIDPrimaryKey, TenantScoped, Timestamps):
             "(state = 'COMMITTED') = (committed_at IS NOT NULL)",
             name="ck_roster_imports_committed",
         ),
-        UniqueConstraint("tenant_id", "source_sha256", name="uq_roster_import_source"),
+        Index(
+            "uq_roster_import_source_retained",
+            "tenant_id",
+            "source_sha256",
+            unique=True,
+            postgresql_where=text("state <> 'DISCARDED'"),
+        ),
+        Index("ix_roster_imports_tenant_created", "tenant_id", "created_at", "id"),
     )
 
 
@@ -320,6 +328,20 @@ class RosterEntry(Base, UUIDPrimaryKey, TenantScoped):
             "ix_roster_entries_sent_email",
             "email",
             postgresql_where=text("invite_state = 'SENT'"),
+        ),
+        Index(
+            "ix_roster_entries_tenant_sent_stage",
+            "tenant_id",
+            "sent_at",
+            "id",
+            postgresql_where=text("invite_state = 'SENT'"),
+        ),
+        Index(
+            "ix_roster_entries_tenant_accepted_stage",
+            "tenant_id",
+            "responded_at",
+            "id",
+            postgresql_where=text("invite_state = 'ACCEPTED'"),
         ),
     )
 
@@ -430,4 +452,5 @@ class ReferralCode(Base, UUIDPrimaryKey, TenantScoped, Timestamps):
             "code",
             postgresql_where="revoked_at IS NULL",
         ),
+        Index("ix_referral_codes_tenant_created", "tenant_id", "created_at", "id"),
     )

@@ -40,6 +40,24 @@ const CODE_MESSAGES: Record<string, string> = {
     "This email is already in use with a different account.",
   kyb_config_invalid:
     "Verification is temporarily unavailable. Please try again later.",
+  kyb_answers_invalid:
+    "Some details need attention. Check the highlighted fields.",
+  kyb_not_editable:
+    "Your verification has already been submitted and can no longer be edited.",
+  kyb_already_verified:
+    "Your organisation is already verified.",
+  kyb_document_rejected:
+    "That file could not be accepted. Upload a PDF, JPEG or PNG under 10 MB.",
+  kyb_upload_not_found:
+    "The upload did not finish. Please try uploading the file again.",
+  kyb_unknown_document_type:
+    "That document type is not recognised. Refresh the page and try again.",
+  business_account_required:
+    "This needs a business account. Sign up as an employer to continue.",
+  pool_role_mismatch:
+    "This email belongs to a candidate account. Use a business email instead.",
+  identity_already_in_organisation:
+    "Your account already belongs to an organisation.",
   internal_error:
     "Something went wrong on our end. Please try again.",
 };

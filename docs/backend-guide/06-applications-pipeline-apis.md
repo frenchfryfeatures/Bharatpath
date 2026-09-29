@@ -1,7 +1,7 @@
 # 06 — Applications: the hiring pipeline
 
-What happens after a candidate hits "Apply." Eleven endpoints, two surfaces
-(`/candidate/applications`, `/employer/applications`), one shared state
+What happens after a candidate hits "Apply." Thirteen endpoints, three surfaces
+(`/candidate/applications`, `/employer/applications`, `/employer/dashboard`), one shared state
 machine underneath both.
 
 Read [05-jobs-and-discovery-apis.md](05-jobs-and-discovery-apis.md) first —
@@ -206,31 +206,64 @@ known, tracked gap).
 
 ## 6. The employer's pipeline
 
-### `GET /employer/applications?job_id=...` — list a job's applications
+### `GET /employer/applications` — list applications, for one job or all of them
 
 **Auth required:** any employer role (Owner/Recruiter/Viewer) + active subscription.
 
-**Request:** no body. Required query param `job_id`; optional `?stage=` filter,
-`cursor`/`limit` for pagination.
+**Request:** no body. Every query param is optional:
 
-**Response** — `200 OK`, a `Page` of `EmployerApplicationSummary`:
+| Param | Meaning |
+|---|---|
+| `job_id` | Only this job's applications. **Leave it out for every job the organisation has**, in one list. Another organisation's job is `404 job_not_found`. |
+| `stage` | Only applications at this stage (`SUBMITTED`, `VIEWED`, `SHORTLISTED`, …). Works with or without `job_id`. |
+| `limit` | Page size, default 50, at most 100 (`422` outside 1–100). |
+| `cursor` | `next_cursor` from the previous page. |
+
+```
+GET /employer/applications                          # the whole pipeline board
+GET /employer/applications?stage=SHORTLISTED        # one column, across every job
+GET /employer/applications?job_id=e577...           # the job filter
+```
+
+**Response** — `200 OK`, a `Page` of `EmployerApplicationListItem`:
 ```json
 {
   "items": [
     {
       "id": "...", "job_id": "...", "candidate_id": "9f2e...",
+      "job_title": "Backend Engineer", "job_location": "Delhi",
       "stage": "SUBMITTED", "hire_confirmation": "NONE",
       "interview": null, "created_at": "...", "updated_at": "..."
     }
   ],
-  "next_cursor": null
+  "next_cursor": "eyJj...",
+  "total": null
 }
 ```
 Oldest first (opposite of the candidate's own view, which is newest-first)
-— a pipeline is worked queue-style. **This is explicitly not a candidate
-profile** — no name, no contact, no score. `candidate_id` is only a handle;
-seeing who this actually is requires the separate, audited reveal from
-[05](05-jobs-and-discovery-apis.md).
+— a pipeline is worked queue-style. Across jobs it is still one order by
+`created_at`, so the page is not grouped by job; group on `job_id` client-side.
+`job_title` and `job_location` are the job's own (the organisation's data), so
+a board spanning jobs does not need a request per card to label it;
+`job_location` is `null` for a job with no location. `next_cursor` is `null` on
+the last page, and there is no total.
+
+**Draw the pipeline board from this list alone.** One request with no
+`job_id` (and `limit=100`, following `next_cursor` if it is set) fills every
+column. Two things must *not* be called per card:
+
+- `GET /employer/applications/{id}` **records VIEWED** on a submitted
+  application — the candidate sees that someone looked. Opening every card to
+  draw the board marks the whole column viewed.
+- `GET /employer/discovery/candidates/{id}` is the audited reveal: every call
+  writes an audit row and counts against the organisation's hourly and daily
+  view caps.
+
+Listing is read-only and records nothing.
+
+**This is explicitly not a candidate profile** — no name, no contact, no score.
+`candidate_id` is only a handle; seeing who this actually is requires the
+separate, audited reveal from [05](05-jobs-and-discovery-apis.md).
 
 ### `GET /employer/applications/{application_id}` — open one
 
@@ -326,6 +359,61 @@ only becomes `HIRED` once the candidate calls `hire/confirm` from §5. A
 write `HIRED` directly, skipping the candidate's half, would be rejected at
 the database level.
 
+### `POST /employer/applications/{application_id}/messages` — write to the applicant
+
+**Auth required:** Owner/Recruiter + active subscription. Added 2026-09-29:
+the "message box per candidate" to invite someone to an interview or an
+online assessment (OA).
+
+**Request body** (`SendMessageRequest`) — one of three kinds:
+```json
+{ "kind": "INTERVIEW", "body": "Please bring your certificates.",
+  "scheduled_at": "2026-10-03T05:00:00Z", "link": "https://meet.google.com/abc-defg-hij" }
+```
+```json
+{ "kind": "ASSESSMENT", "body": "Forty minutes, any time before Friday.",
+  "link": "https://www.hackerrank.com/test/xyz", "scheduled_at": "2026-10-04T12:30:00Z" }
+```
+```json
+{ "kind": "GENERAL", "body": "Thank you for applying — we will be in touch this week." }
+```
+`INTERVIEW` needs `scheduled_at` (the link is optional: it may be in person).
+`ASSESSMENT` needs `link` (the time is an optional deadline). Links must be
+`https`. Times must be in the future and within a year.
+
+**Response** — `201 Created` (`EmployerMessageResponse`):
+```json
+{ "id": "...", "kind": "INTERVIEW", "body": "…", "scheduled_at": "...", "link": "…",
+  "sender_id": "the recruiter who wrote it", "created_at": "..." }
+```
+
+**What happens next** (in the background, through the outbox): the
+candidate gets an **email** and an **in-app notification** in their
+language — "Acme Pvt Ltd would like to interview you on 03 Oct 2026, 10:30 AM
+IST", the link, and the employer's own words. **The employer never sees the
+candidate's email address**: the platform sends it. The event carries only
+the message id; the words are read when the email is built.
+
+**Errors:**
+| Code | When |
+|---|---|
+| `422 message_time_required` / `message_link_required` | Missing for that kind |
+| `422 message_time_in_past` / `message_time_too_far` / `message_link_invalid` | Bad time or link |
+| `409 message_not_allowed_at_stage` | The application is hired, rejected, withdrawn or expired |
+| `429 message_limit_reached` | 10 messages to one application in a day (also 300/hour per organisation) |
+| `404 application_not_found` | Not your organisation's application |
+
+Only applicants: a message rides on an application, never on a search
+result. Every message is audited (ids and kind, never the words) and counts
+as employer activity, so the application does not expire mid-conversation.
+
+### `GET /employer/applications/{application_id}/messages` and `GET /candidate/applications/{application_id}/messages`
+
+Both oldest first. The employer's list includes `sender_id`; **the
+candidate's never does** — it has `employer_name` instead, the same way a
+stage change shows the candidate *that* the employer acted, never which
+recruiter. The candidate's list is not paywalled, like the application itself.
+
 ---
 
 ## 7. Expiry — the one transition nobody calls
@@ -337,6 +425,99 @@ timestamp against a configured window (default 30 days, `config_values` key
 for too long. A proposed hire never expires — once at `DECISION` with an
 employer confirmation, the clock stops. (This sweep isn't wired to run on a
 schedule yet in the current build — a tracked gap, not a design choice.)
+
+---
+
+## 8. The employer dashboard
+
+Two endpoints for the portal's landing page. Both: **any employer role**
+(Owner/Recruiter/Viewer) + **active subscription** (`402
+subscription_required` otherwise, like the rest of the pipeline).
+
+**Neither returns a name, contact, score or candidate id.** Everything is a
+count, a job, or an application id — the same handles the pipeline screens
+already take. Who a candidate is stays behind the audited reveal in
+[05](05-jobs-and-discovery-apis.md).
+
+### `GET /employer/dashboard` — the tiles, in one request
+
+**Query:** `top_jobs` (1–20, default 5).
+
+**Response** — `200 OK`, `EmployerDashboard`:
+```json
+{
+  "generated_at": "2026-09-23T10:15:00Z",
+  "jobs": { "total": 6, "active": 3, "draft": 1, "paused": 0, "closed": 2 },
+  "applications": {
+    "total": 120, "open": 45, "distinct_candidates": 110,
+    "new_last_7_days": 12, "new_last_30_days": 40,
+    "by_stage": { "SUBMITTED": 10, "VIEWED": 8, "SHORTLISTED": 12, "INTERVIEW": 9,
+                  "DECISION": 6, "HIRED": 4, "REJECTED": 50, "WITHDRAWN": 15, "EXPIRED": 6 }
+  },
+  "needs_attention": {
+    "unreviewed": 10, "interviews_to_schedule": 2, "interviews_next_7_days": 3,
+    "hires_awaiting_candidate": 1, "hires_disputed": 0, "expiring_within_7_days": 4
+  },
+  "candidates_revealed": { "total": 30, "last_7_days": 5 },
+  "top_jobs": [
+    { "job_id": "...", "title": "Machine Operator", "status": "PUBLISHED",
+      "applications": 41, "open": 18, "new_last_7_days": 6,
+      "last_applied_at": "2026-09-23T08:02:11Z" }
+  ],
+  "upcoming_interviews": [
+    { "application_id": "...", "job_id": "...", "job_title": "Machine Operator",
+      "interview_at": "2026-09-25T04:30:00Z", "meeting_url": "https://meet.example.com/abc" }
+  ],
+  "applications_per_day": [ { "date": "2026-08-25", "count": 0 }, "... 30 entries ..." ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `jobs.active` | `PUBLISHED` — on the board now |
+| `applications.total` | Every application ever received. Same number as the jobs list's `application_counts.total`, summed |
+| `applications.open` | Not yet hired, rejected, withdrawn or expired |
+| `applications.distinct_candidates` | People, not applications — someone who reapplied counts once |
+| `applications.by_stage` | Where they stand **now**; every stage present; sums to `total` |
+| `needs_attention.unreviewed` | `SUBMITTED` — nobody has opened them |
+| `needs_attention.interviews_to_schedule` | At `INTERVIEW` with no time booked |
+| `needs_attention.hires_awaiting_candidate` / `hires_disputed` | Hire proposed; candidate hasn't answered / said it didn't happen |
+| `needs_attention.expiring_within_7_days` | Open applications the team hasn't touched for long enough that §7's sweep will expire them within a week — including any already overdue. A proposed hire never counts |
+| `candidates_revealed` | Distinct candidates whose full profile the organisation opened — the design's "Candidates unlocked". Re-opening someone is not counted again |
+| `top_jobs` | Busiest first, by `applications`; only jobs with at least one |
+| `upcoming_interviews` | Next 5 booked, soonest first |
+| `applications_per_day` | 30 **IST** calendar days ending today (today is partial), oldest first, zeros included — chart it directly |
+
+"Recent" is the last seven days everywhere, so the tiles agree with each
+other. Every number is read live on each request; nothing is cached, so a
+refetch after a recruiter acts shows the change.
+
+### `GET /employer/dashboard/activity` — recent activity feed
+
+**Query:** `actor` (`CANDIDATE` | `EMPLOYER` | `SYSTEM`, optional),
+`cursor`, `limit` (1–100, default 50).
+
+**Response** — `200 OK`, a `Page` of `ActivityItem`, newest first:
+```json
+{
+  "items": [
+    { "id": "...", "application_id": "...", "job_id": "...", "job_title": "Machine Operator",
+      "kind": "STAGE_CHANGED", "from_stage": "VIEWED", "to_stage": "SHORTLISTED",
+      "by": "EMPLOYER", "actor_id": "recruiter-user-id", "occurred_at": "..." },
+    { "id": "...", "application_id": "...", "job_id": "...", "job_title": "Machine Operator",
+      "kind": "STAGE_CHANGED", "from_stage": null, "to_stage": "SUBMITTED",
+      "by": "CANDIDATE", "actor_id": null, "occurred_at": "..." }
+  ],
+  "next_cursor": "..."
+}
+```
+The same events as an application's `history` (§6), across every job.
+`from_stage: null, to_stage: SUBMITTED` is "applied"; `by: SYSTEM,
+to_stage: EXPIRED` is the sweep. `actor_id` is the team member, and only for
+`EMPLOYER` rows. **No `note`** — open the application for that.
+
+Pipeline events only, for now: job publishing, reveals, KYB and purchases
+are not in this feed.
 
 ---
 

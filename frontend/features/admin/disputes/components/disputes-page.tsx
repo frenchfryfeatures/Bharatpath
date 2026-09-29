@@ -1,31 +1,40 @@
 "use client";
 
 import { usePageHeader } from "@/components/layout/header-context";
+import { Skeleton } from "@/components/common/loading";
 import { ErrorState } from "@/components/ui";
 
 import { useDisputes } from "../hooks/use-disputes";
 
-import { AuditTrail } from "./audit-trail";
+import { ClosedDisputesTab } from "./closed-disputes-tab";
 import { DisputeDrawer } from "./dispute-drawer";
 import { OpenDisputesTab } from "./open-disputes-tab";
-import { ResolvedDisputesTab } from "./resolved-disputes-tab";
 
 export function DisputesPage() {
   usePageHeader(
-    "Disputes & Audit",
-    "Investigate disputes and trace every operator action",
+    "Disputes",
+    "Investigate and resolve disputes raised by candidates, employers and colleges",
   );
 
   const {
     state,
     openDisputes,
     resolvedDisputes,
-    auditItems,
-    isLoading,
-    auditLoading,
-    error,
+    rejectedDisputes,
+    openLoading,
+    resolvedLoading,
+    rejectedLoading,
+    disputeError,
+    retryDisputes,
     openCount,
+    openHasMore,
+    openPagination,
     resolvedCount,
+    resolvedHasMore,
+    resolvedPagination,
+    rejectedCount,
+    rejectedHasMore,
+    rejectedPagination,
     setTab,
     openDispute,
   } = useDisputes();
@@ -41,16 +50,23 @@ export function DisputesPage() {
           <div className="flex items-center gap-1">
             {(
               [
-                [
-                  "open",
-                  `Open · ${openCount}`,
-                ],
+                ["open", "Open", openCount, openHasMore, openLoading],
                 [
                   "resolved",
-                  `Resolved · ${resolvedCount}`,
+                  "Resolved",
+                  resolvedCount,
+                  resolvedHasMore,
+                  resolvedLoading,
+                ],
+                [
+                  "rejected",
+                  "Rejected",
+                  rejectedCount,
+                  rejectedHasMore,
+                  rejectedLoading,
                 ],
               ] as const
-            ).map(([tab, label]) => {
+            ).map(([tab, label, count, hasMore, countLoading]) => {
               const active =
                 state.tab === tab;
 
@@ -69,7 +85,14 @@ export function DisputesPage() {
                       : "text-[#687182] hover:text-[#172033]",
                   ].join(" ")}
                 >
-                  {label}
+                  <span className="inline-flex items-center gap-1">
+                    {label} ·{" "}
+                    {countLoading ? (
+                      <Skeleton width={18} height={12} radius={4} />
+                    ) : (
+                      `${count}${hasMore ? "+" : ""}`
+                    )}
+                  </span>
 
                   {active && (
                     <span className="absolute inset-x-0 bottom-0 h-[2px] bg-[#315c9f]" />
@@ -84,38 +107,49 @@ export function DisputesPage() {
             CONTENT
             ============================================================ */}
 
-        <div className="grid min-w-0 grid-cols-1 gap-4 pt-4 md:grid-cols-[minmax(0,1fr)_305px]">
+        <div className="min-w-0 pt-4">
           {/* ==========================================================
               DISPUTES
               ========================================================== */}
 
           <div className="min-w-0">
-            {error ? <ErrorState error={error} fallback="Could not load disputes." className="mb-3" /> : null}
+            {disputeError ? (
+              <ErrorState
+                error={disputeError}
+                fallback="Could not load disputes."
+                onRetry={retryDisputes}
+                className="mb-3"
+              />
+            ) : null}
             {state.tab === "open" && (
               <OpenDisputesTab
                 disputes={openDisputes}
                 onOpen={openDispute}
-                isLoading={isLoading}
+                isLoading={openLoading}
+                pagination={openPagination}
               />
             )}
 
             {state.tab === "resolved" && (
-              <ResolvedDisputesTab
+              <ClosedDisputesTab
                 disputes={resolvedDisputes}
                 onOpen={openDispute}
-                isLoading={isLoading}
+                isLoading={resolvedLoading}
+                pagination={resolvedPagination}
+                emptyTitle="No resolved disputes"
+              />
+            )}
+
+            {state.tab === "rejected" && (
+              <ClosedDisputesTab
+                disputes={rejectedDisputes}
+                onOpen={openDispute}
+                isLoading={rejectedLoading}
+                pagination={rejectedPagination}
+                emptyTitle="No rejected disputes"
               />
             )}
           </div>
-
-          {/* ==========================================================
-              AUDIT TRAIL
-              ========================================================== */}
-
-          <AuditTrail
-            items={auditItems}
-            isLoading={auditLoading}
-          />
         </div>
       </div>
 

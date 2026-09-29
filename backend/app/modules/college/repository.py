@@ -21,15 +21,16 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Final
+from typing import Any, Final, Literal
 
-from sqlalchemy import delete, func, select, text, update
+from sqlalchemy import case, delete, func, select, text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.college.domain import (
     GRANTED_VIA_DIRECT,
     INDIVIDUAL,
+    INVITE_EXPIRED,
     INVITE_PENDING,
     INVITE_SENT,
     ROSTER,
@@ -155,11 +156,30 @@ async def get_code(
     return (await session.execute(query)).scalar_one_or_none()
 
 
-async def list_codes(session: AsyncSession, *, tenant_id: uuid.UUID) -> list[ReferralCode]:
+async def list_codes(
+    session: AsyncSession,
+    *,
+    tenant_id: uuid.UUID,
+    after: tuple[datetime, uuid.UUID] | None,
+    limit: int,
+    active_only: bool,
+    now: datetime,
+) -> list[ReferralCode]:
+    query = select(ReferralCode).where(ReferralCode.tenant_id == tenant_id)
+    if active_only:
+        query = query.where(
+            ReferralCode.revoked_at.is_(None),
+            ReferralCode.expires_at > now,
+            (ReferralCode.max_uses.is_(None)) | (ReferralCode.uses < ReferralCode.max_uses),
+        )
+    if after is not None:
+        created_at, code_id = after
+        query = query.where(
+            (ReferralCode.created_at < created_at)
+            | ((ReferralCode.created_at == created_at) & (ReferralCode.id < code_id))
+        )
     result = await session.execute(
-        select(ReferralCode)
-        .where(ReferralCode.tenant_id == tenant_id)
-        .order_by(ReferralCode.created_at.desc(), ReferralCode.id)
+        query.order_by(ReferralCode.created_at.desc(), ReferralCode.id.desc()).limit(limit)
     )
     return list(result.scalars())
 
@@ -238,7 +258,7 @@ async def insert_roster_consent(
 
 async def claim_seat(session: AsyncSession, *, tenant_id: uuid.UUID) -> uuid.UUID | None:
     result = await session.execute(text("SELECT claim_college_seat(:t)"), {"t": str(tenant_id)})
-    value = result.scalar_one()
+    value: Any = result.scalar_one()
     return uuid.UUID(str(value)) if value is not None else None
 
 
@@ -299,7 +319,7 @@ async def answer_invitation(
     result = await session.execute(
         text("SELECT answer_invitation(:e, :a)"), {"e": str(entry_id), "a": accept}
     )
-    value = result.scalar_one()
+    value: Any = result.scalar_one()
     return uuid.UUID(str(value)) if value is not None else None
 
 
@@ -318,7 +338,9 @@ async def import_by_source(
 ) -> RosterImport | None:
     result = await session.execute(
         select(RosterImport).where(
-            RosterImport.tenant_id == tenant_id, RosterImport.source_sha256 == source_sha256
+            RosterImport.tenant_id == tenant_id,
+            RosterImport.source_sha256 == source_sha256,
+            RosterImport.state != "DISCARDED",
         )
     )
     return result.scalar_one_or_none()
@@ -401,13 +423,48 @@ async def get_import(
     return (await session.execute(query)).scalar_one_or_none()
 
 
-async def list_imports(session: AsyncSession, *, tenant_id: uuid.UUID) -> list[RosterImport]:
+async def list_imports(
+    session: AsyncSession,
+    *,
+    tenant_id: uuid.UUID,
+    after: tuple[datetime, uuid.UUID] | None,
+    limit: int,
+) -> list[RosterImport]:
+    query = select(RosterImport).where(RosterImport.tenant_id == tenant_id)
+    if after is not None:
+        created_at, import_id = after
+        query = query.where(
+            (RosterImport.created_at < created_at)
+            | ((RosterImport.created_at == created_at) & (RosterImport.id < import_id))
+        )
     result = await session.execute(
-        select(RosterImport)
-        .where(RosterImport.tenant_id == tenant_id)
-        .order_by(RosterImport.created_at.desc(), RosterImport.id)
+        query.order_by(RosterImport.created_at.desc(), RosterImport.id.desc()).limit(limit)
     )
     return list(result.scalars())
+
+
+async def invitation_counts_for_tenant(
+    session: AsyncSession,
+    *,
+    tenant_id: uuid.UUID,
+    expired_before: datetime,
+) -> dict[str, int]:
+    displayed_state = case(
+        (
+            (RosterEntry.invite_state == INVITE_SENT) & (RosterEntry.sent_at <= expired_before),
+            INVITE_EXPIRED,
+        ),
+        else_=RosterEntry.invite_state,
+    ).label("displayed_state")
+    result = await session.execute(
+        select(displayed_state, func.count(RosterEntry.id))
+        .where(
+            RosterEntry.tenant_id == tenant_id,
+            RosterEntry.invite_state.is_not(None),
+        )
+        .group_by(displayed_state)
+    )
+    return {str(state): int(count) for state, count in result}
 
 
 async def list_rows(
@@ -641,19 +698,24 @@ class VisibleStudentRow:
 
 
 async def visible_students(
-    session: AsyncSession, *, limit: int, after: tuple[datetime, uuid.UUID] | None
+    session: AsyncSession,
+    *,
+    limit: int,
+    after: tuple[datetime, uuid.UUID] | None,
+    query: str | None,
 ) -> list[VisibleStudentRow]:
     """Through `college_visible_students`, which INNER JOINs live INDIVIDUAL
     and ROSTER consent for the bound college. Never a table read."""
     result = await session.execute(
         text(
             "SELECT candidate_id, consent_id, visible_since, full_name, score_resume_version_id "
-            "FROM college_visible_students(:limit, :since, :after_id)"
+            "FROM college_visible_students(:limit, :since, :after_id, :query)"
         ),
         {
             "limit": limit,
             "since": after[0] if after else None,
             "after_id": str(after[1]) if after else None,
+            "query": query,
         },
     )
     return [
@@ -661,6 +723,105 @@ async def visible_students(
             r.candidate_id, r.consent_id, r.visible_since, r.full_name, r.score_resume_version_id
         )
         for r in result
+    ]
+
+
+@dataclass(frozen=True, slots=True)
+class RosterStageStudentRow:
+    roster_entry_id: uuid.UUID
+    full_name: str | None
+    stage_since: datetime
+
+
+async def roster_stage_students(
+    session: AsyncSession,
+    *,
+    tenant_id: uuid.UUID,
+    stage: Literal["INVITED", "CONSENT_PENDING"],
+    limit: int,
+    after: tuple[datetime, uuid.UUID] | None,
+    query: str | None,
+    invited_after: datetime,
+) -> list[RosterStageStudentRow]:
+    """College-supplied roster names before individual visibility.
+
+    INVITED is a live SENT invitation. CONSENT_PENDING is an accepted roster
+    link with no live INDIVIDUAL grant. Candidate ids never leave this query.
+    """
+    if stage == "INVITED":
+        statement = text(
+            """
+            SELECT e.id AS roster_entry_id, e.full_name, e.sent_at AS stage_since
+              FROM roster_entries e
+             WHERE e.tenant_id = :tenant_id
+               AND e.invite_state = 'SENT'
+               AND e.sent_at IS NOT NULL
+               AND e.sent_at > :invited_after
+               AND (
+                    CAST(:query AS text) IS NULL
+                    OR strpos(lower(coalesce(e.full_name, '')), lower(CAST(:query AS text))) > 0
+                   )
+               AND (
+                    CAST(:since AS timestamptz) IS NULL
+                    OR (e.sent_at, e.id) >
+                       (CAST(:since AS timestamptz), CAST(:after_id AS uuid))
+                   )
+             ORDER BY e.sent_at, e.id
+             LIMIT :limit
+            """
+        )
+    elif stage == "CONSENT_PENDING":
+        statement = text(
+            """
+            SELECT e.id AS roster_entry_id, e.full_name, e.responded_at AS stage_since
+              FROM roster_entries e
+              JOIN student_consents roster
+                ON roster.roster_entry_id = e.id
+               AND roster.scope = 'ROSTER'
+               AND roster.revoked_at IS NULL
+              LEFT JOIN student_consents individual
+                ON individual.tenant_id = roster.tenant_id
+               AND individual.candidate_id = roster.candidate_id
+               AND individual.scope = 'INDIVIDUAL'
+               AND individual.revoked_at IS NULL
+             WHERE e.tenant_id = :tenant_id
+               AND e.invite_state = 'ACCEPTED'
+               AND e.responded_at IS NOT NULL
+               AND individual.id IS NULL
+               AND (
+                    CAST(:query AS text) IS NULL
+                    OR strpos(lower(coalesce(e.full_name, '')), lower(CAST(:query AS text))) > 0
+                   )
+               AND (
+                    CAST(:since AS timestamptz) IS NULL
+                    OR (e.responded_at, e.id) >
+                       (CAST(:since AS timestamptz), CAST(:after_id AS uuid))
+                   )
+             ORDER BY e.responded_at, e.id
+             LIMIT :limit
+            """
+        )
+    else:  # pragma: no cover - the service supplies the closed literal set
+        raise ValueError(f"unsupported student stage: {stage}")
+
+    params: dict[str, Any] = {
+        "tenant_id": str(tenant_id),
+        "query": query,
+        "since": after[0] if after else None,
+        "after_id": str(after[1]) if after else None,
+        "limit": limit,
+    }
+    if stage == "INVITED":
+        params["invited_after"] = invited_after
+
+    result = await session.execute(statement, params)
+    return [
+        RosterStageStudentRow(
+            roster_entry_id=row.roster_entry_id,
+            full_name=row.full_name,
+            stage_since=row.stage_since,
+        )
+        for row in result
     ]
 
 
@@ -733,3 +894,128 @@ async def sent_invitation(
         )
     )
     return result.scalar_one_or_none()
+
+
+# --- a student's details (2026-09-29), through the consent-joined reads ----------
+@dataclass(frozen=True, slots=True)
+class StudentDetailsRow:
+    consent_id: uuid.UUID
+    consent_version: str
+    email: str | None
+    phone: str | None
+    city: str | None
+    state_code: str | None
+    locale: str
+    questionnaire: dict[str, Any]
+    questionnaire_submitted_at: datetime | None
+    resume_source: str | None
+    resume_parsed: dict[str, Any] | None
+    resume_confirmed_at: datetime | None
+    resume_s3_key: str | None
+    resume_mime: str | None
+    interviews_completed: int
+
+
+async def student_details(
+    session: AsyncSession, *, candidate_id: uuid.UUID
+) -> StudentDetailsRow | None:
+    """None unless the student's INDIVIDUAL consent to this college is live
+    **and** under words that name these details."""
+    row = (
+        await session.execute(
+            text(
+                "SELECT consent_id, consent_version, email, phone, city, state_code, locale, "
+                "questionnaire, questionnaire_submitted_at, resume_source, resume_parsed, "
+                "resume_confirmed_at, resume_s3_key, resume_mime, interviews_completed "
+                "FROM college_student_details(:c)"
+            ),
+            {"c": str(candidate_id)},
+        )
+    ).first()
+    if row is None:
+        return None
+    return StudentDetailsRow(
+        row.consent_id,
+        row.consent_version,
+        row.email,
+        row.phone,
+        row.city,
+        row.state_code,
+        row.locale,
+        dict(row.questionnaire or {}),
+        row.questionnaire_submitted_at,
+        row.resume_source,
+        dict(row.resume_parsed) if row.resume_parsed is not None else None,
+        row.resume_confirmed_at,
+        row.resume_s3_key,
+        row.resume_mime,
+        int(row.interviews_completed),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class StudentCourseRow:
+    course_code: str
+    title: str
+    purchased_at: datetime
+    lessons_total: int
+    lessons_completed: int
+    completed_at: datetime | None
+
+
+async def student_courses(
+    session: AsyncSession, *, candidate_id: uuid.UUID
+) -> list[StudentCourseRow]:
+    result = await session.execute(
+        text(
+            "SELECT course_code, title, purchased_at, lessons_total, lessons_completed, "
+            "completed_at FROM college_student_courses(:c)"
+        ),
+        {"c": str(candidate_id)},
+    )
+    return [
+        StudentCourseRow(
+            r.course_code,
+            r.title,
+            r.purchased_at,
+            int(r.lessons_total),
+            int(r.lessons_completed),
+            r.completed_at,
+        )
+        for r in result
+    ]
+
+
+@dataclass(frozen=True, slots=True)
+class StudentApplicationRow:
+    job_title: str
+    employer_name: str
+    job_location: str | None
+    stage: str
+    applied_at: datetime
+    updated_at: datetime
+
+
+async def student_applications(
+    session: AsyncSession, *, candidate_id: uuid.UUID
+) -> tuple[list[StudentApplicationRow], dict[str, int]]:
+    """Each application and the stages it ever reached. No application id:
+    the college has no use for one, and nothing to open with it."""
+    result = await session.execute(
+        text(
+            "SELECT job_title, employer_name, job_location, stage, applied_at, updated_at, "
+            "reached FROM college_student_applications(:c)"
+        ),
+        {"c": str(candidate_id)},
+    )
+    rows: list[StudentApplicationRow] = []
+    reached: dict[str, int] = {}
+    for r in result:
+        rows.append(
+            StudentApplicationRow(
+                r.job_title, r.employer_name, r.job_location, r.stage, r.applied_at, r.updated_at
+            )
+        )
+        for stage in r.reached or []:
+            reached[str(stage)] = reached.get(str(stage), 0) + 1
+    return rows, reached

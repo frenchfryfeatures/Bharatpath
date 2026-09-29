@@ -9,6 +9,1730 @@ states. Newest entries first.
 
 ---
 
+## 2026-09-29 — `main` made correct again after PRs 21, 22 and 23
+
+PR 21 (college APIs) was merged with red CI; the mobile branch (PR 22) and
+several fixes reached `main` by direct push, also red. Everything below lands
+through PR 23.
+
+**Put right**
+
+- **A fresh database would not build on `main`** (0002/0003 created indexes
+  the baseline already had). Fixed in PR 23's first commit.
+- **Migration heads.** The mobile branch's `0002_interviews_in_subscription`
+  revised the baseline beside `0004`; `main` then merged the two with
+  `0005_merge_migration_heads`. `0005_portal_dashboards` follows that, and
+  `0006_interviews_are_bought` is the single head. Checked: a fresh build, a
+  database at `0004`, and one at `main`'s head.
+- **Interviews are bought again.** The mobile branch had made sessions free
+  for any subscriber (`purchase_id` NULL, a guard accepting a live
+  subscription): unlimited sessions and the whole +60 unpaid, past the
+  "will not increase your score" acknowledgement. The client never decided
+  that. Code and tests are back to one purchase per session; `0006` restores
+  the baseline guard and NOT NULL, and **stops if a database already holds an
+  unpaid session** rather than deleting or backfilling it.
+- **College analytics floors restored** (PR 21 had removed them and edited
+  `test_invariant_09_consent.py` and `test_analytics_domain.py` to match): a
+  withheld band is `null` again, not `0`; below the cohort floor only the two
+  counts show, not a `median_score` of 0; small months in the placement trend
+  are withheld with their complement. The college frontend already rendered
+  `null` as "—"; its API types now say so, and a withheld month is labelled
+  "—" on the chart instead of drawn as 0.
+- **CI.** Lint was red because a fresh install picked up SQLAlchemy 2.1
+  (pinned `<2.1`, three annotations); "publish openapi.json" failed because
+  Settings needs an OpenAI key unless `INTERVIEW_QUESTION_PROVIDER=stub`, now
+  set for that job.
+- Removed `E501` from the `scripts/**` ignores: it was added for
+  `seed_test_jobs.py`, which is not in the repository, and nothing that is
+  needs it.
+- Kept from the mobile branch, and correct: `resume.file_uploaded` now routes
+  to the parse task (before it nothing parsed an uploaded CV), one event loop
+  per Celery worker, and presigned URLs a phone can reach in local dev.
+
+**Left for others**
+
+- The mobile app starts a session without buying one, so it now gets
+  `409 interview_purchase_required`. It needs the checkout step back:
+  `GET …/offer` → device check → `POST …/checkout` (with
+  `acknowledge_no_score_increase` when asked) → payment → `POST …/sessions`.
+- `frontend/package-lock.json` is out of sync with `package.json`
+  (`npm ci` refuses), and `features/college/students/student-roster.tsx` has
+  four ESLint errors. Neither is backend's, and no CI job here checks the
+  frontend.
+
+## 2026-09-29 — the portal dashboards: admin, college, employer and student
+
+The client's requests for all four portals (answers-log Round 11), backend
+only; the frontend is its own work. One migration, `0005_portal_dashboards`,
+on top of `0004`.
+
+**Fixed on the way in: `main` could not build a fresh database.** The
+baseline creates tables from the current models, which already declare the
+indexes `0002_college_student_search` then created again, and the constraint
+`0003_roster_reupload` dropped never existed on a fresh build.
+`reset_local_db.sh` and CI failed at `alembic upgrade`. Both revisions are now
+idempotent; a shared database that already ran them is unaffected. Also on
+`main` and fixed here: `test_the_list_filters_every_link_stage` expected 201
+from accepting an invitation, which has always answered 200
+(`test_roster_import.py`); and two files failed `ruff format --check`.
+
+**Verified:** 2829 tests pass on a fresh build; a database built by `main`
+(at `0004`) upgrades to `0005` with the five tables, the three college reads,
+the new cascade and the intended grants (insert-only tables have no UPDATE,
+none has DELETE).
+
+**Admin — the full candidate page** (`/admin/candidates/{id}/…`): onboarding
+(contact unmasked), CV (text + presigned file), score timeline (display value,
+band, change, cause -- never the stored number), interviews, recordings,
+courses, applications with stage analytics. Three new capabilities --
+`candidate_contact` and `candidate_recordings` (admin, support) and
+`candidate_resume` (+ integrity reviewer) -- and every part writes its own
+audit row. The drill-down itself is unchanged.
+
+**College — the widened student view** (`/college/students/{id}/details`,
+`/resume`): contact, questionnaire (not the accessibility answer), CV,
+practice interviews completed, course %, every application with its stage,
+and analytics. **Only under INDIVIDUAL consent version 2**, whose placeholder
+words name all of it; three consent-joined SECURITY DEFINER reads in 0005.
+Version-1 students get 409 `college_student_details_not_shared` and keep the
+old view; re-granting replaces their row.
+
+**Employer — messages to applicants** (`/employer/applications/{id}/messages`):
+INTERVIEW (time required), ASSESSMENT (https link required) or GENERAL, sent
+by email and in-app through the ordinary notification relay, seven new
+templates in all six priority bundles (still `needs_native_speaker_pass`).
+Applicants only, open stages only, 10 per application per day and 300/hour
+per organisation. The candidate reads them at
+`/candidate/applications/{id}/messages`, without the sender.
+
+**Student — courses and interviews.**
+
+- The course is built by staff (`/admin/courses`, modules and lessons, a
+  YouTube link or an upload to `bharatpath-course-media`) and published
+  explicitly. Candidates see it locked until bought, then embed URLs or
+  four-hour presigned links, and report progress. **C1 closed**: completion
+  is every published lesson watched, recorded as the system.
+- **Every interview question is written by AI** (client, same day: "only ai
+  and not fixed questions"): the first from the CV and onboarding answers,
+  each next one after hearing the previous answer (`POST …/next-question`),
+  never an earlier session's question. Six per session, still
+  `QUESTIONS_PER_SESSION`. **No fixed-question fallback**: a refused draft is
+  sent back with the reason (up to 3 tries), then a 503 the app retries; a
+  failed start spends no purchase. OpenAI is the default provider; tests and
+  CI use the stub.
+- `/candidate/interview/history` and `…/sessions/{id}/recordings` for going
+  back through sessions and hearing them.
+
+**Decisions worth knowing:**
+
+- **Unlisted YouTube is not behind the paywall** -- anyone with the link can
+  watch. The client asked for it; uploads are the option that is.
+- **The widened college view reverses the version-1 words**, which promised
+  no contact and no CV. Hence a new version rather than a wider old one.
+- Transcribing in-session means Sarvam is billed per answer during the
+  interview rather than after; the evaluation reuses those transcripts, so
+  nothing is paid twice.
+- The course's `sync_catalogue` no longer decides `active`: re-running the
+  seed never takes a published course off sale or puts an empty one on.
+
+**Also added:** the data export gains `interview_questions`, `courses` and
+`messages` (never the sender); colleges get
+`GET /college/analytics/applications`, the cohort's application funnel,
+floored and suppressed like every aggregate (`college_cohort_applications`).
+
+**Tested live, 2026-09-29, with the real keys.** `scripts/smoke_interview_live.py`
+(OpenAI writes → OpenAI TTS speaks an answer → Sarvam hears it → OpenAI
+writes the follow-up, six times; the evaluator rates it; a second session
+repeats nothing) passed, questions in Hindi from a Hindi locale. A full run
+through the API on :8099 against LocalStack S3 -- sign-in, CV, questionnaire,
+subscription, device check, purchase, six real audio uploads, completion,
+evaluation, report, history, playback -- passed. Timing: first question
+~3 s, each next ~9 s (≈6 s Sarvam + ≈3 s OpenAI); the app needs a
+"thinking" state. Sarvam once heard "साठ" (60) as "सात" (7).
+
+**To deploy:** run migration 0005 (`alembic upgrade head`). **The API now
+refuses to boot without `OPENAI_API_KEY`** (the question writer defaults to
+`openai`, model `gpt-5.4-mini-2026-03-17`); set
+`INTERVIEW_TRANSCRIPTION_PROVIDER=sarvam` + `SARVAM_API_KEY` too, or
+questions cannot follow up answers. `infra/terraform/outputs.tf` now writes
+both question variables into the EC2 env file.
+
+---
+
+## 2026-09-28 — product logo replaces panel monograms
+
+The supplied BharatPath logo now replaces the square `B` / `BP` monograms in
+the shared employer, college and admin sidebar and in both desktop and mobile
+student sidebars. The root Next.js metadata also points the browser-tab icon at
+the same bundled PNG, so every frontend surface uses one brand asset.
+
+Targeted ESLint and the Next.js production build pass. Browser validation
+confirmed the rendered logo in both sidebar implementations and the generated
+`rel="icon"` link.
+
+---
+
+## 2026-09-28 — student header shows the daily engagement streak
+
+The student shell now calls the idempotent
+`POST /candidate/streak/me/check-in` endpoint when it opens and maps the full
+response into typed frontend models. The student header alone renders the
+current streak as a compact amber flame-and-count pill, following the familiar
+LeetCode treatment without presenting engagement points as the BharatPath
+score. Loading and retry states stay within the same header footprint, and
+successful automatic check-ins do not trigger a global success popup. No
+backend code changed.
+
+Targeted ESLint, the Next.js production build and TypeScript all pass. A
+browser pass with a mocked 12-day response verified the loaded desktop header
+and the 390px mobile header with no horizontal overflow. The repository-wide
+frontend lint still reports six unrelated pre-existing errors in college
+settings/roster and existing student animation/shell effects.
+
+---
+
+## 2026-09-28 — email sign-in bundles its account directory
+
+Deployed sign-in (`POST /api/auth/token` on Vercel) answered 500 "The account
+directory is unavailable on this server." The route read
+`../backend/scripts/seed_output/accounts.json` from disk, a file outside the
+frontend that is untracked and never shipped with the deployment.
+
+The directory now lives at `frontend/lib/auth/accounts.json` and is imported
+statically, so Next bundles it into the server chunks (verified absent from
+`.next/static`). `DEV_ACCOUNTS_FILE` still overrides it. `seed_demo.py` writes
+the manifest to both places, so a re-seed keeps them in step; the frontend copy
+must be committed and redeployed after one. `credentials.json` was not moved:
+the frontend never reads it, and it holds bearer tokens. `tsc` and `next build`
+pass.
+
+---
+
+## 2026-09-28 — restored frontend success-feedback type safety
+
+The success-feedback middleware now narrows fulfilled actions to the RTK Query
+mutation metadata shape before reading the endpoint name or original arguments.
+This resolves the TypeScript errors introduced by Redux Toolkit's stricter
+`unknown` metadata typing while preserving suppression flags, mapped success
+messages, and development warnings for unmapped mutations. VS Code reports no
+diagnostics in the middleware.
+
+---
+
+## 2026-09-26 — college Students API accepts the deployed stage casing
+
+The deployed Students page called
+`GET /college/students?stage=All&limit=10`, while the backend contract names
+the enum value `ALL`. The current frontend already maps its "All link states"
+label to `ALL`, but an older deployed frontend can remain cached or live during
+a rolling deployment. The route now normalizes known stage values
+case-insensitively before validating the same closed enum. `All`, `linked`,
+`Invited` and `consent_pending` therefore work; an unknown value still returns
+422, and OpenAPI still advertises only `ALL`, `LINKED`, `INVITED` and
+`CONSENT_PENDING`.
+
+The original screenshot's 500 preceded the migration-lineage repair below.
+After that repair, all three queries used by the `ALL` view were executed
+against the configured shared database: linked, invited and consent-pending
+reads all completed. Pylance reports no diagnostics, Ruff passes, the focused
+normalization and migration tests pass (7 tests), and the database-backed
+integration regression collects successfully. It still cannot execute locally
+without Docker Desktop and its Postgres/Redis services.
+
+---
+
+## 2026-09-26 — restored the deployed Alembic migration lineage
+
+The configured shared database was stamped at
+`0002_search_filter_options`, but that revision no longer existed in the
+repository. Alembic therefore could not resolve the database's current state
+and refused every `current` or `upgrade` command before it could apply the
+college-search and roster re-upload migrations.
+
+The deployed catalog confirmed that the lost revision had created the
+`search_filter_options` table with the same columns, constraints, indexes and
+app-role privileges now present in the baseline. The revision has been
+restored as a compatibility migration: it uses `IF NOT EXISTS` DDL so an old
+baseline receives the table while a database built from the current baseline
+keeps its existing table. The already-merged college and roster revisions were
+not rewritten. `0004_merge_migration_heads` joins their branch to the restored
+search-filter branch, preserving every revision that a shared database may
+already hold.
+
+`python -m alembic upgrade head` completed against the configured Neon
+database. It is now at the single head `0004_merge_migration_heads`; the four
+college pagination indexes exist, `college_visible_students` accepts its
+fourth `p_query` argument, `uq_roster_import_source` is gone, and
+`uq_roster_import_source_retained` is present. Full offline SQL generation
+from `base` to `head`, Ruff, and 49 focused unit tests pass. A migration-history
+unit test now requires one head and keeps the deployed search-filter revision
+resolvable. The database-backed roster re-upload test could not run locally
+because Docker Desktop is unavailable, so neither local Postgres nor Redis
+could be started.
+
+---
+
+## 2026-09-26 — college Students frontend split into feature modules
+
+The college Students frontend is no longer one flat feature backed by one
+monolithic API file. The page is now a thin composition layer over four
+sections: visible-student roster and detail, roster imports and previews,
+referral codes, and link-state summaries. Each section owns its components,
+hook and public barrel; the infinite-scroll viewport is the only
+Students-shared component.
+
+The RTK Query layer now follows the same boundaries. Visible students,
+roster imports and referral codes have separate API and type modules, while
+college-wide settings, analytics and billing remain outside the Students
+feature. The college dashboard was moved to the referral-code API rather than
+depending on the visible-students API. Unused student slice, schema, action,
+status-badge and duplicate roster-preview files were removed.
+
+The latest-upload pinning remains in the roster-import hook, so the
+successfully uploaded PREVIEW row stays visible even against a stale empty
+list response. Workspace diagnostics report no frontend errors. Browser
+validation covered the student list and audited detail drawer, referral-code
+invite modal, all four Students sections, a valid CSV upload with Preview,
+Commit and Discard actions, and the nested roster-preview route rendering its
+uploaded row.
+
+---
+
+## 2026-09-26 — deployed college student listing migration
+
+Fixed the deployed `GET /college/students` 500 introduced by name search. The
+application called `college_visible_students` with a fourth search argument,
+but the change had been edited into the already-applied baseline migration, so
+an existing database still exposed only the original three-argument function.
+
+The baseline is restored to its historical definition. Migration
+`0002_college_student_search` now replaces the function with its searchable
+four-argument form and creates the referral-code, roster-import, and
+roster-stage pagination indexes added with the same feature. The production
+migrate service applies it through the existing `alembic upgrade head` step.
+
+Static workspace diagnostics pass. Runtime migration and integration tests
+could not run because the sandbox denied shell access to the workspace.
+
+---
+
+## 2026-09-26 — roster upload restores its preview row immediately
+
+A valid college roster CSV now inserts the successful upload response into the
+RTK Query roster-import cache and keeps a deduplicated collection of recent
+uploads above the server results. Each new PREVIEW therefore appears
+immediately with Preview, Commit and Discard actions, remains visible when the
+paginated list response is stale or unavailable, and survives opening its
+preview route and returning to Students. Re-uploading a retained PREVIEW or
+COMMITTED file remains idempotent and cannot create a duplicate import.
+
+Upload does not invalidate and immediately refetch the list: a lagging list
+response could overwrite the successful POST response and make the new preview
+disappear. Later commit, discard and send actions still invalidate the
+server-backed list. The file input is reset after each attempt so the same file
+can be deliberately selected again, and a new PREVIEW scrolls the Roster
+imports card into view.
+
+Discard is different because it permanently deletes the staged rows. Migration
+`0003_roster_reupload` replaces the all-state fingerprint constraint with a
+partial unique index over PREVIEW and COMMITTED imports. Uploading identical
+content after discard now creates a fresh PREVIEW and fresh rows; uploading
+content already in PREVIEW or COMMITTED still returns that retained import.
+
+Workspace TypeScript diagnostics pass for every changed frontend file. A fresh
+browser context started with an empty imports response, uploaded a valid
+one-row CSV, deliberately kept the imports response stale and empty, and still
+observed the upload as one PREVIEW row with its Preview, Commit and Discard
+actions. The row remained after opening its preview and navigating back. At
+the 1024px layout, import details now stack above a single compact action row
+instead of competing for the narrow half-width card; 768px, 1024px and 1440px
+browser checks all have no row or page overflow. Discarding an import deletes
+its staged rows in the backend, so a DISCARDED entry no longer offers Preview;
+the successful discard response updates the local list immediately and cannot
+be overwritten by a stale PREVIEW list response.
+
+The exact upload, discard, same-file upload sequence was browser-tested at
+1024px with a stale empty list response: the discarded history row remained
+without actions and a second, new PREVIEW row appeared above it with Preview,
+Commit and Discard. The focused backend regression was added, but the editor
+test runner did not discover the Python test; shell-based pytest remains
+blocked by the workspace sandbox policy.
+
+The downloadable roster CSV now writes sample phones as `91 98765 43210`.
+The embedded spaces make spreadsheet applications retain the field as text,
+while the roster parser accepts it and stores `+919876543210`. The upload card
+also states that plain 10-digit and `+91` forms are accepted. A focused runtime
+check parsed both template rows as VALID with normalized `+91` values.
+
+The first container deployment exposed that migration `0003_roster_reupload`
+had not been applied: the new service tried to insert the second import while
+PostgreSQL still enforced `uq_roster_import_source`, and raised
+`UniqueViolationError`. Container startup remains Uvicorn-only by deployment
+decision. Apply `python -m alembic upgrade head` separately with
+`DATABASE_URL_MIGRATOR` before deploying the application image; the official
+Compose deployment already does this through its dedicated migrator service.
+
+---
+
+## 2026-09-26 — candidate loading skeleton matches result cards
+
+The employer Candidates screen now uses one shared candidate-card skeleton for
+both route transitions and API loading/refetches. Its avatar, candidate
+metadata, band/add-on pills, skills and profile action preserve the loaded
+card's footprint instead of showing a compact divided-list placeholder. The
+route fallback also preserves the fixed pagination footer and filter rail, so
+the page does not resize when it becomes interactive.
+
+Workspace TypeScript diagnostics pass for every changed frontend file. The
+loading state was checked in the browser at 1440x900 with the candidate request
+held open; the card stack, footer and filter rail remain aligned. The live API
+returned 401 after the request was released because the local browser session
+was expired, unrelated to this loading-state change.
+
+---
+
+## 2026-09-26 — frontend diagnostics cleanup
+
+Resolved the frontend errors introduced around the college roster updates:
+removed the duplicate roster-preview route export, repaired the student drawer
+header markup, made reported component props read-only, moved table column
+renderers outside their parent components, and adopted the canonical Tailwind
+utilities reported by the editor. The employer Jobs table now displays only
+the job title without its generated initials tile.
+
+Workspace diagnostics pass for every changed frontend file. The sandbox denied
+shell access to the frontend path, so ESLint and the TypeScript CLI could not
+be run.
+
+---
+
+## 2026-09-25 — attribute modal no longer asks for sort order
+
+The Admin Attributes add/edit modal no longer exposes `sort_order` for skills
+or cities. New options use the backend's default order, while editing an
+existing option leaves its stored order unchanged because the PATCH omits the
+field. Label, state code, aliases and the featured control are now laid out in
+one vertical column.
+
+Validated with workspace TypeScript diagnostics. Browser checks were omitted.
+
+---
+
+## 2026-09-25 — job edit actions follow the lifecycle
+
+The employer job edit page now shows actions that match the job's current
+state. Draft and paused jobs can be updated, published or closed; live jobs
+can be paused or closed. Live and closed job fields are read-only, matching the
+backend rule that a live job must be paused before its terms change and that a
+closed job is terminal. Closing asks for confirmation.
+
+A closed job now offers "Duplicate job". It opens the create route with the
+closed job as its source, loads the previous details into an editable form, and
+creates a separate job that the employer can save as a draft or publish. The
+source id stays in the URL so refreshing the duplicate form preserves the
+prefill.
+
+Validated with workspace TypeScript diagnostics for every changed frontend
+file. Browser checks were omitted.
+
+---
+
+## 2026-09-25 — jobs table controls are left-aligned
+
+The employer Jobs table toolbar no longer shows the current-page job and live
+job counts. Search and the status filter now start at the left edge of the
+toolbar, and the route loading skeleton matches the revised layout.
+
+Reviewed in source. Automated lint and TypeScript validation were blocked by
+the sandbox policy for the frontend workspace path.
+
+---
+
+## 2026-09-25 — Disputes and Audit trail are separate admin tabs
+
+The admin "Disputes & Audit" page was split into two sidebar items:
+- **Disputes** (`/admin/disputes`, `Gavel`): the Open / Resolved / Rejected
+  tabs, drawer and pagination, now full width instead of sharing space with a
+  305px audit column. The header reads "Disputes".
+- **Audit trail** (`/admin/audit`, `ScrollText`, new): the whole audit log,
+  newest first, loading 20 events at a time as the page scrolls. It has its
+  own `loading.tsx` timeline skeleton.
+
+`AuditTrail` gained `variant: "panel" | "page"`:
+- `panel` is the old fixed 480px scroll box with its own observer root.
+- `page` grows with the page, observes the viewport, and drops its duplicate
+  heading.
+
+The audit query moved out of `useDisputes` into
+`features/admin/audit/hooks/use-audit-trail.ts`. `AdminShell` and the
+Disputes loading skeleton were updated to match. No backend change: both pages
+call the same endpoints as before (`/admin/disputes`,
+`/admin/audit-events`).
+
+Validated with workspace TypeScript diagnostics. Browser checks omitted for
+manual testing.
+
+---
+
+## 2026-09-25 — admin "Search Filters" renamed to "Attributes"
+
+The admin page for curating the skills and cities employers pick from is now
+called **Attributes** everywhere it is visible:
+- the sidebar label (and the legacy `AdminShell` link)
+- the page header
+- every popup, e.g. "Attribute created." and "3 attributes imported."
+- error and empty states, and the switch-off / reactivate dialog titles
+- the CSV template file names (`attributes-skills-template.csv`,
+  `attributes-cities-template.csv`)
+
+Icons: the sidebar item uses `Tags` instead of `ListFilter`, and the page's
+search box uses `Search` instead of the filter funnel.
+
+Unchanged on purpose: the route `/admin/search-filters`, the nav key, the file
+and component names, the API endpoints and the backend capability
+`search_filters`. Bookmarks and links keep working and no backend change was
+needed.
+
+---
+
+## 2026-09-25 — opening an application shows no popup
+
+Opening an application on employer Applications no longer shows "Application
+opened successfully." Opening something to read it is not an action worth
+announcing, and the drawer appearing is the feedback. This matches the
+candidate profile, whose popup was removed earlier. No "opened successfully"
+popups remain anywhere; stage moves, hires and interviews still announce
+themselves.
+
+---
+
+## 2026-09-25 — Applications breadcrumb loads without a placeholder title
+
+Opening Applications for one job (e.g. from the employer dashboard's top-jobs
+card, `?jobId=`) showed the breadcrumb as "Jobs › Job 1a2b3c4d ›
+Applications" until data arrived. The title came only from loaded
+applications or the job dropdown, which loads on open. Otherwise the hook
+used the id's first eight characters. `useApplicationsPage` now fetches the
+focused job itself (`GET /employer/jobs/{id}`, cached) and exposes
+`isSelectedJobTitleLoading`. While that is true, the middle crumb is a
+skeleton. `Breadcrumb` gained `isLoading`, rendered by `PortalHeader` as a
+skeleton with a screen-reader label, so any page can use it. If the job cannot
+be loaded, the filter shows "Selected job" rather than an id fragment.
+
+Validated with workspace TypeScript diagnostics. Browser checks omitted for
+manual testing.
+
+---
+
+## 2026-09-25 — college analytics shows a skeleton while loading
+
+Analytics & Outcomes used to render at once with placeholder values ("—"
+metrics, empty charts and table) while its three queries loaded. The route's
+`loading.tsx` covered only the page-code load. Both now render one shared
+`AnalyticsSkeleton` (`features/college/analytics/components/`), which has
+four metric cards, the two placement panels and the table, so route load and
+data load look the same with no jump. The header seat counter shows its
+loading state, and Export report is disabled until the data has arrived,
+since it would otherwise download an empty CSV. The `#hires` deep link still
+lands correctly because `useScrollToHash` waits for `!isLoading`.
+
+Validated with workspace TypeScript diagnostics. Browser checks omitted for
+manual testing.
+
+---
+
+## 2026-09-25 — employer candidate list has bottom padding
+
+On employer Candidates, the last card sat against the pagination bar. The
+scroll area's inner column was `h-full`, fixed to the viewport height, so the
+cards overflowed it and scrolled past the container's bottom padding. The
+column is now `min-h-full`, which grows with its content, and the scroll area
+uses `pt-3 pb-4`: 16px below the last card, the portal's standard gutter. An
+empty or short list still fills the area as before.
+
+---
+
+## 2026-09-25 — live-job update reverted
+
+Reverted at the client's request: the "a live job can be updated" change below
+is undone. A published job's edit form is read-only again, with "This job is
+live. Pause it before changing its details." and only Pause and Close.
+Drafts and paused jobs keep Update job, Publish and Close. The pause →
+save → republish flow, its KYB guard and messages are gone.
+`pauseEmployerJob` is back to "Job paused." in `SUCCESS_MESSAGES`. The job form
+now matches its state before that change exactly.
+
+---
+
+## 2026-09-25 — no native dropdowns left in the frontend
+
+The last four browser-native `<select>`s now use the shared custom
+`Dropdown`, so every dropdown looks and behaves alike:
+
+| Where | Field |
+|---|---|
+| `ConfigurableForm` (employer create/edit job) | Employment type |
+| College Settings → Users → Add user | Role |
+| College Settings → Onboarding | SELECT-type questions |
+| College Students filter bar | Link-state filter |
+
+Form dropdowns match their neighbouring inputs (46px, `rounded-[10px]`, the
+same focus colour) and turn red with the field's validation error.
+`ConfigurableForm` keeps its blur-to-touch validation by wrapping the dropdown
+in a `div` that receives the bubbling `onBlur`. Onboarding's select row is a
+`div` rather than a `label`, so label clicks are not forwarded to the trigger.
+`SelectDropdown` is now a thin wrapper around `Dropdown` at the filter-bar size
+(40px, `rounded-xl`). Its `onChange` now receives the value rather than a
+change event; its only caller was updated. No `<select>` or `<option>`
+elements remain under `app`, `components` or `features`.
+
+Validated with workspace TypeScript diagnostics. Browser checks omitted for
+manual testing.
+
+---
+
+## 2026-09-25 — profile drawers open from the right
+
+Correction to the two left-drawer entries below: the employer candidate
+profile and the college student details drawers now slide in from the
+**right** edge, matching the Applications and admin drawers. The shared
+animation is renamed `bp-drawer-right` (`bpSlideInRight`), and its shadow
+now falls to the left. The width, backdrop, content and closing behaviour are
+unchanged. No `bp-drawer-left` usages remain.
+
+---
+
+## 2026-09-25 — a live job can be updated from its edit page
+
+A published job's edit form was read-only, offering only Pause and Close. The
+backend refuses `PATCH` on a published job (`EDITABLE_STATES = {DRAFT,
+PAUSED}`) as a bait-and-switch guard: nobody may apply on terms that then
+change. The backend is unchanged. Instead the form is now editable for every
+status except CLOSED, and "Update job" on a live job runs pause → save →
+publish, so the job is off the board only while it changes. Each failure is
+handled:
+- Pause fails: nothing changed; an error is shown.
+- Save fails: the job is republished unchanged, and the error says so.
+- Republish fails (e.g. KYB no longer approved): the changes are kept, the job
+  stays PAUSED, and the message says to publish again.
+
+The update is disabled with an explanation when KYB is not approved, because
+it would otherwise leave the job paused. Success reads "Job updated and
+republished." `pauseEmployerJob` is now silent in `SUCCESS_MESSAGES`, so the
+intermediate pause shows no popup; the standalone Pause button says "Job
+paused." itself. Draft and paused updates are unchanged.
+
+Validated with workspace TypeScript diagnostics. Browser checks omitted for
+manual testing.
+
+---
+
+## 2026-09-25 — college student details open as a left drawer
+
+Opening a student on college Students showed a centred modal. It now uses
+the same left drawer as the employer candidate profile: 520px, full height,
+the `bp-drawer-left` slide and `bp-drawer-backdrop` fade, and a fixed header
+and footer around a scrolling body. The content is unchanged: name, visible
+since, score and band, application and interview counts, hires, the loading
+skeleton, and the "no longer visible" state. The drawer also gained Escape to
+close, a footer Close button and initial focus on the close control, none of
+which the modal had.
+
+Validated with workspace TypeScript diagnostics. Browser checks omitted for
+manual testing.
+
+---
+
+## 2026-09-25 — roster import rows open on their own page
+
+"View rows" on a college roster import used to open a centred modal with a
+55vh scroll box. It now navigates to
+`/college/students/roster-imports/[importId]` (`RosterImportRowsPage`, with
+its own `loading.tsx`). The table is the same shared `DataTable`: the same
+columns (row, name, phone/email, student ref, state with issues), the same
+All/Valid/Invalid/Duplicate filters, and the same server-side row-state filter
+and 10-row cursor pagination with page-size choice.
+
+The page adds:
+- the header breadcrumb Students › file name › Rows, and a back link;
+- the import's state and upload date;
+- per-filter counts from `GET /college/roster-imports/{id}`;
+- retryable errors for both the import and its rows.
+
+The table now uses the full page width rather than a nested scroll. Students
+stays highlighted in the sidebar on the new page.
+
+`roster-rows-modal.tsx` is no longer imported or exported. The sandbox blocked
+deleting it, so it (and `store/success-feedback-middleware.ts.new`) need
+removing by hand.
+
+Validated with workspace TypeScript diagnostics. Browser checks omitted for
+manual testing.
+
+---
+
+## 2026-09-25 — employer candidate profile opens as a left drawer
+
+Opening a candidate on employer Candidates showed a centred modal and a
+"Candidate profile opened successfully." popup. It now opens as a
+full-height drawer that slides in from the left edge (520px, like the admin
+drawers), over a lighter backdrop, and the popup is gone. The content is
+unchanged: the header, profile summary, score, contact information, skills,
+completed add-ons, and the loading, error and retry states. Escape, the
+backdrop and both close buttons still close it. The drawer is 520px wide on
+every screen size, so the summary and score stay side by side.
+
+The slide and backdrop fade are shared classes in `globals.css`
+(`bp-drawer-left`, `bp-drawer-backdrop`), turned off under
+`prefers-reduced-motion`.
+
+Validated with workspace TypeScript diagnostics. Browser checks omitted for
+manual testing.
+
+---
+
+## 2026-09-25 — search filter bulk import takes a CSV file
+
+Admin → Search filters → Bulk import now accepts a `.csv` file instead of
+pasted `Label | aliases` text. The dialog offers a downloadable template per
+tab (`search-filter-skills-template.csv`, `search-filter-cities-template.csv`),
+each with the header and three worked examples.
+
+| Tab | Columns (label required; state_code required for cities) |
+|---|---|
+| Skills | `label, aliases, featured, sort_order` |
+| Cities | `label, state_code, aliases, featured, sort_order` |
+
+Aliases share one cell separated by `;`, since the comma is the CSV delimiter.
+`featured` takes true/false/yes/no/1/0 and defaults to false. `sort_order`
+defaults to 0. Headers are case-insensitive and may come in any order;
+missing or unknown columns are named.
+
+`features/admin/search-filters/csv.ts` parses in the browser. It follows
+RFC 4180 (quoted commas, doubled quotes, embedded line breaks, CRLF, Excel's
+BOM) and validates every row against the backend's rules: label 1–100
+characters, at most 10 aliases, two-letter state code, the city-name
+character rule, `sort_order` 0–10,000, no duplicate labels in the file, and
+1–500 rows. Every problem is listed with its spreadsheet row number, and blank
+rows are counted so the numbers match Excel. A clean file shows a preview and
+an "Import N rows" button. The request body is unchanged: the parsed items are
+sent as JSON to `POST /admin/search-filters/import`, which still validates and
+accepts all rows or none. The backend is unchanged.
+
+Validated with workspace TypeScript diagnostics. The sandbox would not run
+Node, so the parser's edge cases were traced by hand. A check script for them
+is kept in the session files (`csv-check.mjs`, run with
+`node --experimental-strip-types`).
+
+---
+
+## 2026-09-25 — job threshold slider runs 0–990
+
+The create and edit job forms' minimum-score slider now runs from 0 to 990 in
+steps of 10 (it was 700–990 in steps of 1). The backend still requires
+`min_score` to be null or 700–990 (request schema, `ck_jobs_min_score_range`,
+preview query). Candidate scores start at 700, so any threshold below it
+filters nobody. The form therefore sends such a value as `min_score: null`
+(no threshold), and the backend is unchanged. Below 700 the form shows "No
+minimum" and skips the threshold-preview request.
+
+The rule lives in `features/employer/jobs/create/threshold.ts`, shared by the
+slider, validation, request body and edit mapping. Two bugs fixed on the way:
+- Validation still used the pre-v5 scale ("between 680 and 999").
+- The slider's step of 1 let it request previews the endpoint rejects, since
+  it accepts only multiples of 10.
+
+Editing a job saved with no threshold now shows 0 rather than an invented 750.
+
+Validated with workspace TypeScript diagnostics. Browser checks omitted for
+manual testing.
+
+---
+
+## 2026-09-25 — sidebar account section shows the signed-in person
+
+The admin, employer and college sidebar footer showed an organisation name
+read from the tenant slice, which sign-in never fills. So it always fell back
+to hardcoded text: "BharatPath Employer", or "Sinhgad Institute of Technology"
+for **both** college and admin. Admin was also labelled "Placement cell". No
+portal showed who was actually signed in, and the logout button disappeared
+when the sidebar was collapsed.
+
+The footer now shows the signed-in email, then role and organisation: "Owner ·
+<legal name>" from `GET /employer/organisation`, "College admin · <name>" from
+`GET /college/organisation`, or "Platform admin · BharatPath operations" for
+staff. Initials come from the email. A skeleton shows while the identity loads,
+and logout stays available in the collapsed rail. The student sidebar keeps the
+profile name and shows the email beneath it, falling back to the email when no
+name has been entered yet.
+
+`lib/auth/use-session-identity.ts` supplies the person. Sign-in already stores
+them in the auth slice, now with `backendRole`. After a reload the slice is
+empty, so the hook fills it once from `/api/auth/me`. The backend's `/auth/me`
+returns no email, so that route used to answer with an empty one. It now reads
+the `email` claim from the session token, but only after the backend has
+accepted that same token; both the local and Cognito providers issue the
+claim. `cognito_sub` is not read or exposed.
+
+Validated with workspace TypeScript diagnostics. Browser checks omitted for
+manual testing.
+
+---
+
+## 2026-09-25 — student portal hover states
+
+Student dashboard cards, and most other clickable student surfaces, had only
+a press effect (`active:scale`) and no hover. `features/student/components/
+primitives.tsx` now exports `interactiveCardClass` (lift, warmer border,
+shadow, keyboard focus ring), applied to job, application and notification
+cards, profile stat tiles and the profile-visibility row. The purple score card
+and the lilac add-on cards on the dashboard get the same lift in their own
+tones.
+
+The shared `PillButton` and `IconCircleButton` now have hover colours
+matching the onboarding flow's existing palette (primary `#4A3E8F`, secondary
+`#F7F4EC`). Pill hovers use `enabled:`, so disabled buttons do not react.
+Because every non-onboarding student page uses these two primitives, this
+covers the Jobs, Job detail, Board, Application detail, Score, Profile and
+add-on pages at once. Job-feed and board filter chips, questionnaire choices,
+the push-notification switch, the header avatar, the "All jobs" link and text
+links also gained hover states. The only button left without one is the
+mobile menu backdrop.
+
+Validated with workspace TypeScript diagnostics and a script re-count of
+clickable elements per file. Browser checks omitted for manual testing.
+
+---
+
+## 2026-09-25 — every success popup says what happened; sign-in shows none
+
+The global popup no longer says "Action completed successfully." Each RTK
+Query mutation has its own message in `store/success-messages.ts`, and a few
+build it from the request ("Candidate shortlisted.", "Push notifications
+turned off.", "Role changed to Admin."). All 64 mutation endpoints have an
+entry. An entry of `null` stays silent for one of two reasons: the mutation is
+one step of a larger action whose caller announces the whole thing (resume
+upload ticket, job create-then-publish, name-then-location), or its page
+already reports a more specific result (admin decisions, the import count).
+An endpoint left out of the map shows nothing and logs a development warning.
+
+Sign-in no longer shows a popup: the auth service announced every request,
+login included. Sign-up now says "Your account is ready." explicitly, and
+sign-out and session checks stay silent. The unused method-based
+`showRequestSuccessFeedback` helper was removed.
+
+Intermediate saves inside one action are marked `__suppressSuccessFeedback`
+(the final KYB save before submit, the resume edit before confirm), so only
+the final result is announced. The admin queue drawer now names the decision
+(approved, rejected, more information requested, cleared, confirmed). Job
+draft/publish success moved to the global popup; that page's local dark toast
+now carries only errors. "Mark all as read" and dismissing a notification
+also announce themselves.
+
+Validated with workspace TypeScript diagnostics and a script check that every
+`builder.mutation` has a map entry. Browser checks omitted for manual testing.
+
+---
+
+## 2026-09-25 — dashboard links land on the right section or tab
+
+College dashboard quick actions now deep-link to their section rather than the
+top of the Students page: "Issue a referral code" opens
+`/college/students#referral-codes` and "Bulk upload a roster" opens
+`#bulk-upload`. "Hired via platform" opens `/college/analytics#hires`.
+`lib/hooks/use-scroll-to-hash.ts` scrolls to the hash only once the target
+page's data has loaded; Next's own hash scroll runs before the skeletons above
+the target are replaced, so it lands in the wrong place.
+
+The admin dashboard's "Integrity flags" card opened the Queue on its default
+KYB tab, because the tab lived only in Redux. The Queue page now honours
+`?tab=kyb|integrity` and the Users page `?segment=candidates|employers|institutions`;
+the dashboard links "KYB awaiting review", "Integrity flags" and "Active
+employers" to the matching tab.
+
+Validated with workspace TypeScript diagnostics. Browser checks were omitted
+for manual testing.
+
+---
+
+## 2026-09-25 — consistent bottom padding on every table page
+
+Admin Users, Queue and Settings tables ran flush to the bottom of the page:
+`PortalShell` gave tabbed pages (settings, queue, users, disputes) `py-0` so
+their tab bars could sit against the header, which also removed the bottom
+gutter. Those pages now get `pb-4`, matching the `p-4` every other portal page
+and every student page already has.
+
+The per-page workarounds that would have stacked on top of it were removed:
+Disputes' `pb-6`, the employer settings `py-4` (now `pt-4`), the college
+settings `py-5` (now `pt-5`), and `pb-10` in the college Users and Billing
+tabs. Candidates keeps its fixed pagination footer and Applications its own
+`p-4`, as both already had a bottom gutter.
+
+Validated with workspace TypeScript diagnostics. Browser checks were omitted
+for manual testing.
+
+---
+
+## 2026-09-25 — employer and college dashboard cards are interactive
+
+Employer and college dashboard cards now use the shared lift, border and shadow
+hover treatment. Employer metric cards link to Jobs or Applications, and each
+top-job row opens Applications filtered to that job. College metric cards link
+to Students or Analytics, while the score-distribution and cohort-activity
+cards open Analytics. Quick-action cards retain their existing destinations
+and now use the same hover and keyboard-focus treatment.
+
+Non-navigating dashboard panels also receive the visual hover treatment for
+consistency. Copying the college dashboard referral code now uses the global
+success popup.
+
+Validated with workspace TypeScript diagnostics and focused source review.
+Browser and Playwright checks were omitted for manual testing.
+
+---
+
+## 2026-09-25 — successful frontend actions use one global popup
+
+The web frontend now mounts one accessible success popup at the application
+root, using the existing green bottom-right presentation across the admin,
+employer, college and candidate surfaces. Successful RTK Query mutations,
+direct API-client mutations and authentication actions all feed that popup.
+Existing admin and employer-specific success messages are bridged into the
+same component instead of rendering separate notification styles.
+
+Local successful actions that do not call a mutation are also covered:
+save/unsave job, audited candidate and application opens, referral-code copies
+and the roster-template download. Internal resume-upload steps and intermediate
+saves inside compound submissions are suppressed so a partial operation cannot
+produce a misleading success message.
+
+Validated with workspace TypeScript diagnostics and focused source review.
+Browser and Playwright checks were intentionally omitted at the request of the
+manual tester.
+
+---
+
+## 2026-09-24 — admin filter tabs reset search
+
+Switching between the Skills and Cities tabs in Admin Search Filters now clears
+the search field and immediately restores the unfiltered query for the selected
+tab. The internal catalogue-version placeholder beneath both table headings was
+also removed.
+
+Validated with targeted ESLint, `npx tsc --noEmit`, and `git diff --check`.
+
+---
+
+## 2026-09-24 — admin filter search uses readable entered text
+
+The Admin Search Filters search field now applies the intended dark foreground
+color to entered text while retaining the lighter placeholder treatment.
+
+Validated with targeted ESLint, `npx tsc --noEmit`, and `git diff --check`.
+
+---
+
+## 2026-09-24 — admin filter search uses descriptive placeholders
+
+The Admin Search Filters search field now uses explicit, tab-specific copy:
+`Search by skill name or alias` for Skills and `Search by city name or alias`
+for Cities. The same text is also the input's accessible label.
+
+Validated with targeted ESLint, `npx tsc --noEmit`, `git diff --check`, and
+browser checks of both tab states.
+
+---
+
+## 2026-09-24 — search-filter tables support selectable page sizes
+
+The Skills and Cities tables in Admin Search Filters now expose the shared
+rows-per-page dropdown with 10, 25, 50 and 100 options. Ten remains the initial
+page size; changing it resets cursor navigation to page one and sends the
+selected value as the API limit.
+
+Validated with targeted ESLint, `npx tsc --noEmit`, `git diff --check`, a
+production `npm run build` covering all 39 app routes, and a browser check that
+all four options render and selecting 25 requests `limit=25`.
+
+---
+
+## 2026-09-24 — search-filter dialogs include field placeholders
+
+The admin Search Filters Add/Edit dialog now gives every editable field an
+example placeholder: label, city state code, aliases and sort order. Skill and
+city examples are contextual, and a new option leaves sort order visually empty
+with `0` as its placeholder while preserving zero as the default submitted
+value. The Bulk Import dialog retains its existing format-specific placeholder.
+
+Validated with targeted ESLint, `npx tsc --noEmit`, `git diff --check`, and a
+production `npm run build` covering all 39 app routes.
+
+---
+
+## 2026-09-24 — cohort distribution displays proven zero counts
+
+The college dashboard now displays `0` instead of a dash for a score band when
+the scored-student total proves that all otherwise-null distribution cells are
+zero. A null that could still represent a privacy-suppressed small cell remains
+hidden, so the display improvement does not weaken the college analytics
+privacy floor.
+
+Validated with targeted ESLint, `npx tsc --noEmit`, `git diff --check`, and a
+production `npm run build` covering all 39 app routes.
+
+---
+
+## 2026-09-24 — rejected disputes have a separate admin tab
+
+The admin Disputes page now shows Open, Resolved and Rejected as three distinct
+tabs. Resolved and Rejected each request their exact backend state with an
+independent ten-row cursor paginator, loading/count state, retry path and empty
+message; rejected cases are no longer grouped under the Resolved label.
+
+Validated with targeted ESLint, `npx tsc --noEmit`, `git diff --check`, a
+production `npm run build` covering all 39 app routes, and a browser check that
+the Rejected tab renders and becomes active when selected.
+
+---
+
+## 2026-09-24 — audit trail uses animated loading indicators
+
+The admin Disputes audit trail now shows the shared animated spinner instead of
+list skeletons during both its initial request and cursor-based continuation
+requests. Initial loading remains centred in the audit panel, while continuation
+loading appears beneath the retained timeline entries.
+
+Validated with targeted ESLint, `npx tsc --noEmit`, `git diff --check`, and a
+browser check confirming the animated `Loading audit events...` status appears
+without audit skeleton rows.
+
+---
+
+## 2026-09-24 — admin search filters use cursor pages and action dialogs
+
+The admin Search Filters page now uses the shared `DataTable` and requests a
+fixed ten options on its first page and every subsequent cursor page.
+Previous/Next navigation retains the server cursor history and resets to page
+one when the option kind, search text or inactive filter changes. Loading a
+page renders ten structural table skeletons, and the table no longer displays
+the internal sort-order column.
+
+Add, edit and bulk-import forms now open in a reusable accessible modal instead
+of expanding inside the page. Switching an option off or reactivating it uses
+the existing confirmation dialog, and validation or request failures remain
+visible in the active dialog without closing it. The reusable confirmation
+dialog now also accepts in-dialog content and prevents Escape from closing it
+while its action is running.
+
+Validated with targeted ESLint, `npx tsc --noEmit`, `git diff --check`, and a
+production `npm run build` covering all 39 app routes. Browser checks confirmed
+the initial `limit=10` request, ten-row loading skeleton, shared table headers
+without Order, and separate Add, Bulk Import and status-confirmation dialogs.
+
+---
+
+## 2026-09-24 — applications job filter loads options on open
+
+Opening the employer Applications job filter now immediately requests the first
+ten jobs without requiring search text. The custom select keeps those options
+visible, requests the next cursor page when its menu reaches the bottom, and
+appends the new jobs without replacing those already shown. Searching remains
+server-backed: each debounced term starts a fresh ten-job cursor sequence.
+
+The shared cursor accumulator now supports deferred first loads and invalidates
+an in-flight continuation when its query changes. The shared searchable select
+also exposes optional open-state and end-of-menu callbacks plus a separate
+loading-more row, so other select users retain their current behavior.
+
+Validated with targeted ESLint, `npx tsc --noEmit`, and a production
+`npm run build` covering all 39 app routes. Browser network output confirmed
+that opening the menu requests `/employer/jobs?limit=10`; the hosted API's CORS
+response prevented completing the mocked continuation check in that session.
+
+---
+
+## 2026-09-24 — college institution type uses the shared dropdown
+
+The Institution type field in College Settings now uses the shared custom
+dropdown instead of the browser-native select. It preserves the empty
+"Select a type" choice, the existing institution codes and profile save
+behavior, while matching the height and full-width layout of the adjacent
+institution-name field.
+
+Validated with targeted ESLint, `npx tsc --noEmit`, and a production
+`npm run build` covering all 39 app routes.
+
+---
+
+## 2026-09-24 — admin disputes and audit use cursor navigation
+
+The admin disputes page now requests both active (`OPEN` + `IN_REVIEW`) and
+closed (`RESOLVED` + `REJECTED`) queues as server-ordered cursor pages of ten.
+The backend dispute endpoint accepts an explicit `state_group=ACTIVE|CLOSED`,
+so the closed tab no longer merges two unrelated 100-row cursor streams in the
+browser. Both tabs now use Previous/Next cursor navigation with a fixed
+`limit=10`, and each tab has its own loading and error state.
+
+The tab counters render compact skeletons while their current page is loading
+instead of briefly displaying zero. The audit trail requests ten rows initially
+and now observes a sentinel inside its own scroll container, appending
+`cursor=...&limit=10` pages as the user approaches the bottom. Initial and
+continuation failures are visible and retryable.
+
+Validated with targeted frontend ESLint, `npx tsc --noEmit`, a production
+`npm run build` covering all 39 routes, backend Ruff and mypy, and both legal
+vocabulary checks. The focused database-backed admin tests were selected but
+could not start because Docker Desktop (and therefore local Redis) was not
+running; the new grouped-state cursor coverage remains in the integration
+suite for CI.
+
+---
+
+## 2026-09-24 — candidate filter APIs use structural skeletons
+
+The employer candidate filter sidebar no longer shows loading prose followed by
+empty option groups while its catalogue request is in flight. Score bands,
+skills, the state selector, locations, experience and add-on filters now render
+row, pill and field skeletons in the same spaces as their loaded controls. A
+background catalogue refresh keeps the current controls visible and shows a
+small shimmer in the filter header.
+
+Skill and city suggestion requests also render pill/row skeletons beneath their
+search fields while preserving already selected values. This avoids flashing an
+empty suggestion area during the search debounce/request transition.
+
+The location state picker now uses the shared custom dropdown instead of the
+browser-native select. Its compact trigger, constrained scrolling menu, selected
+option check and accessible name are consistent with the other portal filters.
+
+Validated with targeted ESLint, `npx tsc --noEmit`, and a production
+`npm run build` covering all 39 app routes.
+
+---
+
+## 2026-09-24 — employer applications load ten at a time
+
+Opening `/employer/applications` now immediately requests
+`GET /employer/applications?limit=10`. Each pipeline column keeps its own
+vertical scroll, and reaching the end requests the next organisation-wide
+cursor with the same limit and appends the returned applications. A scroll
+gesture also works when a column is not tall enough to overflow; if a fetched
+page adds cards only to other stages, the interacted column continues through
+the cursor until it moves away from the end or no page remains. The explicit
+load-more button remains as a keyboard and sparse-column fallback.
+
+Validated with targeted ESLint, `npx tsc --noEmit`, and a production
+`npm run build` covering all 39 app routes. A browser test against mocked cursor
+responses observed the initial `?limit=10` request and then
+`?cursor=...&limit=10` after a downward wheel gesture; the board count changed
+from one loaded application to two without replacing the first card.
+
+---
+
+## 2026-09-24 — route skeletons keep the final page position
+
+Frontend route loading states now use the same left edge, width, tab height and
+content grid as the pages they replace. This removes the visible jump where the
+employer settings skeleton first appeared in a centred 720 px column and then
+moved left when the page loaded. The same loading-only centring was removed
+from college/admin settings, the admin queue/users/disputes pages, the employer
+jobs list and the create/edit job forms.
+
+The college dashboard and employer jobs list now live in pathless overview/list
+route groups. Their parent loading boundaries previously covered every nested
+route, so a dashboard or jobs-table skeleton could flash before a college
+subpage or job form displayed its own fallback. Job create/edit also share one
+form skeleton, including the edit page's client-side data wait, instead of
+switching through a centred text loader.
+
+Validated with targeted ESLint, regenerated Next route types,
+`npx tsc --noEmit`, and a production `npm run build` covering all 39 app routes.
+Browser verification at 1366 px showed the employer settings form skeleton at
+the final content edge (`x=248`, previously `x=439`) and confirmed that job
+create and college settings now paint their form skeleton first. Full frontend
+lint remains blocked by five unrelated existing errors in college billing and
+settings plus the student score ring and shell.
+
+---
+
+## 2026-09-24 — employer job and skill selectors search on demand
+
+The Applications job filter no longer fills its dropdown from the currently
+loaded application page. The menu now has a search field and requests matching
+job names from `GET /employer/jobs?q=...`; without a search it keeps only
+`All jobs` and the currently selected job. Requests use the shared debounce,
+and loading, empty and API-error states are explicit.
+
+The create/edit job form no longer carries a hard-coded skill list. Its
+required-skills field searches
+`GET /employer/discovery/filters/skills?q=...`, keeps chosen skills as
+removable chips, and still permits a valid skill outside the curated catalogue,
+as the backend contract requires.
+
+Validated with targeted ESLint and an isolated `tsc --noEmit` program covering
+the changed dependency graph. The full frontend type-check remains blocked by
+the pre-existing `achievements`/`ResumeSectionKind` error in
+`features/student/onboarding/components/review-step.tsx`. The shared browser
+session could not complete an authenticated interaction check because its
+employer API requests returned 401.
+
+---
+
+## 2026-09-24 — college students list uses a 10-row cursor
+
+The college portal now sends `limit=10` and the current `cursor` to
+`GET /college/students`. The student table renders the returned page directly
+and provides Previous/Next controls backed by the API's `next_cursor`; it no
+longer requests 100 students and paginates that partial result in the browser.
+The page size is intentionally fixed at 10, so this table does not show a
+rows-per-page selector.
+
+Validated with `tsc --noEmit`, targeted ESLint, and an authenticated request
+against the configured backend, which returned 200 for
+`/college/students?limit=10`.
+
+---
+
+## 2026-09-24 — college roster rows use backend pagination and filters
+
+The roster preview in the college portal now uses the cursor contract from
+`GET /college/roster-imports/{import_id}/rows` instead of requesting the first
+100 rows and paginating that partial result in the browser. The API adapter
+preserves `next_cursor` and sends the selected `row_state`, current `cursor`
+and chosen `limit`. The modal uses the shared cursor-pagination controls,
+offers 10/25/50/100 rows per page, and resets to page 1 when the import or row
+state changes.
+
+Validated with `tsc --noEmit`, targeted ESLint, and the running college portal:
+a 15-row import showed rows 1–10 and 11–15 on separate server-backed pages,
+and selecting the empty INVALID state reset the table to page 1.
+
+---
+
+## 2026-09-24 — candidate sign-up on the web, from the app design
+
+`/signup/student` is the candidate app's first-run flow (the design's "Try it",
+"The score" and "Keep it" screens), rebuilt as a website that works on a
+laptop. The step sits on the left and a sticky context panel on the right;
+below `lg` it collapses to one column. The login page links to it. No backend
+change.
+
+Welcome → language → how it works → **account** → about you → resume
+(upload, paste or form) → reading → check and correct → confirm → scoring →
+the existing `/student/score` screen.
+
+- **The account comes before the resume**, unlike the design. Every
+  `/candidate/resume/*` route needs a candidate (the client reversed guest
+  parsing on 2026-08-27), so "try it without an account" cannot exist.
+- **Email, not phone OTP.** The design's phone screen predates the 2026-09-18
+  decision. `app/api/auth/signup` now takes `pool: CANDIDATE`, with its own
+  deterministic dev subject, so the same email resumes the same account. A
+  signed-up candidate is not in `accounts.json`, so `/login` cannot sign them
+  back in. They return through the sign-up page, and the login error says so.
+- **Language** is saved as the notification locale (`PATCH
+  /notifications/preferences`). The web UI itself is still English only.
+- **Name and city** use `PUT /candidate/profile/name` and `/location`, with the
+  backend's alphabet (letters, marks, `. ' -`). The 36 state codes are copied
+  from `app/core/reference.py`.
+- **Review** renders `sections` as cards. Unclear skills, languages and
+  certificates open the "Fix this skill" sheet. Fixes replace the item inside
+  the section's own text, matched between separators so "Java" never edits
+  "JavaScript", so layout is kept. Any change is sent once as a `sections`
+  edit (a new version), then that version is confirmed. A retry after a
+  failed confirm reuses the version the edit already created. Structured
+  (form) versions are corrected through the form, as a `structured` edit.
+- **Scoring** polls `GET /candidate/score/me` and only counts a score computed
+  after this confirmation. **Seeing the score is pay-first (R13)**: a new
+  candidate with no subscription or college seat gets 402, and the screen then
+  says the resume is saved and needs a subscription. By decision, no checkout
+  was built into this flow.
+- The design's images are not in the repo. The hero and step art are built
+  from shapes and icons, and none of them is a dial or gauge.
+- The screens up to the email step were checked in a browser at 1366×768.
+  Everything after it needs a real account and was not run against a backend.
+
+---
+
+## 2026-09-24 — search boxes wait for the user to stop typing
+
+Every search box that calls the API now waits until typing has stopped for
+**2 seconds** (`SEARCH_DEBOUNCE_MS`, `frontend/lib/hooks/use-debounced-value.ts`)
+before sending a request. Before this, `useDeferredValue` sent roughly one
+request per keystroke. It covers the student job feed, employer jobs,
+employer candidate search and its skill and city suggestions, admin users,
+and admin search filters. Clearing a box applies at once.
+
+- While a suggestion box is waiting, the list already on screen is narrowed
+  locally and the "add this skill/city" option follows the typed text, so the
+  panel still reacts to every keystroke without a request.
+- Candidate search keeps the box's text locally and commits it to the store
+  only once it settles. The store resets the cursor, so committing on every
+  keystroke would refetch the old search's first page.
+- `useCursorPagination` now resets during render instead of in an effect. The
+  effect let one request go out with the new filters and the old page's
+  cursor before the reset landed.
+- Team and college roster search filter in the browser and call nothing, so
+  they are unchanged.
+
+---
+
+## 2026-09-24 — employer sign-up with step-by-step KYB (frontend)
+
+`/signup/employer` takes a new employer from nothing to a KYB submission, one
+step at a time: account, organisation, then **one step per section of the
+published KYB form** (`GET /employer/kyb/form`), a review, and submit. The
+login page links to it. No backend change.
+
+- **The form is rendered from the definition, not hard-coded.** Labels,
+  types, required flags, patterns, max lengths, help text and option lists
+  all come from the API, so a new `FORM_VERSION` renders unchanged. Fields
+  marked `public` are badged "Shown to candidates".
+- **Every step saves** (`PUT /employer/kyb/answers`, that section's fields
+  only; blanks are sent as `null` to clear). Submit saves every section once
+  more and then calls `POST /employer/kyb/submit`, because a section edited and
+  then left through the step list was never saved on its own. Client checks
+  mirror `app/core/forms.py`; the server stays the authority, and a
+  `kyb_answers_invalid` refusal marks every listed field and jumps to the
+  first failing step.
+- **Documents** go ticket → raw PUT to the presigned URL → `complete`. Uploads
+  are serialised and block navigation until they finish; a
+  `kyb_document_rejected` reason becomes its own message.
+- **Resuming.** A signed-in owner lands on the first incomplete step. A
+  non-editable submission (SUBMITTED, UNDER_REVIEW, APPROVED) shows its status
+  instead; MORE_INFO_REQUIRED shows the reviewer's note above the form;
+  REJECTED offers a new submission with the old answers prefilled (documents
+  must be uploaded again, because the next save starts a fresh draft).
+- **Sign-up is local-dev only, like sign-in.** `app/api/auth/signup` mints a
+  BUSINESS-pool token through `/auth/dev/token`, with a subject derived from
+  the email, so signing up again with the same address resumes the same
+  account. The deployed path is Cognito `SignUp` → code → MFA, which the web
+  app does not implement yet; with local tokens off the route answers 503.
+  A signed-up employer is not in `accounts.json`, so they return through
+  `/signup/employer`, not `/login`.
+- Not runtime-tested against a backend in this session; `tsc` and `eslint`
+  pass.
+
+---
+
+## 2026-09-24 — frontend search filters use the curated catalogue
+
+The employer Candidates screen no longer carries its own skill, city, band,
+badge or experience lists. It reads `GET /employer/discovery/filters`, uses
+the skill and location suggestion endpoints while the employer types, and
+still offers the backend-supported free-text option when a spelling is not in
+the catalogue. State, multi-city selection and the limits returned by the API
+are enforced in the panel. Candidate pages now default to 10 rows.
+
+The admin portal now has `/admin/search-filters`, visible in its navigation.
+PLATFORM_ADMIN and SUPPORT_AGENT can list active or inactive skills and
+cities, search them, create one, bulk-import up to 500, edit aliases/state/
+featured/order, and switch an option off or reactivate it. The page calls the
+existing `/admin/search-filters` APIs; it never deletes an option. Successful
+mutations invalidate the employer filter catalogue cache.
+
+The candidate list treats every in-flight search as loading, not just the
+first request: changing a filter, page or page size replaces the cards with a
+skeleton and announces "Updating candidates..." until the response arrives.
+Unsupported stale page sizes are normalised to the 10-row default, and the API
+adapter also defaults an omitted limit to 10.
+
+Opening a candidate now shows a responsive profile dialog built from the
+reveal response: name, display score and band, experience, location, contact
+details, skills and completed add-ons. The dialog opens immediately with a
+layout-matched skeleton, has an explicit retry state, closes from the backdrop,
+button or Escape key, and keeps the score as text rather than a gauge.
+
+---
+
+## 2026-09-24 — employer dashboard uses its aggregate APIs
+
+The "Top jobs by applicants" rows are summary metrics, not navigation. They
+now render as non-interactive content instead of buttons and no longer open a
+job when selected.
+
+The frontend now reads `GET /employer/dashboard` for its job and pipeline
+counts and top jobs, plus `GET /employer/dashboard/activity` for the recent
+activity feed. It no longer loads or reconstructs dashboard data from
+`GET /employer/jobs`. Subscription status remains a separate request because
+the aggregate endpoints are paywalled and do not return the access-window end.
+Unpaid employers do not call either paywalled dashboard endpoint.
+
+Recent activity uses the endpoint's cursor as an infinite query. The first 10
+events render immediately; scrolling within the feed fetches and appends each
+next page, with an in-feed loading indicator and no duplicate jobs request.
+
+---
+
+## 2026-09-24 — the candidate search filters get a catalogue staff curate
+
+Asked for by the frontend against the Candidates screen: the filter panel
+(band, skills, location, experience) had nothing to load its options from,
+and skills and locations needed a typeahead with "add your own".
+
+**Employer side** (owner/recruiter, subscription, own rate limit
+`discovery.filters` — 120/min per person, deliberately *not* the
+organisation's `discovery:search` pages, which the panel used to burn):
+
+- `GET /employer/discovery/filters` — bands, badges, experience steps
+  (1/3/5/10), the 36 states, featured skills and cities, and the limits the
+  search enforces. **No counts, anywhere** — a test walks every key.
+- `GET /employer/discovery/filters/skills?q=` and `/filters/locations?q=&state=`
+  — exact, then starts-with (label, then alias), then contains.
+- `GET /employer/discovery/candidates` now takes **up to 5 `city` values**,
+  any of which may match (skills are still all-of). A city filter is checked
+  with the candidate's own city rule, so `Pune 411001` is 422
+  `discovery_city_invalid` instead of silently matching nobody.
+
+**Why aliases, not just a list.** Skills are whatever Layer 1 wrote and
+match by exact key; cities are whatever the candidate typed. "Forklift
+certified" never met "forklift operation", nor "Bengaluru" "Bangalore". A
+value that names an option (label, key or alias) now searches every spelling
+of it — per skill `skill_keys && group`, the same GIN index; for cities an OR
+of trigram contains-matches. **Anything else searches exactly as before**,
+including the trigger's un-collapsed inner spaces, so the catalogue only adds
+reach.
+
+**Staff side** — capability `search_filters`, PLATFORM_ADMIN **and
+SUPPORT_AGENT** (client, 2026-09-24): list, create, import (`/import`, ≤500, all
+or none), get, PATCH. Every change is an audit row
+(`search_filter_option_created` / `_updated`); a no-op PATCH writes none.
+
+**Decisions worth knowing:**
+
+- **A table, `search_filter_options`, not a `config_values` row.** Per-item
+  edits by two staff would clobber whole-document versions, and the list will
+  grow. Owned by `discovery`; the admin service adds the audit row.
+- **Switched off, never deleted** (the app role has no DELETE). An inactive
+  option leaves the panel and typeahead and stops expanding, but its label
+  still searches as plain text, and it keeps its spellings.
+- **One spelling, one option per kind**, active or not: unique `(kind, key)`
+  plus an alias check under a per-kind advisory lock. 409
+  `search_filter_option_conflict` names the spelling.
+- **Suggestions come from the catalogue, never from candidates' skills.** A
+  rare skill in a dropdown tells an employer someone has it.
+- **A city must name its state; a skill cannot.** CHECK-held.
+- Starter lists (89 skills, 67 cities) are **ours** —
+  `discovery/catalogue.py`, `FILTER_CATALOGUE_VERSION = placeholder-…`, a
+  test holds the prefix. `scripts/seed_filter_options.py` writes only options
+  none of whose spellings exist, so it never undoes console edits; it now
+  runs in `reset_local_db.sh` and the prod `migrate` step. **The baseline
+  gained the table, so the EC2 database needs a reset** (agreed).
+
+Known limit: two same-named cities in different states (Aurangabad MH/BR)
+cannot both be options, because the search filters by city name. Filter by
+`state` alongside.
+
+---
+
+## 2026-09-23 — the pipeline list no longer needs a job
+
+Raised by the frontend against the Applications board: "All jobs" was a
+`GET /employer/applications?job_id=…` per job, merged on the client, about
+fifteen requests for one screen. `job_id` is now **optional**. Without it the
+list spans every job the organisation has, in one oldest-first order, and the
+stage filter and cursor behave as before. The response item is now
+`EmployerApplicationListItem`, which is the summary plus `job_title` and
+`job_location`, so the cards need no second lookup. The change is additive:
+existing callers passing `job_id` see two new fields and nothing else.
+
+The frontend now uses that contract. It always makes one organisation-wide,
+paginated applications request without `job_id`; selecting a job filters the
+loaded rows locally and does not start another applications request. It no
+longer walks the jobs list or merges a separate cursor per job, and each card
+gets its job title/location from its own application row.
+
+The Applications tab also no longer loads the jobs catalogue or automatically
+reveals every candidate on the page. Its filter options are derived from the
+application rows, and cards remain honestly masked because this response does
+not contain a name or score. Opening an application still uses the
+applications detail endpoint; no jobs or candidate-profile request is made on
+page load.
+
+Large application pipelines now follow the backend's single organisation-wide
+keyset cursor in pages of 50. Reaching the end of any stage column or using the
+visible "Load next 50" control sends the returned `next_cursor`, fetches
+exactly one next page and re-buckets those rows into their stages; it does not
+start a cursor per job or stage. The loaded count and remaining-page state are
+visible. DECISION, WITHDRAWN and EXPIRED are represented explicitly so every
+backend application stage remains visible rather than disappearing from, or
+being mislabeled in, the board.
+
+The application card no longer renders a "Masked" status pill when its list
+row has no score. The header keeps its normal spacing and only shows a band
+badge when genuine band data is present.
+
+The employer sidebar's Applications badge now reads
+`/employer/dashboard`'s authoritative `applications.open` aggregate instead of
+counting whichever cursor pages happen to be loaded in Redux. It therefore
+matches the full open pipeline across jobs and stages, and application
+mutations refresh it through the shared `Application/EMPLOYER_LIST` tag.
+
+The employer Subscription tab now uses a layout-matched loading skeleton for
+the current-subscription panel and its three plan cards instead of collapsing
+to a small spinner while the subscription and plan queries resolve.
+
+The employer dashboard's fourth metric now shows the backend's live
+`applications.new_last_7_days` value instead of repeating the subscription
+expiry already shown in the portal header. The card is labelled "New
+applications" with a "Last 7 days" qualifier.
+
+The admin dashboard frontend contract now matches the backend `AdminDashboard`
+schema. `oldest_waiting` uses `type` plus its organisation/candidate/party
+identifiers instead of nonexistent `queue` and `label` fields; throughput uses
+`intake`; platform totals use `jobs_published` and `hires`; and capability-
+hidden queue sections are nullable. This fixes the `initialsOf(...).split`
+runtime crash and the totals/chart values that were previously becoming
+undefined or `NaN`.
+
+The Admin Users drawer now opens candidates through
+`GET /admin/candidates/{user_id}` instead of returning `null` for the entire
+candidate segment. It presents the audited candidate drill-down's profile,
+masked contacts, display score and band, resume counts, employer visibility,
+application stages, integrity signals, college links and disputes. Tenant-only
+suspension and seat-allocation controls remain limited to employer and college
+drawers.
+
+The admin dashboard now shows layout-matched skeletons for Platform totals and
+Intake vs cleared during both route streaming and the client dashboard query.
+The totals placeholder contains all six rows, and the throughput placeholder
+preserves the chart header, fourteen paired bars and footer instead of briefly
+showing empty-state production panels while data is loading.
+
+The college dashboard header seat widget now receives the seat query's loading
+and refetching state. Until `GET /college/seats` responds it renders a compact,
+non-clickable skeleton matching the final widget instead of displaying
+temporary `0 / 0` usage.
+
+The College Students tab now applies the same request-aware loading treatment
+to every API-backed section. The header seat widget, student table, link-state
+counts, roster imports and referral codes show layout-matched skeletons during
+initial requests and refetches; static filters, invitations and CSV upload
+remain available without waiting for unrelated reads. Its route-level fallback
+also covers the roster-import and referral-code panels.
+
+The Link states loading treatment now replaces each complete state card rather
+than only swapping its number for a small block beside a live icon and copy.
+Three equal-height, colour-matched placeholders preserve the final card layout
+and avoid the visually broken mixed loaded/loading state.
+
+Every student portal route now shares one responsive, 1280px-capped content
+container instead of narrowing selected detail, score, notification and add-on
+pages to 768px or 1024px. At ordinary laptop widths, the job and application
+detail screens now use the same 16px content gutter as the board and the rest
+of the portal, without horizontal overflow on mobile.
+
+The student board, application detail, job detail and profile now use
+layout-matched skeletons while their client queries resolve. Application
+detail, job detail and profile also have route-level loading fallbacks. The
+board keeps its skeleton at the query boundary rather than a parent
+`loading.tsx`, because a parent fallback would incorrectly replace the nested
+application-detail skeleton on direct loads.
+
+The student header now uses the same notification centre as the admin,
+employer and college portals. The bell opens the shared paginated dropdown
+with unread state, mark-all-read and dismissal behavior instead of navigating
+to a duplicate full-page implementation. The old `/student/notifications`
+URL redirects to the student home screen for existing bookmarks.
+
+The student dashboard now uses layout-matched skeletons for every asynchronous
+area: the greeting, resume-score card, both add-on cards and the eligible-jobs
+grid. Loading no longer exposes temporary labels such as "Loading score",
+"Loading jobs", "Unavailable" or zero sessions while those requests are still
+in flight, and the skeleton layout has no horizontal overflow.
+
+The student Jobs feed now requests cursor pages of 10 and automatically loads
+the next page as its end sentinel approaches the viewport. The manual
+"Load more" control is gone; next-page requests append to the existing cards
+and show card-shaped skeletons. A failed next page keeps the jobs already
+loaded and offers an explicit retry instead of replacing the feed with a
+full-page error.
+
+College Settings now fetches data on demand by active surface instead of
+subscribing every mounted component to every settings query. The shared header
+requests seat usage, College profile requests only the organisation, Users
+requests only the team, Seats & payment requests seats, subscription and plans,
+and the Onboarding form remains mounted and fetched only on its own tab.
+
+The Admin Users college drawer now presents the complete audited college
+drill-down in compact sections: institution and verification dates, subscription
+period, connected and individually visible students, seat utilisation and plan
+allowance, team roles, referral activity, roster imports, invitations, disputes
+and suspension state. The seat editor is initialised from the returned
+allocation instead of `0`, validates the live used-seat floor and plan ceiling,
+and disables updates until the value is both valid and changed.
+
+- **New index `ix_applications_tenant_created (tenant_id, created_at, id)`**,
+  in the model and therefore in the baseline. `ix_applications_job_stage`
+  starts with `job_id` and cannot serve a list across jobs. It is a hot path in
+  `test_index_review.py`. **Existing databases (Render, EC2) need a rebuild or
+  a hand-run `CREATE INDEX CONCURRENTLY`**, because there are no incremental
+  migrations.
+- The cross-tenant invariant now also lists without a job and asserts none of
+  the other organisation's applications or jobs come back.
+- **The 429 that prompted this was not a rate limit.** The Render deploy had
+  no reachable Redis (`/api/v1/health/ready` → `redis: down`). The fail-closed
+  limits (search, reveal, threshold preview, discount codes, analytics,
+  privacy) answer `429 rate_limit_unavailable` in that state, and the global
+  tier fails open, so nothing else looked broken. Fixing it means setting
+  `REDIS_URL` on the service. No code change is needed.
+
+## 2026-09-23 — `GET /employer/jobs` is paginated
+
+Reported by the frontend: `?limit=10` returned every job. The route never
+declared `limit`, so FastAPI dropped it, and the service always read up to a
+fixed 100 (`MAX_JOB_LIST`, now gone). It was the only list in the API without
+a cursor.
+
+It now takes `limit` (1–100, default 50) and `cursor`, keyset on
+`(created_at, id)`, and returns `Page[JobListItem]`. **That is a breaking
+change to the response** — a bare array became `{ items, next_cursor, total }`
+— made in the backend only, by decision; the frontend in `frontend/` still
+reads an array (`store/employer/jobs/jobs.api.ts`) and is the frontend
+developer's to move. The dashboard and applications screens that want every
+job must follow `next_cursor`. The cursor's timestamp key is `c`, not the
+board's `p`, so a `/candidate/jobs` cursor is refused here rather than
+silently misread. No new index: jobs per tenant are few and
+`ix_jobs_tenant_status` bounds the scan.
+
+`main` paginated the same route independently, with the same shape and cursor
+key, and added `q`, a server-side search over title and location. The merge
+takes `main`'s implementation. This branch contributes the tests in
+`test_jobs.py`, which pass against it.
+
+## 2026-09-23 — the admin console can list candidates
+
+Reported: `GET /admin/tenants?type=CANDIDATE` answers 422. That is correct,
+since a candidate is not a tenant. The real gap was that the console had
+no way to *find* a candidate at all: `GET /admin/candidates/{user_id}` needed
+an id nobody could look up.
+
+**`GET /admin/candidates`**: candidate accounts, newest first, filtered by
+`status`, `q` (part of the full name) and `email` (the exact address).
+Rows carry id, status, name, city, state, masked phone and email, created_at.
+Documented in `backend-guide/13` §4.
+
+### Decisions worth knowing
+
+- **Same capability as the drill-down (`candidate_drilldown`)**: whoever
+  may open a candidate may find one. Not a new capability, so the two cannot
+  drift apart.
+- **Audited, where `/admin/tenants` is not**: every row names a person. One
+  `admin_bypass_session_opened` row per page, `view: candidates`. **The search
+  terms are not in the metadata**, only `by_name` / `by_email` flags; a
+  name or an address is personal data, and the audit log holds ids.
+- **The row is for picking, not reading**: no score, band, CV, subscription
+  or application counts. All of that stays behind the drill-down, which
+  audits the one person opened.
+- **`email` is exact, not partial**, so it cannot enumerate a domain. `q`
+  escapes `%` and `_`, like `/admin/tenants`.
+- **Index `ix_users_pool_created (pool, created_at, id)`** on `users`, and the
+  query is in `test_index_review.py` `HOT_PATHS`. **It is on the model, so
+  only a rebuilt database has it.** Locally it was created by hand
+  (`CREATE INDEX IF NOT EXISTS ...`). The EC2 database was built from the
+  baseline before this change and will not get it from `alembic upgrade`. It
+  needs the same statement run once, or the list scans `users` there.
+
+---
+
+## 2026-09-23 — the admin console gets a dashboard endpoint
+
+Asked by the frontend team: KYB awaiting review, integrity flags, open
+disputes, active employers, oldest items waiting, platform totals. The page
+was built from the queue endpoints: a hundred rows of each, counted, shown
+as "100+" past that, with two audited bypass sessions per load, "Candidates"
+hard-coded to "Unavailable" and the intake/cleared chart given `[]`.
+
+**`GET /admin/dashboard`**, one request, one audit row. Sections: `kyb`
+(the R15 switch, awaiting review, awaiting the employer, oldest), `integrity`
+(open by severity, **candidates held back** — people with an OPEN HIGH signal,
+already out of search before anyone looked), `disputes` (open, in review,
+unassigned, by kind), `organisations` (employers and colleges by status),
+`platform_totals` (candidates, employers, colleges, published jobs,
+applications, confirmed hires), `oldest_waiting` (five, across the queues),
+and `throughput` (14 IST days of intake vs cleared). Documented in
+`backend-guide/13` §0.5.
+
+### Decisions worth knowing
+
+- **A new capability, `dashboard`, for every staff role, and each queue
+  section is null unless the caller holds that queue's own capability**
+  (`domain.dashboard_sections`, read from `CONSOLE_ROLES`). A KYB reviewer's
+  landing page does not count integrity signals they cannot open. Platform
+  totals are for everyone: counts, naming nobody. `oldest_waiting` and
+  `throughput` are drawn only from the sections shown.
+- **Audited, through `_reveal`, once per load**: `oldest_waiting` names
+  organisations and candidate ids. Added to `test_no_audit_row_means_no_reveal`
+  and to `ROUTE_CAPABILITY`.
+- **Auto-approved KYB is neither intake nor cleared** on the chart: it never
+  waited on anyone. While `review_required` is false the KYB tiles read zero,
+  which is true.
+- Tests assert **deltas around one action**, never absolute numbers: the
+  console counts the whole shared test database.
+
+### A cost to watch
+
+`throughput` filters `integrity_signals` and `disputes` on `created_at` and
+`resolved_at`, which no index leads with, so it scans both tables per load.
+Both are small now (one row per flagged CV, one per complaint). If either
+grows, an index on `(resolved_at)` and `(created_at)` is the fix, and the
+query shapes belong in `test_index_review.py` `HOT_PATHS` then.
+
+---
+
+## 2026-09-23 — the employer dashboard gets its own endpoint
+
+Asked by the frontend team: active jobs, total applicants, top-k jobs by
+applicants, and "recent activity — to be discussed", with more metrics to
+come. The dashboard page was assembling these itself: the jobs list, then
+**every job's applications paged through in full just to count them** —
+one request per job per hundred applications, on every load. Two cards
+("Candidates unlocked", "Credit balance") were hard-coded to 0.
+
+**`GET /employer/dashboard`** answers it in one request, every tile counted
+from one snapshot: jobs by state, applications (total, open, distinct
+candidates, new in 7 and 30 days, by stage), what needs attention (unreviewed,
+interviews to schedule and coming up, hires awaiting the candidate or
+disputed, applications that will expire within a week), candidates revealed,
+the top k jobs (1–20, default 5), the next five interviews, and 30 IST days
+of applications per day. **`GET /employer/dashboard/activity`** is the pipeline
+history across every job, newest first, cursor-paged, filterable by who acted.
+Both: any employer role, behind the subscription like the pipeline.
+Documented for app teams in `backend-guide/06` §8.
+
+### Decisions worth knowing
+
+- **It lives in `applications`**, mounted by `get_extra_routers()`. That is
+  where the data is, and `applications.service` already calls `jobs.service`
+  and `discovery.service`. In `employer` it would have closed an import cycle
+  (`jobs.service` imports `employer.service`).
+- **`expiring_within_7_days` is the sweep's own rule moved forward**
+  (`domain.expiry_horizon`), read against the live `applications.expiry` row,
+  so the tile and the sweep cannot disagree. A unit test holds the boundary
+  to `expires()` itself. A bad config row is a 500 here as in the sweep.
+- **The activity feed reads `application_events`, which has no RLS**, only
+  through a join to `applications` under the tenant policy. A test shows
+  another organisation's events never appear. No `note` and no candidate id:
+  a feed is read at a glance by the whole team.
+- **`candidates_revealed` counts distinct people** from the organisation's
+  own `candidate_view_events` (`discovery.repository.revealed_counts`, added
+  to `READS_NO_CANDIDATE`), as the caps do. Re-opening is not counted twice.
+- **`applications_per_day` counts in `Asia/Kolkata`**, not `+05:30`: Postgres
+  reads a POSIX offset with the sign reversed.
+- Two new query shapes in `test_index_review.py` `HOT_PATHS`.
+
+### Not built, deliberately
+
+- **"Credit balance"** has no backend counterpart. There are subscriptions,
+  not credits, and "credit" beside a score is close to the framing invariant
+  6 exists to keep out. The card needs a product decision, not an endpoint.
+- **Job-posted, reveal, KYB and purchase events are not in the feed.** The
+  mock-up shows them; the ask said the feed is still to be discussed. Each is
+  a different table with its own visibility rules, so it is a union to agree
+  first rather than guess at.
+
+---
+
 ## 2026-09-23 — the review screen reads a CV as sections, and edits it that way
 
 Raised by the frontend team against the review design (cards for education,
@@ -1249,7 +2973,8 @@ Pushed to PR #11 as `e1f3a97`: **all five CI jobs green on the first push**.
 - **Suppression found its own bug.** The exhaustive test over every
   four-cell combination of 0–7 caught the case the first version missed: one
   small cell and every other cell zero, which had no partner to withhold. The
-  partner is now a zero cell when nothing else is available.
+  partner is now a zero cell when nothing else is available. This remains the
+  score-band rule; monthly placement suppression was removed on 2026-09-26.
 - **Interviews** means applications that reached INTERVIEW (from
   `application_events`), not mock interviews. **Hires** means HIRED, both
   confirmations; a disputed hire counts as none (E12).

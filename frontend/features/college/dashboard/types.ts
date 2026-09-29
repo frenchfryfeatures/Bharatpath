@@ -12,8 +12,8 @@ export interface DashboardBand {
   /** Band name as used by scoring (Entry, Developing, Solid, Strong). */
   label: string;
   /**
-   * Number of consenting students in the band, or `null` when the cohort is
-   * below the privacy floor and counts are suppressed.
+   * Number of consenting students in the band, or `null` when privacy rules
+   * suppress the count.
    */
   count: number | null;
 }

@@ -11,6 +11,14 @@ import type { ReactNode } from "react";
  */
 
 /* -------------------------------------------------------------------------
+ * Interactive card — the hover/press/focus treatment for any clickable
+ * surface (job, application and add-on cards, stat tiles, settings rows).
+ * Pair it with a surface's own border and background.
+ * ---------------------------------------------------------------------- */
+export const interactiveCardClass =
+  "cursor-pointer transition-all duration-150 hover:-translate-y-0.5 hover:border-[#CFC6B4] hover:shadow-[0_10px_24px_rgba(10,25,49,0.07)] active:translate-y-0 active:scale-[.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30";
+
+/* -------------------------------------------------------------------------
  * Card — the workhorse white surface.
  * ---------------------------------------------------------------------- */
 export function StudentCard({
@@ -132,10 +140,12 @@ export type PillVariant =
   | "tertiary";
 
 const PILL_VARIANTS: Record<PillVariant, string> = {
-  primary: "bg-[#5F4DB2] text-white",
-  secondary: "border border-[#DDD6C7] bg-white text-[#0A1931]",
-  "in-card": "border border-[#0A1931] bg-white text-[#0A1931]",
-  tertiary: "bg-transparent text-[#5F6B80]",
+  primary: "bg-[#5F4DB2] text-white enabled:hover:bg-[#4A3E8F]",
+  secondary:
+    "border border-[#DDD6C7] bg-white text-[#0A1931] enabled:hover:border-[#CFC6B4] enabled:hover:bg-[#F7F4EC]",
+  "in-card":
+    "border border-[#0A1931] bg-white text-[#0A1931] enabled:hover:bg-[#0A1931] enabled:hover:text-white",
+  tertiary: "bg-transparent text-[#5F6B80] enabled:hover:text-[#0A1931]",
 };
 
 export function PillButton({
@@ -169,7 +179,7 @@ export function PillButton({
       aria-label={ariaLabel}
       disabled={disabled}
       className={[
-        "inline-flex items-center justify-center gap-2 font-semibold leading-5 transition-transform active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer",
+        "inline-flex items-center justify-center gap-2 font-semibold leading-5 transition-all active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30",
         shape,
         PILL_VARIANTS[variant],
         className,
@@ -196,10 +206,11 @@ export function IconCircleButton({
   "aria-label": string;
 }) {
   const tones: Record<string, string> = {
-    cream: "border border-[#E7E0D4] bg-white text-[#0A1931]",
-    navy: "border border-[rgba(10,25,49,0.26)] bg-[#0A1931] text-white",
+    cream:
+      "border border-[#E7E0D4] bg-white text-[#0A1931] hover:border-[#CFC6B4] hover:bg-[#F7F4EC]",
+    navy: "border border-[rgba(10,25,49,0.26)] bg-[#0A1931] text-white hover:bg-[#1B2C4A]",
     glass:
-      "border border-[rgba(255,252,247,0.26)] bg-[rgba(255,252,247,0.08)] text-white",
+      "border border-[rgba(255,252,247,0.26)] bg-[rgba(255,252,247,0.08)] text-white hover:bg-[rgba(255,252,247,0.18)]",
   };
 
   return (
@@ -208,7 +219,7 @@ export function IconCircleButton({
       onClick={onClick}
       aria-label={ariaLabel}
       className={[
-        "grid h-10 w-10 shrink-0 place-items-center rounded-full transition-transform active:scale-[.96] cursor-pointer",
+        "grid h-10 w-10 shrink-0 place-items-center rounded-full transition-all active:scale-[.96] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30",
         tones[tone],
       ].join(" ")}
     >

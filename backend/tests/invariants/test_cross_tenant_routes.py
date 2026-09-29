@@ -262,7 +262,9 @@ async def _revoke_other_colleges_code(client: Any, attacker: dict, victim: dict)
     response = await client.post(
         f"{API}/college/referral-codes/{code.json()['id']}/revoke", headers=college_a["headers"]
     )
-    codes = (await client.get(f"{API}/college/referral-codes", headers=college_b["headers"])).json()
+    codes = (
+        await client.get(f"{API}/college/referral-codes", headers=college_b["headers"])
+    ).json()["items"]
     assert codes[0]["state"] == "ACTIVE", "the other college's code was revoked"
     return response
 
@@ -291,17 +293,28 @@ def _roster_case(method: str, suffix: str) -> Case:
     return case
 
 
-async def _open_other_colleges_student(client: Any, attacker: dict, victim: dict) -> Any:
-    """Day 18. College B's student lets B see them; college A asks by id."""
-    from tests.integration.test_college_consent import _seed_student
+def _other_colleges_student(suffix: str) -> Case:
+    """Day 18. College B's student lets B see them; college A asks by id.
+    2026-09-29: the same for the details and the CV (`suffix`)."""
 
-    college_a, college_b = await _college_pair(client, victim["mint_token"])
-    code = await client.post(f"{API}/college/referral-codes", json={}, headers=college_b["headers"])
-    student = await _seed_student(college_b, code.json()["id"], individual=True, name="B only")
-    response = await client.get(f"{API}/college/students/{student}", headers=college_a["headers"])
-    theirs = await client.get(f"{API}/college/students/{student}", headers=college_b["headers"])
-    assert theirs.status_code == 200, "the student's own college lost its view"
-    return response
+    async def case(client: Any, attacker: dict, victim: dict) -> Any:
+        from tests.integration.test_college_consent import _seed_student
+
+        college_a, college_b = await _college_pair(client, victim["mint_token"])
+        code = await client.post(
+            f"{API}/college/referral-codes", json={}, headers=college_b["headers"]
+        )
+        student = await _seed_student(college_b, code.json()["id"], individual=True, name="B")
+        url = f"{API}/college/students/{student}{suffix}"
+        response = await client.get(url, headers=college_a["headers"])
+        theirs = await client.get(url, headers=college_b["headers"])
+        # The seeded student has no CV, so their own college's CV read is a
+        # 404 of its own; everything else is theirs to see.
+        expected = 404 if suffix == "/resume" else 200
+        assert theirs.status_code == expected, "the student's own college lost its view"
+        return response
+
+    return case
 
 
 _TOMORROW = (datetime.now(UTC) + timedelta(days=1)).isoformat()
@@ -344,7 +357,18 @@ CROSS_TENANT_CASES: dict[tuple[str, str], Case] = {
     ("POST", f"{API}/college/roster-imports/{{import_id}}/invitations/send"): _roster_case(
         "POST", "/invitations/send"
     ),
-    ("GET", f"{API}/college/students/{{candidate_id}}"): _open_other_colleges_student,
+    ("GET", f"{API}/college/students/{{candidate_id}}"): _other_colleges_student(""),
+    # 2026-09-29.
+    ("GET", f"{API}/college/students/{{candidate_id}}/details"): _other_colleges_student(
+        "/details"
+    ),
+    ("GET", f"{API}/college/students/{{candidate_id}}/resume"): _other_colleges_student("/resume"),
+    ("POST", f"{API}/employer/applications/{{application_id}}/messages"): _pipeline_case(
+        "POST", "/messages", {"kind": "GENERAL", "body": "Hello."}
+    ),
+    ("GET", f"{API}/employer/applications/{{application_id}}/messages"): _pipeline_case(
+        "GET", "/messages"
+    ),
 }
 
 
@@ -418,7 +442,8 @@ async def test_routes_without_an_id_only_ever_return_the_callers_own_tenant(
     assert a["member_id"] in team_a
 
     jobs_a = {
-        j["id"] for j in (await client.get(f"{API}/employer/jobs", headers=a["headers"])).json()
+        j["id"]
+        for j in (await client.get(f"{API}/employer/jobs", headers=a["headers"])).json()["items"]
     }
     assert b["job_id"] not in jobs_a
     assert a["job_id"] in jobs_a
@@ -459,6 +484,13 @@ async def test_another_tenants_job_has_no_pipeline_to_list(client: Any, mint_tok
     assert response.json()["code"] == "job_not_found"
     assert application not in response.text
 
+    # Without a job the list spans the organisation, and a query that forgot
+    # its tenant would hand A every organisation's pipeline.
+    everything = await client.get(f"{API}/employer/applications", headers=a["headers"])
+    assert everything.status_code == 200, everything.text
+    assert application not in everything.text
+    assert str(victim_job) not in everything.text
+
 
 async def test_college_routes_without_an_id_only_ever_return_the_callers_own(
     client: Any, mint_token: Any
@@ -474,7 +506,7 @@ async def test_college_routes_without_an_id_only_ever_return_the_callers_own(
         )
 
     def ids(response: Any) -> set[str]:
-        return {item["id"] for item in response.json()}
+        return {item["id"] for item in response.json()["items"]}
 
     a, b = college_a["headers"], college_b["headers"]
     org = (await client.get(f"{API}/college/organisation", headers=a)).json()

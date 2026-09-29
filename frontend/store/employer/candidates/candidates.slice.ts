@@ -15,6 +15,7 @@ const initialState: EmployerCandidatesState = {
 		bands: [],
 		skills: [],
 		locations: [],
+		state: "",
 		experiences: [],
 		addons: [],
 	},
@@ -45,6 +46,12 @@ const candidatesSlice = createSlice({
 			state.currentPage = 1;
 			state.cursorHistory = [""];
 		},
+		setCandidateState: (state, action: PayloadAction<string>) => {
+			state.filters.state = action.payload;
+			state.filters.locations = [];
+			state.currentPage = 1;
+			state.cursorHistory = [""];
+		},
 		toggleCandidateFilter: (
 			state,
 			action: PayloadAction<{ key: "skills" | "locations" | "experiences" | "addons"; value: string }>,
@@ -55,10 +62,7 @@ const candidatesSlice = createSlice({
 				state.filters.addons = values.includes(value)
 					? values.filter((item) => item !== value)
 					: [...values, value];
-			} else if (
-				action.payload.key === "locations" ||
-				action.payload.key === "experiences"
-			) {
+			} else if (action.payload.key === "experiences") {
 				const key = action.payload.key;
 				state.filters[key] = state.filters[key].includes(action.payload.value)
 					? []
@@ -95,6 +99,7 @@ export const {
 	setCandidateFilters,
 	toggleCandidateBand,
 	setCandidateSearch,
+	setCandidateState,
 	toggleCandidateFilter,
 	goToNextCandidatePage,
 	goToPreviousCandidatePage,

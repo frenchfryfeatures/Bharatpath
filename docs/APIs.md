@@ -152,23 +152,32 @@ an active subscription; a session additionally needs its own purchase.
 | GET | `/candidate/interview/offer` | — | `OfferResponse` | Price, device-check status, whether a session would move the score |
 | POST | `/candidate/interview/device-checks` | `{mic_ok, audio_out_ok, network_kbps, storage_mb, quiet_env_ok}` | `DeviceCheckResponse` (201) | 201 whether it passes or fails |
 | POST | `/candidate/interview/checkout` | `{acknowledge_no_score_increase}` | `CheckoutResponse` (201) | 409 without a passed device check in the last hour, or without the acknowledgement once 3 sessions are already held; grants nothing until the payment callback lands |
-| POST | `/candidate/interview/sessions` | — | `SessionResponse` (201) | Returns the already-open session if there is one — that's the recovery path, there's no abandon |
+| POST | `/candidate/interview/sessions` | — | `SessionResponse` (201) | Returns the already-open session if there is one — that's the recovery path, there's no abandon. Holds **one** question, written by the AI for this candidate (`question_set_code` ADAPTIVE); the rest come from `next-question`. 503 `interview_question_unavailable` if the model cannot write it — nothing is created and the purchase is not spent; retry |
 | GET | `/candidate/interview/sessions` | — | `list[SessionSummary]` | Newest first |
-| GET | `/candidate/interview/sessions/{id}` | path | `SessionResponse` | Session + answer manifest |
-| POST | `/candidate/interview/sessions/{id}/answers/{q}/upload` | path | `AnswerUploadResponse` (201) | Presigned URL for one audio answer |
+| GET | `/candidate/interview/history` | — | `list[SessionHistoryItem]` | 2026-09-29. Every session, with `questions_asked`, `answers_stored`, `report_status` (NOT_COMPLETED / PENDING / READY / FAILED) |
+| GET | `/candidate/interview/sessions/{id}` | path | `SessionResponse` | Session + answer manifest. `questions` is what has been asked so far; `questions_total` is how many there will be |
+| POST | `/candidate/interview/sessions/{id}/next-question` | path | `SessionResponse` | 2026-09-29. Hears the stored answers and writes the next question (the last entry of `questions`). Takes a few seconds. Called before the latest question's answer is stored, it returns the session unchanged (a retry gets the same question). 409 `interview_previous_answer_not_stored` (`params.missing`) only if an earlier answer is missing. 503 `interview_question_unavailable` if the model cannot write one (three refused drafts, or unreachable): nothing written, retry. About 9 s |
+| GET | `/candidate/interview/sessions/{id}/recordings` | path | `list[RecordingSchema]` | 2026-09-29. One presigned GET per stored answer, with the question and the transcript once heard. Links expire; ask again |
+| POST | `/candidate/interview/sessions/{id}/answers/{q}/upload` | path | `AnswerUploadResponse` (201) | Presigned URL for one audio answer. 409 `interview_question_not_ready` for a question not written yet |
 | POST | `/candidate/interview/sessions/{id}/answers/{q}/complete` | path + `{duration_ms}` | `AnswerResponse` | A STORED answer never changes afterward |
 | POST | `/candidate/interview/sessions/{id}/complete` | path | `SessionResponse` | Needs every question answered; +20 per completed session, a fourth included, +60 cap enforced by scoring alone |
 
 ## courses — `/candidate/courses`
 
-Catalogue + purchase only. **No completion route** — completion isn't
-self-reported; it's written server-side by `courses.service.record_completion`
-and routes to `rescore_for_addons`, not `score_resume` (which is idempotent
-per version and would silently no-op).
+Catalogue, lessons, progress and purchase. **Locked until bought**: the
+syllabus shows, no lesson plays. **No completion route** — the candidate
+reports where they are in a lesson; the server decides a lesson is watched
+(90% reached *and* half its length elapsed since first opened) and, when
+every published lesson is, records the completion **as the system**
+(`courses.service.record_progress`, rule `lessons-watched-1-2026-09-29`). It
+routes to `rescore_for_addons`, not `score_resume` (which is idempotent per
+version and would silently no-op).
 
 | Method | Path | Body/Params | Response | Notes |
 |---|---|---|---|---|
-| GET | `/candidate/courses` | — | `list[CourseResponse]` | Catalogue with purchased/completed flags |
+| GET | `/candidate/courses` | — | `list[CourseResponse]` | Courses on sale, with `purchased`, `completed`, `locked`, `lessons_total`, `lessons_completed`, `percent_complete`. Ownership is by course code, so a buyer of an earlier price keeps it |
+| GET | `/candidate/courses/{course_id}` | path | `CourseDetailResponse` | Modules → lessons. `media_url` is null until bought; then a YouTube embed URL (iframe) or a four-hour presigned GET (`<video>`). `position_seconds` is where to resume |
+| POST | `/candidate/courses/{course_id}/lessons/{lesson_id}/progress` | path + `{position_seconds}` | `LessonProgressResponse` | Every ~15 s while playing, and on pause/close. 409 `course_not_purchased` |
 | POST | `/candidate/courses/{course_id}/checkout` | path | `CheckoutResponse` (201) | Nothing granted until the payment callback settles |
 
 ## employer — `/employer`
@@ -208,7 +217,7 @@ ahead of `/{job_id}` to avoid a path collision.
 | Method | Path | Auth | Body/Params | Response | Notes |
 |---|---|---|---|---|
 | POST | `/employer/jobs` | OWNER/RECRUITER + active subscription | `CreateJobRequest` | `JobResponse` (201) | Draft |
-| GET | `/employer/jobs` | any employer role + active subscription | `status` | `list[JobResponse]` | Newest first |
+| GET | `/employer/jobs` | any employer role + active subscription | `status`, `cursor`, `limit` (≤100, default 50) | `Page[JobListItem]` | Newest first, each with pipeline counts |
 | GET | `/employer/jobs/threshold-preview` | OWNER/RECRUITER + active subscription | `min_score` (700–990, stepped, rate-limited per org) | `ThresholdPreviewResponse` | Rounded/coarse count only, floored under ten — never exact, so a threshold can't be used to binary-search one candidate's score |
 | GET | `/employer/jobs/{job_id}` | any employer role + active subscription | path | `JobResponse` | 404 cross-org |
 | PATCH | `/employer/jobs/{job_id}` | OWNER/RECRUITER + active subscription | path + `UpdateJobRequest` | `JobResponse` | 409 once published/closed — pause first |
@@ -232,11 +241,14 @@ migrator, can bypass.
 | POST | `/candidate/applications/{id}/withdraw` | CANDIDATE | path | `ApplicationResponse` | Any pre-outcome stage; 409 once hired/rejected/expired |
 | POST | `/candidate/applications/{id}/hire/confirm` | CANDIDATE | path | `ApplicationResponse` | Finalizes a hire the employer proposed; the candidate's confirmation, not the employer's, is what writes HIRED; 409 `hire_confirmation_not_pending` |
 | POST | `/candidate/applications/{id}/hire/dispute` | CANDIDATE | path | `ApplicationResponse` | |
-| GET | `/employer/applications` | OWNER/RECRUITER/VIEWER + active subscription | `job_id` (required), `stage, cursor, limit` | `Page[EmployerApplicationSummary]` | Oldest first |
+| GET | `/employer/applications` | OWNER/RECRUITER/VIEWER + active subscription | `job_id, stage, cursor, limit` (all optional) | `Page[EmployerApplicationListItem]` | Oldest first. No `job_id` = every job in one list; each row carries `job_title`, `job_location`. Read-only: never records VIEWED |
 | GET | `/employer/applications/{id}` | OWNER/RECRUITER/VIEWER + active subscription | path | `EmployerApplicationDetail` | Opening a SUBMITTED application auto-moves it to VIEWED, once |
 | POST | `/employer/applications/{id}/stage` | OWNER/RECRUITER + active subscription | path + `{stage, note}` | `EmployerApplicationDetail` | One stage forward, or REJECTED; 409 otherwise |
 | PUT | `/employer/applications/{id}/interview` | OWNER/RECRUITER + active subscription | path + `{interview_at, meeting_url}` | `EmployerApplicationDetail` | Book/rebook, only at INTERVIEW stage (409 otherwise); 422 for a non-https link or a time over a year out |
 | POST | `/employer/applications/{id}/hire` | OWNER/RECRUITER + active subscription | path | `EmployerApplicationDetail` | *Proposes* a hire (`employer_confirmed_at`) — HIRED itself is never the employer's to write. Only from DECISION stage (409 `hire_not_allowed`); idempotent |
+| POST | `/employer/applications/{id}/messages` | OWNER/RECRUITER + active subscription | path + `{kind: INTERVIEW\|ASSESSMENT\|GENERAL, body, scheduled_at?, link?}` | `EmployerMessageResponse` (201) | 2026-09-29. Sent to the candidate **by email and in the app**; the employer never sees their address. INTERVIEW needs `scheduled_at`, ASSESSMENT needs `link` (https). 422 `message_invalid` with the reason as `code`; 409 `message_not_allowed_at_stage` once the application is closed; 429 `message_limit_reached` after 10 to one application in a day (plus `applications.message`, 300/hour per organisation) |
+| GET | `/employer/applications/{id}/messages` | OWNER/RECRUITER/VIEWER + active subscription | path | `list[EmployerMessageResponse]` | Oldest first, with `sender_id` |
+| GET | `/candidate/applications/{id}/messages` | CANDIDATE | path | `list[CandidateMessageResponse]` | Not paywalled. `employer_name`, never which recruiter wrote it |
 
 ## discovery — `/employer/discovery`
 
@@ -322,6 +334,20 @@ onboarding, seats, revoking a code and discarding a preview stay open.
 | POST | `/candidate/colleges/{college_id}/individual-visibility` | CANDIDATE | `{consent_version}` | `CollegeLinkResponse` (201; 200 if granted) | **A separate grant** (PRD 3.8). 404 `college_link_not_found` without a live link; 409 stale terms |
 | POST | `/candidate/colleges/{college_id}/revoke` | CANDIDATE | `{scope: ROSTER\|INDIVIDUAL}` | `{college_id, revoked, revoked_at}` | **Immediate.** `INDIVIDUAL` keeps the link; `ROSTER` disconnects and ends the seat and INDIVIDUAL in the same statement. Never paywalled. Idempotent; 404 for a college never linked |
 
+**A student's details (2026-09-29).** Served only under INDIVIDUAL consent to
+the **current** words (`INDIVIDUAL_CONSENT_VERSION` placeholder-2-2026-09-29),
+which name everything below; read only through the consent-joined functions
+`college_student_details`, `college_student_courses` and
+`college_student_applications` (migration 0005). A student who agreed to the
+earlier words keeps the earlier view until they agree again —
+`POST /candidate/colleges/{college_id}/individual-visibility` with the new
+version replaces the old grant.
+
+| Method | Path | Auth | Body/Params | Response | Notes |
+|---|---|---|---|---|---|
+| GET | `/college/students/{candidate_id}/details` | any college role + paid | path | `CollegeStudentDetailsResponse` | Contact, city, locale, questionnaire answers in words (never the accessibility answer), whether a CV is confirmed, practice interviews completed, course progress (%), every application with its stage, and stage analytics. 409 `college_student_details_not_shared` on the earlier words; 404 without live consent. Audited (`college_student_viewed`, `view: details`) |
+| GET | `/college/students/{candidate_id}/resume` | any college role + paid | path | `CollegeStudentResumeResponse` | The confirmed CV the score was built from: text, or a form's fields, and the uploaded file by presigned GET. 404 `college_student_resume_not_found` before there is one. Audited (`college_student_resume_opened`) |
+
 ## analytics — `/college/analytics`
 
 Aggregates over the students linked to the college **right now**, read through
@@ -359,6 +385,13 @@ session opens**; a read whose audit cannot be written returns nothing.
 | GET | `/admin/tenants/{tenant_id}/suspensions` | as `/admin/tenants` | path | `list[SuspensionResponse]` | Newest first |
 | PUT | `/admin/colleges/{tenant_id}/seats` | PLATFORM_ADMIN | `{seats}` | `{allocated, used, filled}` | `college.service.allocate_seats`: never below used, never above the live plan (409 `college_seats_*`). Seats waiting students. Audited |
 | GET | `/admin/candidates/{user_id}` | PLATFORM_ADMIN, SUPPORT_AGENT, INTEGRITY_REVIEWER | path | `CandidateDrilldown` | Masked phone/email, display score and band, resume counts (never content), signals, applications, subscription, college links, disputes. Audited every open |
+| GET | `/admin/candidates/{user_id}/onboarding` | PLATFORM_ADMIN, SUPPORT_AGENT (`candidate_contact`) | path | `CandidateOnboarding` | 2026-09-29. Everything given at sign-up and on the profile, **contact unmasked**, questionnaire in words, college links. Audited |
+| GET | `/admin/candidates/{user_id}/resume` | + INTEGRITY_REVIEWER (`candidate_resume`) | path | `CandidateResumeView` | The newest version and the newest confirmed one: text or fields, and the file by presigned GET. Audited (`admin_candidate_resume_opened`) |
+| GET | `/admin/candidates/{user_id}/score-timeline` | as the drill-down | path | `ScoreTimeline` | Every score, oldest first: display value, band, change, and cause (FIRST_SCORE, RESUME_CHANGED, ADD_ON, RECOMPUTED). Never the stored number. Audited |
+| GET | `/admin/candidates/{user_id}/interviews` | as the drill-down | path | `list[InterviewSessionRow]` | Every session with questions asked, answers stored, report status. Audited |
+| GET | `/admin/candidates/{user_id}/interviews/{session_id}/recordings` | PLATFORM_ADMIN, SUPPORT_AGENT (`candidate_recordings`) | path | `list[InterviewRecordingRow]` | Presigned GET per answer, with question and transcript. Audited (`admin_interview_recordings_opened`) |
+| GET | `/admin/candidates/{user_id}/courses` | as the drill-down | path | `list[CourseStatusRow]` | Purchase, lessons watched, percent, completion. Audited |
+| GET | `/admin/candidates/{user_id}/applications` | as the drill-down | path | `CandidateApplications` | Every application with job, employer and stage, plus `analytics` (by stage, open, and how many ever reached SHORTLISTED / INTERVIEW / DECISION / HIRED). Audited |
 | GET | `/admin/employers/{tenant_id}` | PLATFORM_ADMIN, SUPPORT_AGENT, KYB_REVIEWER | path | `EmployerDrilldown` | KYB, members, jobs, pipeline, subscription, suspension, distinct candidates viewed (1d/30d), anomaly flags. Audited |
 | GET | `/admin/colleges/{tenant_id}` | PLATFORM_ADMIN, SUPPORT_AGENT | path | `CollegeDrilldown` | Counts only: seats, codes, consents by scope, imports, invitations. Audited |
 | POST | `/admin/users/{user_id}/notification-suppressions` | PLATFORM_ADMIN, SUPPORT_AGENT | `{channel, reason}` | `{user_id, channel, created}` | Our stop (bounce, complaint, support request), apart from the person's preferences. Audited |
@@ -366,6 +399,14 @@ session opens**; a read whose audit cannot be written returns nothing.
 | GET | `/admin/disputes/{dispute_id}` | same | path | `DisputeDetail` | Description, cross-links (application's two sides, live integrity signals). Audited |
 | POST | `/admin/disputes/{dispute_id}/assign` | same | — | `DisputeDetail` | Caller takes it; IN_REVIEW |
 | POST | `/admin/disputes/{dispute_id}/resolve` | same | `{outcome: RESOLVED\|REJECTED, resolution}` | `DisputeDetail` | The raiser reads `resolution`. Changes nothing else. Closed is final |
+| GET | `/admin/courses` | PLATFORM_ADMIN (`courses`) | — | `list[AdminCourseView]` | 2026-09-29. Every course at its latest version, with all modules and lessons |
+| POST | `/admin/courses/{code}/modules` | same | `{title, sort_order?}` | `AdminCourseView` (201) | Audited (`course_content_changed`) |
+| PATCH | `/admin/course-modules/{module_id}` | same | `{title?, sort_order?, active?}` | `AdminCourseView` | Switched off, never deleted |
+| POST | `/admin/course-modules/{module_id}/lessons` | same | `{title, description?, duration_seconds, sort_order?, youtube_url?}` | `AdminLessonView` (201) | With `youtube_url` (YouTube hosts only; unlisted is watchable by anyone with the link) the lesson plays at once. Without it: upload |
+| PATCH | `/admin/course-lessons/{lesson_id}` | same | `{title?, description?, duration_seconds?, sort_order?, active?, youtube_url?}` | `AdminLessonView` | |
+| POST | `/admin/course-lessons/{lesson_id}/upload` | same | — | `LessonUploadResponse` | Presigned PUT (MP4/WebM, ≤2 GB) to `bharatpath-course-media`. Re-issuing takes the lesson off until confirmed |
+| POST | `/admin/course-lessons/{lesson_id}/upload/confirm` | same | — | `AdminLessonView` | Size from S3, format from the bytes; a non-video is deleted (422 `course_lesson_media_invalid`) |
+| PUT | `/admin/courses/{code}/published` | same | `{published}` | `AdminCourseView` | On sale needs ≥1 playable lesson (409 `course_not_publishable`). Off sale stops new purchases only |
 | POST | `/admin/accounts/candidates` | PLATFORM_ADMIN | `{email}` | `ProvisionedAccountResponse` (201) | 2026-09-18. Makes the account; **Cognito emails a temporary password**; the first sign-in adopts it. 409 `identity_account_exists`. 502 `account_directory_unavailable` if Cognito refuses (nothing created). Audited |
 | POST | `/admin/accounts/employers` | PLATFORM_ADMIN | `{owner_email, legal_name, employer_type?, industry?}` | same (201) | The employer and its owner. KYB and payment are the owner's as usual. 409 `identity_already_in_organisation`. Audited |
 | POST | `/admin/accounts/colleges` | PLATFORM_ADMIN | `{admin_email, name, institution_type}` | same (201) | The college and its admin. Audited |

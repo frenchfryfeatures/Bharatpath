@@ -15,17 +15,26 @@ export interface HeaderBadge {
   label: string;
 }
 
+export interface Breadcrumb {
+  label: string;
+  href?: string;
+  /** Render a skeleton in place of the label while it is still loading. */
+  isLoading?: boolean;
+}
+
 export interface HeaderStat {
   icon?: LucideIcon;
   label: string;
   sublabel?: string;
   /** 0-100. Omit to hide the progress bar. */
   progress?: number;
+  isLoading?: boolean;
 }
 
 interface HeaderContent {
   title: string;
   subtitle: string;
+  breadcrumbs?: Breadcrumb[];
   badge?: HeaderBadge;
   stat?: HeaderStat;
   action?: ReactNode;
@@ -77,6 +86,7 @@ export function useHeaderContent() {
 }
 
 export interface PageHeaderOptions {
+  breadcrumbs?: Breadcrumb[];
   badge?: HeaderBadge;
   stat?: HeaderStat;
   action?: ReactNode;
@@ -88,18 +98,25 @@ export function usePageHeader(
   options?: PageHeaderOptions,
 ) {
   const { setHeader } = useHeaderContent();
-  const { badge, stat, action } = options ?? {};
+  const { breadcrumbs, badge, stat, action } = options ?? {};
 
   // Icons are stable component references, so they're left out of the
   // dependency string below and only the data fields are compared.
   const badgeKey = badge ? JSON.stringify(badge.label) : "";
   const statKey = stat
-    ? JSON.stringify([stat.label, stat.sublabel, stat.progress])
+    ? JSON.stringify([
+        stat.label,
+        stat.sublabel,
+        stat.progress,
+        stat.isLoading,
+      ])
+    : "";
+  const breadcrumbsKey = breadcrumbs
+    ? JSON.stringify(breadcrumbs)
     : "";
 
   useEffect(() => {
-    setHeader({ title, subtitle, badge, stat, action });
+    setHeader({ title, subtitle, breadcrumbs, badge, stat, action });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, subtitle, setHeader, badgeKey, statKey, action]);
+  }, [title, subtitle, setHeader, badgeKey, statKey, action, breadcrumbsKey]);
 }
-

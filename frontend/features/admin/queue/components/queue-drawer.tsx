@@ -107,7 +107,17 @@ export function QueueDrawer() {
       // Surfaced to the operator through `actionError` below.
       return;
     }
-    dispatch(showAdminFeedback(isKyb ? "KYB decision saved." : "Integrity decision saved."));
+    dispatch(
+      showAdminFeedback(
+        {
+          APPROVED: "KYB submission approved.",
+          REJECTED: "KYB submission rejected.",
+          MORE_INFO_REQUIRED: "More information requested from the employer.",
+          CLEARED: "Integrity signal cleared.",
+          CONFIRMED: "Integrity signal confirmed.",
+        }[decision],
+      ),
+    );
     setNote("");
     closeReview();
   };

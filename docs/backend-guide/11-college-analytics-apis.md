@@ -181,6 +181,24 @@ sees `null` for the score fields, non-`null` for the funnel counts.
 true`, `total_hires: null`, `by_month` still has all 12 months but every
 entry is `{ "month": "...", "hires": null }`, `by_location` is `[]`.
 
+## 4. `GET /college/analytics/applications` — where the cohort's applications stand
+
+Added 2026-09-29, beside the per-student stages in
+[10](10-college-apis.md). **Response** — `200 OK`:
+```json
+{ "min_cohort_size": 10, "below_floor": false, "total_applications": 19,
+  "by_stage": { "SUBMITTED": 12, "VIEWED": 0, "SHORTLISTED": 0, "INTERVIEW": 0,
+                "DECISION": 0, "HIRED": null, "REJECTED": null, "WITHDRAWN": 0, "EXPIRED": 0 },
+  "reached": { "SHORTLISTED": 7, "INTERVIEW": 7, "DECISION": null, "HIRED": null } }
+```
+`by_stage` is where each application is now; `reached` counts applications
+that were *ever* at each milestone, wherever they are now (one rejected after
+an interview still reached one). **Every rule of this doc applies:** nothing
+below the cohort floor (everything `null`), and a small cell is withheld
+with a partner — above, the single hire is `null` and so is `REJECTED`,
+because otherwise the total would give the hire back. The database function
+behind it returns one row per application with nothing saying whose.
+
 ---
 
 ## Quick reference

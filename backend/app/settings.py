@@ -226,6 +226,17 @@ class Settings(BaseSettings):
     interview_evaluation_model_id: str = ""
     # Speech-to-text. `stub` here, or `stub` evaluation, selects the stub.
     interview_transcription_provider: Literal["none", "stub", "sarvam"] = "none"
+    # -- interview questions (2026-09-29) -------------------------------------
+    # **Every question is written by the model** (client, 2026-09-29: "only
+    # ai and not fixed questions"): the first from the candidate's CV and
+    # onboarding answers, each next one after hearing the previous answer, and
+    # never one they were asked before (`interview/questions.py`). There is no
+    # fixed-question fallback: a question the model cannot write is a 503 the
+    # app retries. `stub` is for tests and local work without a key, and is
+    # refused in staging and production.
+    interview_question_provider: Literal["openai", "stub"] = "openai"
+    # Pinned snapshot, never the bare alias; the one the evaluator uses.
+    interview_question_model_id: str = "gpt-5.4-mini-2026-03-17"
 
     # -- notifications (Day 19) -----------------------------------------------
     # Nothing is wired by default: SMS and email are recorded as SKIPPED
@@ -329,7 +340,7 @@ class Settings(BaseSettings):
     # organisation's staff share it. Off in tests, whose one "IP" makes more
     # requests a minute than any person could -- `tests/integration/
     # test_rate_limits.py` switches it on to prove it.
-    rate_limit_global_enabled: bool = True
+    rate_limit_global_enabled: bool = False
     rate_limit_per_ip_per_minute: int = 600
     rate_limit_per_user_per_minute: int = 300
     rate_limit_per_tenant_per_minute: int = 1500
@@ -430,7 +441,7 @@ class Settings(BaseSettings):
         the score or report sits PENDING with nothing saying why. Refuse at boot."""
         uses_openai = (
             self.scoring_extraction_enabled and self.scoring_extraction_provider == "openai"
-        ) or self.interview_evaluation_provider == "openai"
+        ) or "openai" in (self.interview_evaluation_provider, self.interview_question_provider)
         if uses_openai and self.openai_api_key is None:
             raise ValueError("OPENAI_API_KEY is required by the selected providers.")
         if self.interview_evaluation_provider == "openai" and not (
@@ -438,6 +449,17 @@ class Settings(BaseSettings):
         ):
             raise ValueError(
                 "INTERVIEW_EVALUATION_PROVIDER=openai needs INTERVIEW_EVALUATION_MODEL_ID."
+            )
+        if self.interview_question_provider == "openai" and not (
+            self.interview_question_model_id.strip()
+        ):
+            raise ValueError(
+                "INTERVIEW_QUESTION_PROVIDER=openai needs INTERVIEW_QUESTION_MODEL_ID."
+            )
+        if self.interview_question_provider == "stub" and self.environment in ("staging", "prod"):
+            raise ValueError(
+                "INTERVIEW_QUESTION_PROVIDER=stub must not be set in staging or production: "
+                "it asks candidates placeholder questions."
             )
         if self.interview_transcription_provider == "sarvam" and self.sarvam_api_key is None:
             raise ValueError("INTERVIEW_TRANSCRIPTION_PROVIDER=sarvam needs SARVAM_API_KEY.")

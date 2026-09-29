@@ -26,7 +26,7 @@ export function AttributeIntro() {
   const questionnaire = useGetQuestionnaireQuery();
 
   return (
-    <StudentPage width="medium">
+    <StudentPage>
       <div className="flex flex-col gap-5">
         <StudentTopBar
           title="Attribute check"
@@ -89,7 +89,7 @@ function QuestionnaireForm({
 
   const save = async () => {
     try {
-      await saveAnswers(cleanedAnswers).unwrap();
+      await saveAnswers({ answers: cleanedAnswers }).unwrap();
     } catch {
       // Mutation state renders the error.
     }
@@ -97,7 +97,10 @@ function QuestionnaireForm({
 
   const finish = async () => {
     try {
-      await saveAnswers(cleanedAnswers).unwrap();
+      await saveAnswers({
+        answers: cleanedAnswers,
+        __suppressSuccessFeedback: true,
+      }).unwrap();
       await submit().unwrap();
     } catch {
       // Mutation state renders the error.
@@ -286,10 +289,10 @@ function Choice({
       type="button"
       onClick={onClick}
       className={[
-        "rounded-full border px-3 py-2 text-[13px] font-medium",
+        "cursor-pointer rounded-full border px-3 py-2 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30",
         selected
-          ? "border-[#5F4DB2] bg-[#F1EAF7] text-[#4A3E8F]"
-          : "border-[#E7E0D4] bg-white text-[#3A4761]",
+          ? "border-[#5F4DB2] bg-[#F1EAF7] text-[#4A3E8F] hover:bg-[#E8DEF3]"
+          : "border-[#E7E0D4] bg-white text-[#3A4761] hover:border-[#C9BEEB] hover:bg-[#F7F4EC] hover:text-[#0A1931]",
       ].join(" ")}
     >
       {children}

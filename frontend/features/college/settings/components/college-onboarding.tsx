@@ -3,6 +3,7 @@
 import { CheckCircle2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Dropdown } from "@/components/ui/dropdown";
 import { ErrorState } from "@/components/ui";
 import { FormSkeleton } from "@/components/common/loading";
 import type {
@@ -121,8 +122,12 @@ function Field({
     );
   }
 
+  // A dropdown is a button with its own menu; a <label> around it would
+  // forward label clicks to the trigger, so the select row uses a <div>.
+  const Wrapper = field.type === "SELECT" ? "div" : "label";
+
   return (
-    <label className="flex flex-col gap-2">
+    <Wrapper className="flex flex-col gap-2">
       <span className="text-[13px] font-semibold leading-[17px] text-[#131A26]">
         {field.label}
         {field.required && <span className="text-[#e02424]"> *</span>}
@@ -139,20 +144,26 @@ function Field({
           className={`${controlClass} resize-y`}
         />
       ) : field.type === "SELECT" ? (
-        <select
+        <Dropdown
           value={stringValue}
+          options={[
+            { value: "", label: "Select…" },
+            ...options.map((option) => ({
+              value: option.code,
+              label: option.label,
+            })),
+          ]}
+          onChange={(next) => onChange(next)}
           disabled={disabled}
-          aria-label={field.label}
-          onChange={(event) => onChange(event.target.value)}
-          className={controlClass}
-        >
-          <option value="">Select…</option>
-          {options.map((option) => (
-            <option key={option.code} value={option.code}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+          ariaLabel={field.label}
+          placeholder="Select…"
+          width="w-full"
+          buttonClassName={`h-[46px] rounded-[10px] px-4 text-[14px] font-medium leading-5 text-[#131A26] ${
+            error
+              ? "border-[#e02424] focus:border-[#e02424] focus:ring-[#e02424]/10"
+              : "border-[#e1e5eb] focus:border-[#3566b8] focus:ring-[#3566b8]/10"
+          }`}
+        />
       ) : (
         <input
           type={htmlInputType(field.type)}
@@ -175,7 +186,7 @@ function Field({
           {describeIssue(error)}
         </span>
       )}
-    </label>
+    </Wrapper>
   );
 }
 

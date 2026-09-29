@@ -274,6 +274,8 @@ def _create_employer_tables() -> None:
         "jobs",
         "applications",
         "application_events",
+        # 2026-09-29, also created by 0005 on a database built before it.
+        "application_messages",
         "candidate_view_events",
     )
 
@@ -293,10 +295,15 @@ def _create_billing_tables() -> None:
         "courses",
         "course_purchases",
         "course_completions",
+        # 2026-09-29, also created by 0005 on a database built before it.
+        "course_modules",
+        "course_lessons",
+        "course_lesson_progress",
         "interview_products",
         "interview_checkout_notices",
         "interview_purchases",
         "interview_sessions",
+        "interview_session_questions",
         "interview_answers",
         "interview_transcripts",
         "interview_evaluations",
@@ -312,6 +319,8 @@ def _create_platform_tables() -> None:
         "notification_preferences",
         "notification_suppressions",
         "profile_nudges",
+        # 2026-09-24: the skills and cities the search filter panel offers.
+        "search_filter_options",
     )
 
 
@@ -451,6 +460,10 @@ def _apply_append_only_grants() -> None:
     # it; a write from the application would be a card the score does not
     # support. Not even INSERT, unlike the tables above.
     op.execute(f"REVOKE INSERT, UPDATE, DELETE ON candidate_search_documents FROM {APP_ROLE}")
+
+    # Search filter options (2026-09-24) are switched off, never deleted, so
+    # a saved search naming one still reads as plain text.
+    op.execute(f"REVOKE DELETE ON search_filter_options FROM {APP_ROLE}")
 
 
 # ---------------------------------------------------------------------------
@@ -1170,13 +1183,13 @@ def _create_payment_guards() -> None:
 def _create_discount_guards() -> None:
     """A discount is spent only by the payment that carried it (2026-09-18).
 
-      * **`guard_discount_redemption`** -- a redemption needs this code's
-        SUCCEEDED, verified payment, by the same payer, for the same
-        subscriber and the same amounts. The shape of `guard_course_purchase`:
-        a row that says a code was used is written only by money that moved.
-      * **`guard_discount_code_write`** -- a code's terms never change after
-        it exists, and switching it off is a latch. The column grants already
-        stop the app role; this stops every writer, the migrator included.
+    * **`guard_discount_redemption`** -- a redemption needs this code's
+      SUCCEEDED, verified payment, by the same payer, for the same
+      subscriber and the same amounts. The shape of `guard_course_purchase`:
+      a row that says a code was used is written only by money that moved.
+    * **`guard_discount_code_write`** -- a code's terms never change after
+      it exists, and switching it off is a latch. The column grants already
+      stop the app role; this stops every writer, the migrator included.
     """
     op.execute(
         """
@@ -2227,8 +2240,10 @@ def _create_college_student_reads() -> None:
             FROM individually_visible v
             LEFT JOIN candidate_profiles p ON p.user_id = v.candidate_id
             {_LATEST_SCORE}
-           WHERE p_after_since IS NULL
-              OR (v.visible_since, v.candidate_id) > (p_after_since, p_after_id)
+           WHERE (
+                  p_after_since IS NULL
+                  OR (v.visible_since, v.candidate_id) > (p_after_since, p_after_id)
+                 )
            ORDER BY v.visible_since, v.candidate_id
            LIMIT LEAST(GREATEST(p_limit, 1), 101)
         $$;

@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
 import {
   selectIsJobSaved,
   toggleSavedJob,
@@ -33,6 +34,7 @@ import {
   StatusChip,
   StudentCard,
 } from "@/features/student/components";
+import { StudentJobDetailSkeleton } from "@/features/student/loading";
 import { StudentPage, StudentTopBar } from "@/features/student/shell";
 
 export function JobDetail() {
@@ -50,18 +52,12 @@ export function JobDetail() {
   );
 
   if (job.isLoading) {
-    return (
-      <StudentPage width="narrow">
-        <div className="rounded-2xl border border-[#E7E0D4] bg-white p-5 text-sm text-[#5F6B80]">
-          Loading job…
-        </div>
-      </StudentPage>
-    );
+    return <StudentJobDetailSkeleton />;
   }
 
   if (!job.data || job.error) {
     return (
-      <StudentPage width="narrow">
+      <StudentPage>
         <EmptyState
           title="Job unavailable"
           message={getApiErrorMessage(
@@ -92,14 +88,21 @@ export function JobDetail() {
   };
 
   return (
-    <StudentPage width="medium">
+    <StudentPage>
       <StudentTopBar
         title={listing.title}
         right={
           <div className="flex items-center gap-2">
             <IconCircleButton
               aria-label={saved ? "Remove saved job" : "Save job"}
-              onClick={() => dispatch(toggleSavedJob(listing.id))}
+              onClick={() => {
+                dispatch(toggleSavedJob(listing.id));
+                showSuccessFeedback(
+                  saved
+                    ? "Job removed from saved jobs."
+                    : "Job saved successfully.",
+                );
+              }}
             >
               <Bookmark
                 size={16}

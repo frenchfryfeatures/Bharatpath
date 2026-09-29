@@ -47,7 +47,7 @@ export function Billing() {
     isCheckingOut,
     cancelSubscription,
     isCancelling,
-  } = useSettings();
+  } = useSettings("billing");
 
   const collegePlans = plans.filter((plan) => plan.audience === "COLLEGE");
 
@@ -60,7 +60,7 @@ export function Billing() {
 
   return (
     <div
-      className="flex w-full flex-col gap-4 px-4 pb-10"
+      className="flex w-full flex-col gap-4 px-4"
       style={{
         fontFamily: "'General Sans', sans-serif",
       }}

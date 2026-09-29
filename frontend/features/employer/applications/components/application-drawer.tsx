@@ -4,12 +4,7 @@ import { X } from "lucide-react";
 
 import type { EmployerApplication, ApplicationStage } from "../types";
 import { getScoreBand } from "../band";
-import {
-  APPLICATION_STAGES,
-  CANDIDATE_SKILL_PROFILES,
-  JOB_SKILL_PROFILES,
-} from "../drawer-data";
-import { SkillMatchSection } from "./drawer-skill-match";
+import { APPLICATION_STAGES } from "../drawer-data";
 import { StageProgress, StageMoveControls } from "./drawer-stage-controls";
 import { InterviewField } from "./drawer-interview-field";
 import { HirePanel } from "./drawer-hire-panel";
@@ -33,47 +28,25 @@ export function ApplicationDrawer({
     return null;
   }
 
-  /*
-   * Resolve the full candidate/job records from the IDs stored inside
-   * EmployerApplication, falling back to the application's own summary.
-   */
-  const candidate =
-    CANDIDATE_SKILL_PROFILES.find(
-      (item) => item.id === application.candidate.id,
-    ) ?? {
-      id: application.candidate.id,
-      name: application.candidate.name,
-      skills: [],
-      unlocked: application.candidate.unlocked,
-    };
-
-  const job =
-    JOB_SKILL_PROFILES.find((item) => item.id === application.jobId) ?? {
-      id: application.jobId,
-      title: application.candidate.jobTitle,
-      skills: [],
-    };
-
+  const candidate = application.candidate;
   const band = getScoreBand(application.candidate.exactScore);
-
-  const matchedSkills = candidate.skills.filter((skill) =>
-    job.skills.includes(skill),
-  );
-
-  const otherCandidateSkills = candidate.skills.filter(
-    (skill) => !matchedSkills.includes(skill),
-  );
-
-  const missingSkills = job.skills.filter(
-    (skill) => !candidate.skills.includes(skill),
-  );
 
   const currentStage = Number(application.stage);
   const currentStageLabel =
-    APPLICATION_STAGES[currentStage]?.label ?? "Submitted";
+    application.outcome === "hired"
+      ? "Hired"
+      : application.outcome === "rejected"
+        ? "Rejected"
+        : application.outcome === "withdrawn"
+          ? "Withdrawn"
+          : application.outcome === "expired"
+            ? "Expired"
+            : APPLICATION_STAGES[currentStage]?.label ?? "Submitted";
 
   const canConfirmHire =
-    currentStage === 4 && !application.hireEmployerConfirmed;
+    currentStage === 4 &&
+    application.outcome === null &&
+    !application.hireEmployerConfirmed;
 
   return (
     <div className="fixed inset-0 z-50">
@@ -95,7 +68,7 @@ export function ApplicationDrawer({
             </span>
 
             <span className="truncate text-[12px] font-normal leading-[17px] text-[#777f90]">
-              Applied to {job.title} · {application.appliedDate}
+              Applied to {application.candidate.jobTitle} · {application.appliedDate}
             </span>
           </div>
 
@@ -120,18 +93,14 @@ export function ApplicationDrawer({
                 color: band.color,
               }}
             >
-              {band.label} · {application.candidate.exactScore}
+              {application.candidate.exactScore === null
+                ? band.label
+                : `${band.label} · ${application.candidate.exactScore}`}
             </span>
 
             <StageProgress
               currentStage={currentStage}
               currentStageLabel={currentStageLabel}
-            />
-
-            <SkillMatchSection
-              matchedSkills={matchedSkills}
-              otherCandidateSkills={otherCandidateSkills}
-              missingSkills={missingSkills}
             />
 
             <StageMoveControls

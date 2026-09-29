@@ -320,7 +320,7 @@ export interface CursorPaginationProps {
   isLoading?: boolean;
   onPreviousPage: () => void;
   onNextPage: () => void;
-  onPageSizeChange: (pageSize: number) => void;
+  onPageSizeChange?: (pageSize: number) => void;
   itemLabel?: string;
   className?: string;
 }
@@ -347,18 +347,20 @@ export function CursorPagination({
       </span>
 
       <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2 whitespace-nowrap text-[13px] text-[#777f90]">
-          <span>Rows per page</span>
-          <AppSelect
-            value={String(pageSize)}
-            onChange={(value) => onPageSizeChange(Number(value))}
-            options={PAGE_SIZE_SELECT_OPTIONS}
-            ariaLabel="Rows per page"
-            className="w-18.5 [&>button]:h-8 [&>button]:px-2"
-            menuClassName="!min-w-18.5"
-            menuPlacement="top"
-          />
-        </div>
+        {onPageSizeChange && (
+          <div className="flex items-center gap-2 whitespace-nowrap text-[13px] text-[#777f90]">
+            <span>Rows per page</span>
+            <AppSelect
+              value={String(pageSize)}
+              onChange={(value) => onPageSizeChange(Number(value))}
+              options={PAGE_SIZE_SELECT_OPTIONS}
+              ariaLabel="Rows per page"
+              className="w-18.5 [&>button]:h-8 [&>button]:px-2"
+              menuClassName="!min-w-18.5"
+              menuPlacement="top"
+            />
+          </div>
+        )}
 
         <div className="flex items-center gap-1.5">
           <button
@@ -413,6 +415,15 @@ export interface DataTableProps<T> {
   currentPage?: number;
   onPageChange?: (page: number) => void;
   onPageSizeChange?: (pageSize: number) => void;
+  /**
+   * Pagination style. "offset" (default) paginates the given `data` by page
+   * number. "cursor" shows exactly the rows passed in and drives the
+   * Previous/Next controls from `hasNextPage`/`onNextPage`/`onPreviousPage`.
+   */
+  paginationMode?: "offset" | "cursor";
+  hasNextPage?: boolean;
+  onNextPage?: () => void;
+  onPreviousPage?: () => void;
   emptyTitle?: string;
   emptySubtitle?: string;
   isLoading?: boolean;
@@ -432,6 +443,10 @@ export function DataTable<T>({
   currentPage = 1,
   onPageChange,
   onPageSizeChange,
+  paginationMode = "offset",
+  hasNextPage,
+  onNextPage,
+  onPreviousPage,
   emptyTitle,
   emptySubtitle,
   isLoading = false,
@@ -464,9 +479,10 @@ export function DataTable<T>({
   }
 
   const startIndex = (page - 1) * effectivePageSize;
-  const rowsToDisplay = onPageChange
-    ? data
-    : data.slice(startIndex, startIndex + effectivePageSize);
+  const rowsToDisplay =
+    paginationMode === "cursor" || onPageChange
+      ? data
+      : data.slice(startIndex, startIndex + effectivePageSize);
 
   const skeletonRowCount = skeletonRows ?? Math.min(effectivePageSize, 6);
 
@@ -474,7 +490,7 @@ export function DataTable<T>({
     col.id ?? (col.accessorKey ? String(col.accessorKey) : `col-${fallback}`);
 
   let bodyContent: ReactNode;
-  if (isLoading && rowsToDisplay.length === 0) {
+  if (isLoading) {
     bodyContent = Array.from({ length: skeletonRowCount }).map((_, rowIdx) => (
       <TableRow key={`skeleton-row-${rowIdx}`}>
         {columns.map((col, colIdx) => (
@@ -523,14 +539,30 @@ export function DataTable<T>({
       className={className}
       header={header}
       footer={
-        <TablePagination
-          currentPage={page}
-          totalCount={total}
-          pageSize={effectivePageSize}
-          onPageChange={setPage}
-          onPageSizeChange={handlePageSizeChange}
-          itemLabel={itemLabel}
-        />
+        paginationMode === "cursor" ? (
+          <CursorPagination
+            currentPage={currentPage}
+            itemCount={data.length}
+            pageSize={effectivePageSize}
+            hasNextPage={Boolean(hasNextPage)}
+            isLoading={isLoading}
+            onPreviousPage={onPreviousPage ?? (() => {})}
+            onNextPage={onNextPage ?? (() => {})}
+            onPageSizeChange={
+              onPageSizeChange ? handlePageSizeChange : undefined
+            }
+            itemLabel={itemLabel}
+          />
+        ) : (
+          <TablePagination
+            currentPage={page}
+            totalCount={total}
+            pageSize={effectivePageSize}
+            onPageChange={setPage}
+            onPageSizeChange={handlePageSizeChange}
+            itemLabel={itemLabel}
+          />
+        )
       }
     >
       <Table>

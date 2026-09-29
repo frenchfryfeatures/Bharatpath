@@ -16,6 +16,9 @@ Two surfaces, one module:
     viewers read. Another organisation's application is a 404. The employer
     subscription gate lands on these with the other employer routes on
     Day 15, when a subscription can be bought.
+  * **`/employer/dashboard`** -- the same pipeline, counted, for the portal's
+    landing page, and its recent activity across every job. Every role that
+    reads the pipeline reads this; payment gates it like the pipeline.
 """
 
 from __future__ import annotations
@@ -23,7 +26,7 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 
 from app.core.deps import (
     CANDIDATE,
@@ -32,26 +35,37 @@ from app.core.deps import (
     EMPLOYER_VIEWER,
     CurrentUser,
     DbSession,
+    get_request_id,
     require_active_subscription,
     require_role,
 )
 from app.core.pagination import MAX_PAGE_SIZE, Page
 from app.modules.applications import service
+from app.modules.applications.domain import DEFAULT_TOP_JOBS, MAX_TOP_JOBS
 from app.modules.applications.schemas import (
+    ActivityItem,
+    Actor,
     ApplicationDetailResponse,
     ApplicationResponse,
     ApplicationStage,
     ApplyRequest,
+    CandidateMessageResponse,
     EmployerApplicationDetail,
-    EmployerApplicationSummary,
+    EmployerApplicationListItem,
+    EmployerDashboard,
+    EmployerMessageResponse,
     MoveStageRequest,
     ScheduleInterviewRequest,
+    SendMessageRequest,
 )
 
 router = APIRouter()
 
 #: The employer's pipeline, mounted at `/employer/applications` (see `__init__.py`).
 employer_router = APIRouter()
+
+#: The pipeline counted, mounted at `/employer/dashboard`.
+dashboard_router = APIRouter()
 
 CandidateOnly = Depends(require_role(CANDIDATE))
 # The role guard first, so an employer is told 403 rather than asked to pay.
@@ -161,19 +175,26 @@ async def dispute_hire(
 # ---------------------------------------------------------------------------
 @employer_router.get(
     "",
-    response_model=Page[EmployerApplicationSummary],
+    response_model=Page[EmployerApplicationListItem],
     dependencies=[Readers, PayingEmployer],
-    summary="A job's applications, oldest first",
+    summary="The organisation's applications, oldest first, for one job or all of them",
 )
-async def list_for_job(
+async def list_applications(
     user: CurrentUser,
     session: DbSession,
-    job_id: Annotated[uuid.UUID, Query()],
+    job_id: Annotated[uuid.UUID | None, Query()] = None,
     stage: Annotated[ApplicationStage | None, Query()] = None,
     cursor: Annotated[str | None, Query(max_length=512)] = None,
     limit: Annotated[int | None, Query(ge=1, le=MAX_PAGE_SIZE)] = None,
-) -> Page[EmployerApplicationSummary]:
-    return await service.list_for_job(
+) -> Page[EmployerApplicationListItem]:
+    """Leave out `job_id` for every job's applications in one list -- the
+    pipeline board fills from this one request. Each row carries `job_title`
+    and `job_location`. Another organisation's `job_id` is `job_not_found`.
+
+    Read-only: listing never records VIEWED. Opening one application
+    (`GET /employer/applications/{id}`) does, so never open each row to draw
+    a list."""
+    return await service.list_for_employer(
         session, ctx=user, job_id=job_id, stage=stage, cursor=cursor, limit=limit
     )
 
@@ -231,6 +252,51 @@ async def schedule_interview(
 
 
 @employer_router.post(
+    "/{application_id}/messages",
+    response_model=EmployerMessageResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Movers, PayingEmployer],
+    summary="Message the applicant: an interview or assessment invitation, or a note",
+)
+async def send_message(
+    application_id: uuid.UUID,
+    payload: SendMessageRequest,
+    request: Request,
+    user: CurrentUser,
+    session: DbSession,
+) -> EmployerMessageResponse:
+    """Sent to the candidate by email and in the app; the employer never sees
+    their address. 422 `message_invalid` with the reason as `code` (a time in
+    the past, a link that is not https, a missing time or link); 409
+    `message_not_allowed_at_stage` for a closed application; 429
+    `message_limit_reached` after ten to one application in a day."""
+    row = await service.send_message(
+        session,
+        ctx=user,
+        application_id=application_id,
+        kind=payload.kind,
+        body=payload.body,
+        scheduled_at=payload.scheduled_at,
+        link=payload.link,
+        request_id=get_request_id(request),
+    )
+    return EmployerMessageResponse.model_validate(row)
+
+
+@employer_router.get(
+    "/{application_id}/messages",
+    response_model=list[EmployerMessageResponse],
+    dependencies=[Readers, PayingEmployer],
+    summary="Messages sent to this applicant, oldest first",
+)
+async def list_messages(
+    application_id: uuid.UUID, user: CurrentUser, session: DbSession
+) -> list[EmployerMessageResponse]:
+    rows = await service.messages_for_employer(session, ctx=user, application_id=application_id)
+    return [EmployerMessageResponse.model_validate(r) for r in rows]
+
+
+@employer_router.post(
     "/{application_id}/hire",
     response_model=EmployerApplicationDetail,
     dependencies=[Movers, PayingEmployer],
@@ -241,3 +307,71 @@ async def propose_hire(
 ) -> EmployerApplicationDetail:
     """At DECISION only (409 `hire_not_allowed`). Idempotent."""
     return await service.propose_hire(session, ctx=user, application_id=application_id)
+
+
+# ---------------------------------------------------------------------------
+# The employer dashboard
+# ---------------------------------------------------------------------------
+@dashboard_router.get(
+    "",
+    response_model=EmployerDashboard,
+    dependencies=[Readers, PayingEmployer],
+    summary="The organisation's jobs and pipeline, counted, for the portal's landing page",
+)
+async def employer_dashboard(
+    user: CurrentUser,
+    session: DbSession,
+    top_jobs: Annotated[
+        int,
+        Query(ge=1, le=MAX_TOP_JOBS, description="How many of the busiest jobs to return"),
+    ] = DEFAULT_TOP_JOBS,
+) -> EmployerDashboard:
+    """Live counts, one request. "Recent" is the last seven days throughout;
+    days in `applications_per_day` are IST."""
+    return await service.dashboard(session, ctx=user, top_jobs=top_jobs)
+
+
+@dashboard_router.get(
+    "/activity",
+    response_model=Page[ActivityItem],
+    dependencies=[Readers, PayingEmployer],
+    summary="Recent pipeline activity across every job, newest first",
+)
+async def recent_activity(
+    user: CurrentUser,
+    session: DbSession,
+    actor: Annotated[
+        Actor | None,
+        Query(description="Only what candidates, the team, or the system did"),
+    ] = None,
+    cursor: Annotated[str | None, Query(max_length=512)] = None,
+    limit: Annotated[int | None, Query(ge=1, le=MAX_PAGE_SIZE)] = None,
+) -> Page[ActivityItem]:
+    return await service.activity(session, ctx=user, actor=actor, cursor=cursor, limit=limit)
+
+
+@router.get(
+    "/{application_id}/messages",
+    response_model=list[CandidateMessageResponse],
+    dependencies=[CandidateOnly],
+    summary="Messages the employer sent about this application, oldest first",
+)
+async def my_messages(
+    application_id: uuid.UUID, user: CurrentUser, session: DbSession
+) -> list[CandidateMessageResponse]:
+    """Not paywalled, like the application itself."""
+    employer, rows = await service.messages_for_candidate(
+        session, ctx=user, application_id=application_id
+    )
+    return [
+        CandidateMessageResponse(
+            id=r.id,
+            kind=r.kind,
+            body=r.body,
+            scheduled_at=r.scheduled_at,
+            link=r.link,
+            employer_name=employer,
+            created_at=r.created_at,
+        )
+        for r in rows
+    ]

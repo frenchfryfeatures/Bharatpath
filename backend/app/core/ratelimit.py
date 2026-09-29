@@ -95,6 +95,17 @@ STATIC_POLICIES: Final[Mapping[str, Policy]] = {
     # types a code a handful of times. Looser than OTP and the threshold
     # preview, which must stay the tightest.
     "billing.discount_code": Policy("billing:discount_code", Scope.USER, 40, 3600),
+    # The search filter panel and its typeahead (2026-09-24). A cost control,
+    # not a leak control: the catalogue is the same for every employer and
+    # holds nobody. Per person, per minute, generous enough for typing with a
+    # debounce -- and kept off `discovery:search`, so filling in the panel
+    # never spends the organisation's search pages.
+    "discovery.filters": Policy("discovery:filters", Scope.USER, 120, 60),
+    # An employer writing to applicants (2026-09-29). Per organisation, and a
+    # spam control rather than a leak control: each message is an email in a
+    # candidate's inbox. One candidate is protected separately, by a daily
+    # cap per application (`applications.domain`).
+    "applications.message": Policy("applications:message", Scope.TENANT, 300, 3600),
 }
 
 

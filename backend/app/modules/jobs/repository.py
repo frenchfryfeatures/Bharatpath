@@ -28,7 +28,7 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.applications.domain import STAGES
-from app.modules.jobs.models import Job
+from app.modules.jobs.models import JOB_STATES, Job
 
 #: The fields an edit may change. `status`, `published_at` and `closed_at` are
 #: absent: they move only through `set_status`, the one path the lifecycle
@@ -63,15 +63,38 @@ async def get_job(session: AsyncSession, *, tenant_id: uuid.UUID, job_id: uuid.U
     return result.scalar_one_or_none()
 
 
-async def list_jobs(
-    session: AsyncSession, *, tenant_id: uuid.UUID, status: str | None, limit: int
-) -> list[Job]:
-    query = select(Job).where(Job.tenant_id == tenant_id)
+def _employer_job_filters(
+    *, tenant_id: uuid.UUID, status: str | None, query: str | None
+) -> list[Any]:
+    filters: list[Any] = [Job.tenant_id == tenant_id]
     if status is not None:
-        query = query.where(Job.status == status)
-    result = await session.execute(
-        query.order_by(Job.created_at.desc(), Job.id.desc()).limit(limit)
+        filters.append(Job.status == status)
+    if query:
+        pattern = _contains(query)
+        filters.append(
+            or_(
+                Job.title.ilike(pattern, escape="\\"),
+                Job.location.ilike(pattern, escape="\\"),
+            )
+        )
+    return filters
+
+
+async def list_jobs(
+    session: AsyncSession,
+    *,
+    tenant_id: uuid.UUID,
+    status: str | None,
+    query: str | None,
+    after: tuple[datetime, uuid.UUID] | None,
+    limit: int,
+) -> list[Job]:
+    stmt = select(Job).where(
+        *_employer_job_filters(tenant_id=tenant_id, status=status, query=query)
     )
+    if after is not None:
+        stmt = stmt.where(tuple_(Job.created_at, Job.id) < after)
+    result = await session.execute(stmt.order_by(Job.created_at.desc(), Job.id.desc()).limit(limit))
     return list(result.scalars().all())
 
 
@@ -121,6 +144,48 @@ async def stage_counts(
     for job_id, stage, at_stage in rows:
         counts[job_id][stage] = at_stage
     return counts
+
+
+# ---------------------------------------------------------------------------
+# The employer dashboard
+# ---------------------------------------------------------------------------
+async def status_counts(session: AsyncSession, *, tenant_id: uuid.UUID) -> dict[str, int]:
+    """How many of the organisation's jobs are in each state, every state present."""
+    counts = dict.fromkeys(JOB_STATES, 0)
+    rows = await session.execute(
+        select(Job.status, func.count()).where(Job.tenant_id == tenant_id).group_by(Job.status)
+    )
+    for state, in_state in rows:
+        counts[state] = in_state
+    return counts
+
+
+async def titles(
+    session: AsyncSession, *, tenant_id: uuid.UUID, job_ids: Sequence[uuid.UUID]
+) -> dict[uuid.UUID, tuple[str, str]]:
+    """`job id -> (title, status)` for this organisation's jobs among `job_ids`."""
+    if not job_ids:
+        return {}
+    rows = await session.execute(
+        select(Job.id, Job.title, Job.status).where(
+            Job.tenant_id == tenant_id, Job.id.in_(list(job_ids))
+        )
+    )
+    return {job_id: (title, state) for job_id, title, state in rows}
+
+
+async def labels(
+    session: AsyncSession, *, tenant_id: uuid.UUID, job_ids: Sequence[uuid.UUID]
+) -> dict[uuid.UUID, tuple[str, str | None]]:
+    """`job id -> (title, location)` for this organisation's jobs among `job_ids`."""
+    if not job_ids:
+        return {}
+    rows = await session.execute(
+        select(Job.id, Job.title, Job.location).where(
+            Job.tenant_id == tenant_id, Job.id.in_(list(job_ids))
+        )
+    )
+    return {job_id: (title, location) for job_id, title, location in rows}
 
 
 async def apply_changes(session: AsyncSession, *, job: Job, changes: dict[str, Any]) -> Job:

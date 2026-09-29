@@ -12,14 +12,20 @@ where an invariant is enforced structurally.
   same number the candidate sees (invariant 2), and no field whose name
   contains "raw" (`test_no_employer_response_has_a_field_for_the_raw_score`
   walks `/admin` too);
-* **a whole phone number or email** -- `phone_masked`, `email_masked`;
-* **a CV** -- a drill-down counts resume versions and never reads one;
+* **a whole phone number or email** in a list or the drill-down --
+  `phone_masked`, `email_masked`. The full contact is on the candidate's
+  onboarding page only (2026-09-29), opened one person at a time and audited;
+* **a CV** in the drill-down, which counts resume versions. The client asked
+  for the CV itself on 2026-09-29: it is its own endpoint, its own capability
+  (`candidate_resume`) and its own audit row, and so are interview recordings
+  (`candidate_recordings`);
 * **the provider subject** -- no schema here has a field for it.
 """
 
 from __future__ import annotations
 
 import uuid
+from datetime import date as date_
 from datetime import datetime
 from typing import Any, Literal
 
@@ -137,6 +143,30 @@ class SeatAllocationResponse(_Base):
     used: int
     #: Linked students seated by this change, longest-linked first.
     filled: int
+
+
+# ---------------------------------------------------------------------------
+# Candidates -- the list is how staff find someone to drill into. Audited,
+# because unlike an organisation list every row names a person.
+# ---------------------------------------------------------------------------
+class CandidateRow(_Base):
+    """Enough to tell two people apart and pick one. The score, the CV and
+    everything else the drill-down counts stay behind the drill-down, which
+    audits the one person opened."""
+
+    id: uuid.UUID
+    status: str
+    full_name: str | None
+    city: str | None
+    state_code: str | None
+    phone_masked: str | None
+    email_masked: str | None
+    created_at: datetime
+
+
+class CandidatesPage(_Base):
+    items: list[CandidateRow]
+    next_cursor: str | None
 
 
 # ---------------------------------------------------------------------------
@@ -477,3 +507,371 @@ class DiscountRedemptionRow(_Base):
 class DiscountRedemptionsPage(_Base):
     items: list[DiscountRedemptionRow]
     next_cursor: str | None
+
+
+# ---------------------------------------------------------------------------
+# The dashboard
+# ---------------------------------------------------------------------------
+# A queue section is null for a role that cannot open that queue; see
+# `domain.dashboard_sections`. Nothing below names a person: candidates are
+# ids, as in the integrity queue, and organisations are named as in the KYB
+# queue and the tenants list.
+Severity = Literal["HIGH", "MEDIUM", "LOW"]
+
+
+class KybBacklog(_Base):
+    #: R15's switch. While false every submission is approved on arrival and
+    #: nothing waits here.
+    review_required: bool
+    awaiting_review: int = Field(description="SUBMITTED or UNDER_REVIEW: waiting on a reviewer.")
+    awaiting_employer: int = Field(description="MORE_INFO_REQUIRED: waiting on the employer.")
+    oldest_waiting_since: datetime | None
+
+
+class IntegrityBacklog(_Base):
+    open: int
+    open_by_severity: dict[Severity, int]
+    candidates_held_back: int = Field(
+        description=(
+            "People with an OPEN HIGH signal: already out of employer search, "
+            "waiting on a reviewer to clear or confirm."
+        )
+    )
+    oldest_waiting_since: datetime | None
+
+
+class DisputeBacklog(_Base):
+    open: int
+    in_review: int
+    unassigned: int = Field(description="OPEN or IN_REVIEW with nobody assigned.")
+    by_kind: dict[DisputeKind, int]
+    oldest_waiting_since: datetime | None
+
+
+class OrganisationStatusCounts(_Base):
+    active: int
+    suspended: int
+    closed: int
+
+
+class OrganisationCounts(_Base):
+    employers: OrganisationStatusCounts
+    colleges: OrganisationStatusCounts
+
+
+class PlatformTotals(_Base):
+    candidates: int = Field(description="Active candidate accounts.")
+    employers: int = Field(description="Active employer organisations.")
+    colleges: int = Field(description="Active college organisations.")
+    jobs_published: int
+    applications: int
+    hires: int = Field(description="Confirmed by both sides.")
+
+
+class WaitingItem(_Base):
+    """One item in a queue, oldest first across the queues the caller sees.
+
+    `detail` is the KYB state, the integrity rule, or the dispute kind.
+    """
+
+    type: Literal["KYB", "INTEGRITY", "DISPUTE"]
+    id: uuid.UUID
+    waiting_since: datetime
+    detail: str
+    organisation: str | None = None
+    tenant_id: uuid.UUID | None = None
+    candidate_id: uuid.UUID | None = None
+    severity: Severity | None = None
+    party: Literal["CANDIDATE", "EMPLOYER", "COLLEGE"] | None = None
+
+
+class ThroughputDay(_Base):
+    #: A calendar day in India (IST).
+    date: date_
+    intake: int
+    cleared: int
+
+
+class AdminDashboard(_Base):
+    generated_at: datetime
+    kyb: KybBacklog | None
+    integrity: IntegrityBacklog | None
+    disputes: DisputeBacklog | None
+    organisations: OrganisationCounts | None
+    platform_totals: PlatformTotals
+    oldest_waiting: list[WaitingItem]
+    #: Fourteen IST days ending today, oldest first, over the queues shown.
+    throughput: list[ThroughputDay]
+
+
+# ---------------------------------------------------------------------------
+# Search filter options (2026-09-24)
+# ---------------------------------------------------------------------------
+FilterKind = Literal["SKILL", "CITY"]
+
+
+class CreateSearchFilterOptionRequest(_Base):
+    """A skill or a city employers can pick. A city needs `state_code`; a
+    skill has none. Aliases are other spellings that choosing it also
+    searches -- "Bangalore" for Bengaluru, "Excel" for MS Excel."""
+
+    kind: FilterKind
+    label: str = Field(min_length=1, max_length=100)
+    aliases: list[str] = Field(default_factory=list, max_length=10)
+    state_code: str | None = Field(default=None, min_length=2, max_length=2)
+    featured: bool = Field(default=False, description="Shown on the panel before typing.")
+    sort_order: int = Field(default=0, ge=0, le=10_000, description="Lower is shown first.")
+
+
+class ImportSearchFilterOptionsRequest(_Base):
+    """All or none: one bad item refuses the lot, naming its index."""
+
+    items: list[CreateSearchFilterOptionRequest] = Field(min_length=1, max_length=500)
+
+
+class UpdateSearchFilterOptionRequest(_Base):
+    """Only the fields sent change. `aliases` replaces the whole list.
+    `active: false` hides an option; options are never deleted."""
+
+    label: str | None = Field(default=None, min_length=1, max_length=100)
+    aliases: list[str] | None = Field(default=None, max_length=10)
+    state_code: str | None = Field(default=None, min_length=2, max_length=2)
+    featured: bool | None = None
+    sort_order: int | None = Field(default=None, ge=0, le=10_000)
+    active: bool | None = None
+
+
+class SearchFilterOptionResponse(_Base):
+    id: uuid.UUID
+    kind: FilterKind
+    label: str
+    key: str
+    aliases: list[str]
+    state_code: str | None
+    featured: bool
+    sort_order: int
+    active: bool
+    created_by: uuid.UUID | None
+    updated_by: uuid.UUID | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class SearchFilterOptionsPage(_Base):
+    items: list[SearchFilterOptionResponse]
+    next_cursor: str | None
+    #: `placeholder-...` while the starter lists are ours, not the client's.
+    catalogue_version: str
+
+
+class ImportSearchFilterOptionsResponse(_Base):
+    items: list[SearchFilterOptionResponse]
+
+
+# ---------------------------------------------------------------------------
+# The full candidate page (2026-09-29)
+# ---------------------------------------------------------------------------
+class OnboardingAnswer(_Base):
+    code: str
+    question: str
+    answer: str
+
+
+class CandidateOnboarding(_Base):
+    """Everything the candidate told us at sign-up and on their profile."""
+
+    id: uuid.UUID
+    status: str
+    locale: str
+    created_at: datetime
+    full_name: str | None
+    email: str | None
+    phone: str | None
+    city: str | None
+    state_code: str | None
+    questionnaire_submitted_at: datetime | None
+    questionnaire: list[OnboardingAnswer]
+    college_links: list[CollegeLinkSummary]
+
+
+class ResumeVersionView(_Base):
+    id: uuid.UUID
+    source: str
+    created_at: datetime
+    confirmed_at: datetime | None
+    text: str | None = Field(description="The CV as read, or as the candidate edited it.")
+    fields: dict[str, Any] = Field(
+        default_factory=dict, description="A form-built CV's fields, when it has no text."
+    )
+    file_url: str | None = Field(
+        default=None, description="Presigned GET of the uploaded file; expires."
+    )
+    file_mime: str | None = None
+
+
+class CandidateResumeView(_Base):
+    latest: ResumeVersionView | None
+    #: The newest confirmed version -- what the score was built from. Absent
+    #: when it is the same as `latest`.
+    confirmed: ResumeVersionView | None
+
+
+class ScorePoint(_Base):
+    """One score as the candidate saw it. Display value and band only."""
+
+    computed_at: datetime
+    display_value: int
+    band: str
+    change: int | None = Field(description="Against the previous point. None for the first.")
+    cause: Literal["FIRST_SCORE", "RESUME_CHANGED", "ADD_ON", "RECOMPUTED"]
+
+
+class ScoreTimeline(_Base):
+    points: list[ScorePoint]
+
+
+class InterviewSessionRow(_Base):
+    id: uuid.UUID
+    session_number: int
+    state: str
+    question_set_title: str
+    created_at: datetime
+    completed_at: datetime | None
+    questions_asked: int
+    answers_stored: int
+    report_status: str
+
+
+class InterviewRecordingRow(_Base):
+    question_index: int
+    question_code: str
+    prompt: str
+    url: str
+    expires_in_seconds: int
+    mime: str | None
+    duration_ms: int | None
+    uploaded_at: datetime | None
+    transcript: str | None
+
+
+class CourseStatusRow(_Base):
+    code: str
+    title: str
+    purchased: bool
+    purchased_at: datetime | None
+    lessons_total: int
+    lessons_completed: int
+    percent_complete: int
+    completed_at: datetime | None
+
+
+class CandidateApplicationRow(_Base):
+    id: uuid.UUID
+    job_id: uuid.UUID
+    job_title: str
+    job_location: str | None
+    employer_tenant_id: uuid.UUID
+    employer_name: str | None
+    stage: str
+    applied_at: datetime
+    updated_at: datetime
+    interview_at: datetime | None
+
+
+class ApplicationAnalytics(_Base):
+    total: int
+    open: int
+    by_stage: dict[str, int]
+    reached: dict[str, int] = Field(
+        description="Applications that were ever at SHORTLISTED, INTERVIEW, DECISION or "
+        "HIRED, wherever they are now."
+    )
+
+
+class CandidateApplications(_Base):
+    items: list[CandidateApplicationRow]
+    analytics: ApplicationAnalytics
+
+
+# ---------------------------------------------------------------------------
+# Building the course (2026-09-29)
+# ---------------------------------------------------------------------------
+class AdminLessonView(_Base):
+    id: uuid.UUID
+    title: str
+    description: str | None
+    sort_order: int
+    duration_seconds: int
+    media_kind: Literal["YOUTUBE", "UPLOAD"]
+    youtube_video_id: str | None
+    media_ready: bool = Field(description="Playable: a YouTube id, or an upload that was checked.")
+    mime: str | None
+    size_bytes: int | None
+    active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class AdminModuleView(_Base):
+    id: uuid.UUID
+    title: str
+    sort_order: int
+    active: bool
+    lessons: list[AdminLessonView]
+
+
+class AdminCourseView(_Base):
+    id: uuid.UUID
+    code: str
+    title: str
+    version: int
+    price_minor: int
+    published: bool = Field(description="On sale to candidates.")
+    modules: list[AdminModuleView]
+
+
+class CreateCourseModuleRequest(_Base):
+    title: str = Field(min_length=1, max_length=200)
+    sort_order: int = Field(default=0, ge=0, le=10_000)
+
+
+class UpdateCourseModuleRequest(_Base):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    sort_order: int | None = Field(default=None, ge=0, le=10_000)
+    active: bool | None = None
+
+
+class CreateCourseLessonRequest(_Base):
+    title: str = Field(min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=2000)
+    duration_seconds: int = Field(gt=0, le=14_400)
+    sort_order: int = Field(default=0, ge=0, le=10_000)
+    youtube_url: str | None = Field(
+        default=None,
+        max_length=500,
+        description="An (unlisted) YouTube link. Leave out to upload a file instead: then "
+        "POST .../upload, PUT the file, and POST .../upload/confirm.",
+    )
+
+
+class UpdateCourseLessonRequest(_Base):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=2000)
+    duration_seconds: int | None = Field(default=None, gt=0, le=14_400)
+    sort_order: int | None = Field(default=None, ge=0, le=10_000)
+    active: bool | None = None
+    youtube_url: str | None = Field(
+        default=None, max_length=500, description="A new video for a YouTube lesson."
+    )
+
+
+class LessonUploadResponse(_Base):
+    url: str
+    method: Literal["PUT"] = "PUT"
+    expires_in_seconds: int
+    max_bytes: int
+    accepted_types: list[str]
+
+
+class PublishCourseRequest(_Base):
+    published: bool

@@ -31,14 +31,16 @@ export function DashboardMetrics({
   const getMetricRoute = (title: string) => {
     switch (title) {
       case "KYB awaiting review":
+        return "/admin/queue?tab=kyb";
+
       case "Integrity flags":
-        return "/admin/queue";
+        return "/admin/queue?tab=integrity";
 
       case "Open disputes":
         return "/admin/disputes";
 
       case "Active employers":
-        return "/admin/users";
+        return "/admin/users?segment=employers";
 
       default:
         return "/admin/dashboard";

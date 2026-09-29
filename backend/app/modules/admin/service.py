@@ -32,6 +32,7 @@ from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import storage
 from app.core.audit import AuditAction, audit_event
 from app.core.db import get_admin_session_factory, set_transaction_tenant, set_transaction_user
 from app.core.errors import AppError, NotFoundError, PermissionDeniedError, ValidationError
@@ -43,12 +44,18 @@ from app.core.tenant import TenantContext
 from app.modules.admin import repository
 from app.modules.admin.domain import (
     CLOSED_DISPUTE_STATES,
+    DISPUTE_KINDS,
     DISPUTE_STATES,
+    IST_ZONE_NAME,
+    OLDEST_ITEMS,
+    dashboard_sections,
     dispute_refusal,
     dispute_transition_refusal,
     mask_email,
     mask_phone,
     party_for_role,
+    throughput_series,
+    throughput_start,
 )
 from app.modules.admin.events import (
     DISPUTE_CLOSED,
@@ -59,36 +66,66 @@ from app.modules.admin.events import (
 from app.modules.admin.models import Dispute
 from app.modules.admin.schemas import (
     AddOrganisationMemberRequest,
+    AdminCourseView,
+    AdminDashboard,
+    AdminLessonView,
+    AdminModuleView,
+    ApplicationAnalytics,
     ApplicationLink,
     AuditEventRow,
     AuditEventsPage,
+    CandidateApplicationRow,
+    CandidateApplications,
     CandidateDrilldown,
+    CandidateOnboarding,
+    CandidateResumeView,
+    CandidateRow,
+    CandidatesPage,
     CollegeDrilldown,
     CollegeLinkSummary,
+    CourseStatusRow,
+    CreateCourseLessonRequest,
+    CreateCourseModuleRequest,
     CreateDiscountCodeRequest,
+    CreateSearchFilterOptionRequest,
     DiscountCodeResponse,
     DiscountCodesPage,
     DiscountRedemptionRow,
     DiscountRedemptionsPage,
+    DisputeBacklog,
     DisputeDetail,
     DisputeLinks,
     DisputeRow,
     DisputesPage,
     EmployerDrilldown,
+    IntegrityBacklog,
     IntegritySignalDetail,
     IntegritySignalRow,
     IntegritySignalsPage,
+    InterviewRecordingRow,
+    InterviewSessionRow,
     InvitationResentResponse,
+    KybBacklog,
     KybSubmissionRow,
     KybSubmissionsPage,
     KybSummary,
+    LessonUploadResponse,
     MyDisputeResponse,
+    OnboardingAnswer,
+    OrganisationCounts,
+    OrganisationStatusCounts,
+    PlatformTotals,
     ProvisionCandidateRequest,
     ProvisionCollegeRequest,
     ProvisionedAccountResponse,
     ProvisionEmployerRequest,
     ResumeSummary,
+    ResumeVersionView,
+    ScorePoint,
     ScoreSummary,
+    ScoreTimeline,
+    SearchFilterOptionResponse,
+    SearchFilterOptionsPage,
     SeatAllocationResponse,
     SeatSummary,
     SignalCount,
@@ -97,20 +134,32 @@ from app.modules.admin.schemas import (
     SuspensionSummary,
     TenantRow,
     TenantsPage,
+    ThroughputDay,
+    UpdateCourseLessonRequest,
+    UpdateCourseModuleRequest,
+    UpdateSearchFilterOptionRequest,
+    WaitingItem,
 )
+from app.modules.applications.domain import stage_summary
 from app.modules.billing import service as billing_service
 from app.modules.billing.domain import DISCOUNT_POLICY_VERSION
 from app.modules.college import service as college_service
 from app.modules.college.schemas import CreateCollegeRequest
+from app.modules.courses import service as courses_service
 from app.modules.discovery import service as discovery_service
+from app.modules.discovery.catalogue import FILTER_CATALOGUE_VERSION
+from app.modules.discovery.domain import FilterKind
 from app.modules.employer import service as employer_service
 from app.modules.employer.schemas import CreateOrganisationRequest
 from app.modules.identity import service as identity_service
 from app.modules.integrity import service as integrity_service
+from app.modules.interview import service as interview_service
 from app.modules.jobs import service as jobs_service
 from app.modules.kyb import service as kyb_service
 from app.modules.kyb.schemas import KybSubmissionResponse
+from app.modules.questionnaire.domain import answers_in_words
 from app.modules.scoring.domain import band_for, display_value
+from app.settings import Settings, get_settings
 
 logger = get_logger(__name__)
 
@@ -537,6 +586,66 @@ def _subscription(row: Any) -> SubscriptionSummary | None:
 
 def _suspension(row: Any) -> SuspensionSummary | None:
     return SuspensionSummary.model_validate(dict(row)) if row else None
+
+
+async def list_candidates(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    status: str | None,
+    name_contains: str | None,
+    email: str | None,
+    cursor: str | None,
+    limit: int | None,
+    request_id: str | None = None,
+) -> CandidatesPage:
+    """Candidate accounts, newest first -- the way in to a drill-down.
+
+    Candidates are not tenants, so `GET /admin/tenants` cannot list them. This
+    is audited where that is not: every row names a person. The search terms
+    stay out of the audit metadata (a name or an address is not an id); the
+    row records that a search was made, and by whom."""
+    size = clamp_limit(limit)
+    name = (name_contains or "").strip() or None
+    address = identity_service.normalise_email(email) if email and email.strip() else None
+    async with _reveal(
+        session,
+        ctx,
+        action=AuditAction.ADMIN_BYPASS_SESSION_OPENED,
+        target_type="candidates",
+        target_id=None,
+        request_id=request_id,
+        metadata={
+            "view": "candidates",
+            "status": status,
+            "by_name": name is not None,
+            "by_email": address is not None,
+        },
+    ) as reader:
+        rows = await repository.candidates(
+            reader,
+            status=status,
+            name_contains=name,
+            email=address,
+            after=_keyset(cursor),
+            limit=size,
+        )
+    return CandidatesPage(
+        items=[
+            CandidateRow(
+                id=r["id"],
+                status=r["status"],
+                full_name=r["full_name"],
+                city=r["city"],
+                state_code=r["state_code"],
+                phone_masked=mask_phone(r["phone"]),
+                email_masked=mask_email(r["email"]),
+                created_at=r["created_at"],
+            )
+            for r in rows
+        ],
+        next_cursor=_next(rows, size, at="created_at"),
+    )
 
 
 async def candidate_drilldown(
@@ -1398,3 +1507,807 @@ async def discount_redemptions(
         ],
         next_cursor=next_cursor,
     )
+
+
+# ---------------------------------------------------------------------------
+# The dashboard
+# ---------------------------------------------------------------------------
+def _status_counts(rows: list[Any], tenant_type: str) -> OrganisationStatusCounts:
+    counts = {r["status"]: int(r["n"]) for r in rows if r["type"] == tenant_type}
+    return OrganisationStatusCounts(
+        active=counts.get("ACTIVE", 0),
+        suspended=counts.get("SUSPENDED", 0),
+        closed=counts.get("CLOSED", 0),
+    )
+
+
+async def dashboard(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    request_id: str | None = None,
+    now: datetime | None = None,
+) -> AdminDashboard:
+    """The console's landing page: every queue the caller can open, counted.
+
+    **One audit row per load**, like every other cross-tenant read: the oldest
+    items name organisations and candidate ids. It replaces the two or more a
+    page built from the queue endpoints would write.
+
+    **Each queue section is there only for a role that can open the queue**
+    (`domain.dashboard_sections`), and the oldest items and the throughput
+    chart are drawn from those queues alone. Platform totals are for all staff:
+    they are counts, and name nobody.
+
+    Read live. A dashboard a reviewer has just worked from must show the
+    item gone.
+    """
+    now = _now(now)
+    sections = dashboard_sections(ctx.role)
+    review_required = (
+        await kyb_service.require_approval(session, now=now) if "kyb" in sections else False
+    )
+    since = throughput_start(now)
+    async with _reveal(
+        session,
+        ctx,
+        action=AuditAction.ADMIN_BYPASS_SESSION_OPENED,
+        target_type="admin_dashboard",
+        target_id=None,
+        request_id=request_id,
+        metadata={"view": "dashboard", "sections": sorted(sections)},
+    ) as reader:
+        totals = await repository.platform_totals(reader)
+        kyb = await repository.kyb_backlog(reader) if "kyb" in sections else None
+        signals = await repository.integrity_backlog(reader) if "integrity" in sections else None
+        disputes = await repository.dispute_backlog(reader) if "disputes" in sections else None
+        tenants = await repository.organisation_counts(reader) if "tenants" in sections else None
+
+        waiting: list[WaitingItem] = []
+        if "kyb" in sections:
+            waiting += [
+                WaitingItem(
+                    type="KYB",
+                    id=r["id"],
+                    waiting_since=r["waiting_since"],
+                    detail=r["state"],
+                    organisation=r["organisation"],
+                    tenant_id=r["tenant_id"],
+                )
+                for r in await repository.oldest_kyb(reader, limit=OLDEST_ITEMS)
+            ]
+        if "integrity" in sections:
+            waiting += [
+                WaitingItem(
+                    type="INTEGRITY",
+                    id=r["id"],
+                    waiting_since=r["waiting_since"],
+                    detail=r["rule_id"],
+                    candidate_id=r["candidate_id"],
+                    severity=r["severity"],
+                )
+                for r in await repository.oldest_signals(reader, limit=OLDEST_ITEMS)
+            ]
+        if "disputes" in sections:
+            waiting += [
+                WaitingItem(
+                    type="DISPUTE",
+                    id=r["id"],
+                    waiting_since=r["waiting_since"],
+                    detail=r["kind"],
+                    organisation=r["organisation"],
+                    tenant_id=r["tenant_id"],
+                    party=r["party"],
+                )
+                for r in await repository.oldest_disputes(reader, limit=OLDEST_ITEMS)
+            ]
+        moves = await repository.throughput(
+            reader,
+            since=since,
+            zone=IST_ZONE_NAME,
+            kyb="kyb" in sections,
+            integrity="integrity" in sections,
+            disputes="disputes" in sections,
+        )
+
+    intake = {r["day"]: int(r["intake"]) for r in moves}
+    cleared = {r["day"]: int(r["cleared"]) for r in moves}
+    return AdminDashboard(
+        generated_at=now,
+        kyb=None
+        if kyb is None
+        else KybBacklog(
+            review_required=review_required,
+            awaiting_review=kyb["awaiting_review"],
+            awaiting_employer=kyb["awaiting_employer"],
+            oldest_waiting_since=kyb["oldest_waiting_since"],
+        ),
+        integrity=None
+        if signals is None
+        else IntegrityBacklog(
+            open=signals["open"],
+            open_by_severity={
+                "HIGH": signals["high"],
+                "MEDIUM": signals["medium"],
+                "LOW": signals["low"],
+            },
+            candidates_held_back=signals["candidates_held_back"],
+            oldest_waiting_since=signals["oldest_waiting_since"],
+        ),
+        disputes=None
+        if disputes is None
+        else DisputeBacklog(
+            open=disputes[0]["open"],
+            in_review=disputes[0]["in_review"],
+            unassigned=disputes[0]["unassigned"],
+            by_kind={kind: disputes[1].get(kind, 0) for kind in DISPUTE_KINDS},
+            oldest_waiting_since=disputes[0]["oldest_waiting_since"],
+        ),
+        organisations=None
+        if tenants is None
+        else OrganisationCounts(
+            employers=_status_counts(tenants, "EMPLOYER"),
+            colleges=_status_counts(tenants, "COLLEGE"),
+        ),
+        platform_totals=PlatformTotals(**dict(totals)),
+        oldest_waiting=sorted(waiting, key=lambda w: (w.waiting_since, str(w.id)))[:OLDEST_ITEMS],
+        throughput=[
+            ThroughputDay(date=day, intake=came, cleared=went)
+            for day, came, went in throughput_series(intake, cleared, now=now)
+        ],
+    )
+
+
+# ---------------------------------------------------------------------------
+# Search filter options (2026-09-24)
+# ---------------------------------------------------------------------------
+# The catalogue is `discovery`'s; the console writes the audit row beside
+# each change. Not a cross-tenant read, so no `_reveal`: the rows name nobody.
+def _filter_option(row: Any) -> SearchFilterOptionResponse:
+    return SearchFilterOptionResponse.model_validate(row)
+
+
+async def _audit_filter_option(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    action: AuditAction,
+    row: Any,
+    request_id: str | None,
+    metadata: dict[str, Any],
+) -> None:
+    await audit_event(
+        session,
+        action=action,
+        actor_id=ctx.user_id,
+        actor_role=ctx.role,
+        target_type="search_filter_option",
+        target_id=row.id,
+        request_id=request_id,
+        metadata={"kind": row.kind, **metadata},
+    )
+
+
+async def create_search_filter_options(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    items: list[CreateSearchFilterOptionRequest],
+    request_id: str | None = None,
+) -> list[SearchFilterOptionResponse]:
+    """All or none, one audit row per option created."""
+    rows = await discovery_service.create_filter_options(
+        session,
+        options=[
+            discovery_service.NewFilterOption(
+                kind=item.kind,
+                label=item.label,
+                aliases=tuple(item.aliases),
+                state_code=item.state_code,
+                featured=item.featured,
+                sort_order=item.sort_order,
+            )
+            for item in items
+        ],
+        created_by=ctx.user_id,
+    )
+    for row in rows:
+        await _audit_filter_option(
+            session,
+            ctx=ctx,
+            action=AuditAction.SEARCH_FILTER_OPTION_CREATED,
+            row=row,
+            request_id=request_id,
+            metadata={"imported": len(rows) > 1},
+        )
+    return [_filter_option(row) for row in rows]
+
+
+async def update_search_filter_option(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    option_id: uuid.UUID,
+    payload: UpdateSearchFilterOptionRequest,
+    request_id: str | None = None,
+) -> SearchFilterOptionResponse:
+    """Idempotent: a change that moves nothing writes no audit row."""
+    row, moved = await discovery_service.update_filter_option(
+        session,
+        option_id=option_id,
+        changes=discovery_service.FilterOptionChanges(
+            label=payload.label,
+            aliases=None if payload.aliases is None else tuple(payload.aliases),
+            state_code=payload.state_code,
+            featured=payload.featured,
+            sort_order=payload.sort_order,
+            active=payload.active,
+        ),
+        updated_by=ctx.user_id,
+    )
+    if moved:
+        await _audit_filter_option(
+            session,
+            ctx=ctx,
+            action=AuditAction.SEARCH_FILTER_OPTION_UPDATED,
+            row=row,
+            request_id=request_id,
+            metadata={"fields": moved},
+        )
+    return _filter_option(row)
+
+
+async def get_search_filter_option(
+    session: AsyncSession, *, option_id: uuid.UUID
+) -> SearchFilterOptionResponse:
+    return _filter_option(await discovery_service.get_filter_option(session, option_id=option_id))
+
+
+async def list_search_filter_options(
+    session: AsyncSession,
+    *,
+    kind: FilterKind | None,
+    query: str | None,
+    include_inactive: bool,
+    cursor: str | None,
+    limit: int | None,
+) -> SearchFilterOptionsPage:
+    rows, next_cursor = await discovery_service.list_filter_options(
+        session,
+        kind=kind,
+        query=query,
+        include_inactive=include_inactive,
+        cursor=cursor,
+        limit=limit,
+    )
+    return SearchFilterOptionsPage(
+        items=[_filter_option(row) for row in rows],
+        next_cursor=next_cursor,
+        catalogue_version=FILTER_CATALOGUE_VERSION,
+    )
+
+
+# ---------------------------------------------------------------------------
+# The full candidate page (2026-09-29)
+# ---------------------------------------------------------------------------
+# Asked for by the client: everything the candidate gave us at onboarding,
+# their CV, how their score moved, the interviews they sat (with the
+# recordings), the course, and their applications with where each stands.
+# Each is its own endpoint, so each reveal is its own audit row -- a member of
+# staff checking an application stage has not thereby listened to anyone.
+
+
+async def candidate_onboarding(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    user_id: uuid.UUID,
+    request_id: str | None = None,
+) -> CandidateOnboarding:
+    """Unmasked: the one console view with a whole phone number and email,
+    because it is where staff go to contact the person."""
+    async with _reveal(
+        session,
+        ctx,
+        action=AuditAction.ADMIN_CANDIDATE_DRILLDOWN,
+        target_type="user",
+        target_id=user_id,
+        request_id=request_id,
+        metadata={"view": "onboarding"},
+    ) as reader:
+        row = await repository.candidate_onboarding(reader, user_id=user_id)
+        if row is None:
+            raise CandidateNotFoundError()
+        facts = await repository.candidate_facts(reader, user_id=user_id)
+    return CandidateOnboarding(
+        id=row["id"],
+        status=row["status"],
+        locale=row["locale"],
+        created_at=row["created_at"],
+        full_name=row["full_name"],
+        email=row["email"],
+        phone=row["phone"],
+        city=row["city"],
+        state_code=row["state_code"],
+        questionnaire_submitted_at=row["questionnaire_submitted_at"],
+        questionnaire=onboarding_answers(row["questionnaire_answers"] or {}),
+        college_links=[CollegeLinkSummary.model_validate(dict(r)) for r in facts["colleges"]],
+    )
+
+
+def onboarding_answers(answers: dict[str, Any]) -> list[OnboardingAnswer]:
+    """Every answer in words, the free-text one included: staff are not an
+    employer the candidate did not apply to."""
+    return [
+        OnboardingAnswer(code=a.code, question=a.question, answer=a.answer)
+        for a in answers_in_words(answers, include_free_text=True)
+    ]
+
+
+async def resume_version_view(row: Any, *, bucket: str, ttl: int) -> ResumeVersionView:
+    parsed = row["parsed"] if isinstance(row["parsed"], dict) else {}
+    body = parsed.get("raw_text")
+    return ResumeVersionView(
+        id=row["id"],
+        source=row["source"],
+        created_at=row["created_at"],
+        confirmed_at=row["confirmed_at"],
+        text=body if isinstance(body, str) else None,
+        fields={} if isinstance(body, str) else dict(parsed),
+        file_url=(
+            await storage.presign_get(bucket=bucket, key=row["s3_key"], expires_in=ttl)
+            if row["s3_key"]
+            else None
+        ),
+        file_mime=row["mime"],
+    )
+
+
+async def candidate_resume(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    user_id: uuid.UUID,
+    request_id: str | None = None,
+    settings: Settings | None = None,
+) -> CandidateResumeView:
+    settings = settings or get_settings()
+    async with _reveal(
+        session,
+        ctx,
+        action=AuditAction.ADMIN_CANDIDATE_RESUME_OPENED,
+        target_type="user",
+        target_id=user_id,
+        request_id=request_id,
+    ) as reader:
+        if await repository.candidate_account(reader, user_id=user_id) is None:
+            raise CandidateNotFoundError()
+        found = await repository.candidate_resume(reader, user_id=user_id)
+    latest, confirmed = found["latest"], found["confirmed"]
+    bucket, ttl = settings.s3_bucket_resumes, settings.presigned_url_ttl_seconds
+    return CandidateResumeView(
+        latest=await resume_version_view(latest, bucket=bucket, ttl=ttl) if latest else None,
+        confirmed=(
+            await resume_version_view(confirmed, bucket=bucket, ttl=ttl)
+            if confirmed and (latest is None or confirmed["id"] != latest["id"])
+            else None
+        ),
+    )
+
+
+def score_timeline(rows: list[Any]) -> list[ScorePoint]:
+    """Each stored score as its display value and band, with the change from
+    the one before and what caused it. The stored number never leaves here."""
+    points: list[ScorePoint] = []
+    previous: Any = None
+    for row in rows:
+        shown = display_value(int(row["raw_value"]))
+        if previous is None:
+            cause = "FIRST_SCORE"
+        elif row["resume_version_id"] != previous["resume_version_id"]:
+            cause = "RESUME_CHANGED"
+        elif int(row["addon_value"]) != int(previous["addon_value"]):
+            cause = "ADD_ON"
+        else:
+            cause = "RECOMPUTED"
+        points.append(
+            ScorePoint(
+                computed_at=row["computed_at"],
+                display_value=shown,
+                band=band_for(shown),
+                change=None if not points else shown - points[-1].display_value,
+                cause=cause,
+            )
+        )
+        previous = row
+    return points
+
+
+async def candidate_score_timeline(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    user_id: uuid.UUID,
+    request_id: str | None = None,
+) -> ScoreTimeline:
+    """**Staff only.** The candidate is not shown their history (the client
+    declined it; see `CandidateScoreResponse`); the console is, so a
+    complaint that a score dropped can be answered with when and why."""
+    async with _reveal(
+        session,
+        ctx,
+        action=AuditAction.ADMIN_CANDIDATE_DRILLDOWN,
+        target_type="user",
+        target_id=user_id,
+        request_id=request_id,
+        metadata={"view": "score_timeline"},
+    ) as reader:
+        if await repository.candidate_account(reader, user_id=user_id) is None:
+            raise CandidateNotFoundError()
+        rows = await repository.score_history(reader, user_id=user_id)
+    return ScoreTimeline(points=score_timeline(rows))
+
+
+async def candidate_interviews(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    user_id: uuid.UUID,
+    request_id: str | None = None,
+) -> list[InterviewSessionRow]:
+    async with _reveal(
+        session,
+        ctx,
+        action=AuditAction.ADMIN_CANDIDATE_DRILLDOWN,
+        target_type="user",
+        target_id=user_id,
+        request_id=request_id,
+        metadata={"view": "interviews"},
+    ) as reader:
+        if await repository.candidate_account(reader, user_id=user_id) is None:
+            raise CandidateNotFoundError()
+        items = await interview_service.history_for_staff(reader, candidate_id=user_id)
+    return [
+        InterviewSessionRow(
+            id=item.session.id,
+            session_number=item.session.session_number,
+            state=item.session.state,
+            question_set_title=interview_service.question_set_title(item.session.question_set_code),
+            created_at=item.session.created_at,
+            completed_at=item.session.completed_at,
+            questions_asked=item.questions_asked,
+            answers_stored=item.answers_stored,
+            report_status=item.report_status,
+        )
+        for item in items
+    ]
+
+
+async def candidate_interview_recordings(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    user_id: uuid.UUID,
+    session_id: uuid.UUID,
+    request_id: str | None = None,
+) -> list[InterviewRecordingRow]:
+    """A person's own voice. Its own capability and its own audit row, naming
+    the session as well as the person."""
+    async with _reveal(
+        session,
+        ctx,
+        action=AuditAction.ADMIN_INTERVIEW_RECORDINGS_OPENED,
+        target_type="interview_session",
+        target_id=session_id,
+        request_id=request_id,
+        metadata={"candidate_id": str(user_id)},
+    ) as reader:
+        rows = await interview_service.recordings_for_staff(
+            reader, candidate_id=user_id, session_id=session_id
+        )
+    return [InterviewRecordingRow.model_validate(r, from_attributes=True) for r in rows]
+
+
+async def candidate_courses(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    user_id: uuid.UUID,
+    request_id: str | None = None,
+) -> list[CourseStatusRow]:
+    async with _reveal(
+        session,
+        ctx,
+        action=AuditAction.ADMIN_CANDIDATE_DRILLDOWN,
+        target_type="user",
+        target_id=user_id,
+        request_id=request_id,
+        metadata={"view": "courses"},
+    ) as reader:
+        if await repository.candidate_account(reader, user_id=user_id) is None:
+            raise CandidateNotFoundError()
+        rows = await courses_service.status_for(reader, user_id=user_id)
+    return [course_status_row(r) for r in rows]
+
+
+def course_status_row(row: Any) -> CourseStatusRow:
+    return CourseStatusRow(
+        code=row.code,
+        title=row.title,
+        purchased=row.purchased,
+        purchased_at=row.purchased_at,
+        lessons_total=row.lessons_total,
+        lessons_completed=row.lessons_completed,
+        percent_complete=row.percent_complete,
+        completed_at=row.completed_at,
+    )
+
+
+def application_analytics(rows: list[Any], reached: dict[str, int]) -> ApplicationAnalytics:
+    summary = stage_summary(current=[str(r["stage"]) for r in rows], reached=reached)
+    return ApplicationAnalytics(
+        total=summary.total, open=summary.open, by_stage=summary.by_stage, reached=summary.reached
+    )
+
+
+async def candidate_applications(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    user_id: uuid.UUID,
+    request_id: str | None = None,
+) -> CandidateApplications:
+    """Every application, where it stands, and the stage analytics. No
+    employer note: those are the employer's (`application_events`)."""
+    async with _reveal(
+        session,
+        ctx,
+        action=AuditAction.ADMIN_CANDIDATE_DRILLDOWN,
+        target_type="user",
+        target_id=user_id,
+        request_id=request_id,
+        metadata={"view": "applications"},
+    ) as reader:
+        if await repository.candidate_account(reader, user_id=user_id) is None:
+            raise CandidateNotFoundError()
+        rows, reached = await repository.candidate_applications(reader, user_id=user_id)
+    return CandidateApplications(
+        items=[CandidateApplicationRow.model_validate(dict(r)) for r in rows],
+        analytics=application_analytics(rows, reached),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Building the course (2026-09-29)
+# ---------------------------------------------------------------------------
+# `courses.service` holds every rule; the console decides who may, and writes
+# the audit row. Not a cross-tenant read: nothing here names a person.
+
+
+def _admin_course(view: Any) -> AdminCourseView:
+    course = view.course
+    return AdminCourseView(
+        id=course.id,
+        code=course.code,
+        title=course.title,
+        version=course.version,
+        price_minor=course.price_minor,
+        published=course.active,
+        modules=[
+            AdminModuleView(
+                id=module.id,
+                title=module.title,
+                sort_order=module.sort_order,
+                active=module.active,
+                lessons=[_admin_lesson(lesson) for lesson in lessons],
+            )
+            for module, lessons in view.modules
+        ],
+    )
+
+
+def _admin_lesson(lesson: Any) -> AdminLessonView:
+    return AdminLessonView(
+        id=lesson.id,
+        title=lesson.title,
+        description=lesson.description,
+        sort_order=lesson.sort_order,
+        duration_seconds=lesson.duration_seconds,
+        media_kind=lesson.media_kind,
+        youtube_video_id=lesson.youtube_video_id,
+        media_ready=lesson.media_ready_at is not None,
+        mime=lesson.mime,
+        size_bytes=lesson.size_bytes,
+        active=lesson.active,
+        created_at=lesson.created_at,
+        updated_at=lesson.updated_at,
+    )
+
+
+async def _audit_course(
+    session: AsyncSession,
+    ctx: TenantContext,
+    *,
+    target_type: str,
+    target_id: uuid.UUID,
+    request_id: str | None,
+    metadata: dict[str, Any],
+) -> None:
+    await audit_event(
+        session,
+        action=AuditAction.COURSE_CONTENT_CHANGED,
+        actor_id=ctx.user_id,
+        actor_role=ctx.role,
+        target_type=target_type,
+        target_id=target_id,
+        request_id=request_id,
+        metadata=metadata,
+    )
+
+
+async def list_courses(session: AsyncSession) -> list[AdminCourseView]:
+    return [_admin_course(v) for v in await courses_service.admin_courses(session)]
+
+
+async def _course(session: AsyncSession, code: str) -> AdminCourseView:
+    for view in await courses_service.admin_courses(session):
+        if view.course.code == code:
+            return _admin_course(view)
+    raise courses_service.CourseNotFoundError()
+
+
+async def create_course_module(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    code: str,
+    payload: CreateCourseModuleRequest,
+    request_id: str | None = None,
+) -> AdminCourseView:
+    row = await courses_service.create_module(
+        session,
+        code=code,
+        title=payload.title.strip(),
+        sort_order=payload.sort_order,
+        created_by=ctx.user_id,
+    )
+    await _audit_course(
+        session,
+        ctx,
+        target_type="course_module",
+        target_id=row.id,
+        request_id=request_id,
+        metadata={"course_code": code, "change": "created"},
+    )
+    return await _course(session, code)
+
+
+async def update_course_module(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    module_id: uuid.UUID,
+    payload: UpdateCourseModuleRequest,
+    request_id: str | None = None,
+) -> AdminCourseView:
+    row, moved = await courses_service.update_module(
+        session,
+        module_id=module_id,
+        title=payload.title.strip() if payload.title else None,
+        sort_order=payload.sort_order,
+        active=payload.active,
+    )
+    if moved:
+        await _audit_course(
+            session,
+            ctx,
+            target_type="course_module",
+            target_id=row.id,
+            request_id=request_id,
+            metadata={"course_code": row.course_code, "fields": moved},
+        )
+    return await _course(session, row.course_code)
+
+
+async def create_course_lesson(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    module_id: uuid.UUID,
+    payload: CreateCourseLessonRequest,
+    request_id: str | None = None,
+) -> AdminLessonView:
+    row = await courses_service.create_lesson(
+        session,
+        module_id=module_id,
+        title=payload.title.strip(),
+        description=payload.description,
+        duration_seconds=payload.duration_seconds,
+        sort_order=payload.sort_order,
+        youtube_url=payload.youtube_url,
+        created_by=ctx.user_id,
+    )
+    await _audit_course(
+        session,
+        ctx,
+        target_type="course_lesson",
+        target_id=row.id,
+        request_id=request_id,
+        metadata={"module_id": str(module_id), "change": "created", "media": row.media_kind},
+    )
+    return _admin_lesson(row)
+
+
+async def update_course_lesson(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    lesson_id: uuid.UUID,
+    payload: UpdateCourseLessonRequest,
+    request_id: str | None = None,
+) -> AdminLessonView:
+    changes: dict[str, object] = {
+        k: v for k, v in payload.model_dump(exclude_unset=True).items() if v is not None
+    }
+    row, moved = await courses_service.update_lesson(session, lesson_id=lesson_id, changes=changes)
+    if moved:
+        await _audit_course(
+            session,
+            ctx,
+            target_type="course_lesson",
+            target_id=row.id,
+            request_id=request_id,
+            metadata={"fields": moved},
+        )
+    return _admin_lesson(row)
+
+
+async def issue_lesson_upload(
+    session: AsyncSession, *, lesson_id: uuid.UUID
+) -> LessonUploadResponse:
+    ticket = await courses_service.issue_lesson_upload(session, lesson_id=lesson_id)
+    return LessonUploadResponse(
+        url=ticket.url,
+        expires_in_seconds=ticket.expires_in_seconds,
+        max_bytes=ticket.max_bytes,
+        accepted_types=list(ticket.accepted_types),
+    )
+
+
+async def confirm_lesson_upload(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    lesson_id: uuid.UUID,
+    request_id: str | None = None,
+) -> AdminLessonView:
+    row = await courses_service.confirm_lesson_upload(session, lesson_id=lesson_id)
+    await _audit_course(
+        session,
+        ctx,
+        target_type="course_lesson",
+        target_id=row.id,
+        request_id=request_id,
+        metadata={"change": "video_uploaded", "size_bytes": row.size_bytes},
+    )
+    return _admin_lesson(row)
+
+
+async def publish_course(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    code: str,
+    published: bool,
+    request_id: str | None = None,
+) -> AdminCourseView:
+    row = await courses_service.set_published(session, code=code, published=published)
+    await _audit_course(
+        session,
+        ctx,
+        target_type="course",
+        target_id=row.id,
+        request_id=request_id,
+        metadata={"course_code": code, "published": published},
+    )
+    return await _course(session, code)

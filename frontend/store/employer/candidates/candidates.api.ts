@@ -16,6 +16,46 @@ interface CandidatePageResponse {
   next_cursor: string | null;
 }
 
+export interface CandidateFilterPanelResponse {
+  bands: Array<{
+    value: CandidateBand;
+    label: string;
+  }>;
+  badges: Array<{
+    value: CandidateBadge;
+    label: string;
+  }>;
+  experience: Array<{
+    min_years: number;
+    label: string;
+  }>;
+  skills: CandidateSkillChoice[];
+  cities: CandidateCityChoice[];
+  states: Array<{
+    code: string;
+    name: string;
+  }>;
+  limits: {
+    max_skills: number;
+    max_cities: number;
+    max_skill_length: number;
+    max_city_length: number;
+    max_experience_years: number;
+  };
+  catalogue_version: string;
+}
+
+export interface CandidateSkillChoice {
+  key: string;
+  label: string;
+}
+
+export interface CandidateCityChoice {
+  key: string;
+  label: string;
+  state_code: string;
+}
+
 export interface RevealedCandidateResponse {
   candidate_id: string;
   full_name: string | null;
@@ -35,7 +75,8 @@ export interface EmployerCandidatesQuery {
   skill?: string[];
   badge?: CandidateBadge[];
   min_experience_years?: number;
-  city?: string;
+  state?: string;
+  city?: string[];
   q?: string;
   cursor?: string;
   limit?: number;
@@ -54,6 +95,38 @@ function mapCandidate(candidate: MaskedCandidateResponse): Candidate {
 
 export const employerCandidatesApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
+    getEmployerCandidateFilters: builder.query<
+      CandidateFilterPanelResponse,
+      void
+    >({
+      query: () => ({
+        url: "/employer/discovery/filters",
+        method: "GET",
+      }),
+      providesTags: [{ type: "Candidate", id: "FILTERS" }],
+    }),
+    getEmployerCandidateSkillSuggestions: builder.query<
+      { items: CandidateSkillChoice[] },
+      { q: string; limit?: number }
+    >({
+      query: ({ q, limit }) => ({
+        url: "/employer/discovery/filters/skills",
+        method: "GET",
+        params: { q, limit },
+      }),
+      providesTags: [{ type: "Candidate", id: "FILTERS" }],
+    }),
+    getEmployerCandidateLocationSuggestions: builder.query<
+      { items: CandidateCityChoice[] },
+      { q: string; state?: string; limit?: number }
+    >({
+      query: ({ q, state, limit }) => ({
+        url: "/employer/discovery/filters/locations",
+        method: "GET",
+        params: { q, state, limit },
+      }),
+      providesTags: [{ type: "Candidate", id: "FILTERS" }],
+    }),
     searchEmployerCandidates: builder.query<
       { items: Candidate[]; nextCursor: string | null },
       EmployerCandidatesQuery
@@ -61,7 +134,10 @@ export const employerCandidatesApi = baseApi.injectEndpoints({
       query: (params) => ({
         url: "/employer/discovery/candidates",
         method: "GET",
-        params,
+        params: {
+          ...params,
+          limit: params.limit ?? 10,
+        },
       }),
       transformResponse: (response: CandidatePageResponse) => ({
         items: response.items.map(mapCandidate),
@@ -112,7 +188,11 @@ export const employerCandidatesApi = baseApi.injectEndpoints({
 });
 
 export const {
+  useGetEmployerCandidateFiltersQuery,
+  useGetEmployerCandidateSkillSuggestionsQuery,
+  useGetEmployerCandidateLocationSuggestionsQuery,
   useSearchEmployerCandidatesQuery,
   useLazyRevealEmployerCandidateQuery,
   useRevealEmployerCandidatesQuery,
+  useLazyRevealEmployerCandidatesQuery,
 } = employerCandidatesApi;

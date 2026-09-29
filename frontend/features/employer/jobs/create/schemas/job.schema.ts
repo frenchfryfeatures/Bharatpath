@@ -1,4 +1,5 @@
 import type { CreateJobFormValues } from "../types";
+import { THRESHOLD_MAX, THRESHOLD_MIN } from "../threshold";
 
 export type JobValidationErrors = Partial<
   Record<keyof CreateJobFormValues | "form", string>
@@ -49,8 +50,11 @@ export function validateJob(
     errors.salaryMax = "Maximum salary must be greater than or equal to minimum salary.";
   }
 
-  if (values.minScore < 680 || values.minScore > 999) {
-    errors.minScore = "Score threshold must be between 680 and 999.";
+  if (
+    values.minScore < THRESHOLD_MIN ||
+    values.minScore > THRESHOLD_MAX
+  ) {
+    errors.minScore = `Score threshold must be between ${THRESHOLD_MIN} and ${THRESHOLD_MAX}.`;
   }
 
   return errors;

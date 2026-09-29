@@ -71,9 +71,9 @@ export function MetricCard({
       onClick={onClick}
       className={[
         "w-full rounded-2xl border border-[#e5e7ec] bg-white px-6 py-5 text-left",
-        "transition-all duration-150",
+        "transition-all duration-150 hover:-translate-y-px hover:border-[#d9dce4] hover:shadow-[0_6px_18px_rgba(19,26,38,0.05)]",
         onClick
-          ? "cursor-pointer hover:-translate-y-px hover:border-[#d9dce4] hover:shadow-[0_6px_18px_rgba(19,26,38,0.05)] focus:outline-none focus:ring-2 focus:ring-[#5b4fcf]/20"
+          ? "cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#5b4fcf]/20"
           : "",
       ].join(" ")}
     >

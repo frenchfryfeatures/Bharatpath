@@ -1,6 +1,7 @@
 export type DisputeTab =
   | "open"
-  | "resolved";
+  | "resolved"
+  | "rejected";
 
 export type DisputeStatus =
   | "Open"

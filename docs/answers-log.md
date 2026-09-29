@@ -7,7 +7,7 @@
 > **Still-open questions live in [`questions.txt`](questions.txt)**, written in plain language and
 > ready to send. This file is the archive; that file is the ask.
 >
-> Last updated 15 September 2026 — Round 10 added (post-Day 14 answers).
+> Last updated 29 September 2026 — Round 11 added (portal requests).
 
 ---
 
@@ -15,6 +15,25 @@
 
 | Round | Source | Asked | Answered | Still open |
 |---
+
+## Round 11 — client requests, 2026-09-29
+
+A feature request for the four portals, relayed by the backend developer, with
+four follow-up decisions taken the same day. Recorded here because several
+reverse earlier positions.
+
+| # | Request or question | Answer | What we did |
+|---|---|---|---|
+| **11.1** | Admin: a student's full page — onboarding details, CV, a timeline of every score change, interviews with their recordings, course status, applications with stages and analytics. | Requested | **Built** (`/admin/candidates/{id}/…`). Reverses "a drill-down never shows a CV or a whole contact": each larger reveal is its own endpoint, capability and audit row. Score timeline shows display values only. |
+| **11.2** | College: onboarding details, CV, current score, interviews given, course % complete, applications with stage and analytics. | Requested | **Built** under a **new INDIVIDUAL consent version** (`placeholder-2-2026-09-29`) whose words name every field. Students on version 1 keep version 1's view until they agree again. |
+| **11.3** | Employer: a message box per candidate to invite to an interview or OA, sent by email and notification. | Requested; *applicants only* | **Built** (`/employer/applications/{id}/messages`). Never to a search result. |
+| **11.4** | Student: a locked course tab until paid; lessons as YouTube (unlisted) embeds or AWS uploads. | Requested | **Built.** Unlisted YouTube is not behind the paywall — anyone with the link can watch; uploads are. |
+| **11.5** | What counts as completing the course (C1)? | *All lessons watched* | **C1 closed.** Rule `lessons-watched-1-2026-09-29`: every published lesson reached to 90% with half its length elapsed. |
+| **11.6** | Interview questions from onboarding answers + CV, via an LLM; follow-ups; never repeat an earlier session's questions; six per session, a constant. | Requested; *adaptive per answer* | **Built** (`interview/questions.py`, OpenAI). Each answer is transcribed in-session so the next question can follow it. A refused repeat goes back to the model with the reason. |
+| **11.7** | A history of interviews the student can go through, with recordings. | Requested | **Built** (`/candidate/interview/history`, `…/recordings`). |
+| **11.8** | Should fixed questions remain as a fallback? | *"I want to set interviews questions by default by only ai and not fixed questions. i want it dynamic"* | **AI only.** OpenAI is the default writer; no fixed-question fallback (a question that cannot be written is a 503 the app retries); the API needs `OPENAI_API_KEY` to boot. |
+
+---
 
 ## Round 10 — client answers, 2026-09-15
 

@@ -1,6 +1,9 @@
 import {
+  Briefcase,
   Building2,
+  CheckCircle2,
   GraduationCap,
+  ListChecks,
   User,
 } from "lucide-react";
 
@@ -27,6 +30,24 @@ const PLATFORM_ICONS = {
 
   Institutions: {
     icon: GraduationCap,
+    wrapper: "bg-[#e6f6ec]",
+    color: "text-[#1f8a4c]",
+  },
+
+  "Published jobs": {
+    icon: Briefcase,
+    wrapper: "bg-[#e8f1fe]",
+    color: "text-[#2563b0]",
+  },
+
+  Applications: {
+    icon: ListChecks,
+    wrapper: "bg-[#fdf1e0]",
+    color: "text-[#b5650b]",
+  },
+
+  "Confirmed hires": {
+    icon: CheckCircle2,
     wrapper: "bg-[#e6f6ec]",
     color: "text-[#1f8a4c]",
   },

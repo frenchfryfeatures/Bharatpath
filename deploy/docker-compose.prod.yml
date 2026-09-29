@@ -105,7 +105,11 @@ services:
   migrate:
     <<: *app-image
     command:
-      ["sh", "-c", "python -m alembic upgrade head && python scripts/seed_config.py"]
+      [
+        "sh",
+        "-c",
+        "python -m alembic upgrade head && python scripts/seed_config.py && python scripts/seed_filter_options.py",
+      ]
     environment:
       DATABASE_URL: ${DATABASE_URL_MIGRATOR:?set DATABASE_URL_MIGRATOR in .env}
     restart: "no"

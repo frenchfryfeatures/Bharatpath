@@ -28,6 +28,53 @@
   }
 }
 
+/* Indeterminate progress sweep (candidate sign-up), from the app design. */
+@keyframes bpSweep {
+  0% {
+    transform: translateX(-110%);
+  }
+
+  100% {
+    transform: translateX(340%);
+  }
+}
+
+/* Drawer entrances. The drawer is mounted on open, so this runs every time. */
+@keyframes bpSlideInRight {
+  0% {
+    transform: translateX(100%);
+  }
+
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes bpFadeIn {
+  0% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+
+.bp-drawer-right {
+  animation: bpSlideInRight 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.bp-drawer-backdrop {
+  animation: bpFadeIn 180ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bp-drawer-right,
+  .bp-drawer-backdrop {
+    animation: none;
+  }
+}
+
 /* =========================================================
    Skeleton shimmer — the single loading placeholder surface
    used by every portal (admin / employer / college).

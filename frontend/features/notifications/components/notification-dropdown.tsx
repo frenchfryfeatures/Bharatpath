@@ -22,6 +22,7 @@ import {
 
 import { useAppDispatch } from "@/store/hooks";
 import { closeNotifications } from "@/store/common/slices/notification-slice";
+import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
 import type {
   Notification,
   NotificationType,
@@ -291,6 +292,7 @@ export function NotificationDropdown() {
             markNotificationRead(notification.id).unwrap(),
           ),
       );
+      showSuccessFeedback("All notifications marked as read.");
     } catch (error) {
       console.error(
         "Failed to mark all notifications as read:",
@@ -311,6 +313,7 @@ export function NotificationDropdown() {
     const updatedDismissedIds = new Set(dismissedIds).add(notificationId);
     setDismissedIds(updatedDismissedIds);
     persistDismissedNotifications(updatedDismissedIds);
+    showSuccessFeedback("Notification dismissed.");
 
     if (notification && !notification.read) {
       try {

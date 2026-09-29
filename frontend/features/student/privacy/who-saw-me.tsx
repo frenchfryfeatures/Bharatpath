@@ -7,7 +7,7 @@ import { StudentPage, StudentTopBar } from "@/features/student/shell";
 
 export function WhoSawMe() {
   return (
-    <StudentPage width="narrow">
+    <StudentPage>
       <div className="flex flex-col gap-4">
         <StudentTopBar title="Profile visibility" />
         <EmptyState

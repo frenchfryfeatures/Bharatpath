@@ -15,6 +15,10 @@ function getTypeClasses(
     return "bg-[#eef0ff] text-[#4e43b7]";
   }
 
+  if (type === "Dispute") {
+    return "bg-[#fdecec] text-[#c43d3d]";
+  }
+
   return "bg-[#fff4df] text-[#a86500]";
 }
 
@@ -39,6 +43,10 @@ function getAvatarClasses(
 ) {
   if (type === "KYB") {
     return "bg-[#eef0ff] text-[#4e43b7]";
+  }
+
+  if (type === "Dispute") {
+    return "bg-[#fdecec] text-[#c43d3d]";
   }
 
   return "bg-[#fff4df] text-[#a86500]";

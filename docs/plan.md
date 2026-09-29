@@ -1173,7 +1173,10 @@ The densest week. If anything slips, it slips here — see [§8.0](#80-what-four
 - **Two distinct consent scopes** — `ROSTER` (counted in aggregates) and `INDIVIDUAL` (visible as
   a person). Separate grants; roster consent never implies individual visibility (PRD §3.8).
 - Cohort analytics: queries **inner join consent**, plus a minimum-cohort-size floor so a small
-  cohort cannot be de-anonymised by subtraction.
+  cohort cannot be de-anonymised by subtraction. Once that floor is met, placement months return
+  exact counts, including `0` when no hire occurred and values from `1` to `4`. The overview
+  response never contains `null`: unavailable or privacy-withheld metrics and bands are `0`, and
+  the `below_floor` flag tells the client when that zero represents withholding.
 - Individual view gated on `INDIVIDUAL` consent, audited on every access.
 - Revocation effective immediately. Placement tracking labelled **platform-sourced**.
 - **Invariant 9 green.**

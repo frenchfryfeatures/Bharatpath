@@ -3,13 +3,28 @@ import type {
   ApiJobStatus,
   EmployerJob,
   EmployerJobApiResponse,
+  EmployerJobListItemApiResponse,
+  EmployerJobPageApiResponse,
 } from "@/features/employer/jobs/types";
 import type { CreateJobFormValues } from "@/features/employer/jobs/create";
+import { thresholdForApi } from "@/features/employer/jobs/create/threshold";
 
 export interface ThresholdPreview {
   min_score: number;
   approximate_count: number;
   fewer_than_ten: boolean;
+}
+
+export interface EmployerJobsQuery {
+  status?: ApiJobStatus;
+  q?: string;
+  cursor?: string;
+  limit?: number;
+}
+
+export interface EmployerJobsPage {
+  items: EmployerJob[];
+  nextCursor: string | null;
 }
 
 function jobBody(values: CreateJobFormValues) {
@@ -21,7 +36,7 @@ function jobBody(values: CreateJobFormValues) {
     work_mode: "ONSITE" as const,
     salary_min_minor: Number(values.salaryMin) * 100,
     salary_max_minor: Number(values.salaryMax) * 100,
-    min_score: values.minScore,
+    min_score: thresholdForApi(values.minScore),
   };
 }
 
@@ -36,8 +51,10 @@ const API_STATUS_TO_JOB_STATUS: Record<
 };
 
 function mapApiJobToEmployerJob(
-  job: EmployerJobApiResponse,
+  job: EmployerJobListItemApiResponse,
 ): EmployerJob {
+  const stageCounts = job.application_counts.by_stage;
+
   return {
     id: job.id,
     title: job.title,
@@ -47,42 +64,60 @@ function mapApiJobToEmployerJob(
     salaryMax: job.salary_max_minor / 100,
     minScore: job.min_score,
     skills: job.skills,
-
-    /*
-     * Not returned by GET /employer/jobs yet —
-     * pipeline metrics come from a different endpoint later.
-     */
-    applicantsCount: 0,
-    viewedCount: 0,
-    shortlistedCount: 0,
-    interviewCount: 0,
-    hiredCount: 0,
-    rejectedCount: 0,
+    applicantsCount: job.application_counts.total,
+    applicantsInPipelineCount:
+      stageCounts.SUBMITTED +
+      stageCounts.VIEWED +
+      stageCounts.SHORTLISTED +
+      stageCounts.INTERVIEW +
+      stageCounts.DECISION,
+    viewedCount: stageCounts.VIEWED,
+    shortlistedCount: stageCounts.SHORTLISTED,
+    interviewCount: stageCounts.INTERVIEW,
+    hiredCount: stageCounts.HIRED,
+    rejectedCount: stageCounts.REJECTED,
   };
 }
 
 export const employerJobsApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     getEmployerJobs: builder.query<
-      EmployerJob[],
-      { status?: ApiJobStatus } | void
+      EmployerJobsPage,
+      EmployerJobsQuery | void
     >({
       query: (params) => ({
         url: "/employer/jobs",
         method: "GET",
-        params: params?.status
-          ? { status: params.status }
+        params: params
+          ? {
+              status: params.status,
+              q: params.q,
+              cursor: params.cursor,
+              limit: params.limit,
+            }
           : undefined,
       }),
 
       transformResponse: (
-        response: EmployerJobApiResponse[],
-      ) => response.map(mapApiJobToEmployerJob),
+        response: EmployerJobPageApiResponse | EmployerJobListItemApiResponse[],
+      ) => {
+        // The paginated backend returns `{ items, next_cursor }`; a backend
+        // that has not yet deployed that change still answers with a bare
+        // array. Accept both so the jobs list never crashes on an old build.
+        const page = Array.isArray(response)
+          ? { items: response, next_cursor: null }
+          : response;
+
+        return {
+          items: (page.items ?? []).map(mapApiJobToEmployerJob),
+          nextCursor: page.next_cursor ?? null,
+        };
+      },
 
       providesTags: (result) =>
         result
           ? [
-              ...result.map((job) => ({
+              ...result.items.map((job) => ({
                 type: "Job" as const,
                 id: job.id,
               })),
@@ -134,6 +169,7 @@ export const employerJobsApi = baseApi.injectEndpoints({
 
 export const {
   useGetEmployerJobsQuery,
+  useLazyGetEmployerJobsQuery,
   useGetEmployerJobQuery,
   usePreviewEmployerJobThresholdQuery,
   useCreateEmployerJobMutation,

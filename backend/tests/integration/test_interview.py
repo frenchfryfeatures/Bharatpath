@@ -19,7 +19,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError, IntegrityError, ProgrammingError
 
 from app.modules.interview import service as interview_service
-from app.modules.interview.bank import QUESTIONS_PER_SESSION, SET_ONE, SET_TWO
+from app.modules.interview.bank import QUESTIONS_PER_SESSION
 from app.modules.scoring import service as scoring_service
 from tests.conftest import _seed_url, sessions
 from tests.integration.test_payments import _candidate, _scalar, _settle
@@ -95,6 +95,13 @@ async def _answer(
     blob: bytes = OGG,
     duration_ms: int = 30_000,
 ) -> Any:
+    if index:
+        # Every question is written by the model, one after each answer
+        # (2026-09-29). Idempotent: it returns the question already waiting.
+        written = await client.post(
+            f"{BASE}/sessions/{session_id}/next-question", headers=me["headers"]
+        )
+        assert written.status_code == 200, written.text
     ticket = await client.post(
         f"{BASE}/sessions/{session_id}/answers/{index}/upload", headers=me["headers"]
     )
@@ -122,7 +129,7 @@ async def _full_session(client: Any, fake: FakeS3, me: dict[str, Any], **buy: An
 
 
 # ===========================================================================
-# Subscription-first, and the device check before recording
+# Pay-first, and the device check before payment
 # ===========================================================================
 async def test_the_interview_is_a_paid_tool(client: Any, mint_token: Any) -> None:
     me = await _candidate(mint_token)
@@ -133,10 +140,14 @@ async def test_the_interview_is_a_paid_tool(client: Any, mint_token: Any) -> Non
         assert response.status_code == 402, (path, response.text)
 
 
-async def test_a_session_cannot_start_before_a_passed_device_check(
+async def test_a_session_cannot_be_bought_before_a_passed_device_check(
     client: Any, mint_token: Any
 ) -> None:
     me = await _paying(client, mint_token)
+    refused = await client.post(f"{BASE}/checkout", json={}, headers=me["headers"])
+    assert refused.status_code == 409
+    assert refused.json()["code"] == "interview_device_check_required"
+
     failed = await client.post(
         f"{BASE}/device-checks",
         json={**PASSING, "network_kbps": 2, "quiet_env_ok": False},
@@ -145,18 +156,14 @@ async def test_a_session_cannot_start_before_a_passed_device_check(
     assert failed.status_code == 201
     assert failed.json()["passed"] is False and failed.json()["valid_until"] is None
     assert failed.json()["failures"] == ["network_too_slow", "environment_too_noisy"]
-    still = await client.post(f"{BASE}/sessions", headers=me["headers"])
-    assert still.status_code == 409
+    still = await client.post(f"{BASE}/checkout", json={}, headers=me["headers"])
     assert still.json()["code"] == "interview_device_check_required"
     assert await _scalar("SELECT count(*) FROM payments WHERE user_id = :u", u=me["id"]) == 0
 
     await _checked(client, me)
     offer = (await client.get(f"{BASE}/offer", headers=me["headers"])).json()
     assert offer["on_sale"] and offer["device_check_passed"] and offer["will_increase_score"]
-    assert offer["requires_acknowledgement"] is False and offer["sessions_available"] == 1
-    started = await client.post(f"{BASE}/sessions", headers=me["headers"])
-    assert started.status_code == 201
-    assert await _scalar("SELECT count(*) FROM payments WHERE user_id = :u", u=me["id"]) == 0
+    assert offer["requires_acknowledgement"] is False and offer["sessions_available"] == 0
 
 
 async def test_a_stale_device_check_does_not_start_a_session(client: Any, mint_token: Any) -> None:
@@ -179,11 +186,9 @@ async def test_a_stale_device_check_does_not_start_a_session(client: Any, mint_t
 
 
 # ===========================================================================
-# Historical one-off checkout remains a receipt, never the session gate
+# Buying: nothing without a verified callback
 # ===========================================================================
-async def test_a_subscription_session_does_not_wait_for_a_legacy_payment(
-    client: Any, mint_token: Any
-) -> None:
+async def test_a_session_is_bought_only_by_a_verified_payment(client: Any, mint_token: Any) -> None:
     me = await _paying(client, mint_token)
     await _checked(client, me)
     checkout = await client.post(f"{BASE}/checkout", json={}, headers=me["headers"])
@@ -192,9 +197,9 @@ async def test_a_subscription_session_does_not_wait_for_a_legacy_payment(
     payment = await client.get(f"{API}/billing/payments/{payment_id}", headers=me["headers"])
     assert payment.json()["purpose"] == "INTERVIEW_SESSION"
 
-    included = await client.post(f"{BASE}/sessions", headers=me["headers"])
-    assert included.status_code == 201
-    assert included.json()["state"] == "CREATED"
+    no_purchase = await client.post(f"{BASE}/sessions", headers=me["headers"])
+    assert no_purchase.status_code == 409
+    assert no_purchase.json()["code"] == "interview_purchase_required"
 
     # The database refuses a purchase against the unsettled payment.
     product_id = await _scalar("SELECT item_id FROM payments WHERE id = :p", p=payment_id)
@@ -223,8 +228,7 @@ async def test_a_subscription_session_does_not_wait_for_a_legacy_payment(
     )
     assert notices == 1
     offer = (await client.get(f"{BASE}/offer", headers=me["headers"])).json()
-    assert offer["sessions_available"] == 0
-    assert offer["open_session_id"] == included.json()["id"]
+    assert offer["sessions_available"] == 1
 
 
 # ===========================================================================
@@ -239,8 +243,9 @@ async def test_answers_upload_one_at_a_time_and_an_interrupted_session_resumes(
     started = await client.post(f"{BASE}/sessions", headers=me["headers"])
     body = started.json()
     session_id = body["id"]
-    assert body["state"] == "CREATED" and body["question_set_code"] == SET_ONE.code
-    assert len(body["questions"]) == QUESTIONS_PER_SESSION
+    assert body["state"] == "CREATED" and body["question_set_code"] == "ADAPTIVE"
+    assert len(body["questions"]) == 1, "the rest are written after each answer"
+    assert body["questions_total"] == QUESTIONS_PER_SESSION
     assert all(q["looking_for"] is None for q in body["questions"]), (
         "feedback shown before answering"
     )
@@ -251,6 +256,7 @@ async def test_answers_upload_one_at_a_time_and_an_interrupted_session_resumes(
     assert first.json()["upload_state"] == "STORED" and first.json()["looking_for"]
 
     # A ticket issued and never used: the app crashed mid-upload.
+    await client.post(f"{BASE}/sessions/{session_id}/next-question", headers=me["headers"])
     await client.post(f"{BASE}/sessions/{session_id}/answers/1/upload", headers=me["headers"])
     not_there = await client.post(
         f"{BASE}/sessions/{session_id}/answers/1/complete",
@@ -420,7 +426,7 @@ async def test_four_sessions_move_the_score_by_sixty_and_replay_exactly(
         assert result.base_value == before.base_value
 
     second = await client.get(f"{BASE}/sessions/{session_ids[1]}", headers=me["headers"])
-    assert second.json()["question_set_code"] == SET_TWO.code
+    assert second.json()["question_set_code"] == "ADAPTIVE"
 
     # The fourth: warned, refused unacknowledged, and the acknowledgement kept.
     await _checked(client, me)

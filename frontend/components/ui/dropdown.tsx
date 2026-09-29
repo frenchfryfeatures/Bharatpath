@@ -22,6 +22,7 @@ interface DropdownProps<T extends string = string> {
   onChange: (value: T) => void;
 
   placeholder?: string;
+  ariaLabel?: string;
 
   className?: string;
   buttonClassName?: string;
@@ -39,6 +40,7 @@ export function Dropdown<T extends string = string>({
   options,
   onChange,
   placeholder = "Select",
+  ariaLabel,
   className = "",
   buttonClassName = "",
   menuClassName = "",
@@ -136,6 +138,7 @@ export function Dropdown<T extends string = string>({
       <button
         type="button"
         disabled={disabled}
+        aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() =>

@@ -94,3 +94,37 @@ def test_a_drilldown_shows_the_last_four_digits_and_the_domain() -> None:
     assert mask_phone(None) is None
     assert mask_email("priya.sharma@example.com") == "p***@example.com"
     assert mask_email("not-an-address") is None
+
+
+# --- the dashboard -----------------------------------------------------------------------
+def test_every_member_of_staff_has_a_dashboard_and_nobody_else_does() -> None:
+    from app.modules.admin.domain import CONSOLE_ROLES as ROLES
+    from app.modules.identity.domain import PLATFORM_ROLES as STAFF
+
+    assert ROLES["dashboard"] == frozenset(STAFF)
+
+
+def test_a_role_sees_exactly_the_queues_it_can_open() -> None:
+    from app.modules.admin.domain import dashboard_sections
+
+    assert dashboard_sections("PLATFORM_ADMIN") == {"kyb", "integrity", "disputes", "tenants"}
+    assert dashboard_sections("KYB_REVIEWER") == {"kyb", "tenants"}
+    assert dashboard_sections("INTEGRITY_REVIEWER") == {"integrity"}
+    assert dashboard_sections("SUPPORT_AGENT") == {"disputes", "tenants"}
+    assert dashboard_sections("EMPLOYER_OWNER") == frozenset()
+
+
+def test_the_throughput_chart_is_fourteen_indian_days_ending_today() -> None:
+    from datetime import UTC, date, datetime, timedelta
+
+    from app.modules.admin.domain import THROUGHPUT_DAYS, throughput_series
+
+    now = datetime(2026, 9, 22, 19, 0, tzinfo=UTC)  # 00:30 on the 23rd in India
+    today = date(2026, 9, 23)
+    series = throughput_series({today: 3}, {today - timedelta(days=1): 2}, now=now)
+    assert len(series) == THROUGHPUT_DAYS
+    assert series[-1] == (today, 3, 0)
+    assert series[-2] == (today - timedelta(days=1), 0, 2)
+    assert series[0][0] == today - timedelta(days=THROUGHPUT_DAYS - 1)
+    with pytest.raises(ValueError):
+        throughput_series({}, {}, now=datetime(2026, 9, 23))

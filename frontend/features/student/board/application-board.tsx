@@ -12,6 +12,7 @@ import {
 } from "@/store/student";
 import { getApiErrorMessage } from "@/lib/api/error-message";
 import { ApplicationCard, EmptyState } from "@/features/student/components";
+import { StudentBoardSkeleton } from "@/features/student/loading";
 import { StudentPage } from "@/features/student/shell";
 
 const FILTERS: { key: BoardFilter; label: string }[] = [
@@ -39,6 +40,10 @@ export function ApplicationBoard() {
     [applications.data?.items, filter],
   );
 
+  if (applications.isLoading) {
+    return <StudentBoardSkeleton />;
+  }
+
   return (
     <StudentPage>
       <div className="flex flex-col gap-5">
@@ -53,10 +58,10 @@ export function ApplicationBoard() {
                 type="button"
                 onClick={() => dispatch(setBoardFilter(tab.key))}
                 className={[
-                  "whitespace-nowrap rounded-full px-3.5 py-2 text-[13px] font-semibold transition-colors",
+                  "cursor-pointer whitespace-nowrap rounded-full px-3.5 py-2 text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30",
                   filter === tab.key
-                    ? "border border-[#C9BEEB] bg-[#F1EAF7] text-[#4A3E8F]"
-                    : "border border-[#E7E0D4] bg-white text-[#0A1931]",
+                    ? "border border-[#C9BEEB] bg-[#F1EAF7] text-[#4A3E8F] hover:bg-[#E8DEF3]"
+                    : "border border-[#E7E0D4] bg-white text-[#0A1931] hover:border-[#C9BEEB] hover:bg-[#F7F4EC]",
                 ].join(" ")}
               >
                 {tab.label}
@@ -65,11 +70,7 @@ export function ApplicationBoard() {
           </div>
         </div>
 
-        {applications.isLoading ? (
-          <div className="rounded-2xl border border-[#E7E0D4] bg-white p-5 text-sm text-[#5F6B80]">
-            Loading applications…
-          </div>
-        ) : applications.error ? (
+        {applications.error ? (
           <EmptyState
             icon={<ListChecks size={22} />}
             title="Applications unavailable"

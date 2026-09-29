@@ -112,7 +112,7 @@ export const employerKybApi = baseApi.injectEndpoints({
 
     saveEmployerKybAnswers: builder.mutation<
       KybSubmission,
-      { answers: Record<string, unknown> }
+      { answers: Record<string, unknown>; __suppressSuccessFeedback?: boolean }
     >({
       query: ({ answers }) => ({
         url: "/employer/kyb/answers",

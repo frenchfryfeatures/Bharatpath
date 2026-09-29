@@ -70,7 +70,9 @@ Audience = Literal[
 ]
 
 #: Variables the service resolves from identifiers in the payload.
-Variable = Literal["employer", "college", "amount", "date"]
+#: `message`, `when` and `link` belong to an employer's message to an applicant
+#: (2026-09-29), read at dispatch from the message the payload names.
+Variable = Literal["employer", "college", "amount", "date", "message", "when", "link"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,6 +101,7 @@ NOTIFYING_EVENTS: Final = frozenset(
         "applications.interview_scheduled",
         "applications.hire_proposed",
         "applications.application_expired",
+        "applications.message_sent",
         "billing.payment_succeeded",
         "billing.payment_failed",
         "subscriptions.state_changed",
@@ -140,6 +143,8 @@ def plan_for(event_type: str, payload: dict[str, object]) -> tuple[Planned, ...]
         "applications.application_expired",
     ):
         return (candidate_update,)
+    if event_type == "applications.message_sent":
+        return (message_plan(payload),)
     if event_type == "billing.payment_succeeded":
         return (Planned("USER", ("IN_APP_PAYMENT_RECEIVED",)),)
     if event_type == "billing.payment_failed":
@@ -223,6 +228,11 @@ def format_amount(minor: int, *, channel: str) -> str:
     rupees, paise = divmod(minor, 100)
     number = f"{rupees:,}" if paise == 0 else f"{rupees:,}.{paise:02d}"
     return f"Rs {number}" if channel == "SMS" else f"₹{number}"
+
+
+def format_moment(moment: datetime) -> str:
+    """A date and a time in India, for an interview: `03 Oct 2026, 10:30 AM IST`."""
+    return moment.astimezone(IST).strftime("%d %b %Y, %I:%M %p IST")
 
 
 def format_date(moment: datetime) -> str:
@@ -425,3 +435,30 @@ def nudge_due(
     if last_sent_at is None:
         return True
     return now - last_sent_at >= timedelta(hours=rules.min_interval_hours)
+
+
+def message_plan(payload: dict[str, object]) -> Planned:
+    """An employer's message to an applicant (2026-09-29), by its kind. The
+    payload says only which kind and whether it has a time: the words, the
+    time and the link are read at dispatch."""
+    kind = payload.get("kind")
+    if kind == "INTERVIEW":
+        return Planned(
+            "CANDIDATE",
+            ("EMAIL_INTERVIEW_INVITATION", "IN_APP_INTERVIEW_INVITATION"),
+            ("employer", "when", "link", "message"),
+        )
+    if kind == "ASSESSMENT":
+        email = (
+            "EMAIL_ASSESSMENT_INVITATION_DEADLINE"
+            if payload.get("has_time")
+            else "EMAIL_ASSESSMENT_INVITATION"
+        )
+        return Planned(
+            "CANDIDATE",
+            (email, "IN_APP_ASSESSMENT_INVITATION"),
+            ("employer", "when", "link", "message"),
+        )
+    return Planned(
+        "CANDIDATE", ("EMAIL_EMPLOYER_MESSAGE", "IN_APP_EMPLOYER_MESSAGE"), ("employer", "message")
+    )

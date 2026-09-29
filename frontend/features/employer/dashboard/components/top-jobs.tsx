@@ -1,23 +1,21 @@
 "use client";
 
+import Link from "next/link";
+
 import type { EmployerTopJob } from "../types";
 
 interface TopJobsProps {
   jobs: EmployerTopJob[];
-  onJobClick?: (jobId: string) => void;
 }
 
-export function TopJobs({
-  jobs,
-  onJobClick,
-}: TopJobsProps) {
+export function TopJobs({ jobs }: TopJobsProps) {
   const maxApplicants = Math.max(
     ...jobs.map((job) => job.applicants),
     1,
   );
 
   return (
-    <section className="flex min-h-[220px] flex-col rounded-xl border border-[#e5e7eb] bg-white p-4 shadow-[0_2px_8px_rgba(19,26,38,0.025)]">
+    <section className="flex min-h-[220px] flex-col rounded-xl border border-[#e5e7eb] bg-white p-4 shadow-[0_2px_8px_rgba(19,26,38,0.025)] transition-all duration-150 hover:-translate-y-px hover:border-[#d9dce4] hover:shadow-[0_6px_18px_rgba(19,26,38,0.05)]">
       <h2 className="mb-2 text-[13px] font-semibold leading-[17px] text-[#111827]">
         Top jobs by applicants
       </h2>
@@ -35,11 +33,10 @@ export function TopJobs({
             const width = (job.applicants / maxApplicants) * 100;
 
             return (
-              <button
+              <Link
                 key={job.id}
-                type="button"
-                onClick={() => onJobClick?.(job.id)}
-                className="block w-full border-b border-[#eef1f4] py-3 text-left last:border-b-0"
+                href={`/employer/applications?jobId=${encodeURIComponent(job.id)}`}
+                className="block w-full rounded-lg border-b border-[#eef1f4] px-2 py-3 text-left transition-colors last:border-b-0 hover:bg-[#f8fafc] focus:outline-none focus:ring-2 focus:ring-[#5b4fcf]/20"
               >
                 <div className="mb-2 flex items-center justify-between gap-4">
                   <span className="min-w-0 truncate text-[12px] font-medium text-[#24344d]">
@@ -60,7 +57,7 @@ export function TopJobs({
                     style={{ width: `${width}%` }}
                   />
                 </div>
-              </button>
+              </Link>
             );
           })}
         </div>

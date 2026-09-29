@@ -14,6 +14,8 @@ import type {
   NotificationType,
 } from "@/features/notifications";
 
+import { interactiveCardClass } from "./primitives";
+
 /*
  * ==========================================================================
  * NOTIFICATION CARD
@@ -76,7 +78,7 @@ export function NotificationCard({
     <button
       type="button"
       onClick={() => onRead(notification)}
-      className="flex w-full items-start gap-3 rounded-2xl border border-[#E7E0D4] bg-white p-4 text-left transition-colors hover:bg-[#FFFDF9]"
+      className={`flex w-full items-start gap-3 rounded-2xl border border-[#E7E0D4] bg-white p-4 text-left hover:bg-[#FFFDF9] ${interactiveCardClass}`}
     >
       <span className="mt-0.5 shrink-0">{ICONS[notification.type]}</span>
 

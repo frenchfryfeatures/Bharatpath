@@ -9,6 +9,7 @@ export {
   setMeetingLink,
   confirmEmployerHire,
   replaceApplications,
+  appendApplications,
   replaceApplication,
 } from "./applications.slice";
 
@@ -16,7 +17,6 @@ export {
   selectEmployerApplications,
   selectApplicationJobFilter,
   selectOpenApplicationId,
-  selectPendingApplicationsCount,
   selectFilteredEmployerApplications,
   selectOpenApplication,
 } from "./applications.selectors";

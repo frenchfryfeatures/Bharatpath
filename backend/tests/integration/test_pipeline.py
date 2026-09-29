@@ -186,6 +186,55 @@ async def test_a_jobs_applications_are_listed_oldest_first_and_by_stage(
     assert rest.json()["next_cursor"] is None
 
 
+async def test_without_a_job_the_list_spans_every_job_and_names_each(
+    client: Any, mint_token: Any
+) -> None:
+    """The pipeline board fills from one request. Before this `job_id` was
+    required, so "All jobs" was one request per job, merged on the client.
+
+    Oldest first across jobs, each row naming its job, the stage filter and
+    the cursor working as they do for one job -- and listing is read-only: it
+    never records VIEWED, which only opening an application does."""
+    first = await _applied(client, mint_token)
+    employer = first["employer"]
+    other_job = await _job(client, employer, title="Line Supervisor", location="Nashik")
+    second = (await _apply(client, await _candidate(mint_token), other_job)).json()["id"]
+    third = (await _apply(client, await _candidate(mint_token), first["job"])).json()["id"]
+
+    listed = await client.get(PIPELINE, headers=employer["headers"])
+    assert listed.status_code == 200, listed.text
+    items = listed.json()["items"]
+    assert [i["id"] for i in items] == [first["id"], second, third]
+    labels = {i["id"]: (i["job_id"], i["job_title"], i["job_location"]) for i in items}
+    assert labels[first["id"]] == (first["job"]["id"], first["job"]["title"], "Pune")
+    assert labels[second] == (other_job["id"], "Line Supervisor", "Nashik")
+    assert {i["stage"] for i in items} == {"SUBMITTED"}, "listing must not record VIEWED"
+    for item in items:
+        assert not {"name", "phone", "email", "score", "min_score"} & set(item)
+
+    await client.get(f"{PIPELINE}/{second}", headers=employer["headers"])
+    viewed = await client.get(PIPELINE, params={"stage": "VIEWED"}, headers=employer["headers"])
+    assert [i["id"] for i in viewed.json()["items"]] == [second]
+
+    seen: list[str] = []
+    cursor: str | None = None
+    for _ in range(3):
+        params: dict[str, Any] = {"limit": 1}
+        if cursor is not None:
+            params["cursor"] = cursor
+        page = (await client.get(PIPELINE, params=params, headers=employer["headers"])).json()
+        seen += [i["id"] for i in page["items"]]
+        cursor = page["next_cursor"]
+    assert seen == [first["id"], second, third]
+    assert cursor is None
+
+    # One job still narrows it, and names the job all the same.
+    one = await client.get(
+        PIPELINE, params={"job_id": other_job["id"]}, headers=employer["headers"]
+    )
+    assert [(i["id"], i["job_title"]) for i in one.json()["items"]] == [(second, "Line Supervisor")]
+
+
 async def test_the_jobs_list_carries_each_jobs_pipeline_counts(
     client: Any, mint_token: Any
 ) -> None:
@@ -208,7 +257,7 @@ async def test_the_jobs_list_carries_each_jobs_pipeline_counts(
 
     listed = await client.get(f"{API}/employer/jobs", headers=employer["headers"])
     assert listed.status_code == 200, listed.text
-    rows = {row["id"]: row["application_counts"] for row in listed.json()}
+    rows = {row["id"]: row["application_counts"] for row in listed.json()["items"]}
 
     counts = rows[busy["id"]]
     # Each application is at one stage, so the stages sum to the total: the

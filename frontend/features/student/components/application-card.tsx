@@ -10,7 +10,12 @@ import {
   stageLabel,
 } from "@/features/student/formatters";
 
-import { MonogramTile, StatusChip, type ChipTone } from "./primitives";
+import {
+  interactiveCardClass,
+  MonogramTile,
+  StatusChip,
+  type ChipTone,
+} from "./primitives";
 
 const STATUS_TONE: Record<JobApplication["stage"], ChipTone> = {
   SUBMITTED: "waiting",
@@ -36,7 +41,7 @@ export function ApplicationCard({
     <button
       type="button"
       onClick={() => router.push(`/student/board/${application.id}`)}
-      className="flex w-full cursor-pointer flex-col gap-3 rounded-[20px] border border-[#E7E0D4] bg-white p-4 text-left transition-transform active:scale-[.99]"
+      className={`flex w-full flex-col gap-3 rounded-[20px] border border-[#E7E0D4] bg-white p-4 text-left ${interactiveCardClass}`}
     >
       <div className="flex items-center gap-3">
         <MonogramTile tint="indigo" size={40}>

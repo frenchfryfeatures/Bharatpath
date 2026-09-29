@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type {
   ApplicationColumnDefinition,
@@ -13,6 +13,10 @@ interface ApplicationColumnProps {
   column: ApplicationColumnDefinition;
 
   applications: EmployerApplication[];
+  loadedApplicationCount: number;
+  hasNextPage: boolean;
+  isLoadingMore: boolean;
+  onLoadMore: () => void;
 
   onApplicationClick: (
     id: string,
@@ -27,10 +31,42 @@ interface ApplicationColumnProps {
 export function ApplicationColumn({
   column,
   applications,
+  loadedApplicationCount,
+  hasNextPage,
+  isLoadingMore,
+  onLoadMore,
   onApplicationClick,
   onApplicationDrop,
 }: ApplicationColumnProps) {
   const [isDropTarget, setIsDropTarget] = useState(false);
+  const scrollBodyRef = useRef<HTMLDivElement>(null);
+  const hasScrollIntentRef = useRef(false);
+  const previousLoadedCountRef = useRef(loadedApplicationCount);
+
+  const loadNextPageNearEnd = useCallback((element: HTMLDivElement) => {
+    if (
+      hasScrollIntentRef.current &&
+      hasNextPage &&
+      !isLoadingMore &&
+      element.scrollHeight - element.scrollTop - element.clientHeight <= 96
+    ) {
+      onLoadMore();
+    }
+  }, [hasNextPage, isLoadingMore, onLoadMore]);
+
+  useEffect(() => {
+    const previousLoadedCount = previousLoadedCountRef.current;
+    previousLoadedCountRef.current = loadedApplicationCount;
+
+    if (loadedApplicationCount <= previousLoadedCount) {
+      return;
+    }
+
+    const scrollBody = scrollBodyRef.current;
+    if (scrollBody) {
+      loadNextPageNearEnd(scrollBody);
+    }
+  }, [loadedApplicationCount, loadNextPageNearEnd]);
 
   const handleDrop = (event: React.DragEvent<HTMLElement>) => {
     event.preventDefault();
@@ -109,7 +145,23 @@ export function ApplicationColumn({
       </div>
 
       {/* BODY */}
-      <div className="bp-scrollbar flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3 pb-3">
+      <div
+        ref={scrollBodyRef}
+        className="bp-scrollbar flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3 pb-3"
+        aria-busy={isLoadingMore}
+        onScroll={(event) => {
+          if (event.currentTarget.scrollTop > 0) {
+            hasScrollIntentRef.current = true;
+          }
+          loadNextPageNearEnd(event.currentTarget);
+        }}
+        onWheel={(event) => {
+          if (event.deltaY > 0) {
+            hasScrollIntentRef.current = true;
+            loadNextPageNearEnd(event.currentTarget);
+          }
+        }}
+      >
         {applications.length > 0 ? (
           applications.map(
             (application) => (

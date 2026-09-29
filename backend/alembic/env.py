@@ -79,8 +79,13 @@ def do_run_migrations(connection: Connection) -> None:
 
 
 async def run_migrations_online() -> None:
+    from app.core.db import connect_args_for
+
+    section = config.get_section(config.config_ini_section, {})
     engine = async_engine_from_config(
-        config.get_section(config.config_ini_section, {}), prefix="sqlalchemy."
+        section,
+        prefix="sqlalchemy.",
+        connect_args=connect_args_for(config.get_main_option("sqlalchemy.url") or ""),
     )
     async with engine.connect() as connection:
         await connection.run_sync(do_run_migrations)

@@ -26,13 +26,21 @@ export interface OldestDashboardItem {
   name: string;
   meta: string;
   initials: string;
-  type: "KYB" | "Integrity";
-  risk: "High" | "Medium" | "Low";
+  type: "KYB" | "Integrity" | "Dispute";
+  risk: "High" | "Medium" | "Low" | "—";
   waiting: string;
 }
 
+export type PlatformTotalLabel =
+  | "Candidates"
+  | "Employers"
+  | "Institutions"
+  | "Published jobs"
+  | "Applications"
+  | "Confirmed hires";
+
 export interface PlatformTotal {
-  label: "Candidates" | "Employers" | "Institutions";
+  label: PlatformTotalLabel;
   value: string;
 }
 

@@ -69,7 +69,6 @@ logger = get_logger(__name__)
 #: The number lives in `app.core.ratelimit.STATIC_POLICIES` (Day 20), beside
 #: every other limit, so it can be held as one of the two tightest.
 THRESHOLD_PREVIEWS_PER_HOUR: Final = STATIC_POLICIES["jobs.threshold_preview"].limit
-MAX_JOB_LIST: Final = 100
 
 
 class JobNotFoundError(NotFoundError):
@@ -127,9 +126,29 @@ async def create_job(
     return job
 
 
+def _employer_job_cursor_of(job: Any) -> str:
+    return encode_cursor({"c": job.created_at.isoformat(), "i": str(job.id)})
+
+
+def _employer_jobs_after(cursor: str | None) -> tuple[datetime, uuid.UUID] | None:
+    if cursor is None:
+        return None
+    payload = decode_cursor(cursor)
+    try:
+        return datetime.fromisoformat(str(payload["c"])), uuid.UUID(str(payload["i"]))
+    except (KeyError, ValueError) as exc:
+        raise ValidationError(code="invalid_cursor") from exc
+
+
 async def list_jobs(
-    session: AsyncSession, *, ctx: TenantContext, status: str | None
-) -> list[JobListItem]:
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    status: str | None,
+    query: str | None = None,
+    cursor: str | None = None,
+    limit: int | None = None,
+) -> Page[JobListItem]:
     """The organisation's jobs, newest first, each with its pipeline counts.
 
     The counts are a second aggregate over the page, not a query per job. An
@@ -138,25 +157,58 @@ async def list_jobs(
     turn one request into one per job.
     """
     tenant_id = await _bind(session, ctx)
-    jobs = await repository.list_jobs(
-        session, tenant_id=tenant_id, status=status, limit=MAX_JOB_LIST
+    page_size = clamp_limit(limit)
+    rows = await repository.list_jobs(
+        session,
+        tenant_id=tenant_id,
+        status=status,
+        query=query.strip() or None if query is not None else None,
+        after=_employer_jobs_after(cursor),
+        limit=page_size + 1,
     )
+    jobs, more = rows[:page_size], len(rows) > page_size
     counts = await repository.stage_counts(
         session, tenant_id=tenant_id, job_ids=[job.id for job in jobs]
     )
-    return [
-        JobListItem(
-            **JobResponse.model_validate(job).model_dump(),
-            application_counts=ApplicationStageCounts(
-                total=sum(counts[job.id].values()), by_stage=counts[job.id]
-            ),
-        )
-        for job in jobs
-    ]
+    return Page[JobListItem](
+        items=[
+            JobListItem(
+                **JobResponse.model_validate(job).model_dump(),
+                application_counts=ApplicationStageCounts(
+                    total=sum(counts[job.id].values()), by_stage=counts[job.id]
+                ),
+            )
+            for job in jobs
+        ],
+        next_cursor=_employer_job_cursor_of(jobs[-1]) if more and jobs else None,
+    )
 
 
 async def get_job(session: AsyncSession, *, ctx: TenantContext, job_id: uuid.UUID) -> Any:
     return await _load(session, ctx, job_id)
+
+
+async def status_counts(session: AsyncSession, *, ctx: TenantContext) -> dict[str, int]:
+    """The organisation's jobs counted by state, for the employer dashboard."""
+    tenant_id = await _bind(session, ctx)
+    return await repository.status_counts(session, tenant_id=tenant_id)
+
+
+async def titles(
+    session: AsyncSession, *, ctx: TenantContext, job_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, tuple[str, str]]:
+    """`job id -> (title, status)` for the organisation's own jobs among `job_ids`."""
+    tenant_id = await _bind(session, ctx)
+    return await repository.titles(session, tenant_id=tenant_id, job_ids=job_ids)
+
+
+async def labels(
+    session: AsyncSession, *, ctx: TenantContext, job_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, tuple[str, str | None]]:
+    """`job id -> (title, location)` for the organisation's own jobs among
+    `job_ids`, for the pipeline list's cards."""
+    tenant_id = await _bind(session, ctx)
+    return await repository.labels(session, tenant_id=tenant_id, job_ids=job_ids)
 
 
 async def update_job(

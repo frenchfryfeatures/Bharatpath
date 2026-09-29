@@ -14,9 +14,10 @@ export type EmployerApplicationStage =
 export interface EmployerApplicationApiModel {
   id: string;
   jobId: string;
+  jobLocation: string | null;
   candidateId: string;
   stage: 0 | 1 | 2 | 3 | 4;
-  outcome: "hired" | "rejected" | null;
+  outcome: "hired" | "rejected" | "withdrawn" | "expired" | null;
   appliedDate: string;
   meetingLink: string;
   hireEmployerConfirmed: boolean;
@@ -25,7 +26,7 @@ export interface EmployerApplicationApiModel {
     id: string;
     name: string;
     initials: string;
-    exactScore: number;
+    exactScore: number | null;
     location: string;
     jobTitle: string;
     unlocked: boolean;
@@ -46,12 +47,18 @@ interface EmployerApplicationResponse {
   updated_at: string;
 }
 
+interface EmployerApplicationListItemResponse
+  extends EmployerApplicationResponse {
+  job_title: string | null;
+  job_location: string | null;
+}
+
 interface EmployerApplicationDetailResponse extends EmployerApplicationResponse {
   history: unknown[];
 }
 
 interface EmployerApplicationPage {
-  items: EmployerApplicationResponse[];
+  items: EmployerApplicationListItemResponse[];
   next_cursor: string | null;
 }
 
@@ -70,19 +77,24 @@ const STAGE_TO_NUMBER: Record<EmployerApplicationStage, 0 | 1 | 2 | 3 | 4> = {
 export function mapEmployerApplication(
   application: EmployerApplicationResponse,
   jobTitle = "Employer application",
+  jobLocation: string | null = null,
 ): EmployerApplicationApiModel {
   const outcome =
     application.stage === "HIRED"
       ? "hired"
-      : application.stage === "REJECTED" ||
-          application.stage === "EXPIRED" ||
-          application.stage === "WITHDRAWN"
+      : application.stage === "REJECTED"
         ? "rejected"
+        : application.stage === "WITHDRAWN"
+          ? "withdrawn"
+          : application.stage === "EXPIRED"
+            ? "expired"
         : null;
+  const maskedCandidateId = application.candidate_id.slice(0, 8);
 
   return {
     id: application.id,
     jobId: application.job_id,
+    jobLocation,
     candidateId: application.candidate_id,
     stage: STAGE_TO_NUMBER[application.stage],
     outcome,
@@ -99,10 +111,10 @@ export function mapEmployerApplication(
     hireCandidateConfirmed: application.hire_confirmation === "CONFIRMED",
     candidate: {
       id: application.candidate_id,
-      name: "Masked candidate",
+      name: `Candidate ${maskedCandidateId}`,
       initials: "MC",
-      exactScore: 700,
-      location: "Location not shared",
+      exactScore: null,
+      location: "Profile not opened",
       jobTitle,
       unlocked: false,
     },
@@ -113,13 +125,17 @@ export const employerApplicationsApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     getEmployerApplications: builder.query<
       { items: EmployerApplicationApiModel[]; nextCursor: string | null },
-      { jobId: string; cursor?: string; limit?: number }
+      {
+        stage?: EmployerApplicationStage;
+        cursor?: string;
+        limit?: number;
+      }
     >({
-      query: ({ jobId, cursor, limit }) => ({
+      query: ({ stage, cursor, limit }) => ({
         url: "/employer/applications",
         method: "GET",
         params: {
-          job_id: jobId,
+          stage,
           cursor,
           limit,
         },
@@ -128,7 +144,11 @@ export const employerApplicationsApi = baseApi.injectEndpoints({
         response: EmployerApplicationPage,
       ) => ({
         items: response.items.map((application) =>
-          mapEmployerApplication(application),
+          mapEmployerApplication(
+            application,
+            application.job_title ?? "Employer application",
+            application.job_location,
+          ),
         ),
         nextCursor: response.next_cursor,
       }),

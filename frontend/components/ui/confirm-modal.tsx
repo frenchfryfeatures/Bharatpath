@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { LogOut, X } from "lucide-react";
 
 import { Button } from "./button";
@@ -13,6 +13,7 @@ interface ConfirmModalProps {
   readonly cancelLabel?: string;
   /** Shows a spinner on the confirm button and blocks the dialog while true. */
   readonly confirmLoading?: boolean;
+  readonly children?: ReactNode;
   readonly onClose: () => void;
   readonly onConfirm: () => void;
 }
@@ -24,6 +25,7 @@ export function ConfirmModal({
   confirmLabel = "Confirm",
   cancelLabel = "Cancel",
   confirmLoading = false,
+  children,
   onClose,
   onConfirm,
 }: ConfirmModalProps) {
@@ -33,7 +35,7 @@ export function ConfirmModal({
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && !confirmLoading) {
         onClose();
       }
     };
@@ -42,7 +44,7 @@ export function ConfirmModal({
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [onClose, open]);
+  }, [confirmLoading, onClose, open]);
 
   if (!open) {
     return null;
@@ -89,6 +91,8 @@ export function ConfirmModal({
             <X size={16} strokeWidth={1.8} />
           </button>
         </div>
+
+        {children ? <div className="mt-4">{children}</div> : null}
 
         <div className="mt-6 flex justify-end gap-2">
           <Button

@@ -19,6 +19,12 @@ export default function CollegeStudentsLoading() {
         <Skeleton height={200} radius={16} />
         <Skeleton height={200} radius={16} />
       </div>
+
+      {/* Roster imports and referral codes */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <Skeleton height={216} radius={16} />
+        <Skeleton height={188} radius={16} />
+      </div>
     </div>
   );
 }

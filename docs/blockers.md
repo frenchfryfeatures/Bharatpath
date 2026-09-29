@@ -122,7 +122,7 @@ the one to read: a placeholder removes the build dependency and nothing else.
 
 | # | Blocker | Placeholder built | Still owed by the client |
 |---|---|---|---|
-| **C1** | **Course content** | Syllabus: 6 modules, 18 lessons, ~2h20, each with a stated outcome (`courses/catalogue.py`) | **The recordings.** Every `asset_key` is `None` and `HAS_MEDIA` is False, so the course cannot be listed or sold. Also still open: what counts as completing it, which is a scoring rule wearing a progress tracker's clothes. |
+| **C1** | **Course content** | Syllabus outline: 6 modules, 18 lessons (`courses/catalogue.py`). Since 2026-09-29 staff build the real course in the console from YouTube links or uploads | **The recordings** — nothing is on sale until staff publish a course with a playable lesson. **Completion is answered** (answers-log 11.5): every published lesson watched. |
 | **C2** | **N8 — plans, prices, catalogue** | Full price list, 11 plans + 2 one-off products (`subscriptions/catalogue.py`) | **Real prices.** Ours are benchmarked against the Indian market, not against a margin — the per-candidate cost figure that would set one does not exist (`scoring-approach.md` §12). `PLACEHOLDER_PRICING` is the flag to flip. |
 | **C3** | **Questionnaire bank** | 12 questions, 4 sections, all skippable (`questionnaire/bank.py`) | Review. **Note what we excluded and why**: marital status, gender, religion, caste, photograph. Re-adding any of them is a client decision with counsel, not a field somebody adds. |
 | **C4** | **Interview bank + rubric** | 3 sets × 6 questions, 5-dimension rubric with anchors (`interview/bank.py`) | Review. Accent, fluency, pace and pitch are deliberately not assessed. |

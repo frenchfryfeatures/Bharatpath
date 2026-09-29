@@ -2,32 +2,22 @@ import type { ReactNode } from "react";
 
 /*
  * ==========================================================================
- * STUDENT PAGE — the responsive content container. Centres and caps the
- * content width, and gives every screen consistent responsive gutters.
+ * STUDENT PAGE — the responsive content container. Every student route uses
+ * the same content width and gutters so detail screens do not jump inward.
  * ==========================================================================
  */
 
-const WIDTHS = {
-  narrow: "max-w-3xl",
-  medium: "max-w-5xl",
-  wide: "max-w-none",
-  full: "max-w-none",
-} as const;
-
 export function StudentPage({
   children,
-  width = "wide",
   className = "",
 }: {
   children: ReactNode;
-  width?: keyof typeof WIDTHS;
   className?: string;
 }) {
   return (
     <div
       className={[
-        "mx-auto w-full p-4",
-        WIDTHS[width],
+        "mx-auto w-full max-w-[1280px] p-4",
         className,
       ].join(" ")}
     >

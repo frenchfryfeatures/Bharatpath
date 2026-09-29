@@ -4,6 +4,7 @@ import {
   DataTable,
   type ColumnDef,
 } from "@/components/ui/table";
+import type { CursorTablePagination } from "@/lib/pagination/use-cursor-pagination";
 
 import { StateBadge } from "../../shared/status-badge";
 
@@ -13,12 +14,14 @@ interface OpenDisputesTabProps {
   disputes: Dispute[];
   onOpen: (id: string) => void;
   isLoading?: boolean;
+  pagination: CursorTablePagination;
 }
 
 export function OpenDisputesTab({
   disputes,
   onOpen,
   isLoading,
+  pagination,
 }: OpenDisputesTabProps) {
   const columns: ColumnDef<Dispute>[] = [
     {
@@ -81,9 +84,13 @@ export function OpenDisputesTab({
       columns={columns}
       data={disputes}
       keyExtractor={(item) => item.id}
-      pageSize={10}
-      totalCount={disputes.length}
-      itemLabel=""
+      paginationMode="cursor"
+      pageSize={pagination.pageSize}
+      currentPage={pagination.currentPage}
+      hasNextPage={pagination.hasNextPage}
+      onNextPage={pagination.onNextPage}
+      onPreviousPage={pagination.onPreviousPage}
+      itemLabel="disputes"
       emptyTitle="No open disputes"
       emptySubtitle=""
       isLoading={isLoading}

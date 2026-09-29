@@ -34,12 +34,8 @@ interface CohortOverviewResponse {
 }
 
 function mapScoreDistribution(
-  distribution: ScoreDistributionResponse | null,
-): ScoreDistribution | null {
-  if (!distribution) {
-    return null;
-  }
-
+  distribution: ScoreDistributionResponse,
+): ScoreDistribution {
   return {
     entry: distribution.ENTRY,
     developing: distribution.DEVELOPING,
@@ -57,9 +53,9 @@ function mapCohortOverview(
     minCohortSize: overview.min_cohort_size,
     belowFloor: overview.below_floor,
     scoredStudents: overview.scored_students,
-    scoreDistribution: mapScoreDistribution(
-      overview.score_distribution,
-    ),
+    scoreDistribution: overview.score_distribution
+      ? mapScoreDistribution(overview.score_distribution)
+      : null,
     medianScore: overview.median_score,
     applicants: overview.applicants,
     applications: overview.applications,

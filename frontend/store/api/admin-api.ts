@@ -216,8 +216,141 @@ type TenantListParams = AdminListParams & {
 };
 type DisputeListParams = AdminListParams & {
   state?: DisputeRow["state"];
+  state_group?: "ACTIVE" | "CLOSED";
   kind?: DisputeRow["kind"];
   party?: DisputeRow["party"];
+};
+
+export type SearchFilterKind = "SKILL" | "CITY";
+
+export type SearchFilterOption = {
+  id: string;
+  kind: SearchFilterKind;
+  label: string;
+  key: string;
+  aliases: string[];
+  state_code: string | null;
+  featured: boolean;
+  sort_order: number;
+  active: boolean;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CreateSearchFilterOption = {
+  kind: SearchFilterKind;
+  label: string;
+  aliases?: string[];
+  state_code?: string | null;
+  featured?: boolean;
+  sort_order?: number;
+};
+
+export type UpdateSearchFilterOption = {
+  label?: string;
+  aliases?: string[];
+  state_code?: string | null;
+  featured?: boolean;
+  sort_order?: number;
+  active?: boolean;
+};
+
+export type SearchFilterOptionsPage = {
+  items: SearchFilterOption[];
+  next_cursor: string | null;
+  catalogue_version: string;
+};
+
+type SearchFilterListParams = AdminListParams & {
+  kind?: SearchFilterKind;
+  q?: string;
+  includeInactive?: boolean;
+};
+
+/*
+ * GET /api/v1/admin/dashboard — everything the operations dashboard needs in
+ * one audited request. Field names follow the backend contract; nested shapes
+ * the contract does not spell out in full are typed conservatively and the
+ * hook maps them defensively.
+ */
+export type OrganisationStatusCounts = {
+  active: number;
+  suspended: number;
+  closed: number;
+};
+
+export type AdminOldestWaitingItem = {
+  type: "KYB" | "INTEGRITY" | "DISPUTE";
+  id: string;
+  waiting_since: string;
+  detail: string;
+  organisation: string | null;
+  tenant_id: string | null;
+  candidate_id: string | null;
+  severity: "LOW" | "MEDIUM" | "HIGH" | null;
+  party: "CANDIDATE" | "EMPLOYER" | "COLLEGE" | null;
+};
+
+export type AdminThroughputPoint = {
+  date: string;
+  intake: number;
+  cleared: number;
+};
+
+export type AdminCandidateRow = {
+  id: string;
+  status: "ACTIVE" | "SUSPENDED" | "DELETED";
+  full_name: string | null;
+  city: string | null;
+  state_code: string | null;
+  phone_masked: string | null;
+  email_masked: string | null;
+  created_at: string;
+};
+
+export type AdminCandidateListParams = AdminListParams & {
+  status?: "ACTIVE" | "SUSPENDED" | "DELETED";
+  q?: string;
+  email?: string;
+};
+
+export type AdminDashboardResponse = {
+  generated_at: string;
+  kyb: {
+    awaiting_review: number;
+    awaiting_employer: number;
+    review_required: boolean;
+    oldest_waiting_since: string | null;
+  } | null;
+  integrity: {
+    open: number;
+    open_by_severity: Record<"LOW" | "MEDIUM" | "HIGH", number>;
+    candidates_held_back: number;
+    oldest_waiting_since: string | null;
+  } | null;
+  disputes: {
+    open: number;
+    in_review: number;
+    unassigned: number;
+    by_kind: Record<string, number>;
+    oldest_waiting_since: string | null;
+  } | null;
+  organisations: {
+    employers: OrganisationStatusCounts;
+    colleges: OrganisationStatusCounts;
+  } | null;
+  oldest_waiting: AdminOldestWaitingItem[];
+  platform_totals: {
+    candidates: number;
+    employers: number;
+    colleges: number;
+    jobs_published: number;
+    applications: number;
+    hires: number;
+  };
+  throughput: AdminThroughputPoint[];
 };
 
 export const adminApi = baseApi.injectEndpoints({
@@ -226,6 +359,77 @@ export const adminApi = baseApi.injectEndpoints({
     getAdminIdentity: builder.query<AuthIdentity, void>({
       query: () => "/auth/me",
       providesTags: ["Auth"],
+    }),
+    getAdminDashboard: builder.query<AdminDashboardResponse, void>({
+      query: () => "/admin/dashboard",
+      providesTags: ["Admin"],
+    }),
+    getAdminSearchFilters: builder.query<
+      SearchFilterOptionsPage,
+      SearchFilterListParams | void
+    >({
+      query: (params) => ({
+        url: "/admin/search-filters",
+        params: params
+          ? {
+              kind: params.kind,
+              q: params.q,
+              include_inactive: params.includeInactive,
+              cursor: params.cursor,
+              limit: params.limit,
+            }
+          : undefined,
+      }),
+      providesTags: [{ type: "Admin", id: "SEARCH_FILTERS" }],
+    }),
+    getAdminSearchFilter: builder.query<SearchFilterOption, string>({
+      query: (optionId) => `/admin/search-filters/${optionId}`,
+      providesTags: (_result, _error, optionId) => [
+        { type: "Admin", id: `SEARCH_FILTER_${optionId}` },
+      ],
+    }),
+    createAdminSearchFilter: builder.mutation<
+      SearchFilterOption,
+      CreateSearchFilterOption
+    >({
+      query: (body) => ({
+        url: "/admin/search-filters",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: [
+        { type: "Admin", id: "SEARCH_FILTERS" },
+        { type: "Candidate", id: "FILTERS" },
+      ],
+    }),
+    importAdminSearchFilters: builder.mutation<
+      { items: SearchFilterOption[] },
+      CreateSearchFilterOption[]
+    >({
+      query: (items) => ({
+        url: "/admin/search-filters/import",
+        method: "POST",
+        body: { items },
+      }),
+      invalidatesTags: [
+        { type: "Admin", id: "SEARCH_FILTERS" },
+        { type: "Candidate", id: "FILTERS" },
+      ],
+    }),
+    updateAdminSearchFilter: builder.mutation<
+      SearchFilterOption,
+      { optionId: string; changes: UpdateSearchFilterOption }
+    >({
+      query: ({ optionId, changes }) => ({
+        url: `/admin/search-filters/${optionId}`,
+        method: "PATCH",
+        body: changes,
+      }),
+      invalidatesTags: (_result, _error, { optionId }) => [
+        { type: "Admin", id: "SEARCH_FILTERS" },
+        { type: "Admin", id: `SEARCH_FILTER_${optionId}` },
+        { type: "Candidate", id: "FILTERS" },
+      ],
     }),
     getAdminKybSubmissions: builder.query<KybSubmissionsPage, KybListParams | void>({
       query: (params) => ({ url: "/admin/kyb/submissions", params: params ?? undefined }),
@@ -253,6 +457,10 @@ export const adminApi = baseApi.injectEndpoints({
     }),
     getAdminTenants: builder.query<CursorPage<TenantRow>, TenantListParams | void>({
       query: (params) => ({ url: "/admin/tenants", params: params ?? undefined }),
+      providesTags: ["Admin"],
+    }),
+    getAdminCandidates: builder.query<CursorPage<AdminCandidateRow>, AdminCandidateListParams | void>({
+      query: (params) => ({ url: "/admin/candidates", params: params ?? undefined }),
       providesTags: ["Admin"],
     }),
     suspendAdminTenant: builder.mutation<SuspensionResponse, { tenantId: string; reason: string }>({
@@ -313,6 +521,12 @@ export const adminApi = baseApi.injectEndpoints({
 export const {
   useGetAdminIdentityQuery,
   useLazyGetAdminIdentityQuery,
+  useGetAdminDashboardQuery,
+  useGetAdminSearchFiltersQuery,
+  useGetAdminSearchFilterQuery,
+  useCreateAdminSearchFilterMutation,
+  useImportAdminSearchFiltersMutation,
+  useUpdateAdminSearchFilterMutation,
   useGetAdminKybSubmissionsQuery,
   useGetAdminKybSubmissionQuery,
   useDecideAdminKybMutation,
@@ -320,6 +534,7 @@ export const {
   useGetAdminIntegritySignalQuery,
   useResolveAdminIntegritySignalMutation,
   useGetAdminTenantsQuery,
+  useGetAdminCandidatesQuery,
   useSuspendAdminTenantMutation,
   useReinstateAdminTenantMutation,
   useGetAdminTenantSuspensionsQuery,
@@ -333,4 +548,5 @@ export const {
   useAssignAdminDisputeMutation,
   useResolveAdminDisputeMutation,
   useGetAdminAuditEventsQuery,
+  useLazyGetAdminAuditEventsQuery,
 } = adminApi;

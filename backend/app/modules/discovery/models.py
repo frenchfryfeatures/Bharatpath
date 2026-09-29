@@ -28,6 +28,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -36,6 +37,7 @@ from sqlalchemy import (
     SmallInteger,
     String,
     Text,
+    UniqueConstraint,
     func,
     text,
 )
@@ -44,6 +46,13 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
+from app.core.mixins import Timestamps, UUIDPrimaryKey
+from app.modules.discovery.domain import (
+    FILTER_KINDS,
+    MAX_CITY_LABEL_LENGTH,
+    MAX_OPTION_ALIASES,
+    MAX_SORT_ORDER,
+)
 
 
 class CandidateViewEvent(Base):
@@ -182,3 +191,74 @@ Index(
     CandidateSearchDocument.band_rank.desc(),
     CandidateSearchDocument.user_id,
 )
+
+
+class SearchFilterOption(Base, UUIDPrimaryKey, Timestamps):
+    """A skill or a city the employer's filter panel offers (2026-09-24).
+
+    **Curated by staff, never drawn from the pool** -- see `domain` for why.
+    Search takes any text; an option adds the spellings (`aliases`) that
+    choosing it also searches, and `featured` puts it on the panel before
+    anything is typed.
+
+    **Switched off, never deleted.** The app role holds no DELETE: a saved
+    search or a shared link naming an option keeps working as plain text, and
+    `updated_by` says who changed it last. Every change also writes an audit
+    row.
+
+    `key` and every alias are lower-cased and whitespace-collapsed
+    (`domain.option_key`). One spelling belongs to one option per kind; the
+    unique constraint holds the key and the service holds the aliases, under
+    a per-kind advisory lock.
+    """
+
+    __tablename__ = "search_filter_options"
+
+    kind: Mapped[str] = mapped_column(String(8), nullable=False)
+    label: Mapped[str] = mapped_column(String(MAX_CITY_LABEL_LENGTH), nullable=False)
+    key: Mapped[str] = mapped_column(String(MAX_CITY_LABEL_LENGTH), nullable=False)
+    aliases: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), nullable=False, server_default=text("'{}'::text[]")
+    )
+    state_code: Mapped[str | None] = mapped_column(String(2))
+    featured: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+    #: NULL for a row the seed script wrote.
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT")
+    )
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT")
+    )
+
+    __table_args__ = (
+        UniqueConstraint("kind", "key", name="uq_search_filter_options_kind_key"),
+        CheckConstraint(
+            "kind IN (" + ", ".join(f"'{k}'" for k in FILTER_KINDS) + ")",
+            name="ck_search_filter_options_kind",
+        ),
+        CheckConstraint(
+            "key = lower(key) AND key <> '' AND char_length(label) > 0",
+            name="ck_search_filter_options_key_normalised",
+        ),
+        CheckConstraint(
+            "(kind = 'CITY') = (state_code IS NOT NULL)",
+            name="ck_search_filter_options_state_only_for_cities",
+        ),
+        CheckConstraint(
+            f"cardinality(aliases) <= {MAX_OPTION_ALIASES} AND NOT (key = ANY(aliases))",
+            name="ck_search_filter_options_aliases",
+        ),
+        CheckConstraint(
+            f"sort_order BETWEEN 0 AND {MAX_SORT_ORDER}",
+            name="ck_search_filter_options_sort_order",
+        ),
+        Index("ix_search_filter_options_aliases", "aliases", postgresql_using="gin"),
+        Index(
+            "ix_search_filter_options_featured",
+            "kind",
+            "sort_order",
+            postgresql_where=text("featured AND active"),
+        ),
+    )

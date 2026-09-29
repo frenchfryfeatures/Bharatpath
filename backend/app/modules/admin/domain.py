@@ -21,6 +21,7 @@ machine is small on purpose -- open, being looked at, closed one of two ways
 from __future__ import annotations
 
 import re
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Final, Literal
 
 # ---------------------------------------------------------------------------
@@ -47,6 +48,12 @@ Capability = Literal[
     "resend_invitation",
     "discounts",
     "discounts_read",
+    "dashboard",
+    "search_filters",
+    "courses",
+    "candidate_resume",
+    "candidate_contact",
+    "candidate_recordings",
 ]
 
 #: `capability -> the staff roles that hold it`. PLATFORM_ADMIN holds all of
@@ -80,6 +87,28 @@ CONSOLE_ROLES: Final[dict[Capability, frozenset[str]]] = {
     # read by support, who answer "my code did not work".
     "discounts": frozenset({PLATFORM_ADMIN}),
     "discounts_read": frozenset({PLATFORM_ADMIN, SUPPORT_AGENT}),
+    # 2026-09-23. The landing page, for every member of staff. It shows each
+    # of them the queues their other capabilities already open, and platform
+    # totals, which are counts and name nobody.
+    "dashboard": frozenset({PLATFORM_ADMIN, KYB_REVIEWER, INTEGRITY_REVIEWER, SUPPORT_AGENT}),
+    # 2026-09-24. The skills and cities employers filter by. Support edits
+    # them too (client, 2026-09-24): an option is a suggestion that names
+    # nobody and prices nothing, and every change is audited.
+    "search_filters": frozenset({PLATFORM_ADMIN, SUPPORT_AGENT}),
+    # 2026-09-29. What the course teaches, and when it goes on sale. A lesson
+    # counts toward a score once watched, so building the course is the
+    # admin's alone, as the price of anything is.
+    "courses": frozenset({PLATFORM_ADMIN}),
+    # 2026-09-29, the full candidate page the client asked for. The CV is
+    # what anyone who can open a candidate is already looking into, the
+    # integrity reviewer above all. A recording is a person's own voice, and
+    # nothing about reviewing a CV needs it, so the integrity reviewer does
+    # not hear them.
+    "candidate_resume": frozenset({PLATFORM_ADMIN, SUPPORT_AGENT, INTEGRITY_REVIEWER}),
+    # The onboarding page carries the whole phone number and email: support
+    # contacts people; reviewing a CV does not need to.
+    "candidate_contact": frozenset({PLATFORM_ADMIN, SUPPORT_AGENT}),
+    "candidate_recordings": frozenset({PLATFORM_ADMIN, SUPPORT_AGENT}),
 }
 
 
@@ -189,3 +218,49 @@ def mask_email(email: str | None) -> str | None:
         return None
     local, _, domain = email.partition("@")
     return f"{local[:1]}***@{domain}"
+
+
+# ---------------------------------------------------------------------------
+# The dashboard
+# ---------------------------------------------------------------------------
+#: The dashboard sections that are a queue, each shown only to a role holding
+#: the capability that opens that queue. A KYB reviewer's landing page does
+#: not count integrity signals they could not open.
+DashboardSection = Literal["kyb", "integrity", "disputes", "tenants"]
+DASHBOARD_SECTIONS: Final[tuple[DashboardSection, ...]] = (
+    "kyb",
+    "integrity",
+    "disputes",
+    "tenants",
+)
+
+#: India keeps one offset all year. A day on the chart is a reviewer's day.
+IST: Final = timezone(timedelta(hours=5, minutes=30), "IST")
+#: The same zone by its Postgres name. Not "+05:30", which Postgres reads
+#: with the sign reversed.
+IST_ZONE_NAME: Final = "Asia/Kolkata"
+THROUGHPUT_DAYS: Final = 14
+OLDEST_ITEMS: Final = 5
+
+
+def dashboard_sections(role: str) -> frozenset[DashboardSection]:
+    """The queue sections `role` sees, straight from `CONSOLE_ROLES`."""
+    return frozenset(s for s in DASHBOARD_SECTIONS if role in CONSOLE_ROLES[s])
+
+
+def throughput_start(now: datetime) -> datetime:
+    """Midnight IST at the start of the chart's first day; today is the last."""
+    if now.tzinfo is None:
+        raise ValueError("now must be timezone-aware")
+    first = now.astimezone(IST).date() - timedelta(days=THROUGHPUT_DAYS - 1)
+    return datetime.combine(first, time.min, IST)
+
+
+def throughput_series(
+    intake: dict[date, int], cleared: dict[date, int], *, now: datetime
+) -> list[tuple[date, int, int]]:
+    """`(IST date, intake, cleared)` for every day of the chart, oldest
+    first, zeros included -- a quiet day is a bar of zero, not a gap."""
+    first = throughput_start(now).date()
+    days = [first + timedelta(days=i) for i in range(THROUGHPUT_DAYS)]
+    return [(day, intake.get(day, 0), cleared.get(day, 0)) for day in days]

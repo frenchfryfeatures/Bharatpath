@@ -54,9 +54,10 @@ export function ApplicationCard({
     candidate,
   } = application;
 
-  const band = getBand(
-    candidate.exactScore,
-  );
+  const band =
+    candidate.exactScore === null
+      ? null
+      : getBand(candidate.exactScore);
 
   return (
     <button
@@ -125,7 +126,7 @@ export function ApplicationCard({
           "
           style={{
             background:
-              band.avatarBackground,
+              band?.avatarBackground ?? "#f0f2f5",
           }}
         >
           <span
@@ -136,7 +137,7 @@ export function ApplicationCard({
             "
             style={{
               color:
-                band.avatarColor,
+                band?.avatarColor ?? "#687384",
             }}
           >
             {candidate.initials}
@@ -163,35 +164,36 @@ export function ApplicationCard({
 
         {/* BAND */}
 
-        <span
-          className="
-            inline-flex
-            shrink-0
-            items-center
-            gap-1
-            rounded-full
-            px-2
-            py-1
-            text-[11px]
-            font-semibold
-            leading-[14px]
-            text-white
-          "
-          style={{
-            background:
-              band.background,
-          }}
-        >
-          <Star
-            size={12}
-            fill="currentColor"
-            strokeWidth={1.5}
-          />
-
-          <span>
-            {band.label}
+        {band ? (
+          <span
+            className="
+              inline-flex
+              shrink-0
+              items-center
+              gap-1
+              rounded-full
+              px-2
+              py-1
+              text-[11px]
+              font-semibold
+              leading-[14px]
+              text-white
+            "
+            style={{
+              background:
+                band.background,
+            }}
+          >
+            <Star
+              size={12}
+              fill="currentColor"
+              strokeWidth={1.5}
+            />
+            <span>
+              {band.label}
+            </span>
           </span>
-        </span>
+        ) : null}
       </span>
 
       {/* =====================================================
@@ -258,7 +260,9 @@ export function ApplicationCard({
             whitespace-nowrap
           "
         >
-          {candidate.location.trim() || "Location not provided"}
+          {application.jobLocation?.trim() ||
+            candidate.location.trim() ||
+            "Location not provided"}
         </span>
       </span>
     </button>

@@ -109,24 +109,41 @@ below — never smuggled into a create or edit body.
 
 **Auth required:** any employer role (Owner/Recruiter/Viewer) + active subscription.
 
-**Request:** optional query param `?status=DRAFT` (one of `DRAFT`,
-`PUBLISHED`, `PAUSED`, `CLOSED`) to filter. No body.
+**Request:** optional query params:
 
-**Response** — `200 OK`, array of `JobListItem`, newest first. That is every
-field of `JobResponse` from §1, **plus the job's pipeline counts**:
+- `status`: one of `DRAFT`, `PUBLISHED`, `PAUSED`, `CLOSED`
+- `q`: case-insensitive text matched against title and location
+- `limit`: 1–100
+- `cursor`: the opaque `next_cursor` returned by the preceding page
+
+No body. Omit `cursor` for the first page. Sending the returned cursor is what
+fetches the next page; the server does not preload or expose later rows.
+
+**Response** — `200 OK`, a cursor `Page[JobListItem]`, newest first:
 
 ```json
 {
-  "id": "...", "title": "Backend Engineer", "status": "PUBLISHED",
-  "application_counts": {
-    "total": 13,
-    "by_stage": {
-      "SUBMITTED": 4, "VIEWED": 3, "SHORTLISTED": 2, "INTERVIEW": 1,
-      "DECISION": 1, "HIRED": 1, "REJECTED": 1, "WITHDRAWN": 0, "EXPIRED": 0
+  "items": [
+    {
+      "id": "...", "title": "Backend Engineer", "status": "PUBLISHED",
+      "application_counts": {
+        "total": 13,
+        "by_stage": {
+          "SUBMITTED": 4, "VIEWED": 3, "SHORTLISTED": 2, "INTERVIEW": 1,
+          "DECISION": 1, "HIRED": 1, "REJECTED": 1, "WITHDRAWN": 0, "EXPIRED": 0
+        }
+      }
     }
-  }
+  ],
+  "next_cursor": "opaque-or-null",
+  "total": null
 }
 ```
+
+Each item has every field of `JobResponse` from §1, **plus the job's pipeline
+counts**. `next_cursor: null` means this is the last page. `total` is null
+because the cursor controls need only the current page and whether another
+page exists.
 
 Only ever the caller's own organisation's jobs — there's no parameter that
 could reach another tenant's.
@@ -143,10 +160,10 @@ an absent key from an empty stage. `total` counts every application ever
 filed on the job, withdrawn and expired ones as well.
 
 **This is why the list gives you the counts rather than making you ask per
-job.** The counts are one aggregate across the whole page, so a jobs table
-with a column per stage costs one request however many jobs the employer
-has. Don't loop `GET /employer/applications?job_id=…` over the rows to
-build the same numbers.
+job.** The counts are one aggregate across the current page, so a jobs table
+with a column per stage costs one request per page however many rows it shows.
+Don't loop `GET /employer/applications?job_id=…` over the rows to build the
+same numbers.
 
 ## 3. `GET /employer/jobs/{job_id}` — one job
 

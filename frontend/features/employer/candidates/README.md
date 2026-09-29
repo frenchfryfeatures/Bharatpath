@@ -21,6 +21,7 @@ This feature reproduces the Candidates screen shown in the supplied BharatPath e
 - `app/employer/candidates/page.tsx`
 - `features/employer/candidates/candidates-page.tsx`
 - `features/employer/candidates/candidate-card.tsx`
+- `features/employer/candidates/candidate-list-skeleton.tsx`
 - `features/employer/candidates/candidate-filters.tsx`
 - `features/employer/candidates/candidate-unlock-dialog.tsx`
 - `features/employer/candidates/data.ts`

@@ -3,6 +3,7 @@ export {
   setCandidateFilters,
   toggleCandidateBand,
   setCandidateSearch,
+  setCandidateState,
   toggleCandidateFilter,
   goToNextCandidatePage,
   goToPreviousCandidatePage,
@@ -18,8 +19,17 @@ export {
 } from "./candidates.selectors";
 export {
   employerCandidatesApi,
+  useGetEmployerCandidateFiltersQuery,
+  useGetEmployerCandidateSkillSuggestionsQuery,
+  useGetEmployerCandidateLocationSuggestionsQuery,
   useSearchEmployerCandidatesQuery,
   useLazyRevealEmployerCandidateQuery,
   useRevealEmployerCandidatesQuery,
+  useLazyRevealEmployerCandidatesQuery,
 } from "./candidates.api";
-export type { RevealedCandidateResponse } from "./candidates.api";
+export type {
+  CandidateCityChoice,
+  CandidateFilterPanelResponse,
+  CandidateSkillChoice,
+  RevealedCandidateResponse,
+} from "./candidates.api";

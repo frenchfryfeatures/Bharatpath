@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Briefcase,
   Check,
@@ -17,6 +18,7 @@ import {
 import { usePageHeader } from "@/components/layout/header-context";
 import { CardSkeletonGrid, Skeleton } from "@/components/common/loading";
 import { MetricCard } from "../../../../components/common/dashboard/metric-card";
+import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
 import { useDashboard } from "../hooks/use-dashboard";
 import { ScoreDistribution } from "./score-distribution";
 
@@ -25,7 +27,13 @@ function formatMetric(value: number | null): string | number {
 }
 
 export function CollegeDashboard() {
-  const { data, isLoadingOverview, isLoadingReferralCodes } = useDashboard();
+  const router = useRouter();
+  const {
+    data,
+    isLoadingOverview,
+    isLoadingSeats,
+    isLoadingReferralCodes,
+  } = useDashboard();
 
   usePageHeader(
     "Dashboard",
@@ -39,6 +47,7 @@ export function CollegeDashboard() {
           data.seatsTotal > 0
             ? (data.seatsUsed / data.seatsTotal) * 100
             : 0,
+        isLoading: isLoadingSeats,
       },
     },
   );
@@ -55,6 +64,7 @@ export function CollegeDashboard() {
             value={data.connectedStudents}
             icon={Users}
             tone="purple"
+            onClick={() => router.push("/college/students")}
           />
 
           <MetricCard
@@ -62,6 +72,7 @@ export function CollegeDashboard() {
             value={data.individuallyVisible}
             icon={UserCheck}
             tone="green"
+            onClick={() => router.push("/college/students")}
           />
 
           <MetricCard
@@ -69,6 +80,7 @@ export function CollegeDashboard() {
             value={formatMetric(data.medianScore)}
             icon={Gauge}
             tone="blue"
+            onClick={() => router.push("/college/analytics")}
           />
 
           <MetricCard
@@ -76,6 +88,7 @@ export function CollegeDashboard() {
             value={formatMetric(data.platformHires)}
             icon={Briefcase}
             tone="orange"
+            onClick={() => router.push("/college/analytics#hires")}
           />
         </div>
       )}
@@ -87,12 +100,18 @@ export function CollegeDashboard() {
           {isLoadingOverview ? (
             <Skeleton height={280} radius={12} />
           ) : (
-            <ScoreDistribution
-              bands={data.bands}
-              medianScore={data.medianScore}
-              belowFloor={data.belowFloor}
-              minCohortSize={data.minCohortSize}
-            />
+            <Link
+              href="/college/analytics"
+              aria-label="Open cohort analytics"
+              className="block rounded-xl transition-all duration-150 hover:-translate-y-px hover:shadow-[0_6px_18px_rgba(19,26,38,0.05)] focus:outline-none focus:ring-2 focus:ring-[#5b4fcf]/20"
+            >
+              <ScoreDistribution
+                bands={data.bands}
+                medianScore={data.medianScore}
+                belowFloor={data.belowFloor}
+                minCohortSize={data.minCohortSize}
+              />
+            </Link>
           )}
 
           {isLoadingReferralCodes ? (
@@ -137,7 +156,11 @@ function CohortFunnel({
   ];
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-[#e5e7ec] bg-white p-5">
+    <Link
+      href="/college/analytics"
+      aria-label="Open cohort activity analytics"
+      className="flex flex-col gap-3 rounded-xl border border-[#e5e7ec] bg-white p-5 transition-all duration-150 hover:-translate-y-px hover:border-[#d9dce4] hover:shadow-[0_6px_18px_rgba(19,26,38,0.05)] focus:outline-none focus:ring-2 focus:ring-[#5b4fcf]/20"
+    >
       <div className="flex flex-col gap-[2px]">
         <h2 className="text-sm font-semibold text-[#151b2b]">
           Cohort activity
@@ -162,7 +185,7 @@ function CohortFunnel({
           </div>
         ))}
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -181,6 +204,7 @@ function ReferralCode({
     try {
       await navigator.clipboard.writeText(code);
       setCopied(true);
+      showSuccessFeedback("Referral code copied successfully.");
 
       setTimeout(() => {
         setCopied(false);
@@ -199,6 +223,11 @@ function ReferralCode({
         bg-white
         p-5
         shadow-[0_4px_12px_rgba(19,26,38,0.024)]
+        transition-all
+        duration-150
+        hover:-translate-y-px
+        hover:border-[#d9dce4]
+        hover:shadow-[0_6px_18px_rgba(19,26,38,0.05)]
       "
     >
       {/* Header */}
@@ -313,13 +342,13 @@ function ReferralCode({
         <QuickAction
           icon={Ticket}
           label="Issue a referral code"
-          href="/college/students"
+          href="/college/students#referral-codes"
         />
 
         <QuickAction
           icon={FileSpreadsheet}
           label="Bulk upload a roster"
-          href="/college/students"
+          href="/college/students#bulk-upload"
         />
       </div>
     </div>
@@ -350,8 +379,15 @@ function QuickAction({
         bg-white
         p-3
         text-left
-        transition-colors
+        transition-all
+        duration-150
+        hover:-translate-y-px
+        hover:border-[#d9dce4]
         hover:bg-[#f8f9fb]
+        hover:shadow-sm
+        focus:outline-none
+        focus:ring-2
+        focus:ring-[#5b4fcf]/20
       "
     >
       <span

@@ -1,5 +1,5 @@
-import { NotificationsList } from "@/features/student/notifications";
+import { redirect } from "next/navigation";
 
 export default function StudentNotificationsPage() {
-  return <NotificationsList />;
+  redirect("/student");
 }

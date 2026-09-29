@@ -71,6 +71,6 @@ export interface NotificationPreferences {
 export type NotificationPreferenceChanges = Partial<
   Pick<
     NotificationPreferences,
-    "sms_enabled" | "email_enabled" | "push_enabled" | "nudges_enabled"
+    "locale" | "sms_enabled" | "email_enabled" | "push_enabled" | "nudges_enabled"
   >
 >;

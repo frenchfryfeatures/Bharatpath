@@ -321,7 +321,7 @@ async def erase_candidate(
         text("SELECT erase_candidate(:user_id, :policy_version)"),
         {"user_id": user_id, "policy_version": policy_version},
     )
-    manifest = row.scalar_one()
+    manifest: Any = row.scalar_one()
     return dict(manifest) if isinstance(manifest, dict) else {}
 
 
@@ -382,6 +382,32 @@ _EXPORT_QUERIES: dict[str, str] = {
         SELECT s.id, s.state, s.created_at, s.completed_at
           FROM interview_sessions s WHERE s.user_id = :user_id
          ORDER BY s.created_at
+    """,
+    # 2026-09-29. The questions written for them, which were written from
+    # their CV and answers, so they are about the person.
+    "interview_questions": """
+        SELECT q.session_id, q.question_index, q.prompt, q.looking_for, q.kind, q.created_at
+          FROM interview_session_questions q
+          JOIN interview_sessions s ON s.id = q.session_id
+         WHERE s.user_id = :user_id
+         ORDER BY q.created_at, q.question_index
+    """,
+    "courses": """
+        SELECT m.course_code, l.title AS lesson, p.position_seconds, p.furthest_seconds,
+               p.first_opened_at, p.completed_at
+          FROM course_lesson_progress p
+          JOIN course_lessons l ON l.id = p.lesson_id
+          JOIN course_modules m ON m.id = l.module_id
+         WHERE p.user_id = :user_id
+         ORDER BY p.first_opened_at
+    """,
+    # What employers sent them. Never which recruiter: that is the employer's.
+    "messages": """
+        SELECT m.application_id, m.kind, m.body, m.scheduled_at, m.link, m.created_at
+          FROM application_messages m
+          JOIN applications a ON a.id = m.application_id
+         WHERE a.candidate_id = :user_id
+         ORDER BY m.created_at
     """,
     "questionnaire": """
         SELECT bank_version, answers, submitted_at

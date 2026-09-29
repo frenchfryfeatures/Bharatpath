@@ -215,6 +215,49 @@ async def integrity_signal(reader: AsyncSession, *, signal_id: uuid.UUID) -> Row
     )
 
 
+async def candidates(
+    reader: AsyncSession,
+    *,
+    status: str | None,
+    name_contains: str | None,
+    email: str | None,
+    after: tuple[datetime, uuid.UUID] | None,
+    limit: int,
+) -> list[RowMapping]:
+    """Candidate accounts, newest first, keyset by `(created_at, id)` and
+    served by `ix_users_pool_created`. Business accounts are never listed:
+    `pool` is the filter, not a role, because a candidate holds no membership.
+    `email` is an exact match on the normalised address -- a lookup for
+    someone who wrote to support, not a way to enumerate a domain."""
+    name = None
+    if name_contains:
+        name = name_contains.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return await _rows(
+        reader,
+        """
+        SELECT u.id, u.status, u.phone, u.email, u.created_at,
+               p.full_name, p.city, p.state_code
+          FROM users u
+          LEFT JOIN candidate_profiles p ON p.user_id = u.id
+         WHERE u.pool = 'CANDIDATE'
+           AND (CAST(:status AS text) IS NULL OR u.status = CAST(:status AS text))
+           AND (CAST(:email AS text) IS NULL OR u.email = CAST(:email AS text))
+           AND (CAST(:name AS text) IS NULL
+                OR p.full_name ILIKE '%' || CAST(:name AS text) || '%' ESCAPE '\\')
+           AND (CAST(:after_at AS timestamptz) IS NULL
+                OR (u.created_at, u.id) < (CAST(:after_at AS timestamptz), CAST(:after_id AS uuid)))
+         ORDER BY u.created_at DESC, u.id DESC
+         LIMIT :limit
+        """,
+        status=status,
+        email=email,
+        name=name,
+        after_at=after[0] if after else None,
+        after_id=after[1] if after else None,
+        limit=limit,
+    )
+
+
 async def candidate_account(reader: AsyncSession, *, user_id: uuid.UUID) -> RowMapping | None:
     return await _one(
         reader,
@@ -545,3 +588,306 @@ async def audit_events(
         after_id=after[1] if after else None,
         limit=limit,
     )
+
+
+# ---------------------------------------------------------------------------
+# The dashboard (bypass reader)
+# ---------------------------------------------------------------------------
+# Counts across every organisation, and the few oldest items in each queue.
+# "Waiting on us" means: a KYB submission SUBMITTED or UNDER_REVIEW, an
+# integrity signal OPEN, a dispute OPEN or IN_REVIEW. MORE_INFO_REQUIRED is
+# waiting on the employer and is counted apart.
+async def _aggregate(reader: AsyncSession, sql: str, **params: Any) -> RowMapping:
+    """The one row an aggregate without GROUP BY always returns."""
+    return (await _rows(reader, sql, **params))[0]
+
+
+async def platform_totals(reader: AsyncSession) -> RowMapping:
+    row = await _aggregate(
+        reader,
+        """
+        SELECT
+          (SELECT count(*) FROM users WHERE pool = 'CANDIDATE' AND status = 'ACTIVE')
+            AS candidates,
+          (SELECT count(*) FROM tenants WHERE type = 'EMPLOYER' AND status = 'ACTIVE')
+            AS employers,
+          (SELECT count(*) FROM tenants WHERE type = 'COLLEGE' AND status = 'ACTIVE')
+            AS colleges,
+          (SELECT count(*) FROM jobs WHERE status = 'PUBLISHED') AS jobs_published,
+          (SELECT count(*) FROM applications) AS applications,
+          (SELECT count(*) FROM applications WHERE stage = 'HIRED') AS hires
+        """,
+    )
+    return row
+
+
+async def kyb_backlog(reader: AsyncSession) -> RowMapping:
+    row = await _aggregate(
+        reader,
+        """
+        SELECT
+          count(*) FILTER (WHERE state IN ('SUBMITTED', 'UNDER_REVIEW')) AS awaiting_review,
+          count(*) FILTER (WHERE state = 'MORE_INFO_REQUIRED') AS awaiting_employer,
+          min(coalesce(submitted_at, created_at))
+            FILTER (WHERE state IN ('SUBMITTED', 'UNDER_REVIEW')) AS oldest_waiting_since
+          FROM kyb_submissions
+         WHERE state IN ('SUBMITTED', 'UNDER_REVIEW', 'MORE_INFO_REQUIRED')
+        """,
+    )
+    return row
+
+
+async def integrity_backlog(reader: AsyncSession) -> RowMapping:
+    """`candidates_held_back` is people with an OPEN HIGH signal: already out of
+    employer search, and waiting on nobody but a reviewer."""
+    row = await _aggregate(
+        reader,
+        """
+        SELECT
+          count(*) AS open,
+          count(*) FILTER (WHERE severity = 'HIGH') AS high,
+          count(*) FILTER (WHERE severity = 'MEDIUM') AS medium,
+          count(*) FILTER (WHERE severity = 'LOW') AS low,
+          count(DISTINCT candidate_id) FILTER (WHERE severity = 'HIGH') AS candidates_held_back,
+          min(created_at) AS oldest_waiting_since
+          FROM integrity_signals
+         WHERE state = 'OPEN'
+        """,
+    )
+    return row
+
+
+async def dispute_backlog(reader: AsyncSession) -> tuple[RowMapping, dict[str, int]]:
+    row = await _aggregate(
+        reader,
+        """
+        SELECT
+          count(*) FILTER (WHERE state = 'OPEN') AS open,
+          count(*) FILTER (WHERE state = 'IN_REVIEW') AS in_review,
+          count(*) FILTER (WHERE assigned_to IS NULL) AS unassigned,
+          min(created_at) AS oldest_waiting_since
+          FROM disputes
+         WHERE state IN ('OPEN', 'IN_REVIEW')
+        """,
+    )
+    by_kind = await _counts(
+        reader,
+        """
+        SELECT kind AS key, count(*) AS n FROM disputes
+         WHERE state IN ('OPEN', 'IN_REVIEW') GROUP BY kind
+        """,
+    )
+    return row, by_kind
+
+
+async def organisation_counts(reader: AsyncSession) -> list[RowMapping]:
+    return await _rows(
+        reader,
+        """
+        SELECT type, status, count(*) AS n FROM tenants
+         WHERE type IN ('EMPLOYER', 'COLLEGE') GROUP BY type, status
+        """,
+    )
+
+
+async def oldest_kyb(reader: AsyncSession, *, limit: int) -> list[RowMapping]:
+    return await _rows(
+        reader,
+        """
+        SELECT k.id, k.tenant_id, t.name AS organisation, k.state,
+               coalesce(k.submitted_at, k.created_at) AS waiting_since
+          FROM kyb_submissions k
+          JOIN tenants t ON t.id = k.tenant_id
+         WHERE k.state IN ('SUBMITTED', 'UNDER_REVIEW')
+         ORDER BY waiting_since, k.id
+         LIMIT :limit
+        """,
+        limit=limit,
+    )
+
+
+async def oldest_signals(reader: AsyncSession, *, limit: int) -> list[RowMapping]:
+    """Identifiers and the rule, as the queue shows them. Never the evidence."""
+    return await _rows(
+        reader,
+        """
+        SELECT id, candidate_id, rule_id, severity, created_at AS waiting_since
+          FROM integrity_signals
+         WHERE state = 'OPEN'
+         ORDER BY created_at, id
+         LIMIT :limit
+        """,
+        limit=limit,
+    )
+
+
+async def oldest_disputes(reader: AsyncSession, *, limit: int) -> list[RowMapping]:
+    """Kind and party, never the description: it is read by opening the dispute."""
+    return await _rows(
+        reader,
+        """
+        SELECT d.id, d.kind, d.party, d.tenant_id, t.name AS organisation,
+               d.created_at AS waiting_since
+          FROM disputes d
+          LEFT JOIN tenants t ON t.id = d.tenant_id
+         WHERE d.state IN ('OPEN', 'IN_REVIEW')
+         ORDER BY d.created_at, d.id
+         LIMIT :limit
+        """,
+        limit=limit,
+    )
+
+
+async def throughput(
+    reader: AsyncSession,
+    *,
+    since: datetime,
+    zone: str,
+    kyb: bool,
+    integrity: bool,
+    disputes: bool,
+) -> list[RowMapping]:
+    """Items that entered, and items that left, the queues named, per day in `zone`.
+
+    An auto-approved KYB submission never waited on anyone (R15), so it is
+    neither intake nor cleared. A KYB review that asks for more information
+    clears the item from our queue; resubmitting brings it back.
+    """
+    return await _rows(
+        reader,
+        """
+        WITH moves AS (
+          SELECT coalesce(submitted_at, created_at) AS at, 1 AS intake, 0 AS cleared
+            FROM kyb_submissions
+           WHERE CAST(:kyb AS boolean) AND NOT auto_approved
+             AND coalesce(submitted_at, created_at) >= :since
+          UNION ALL
+          SELECT reviewed_at, 0, 1 FROM kyb_submissions
+           WHERE CAST(:kyb AS boolean) AND NOT auto_approved AND reviewed_at >= :since
+          UNION ALL
+          SELECT created_at, 1, 0 FROM integrity_signals
+           WHERE CAST(:integrity AS boolean) AND created_at >= :since
+          UNION ALL
+          SELECT resolved_at, 0, 1 FROM integrity_signals
+           WHERE CAST(:integrity AS boolean) AND resolved_at >= :since
+          UNION ALL
+          SELECT created_at, 1, 0 FROM disputes
+           WHERE CAST(:disputes AS boolean) AND created_at >= :since
+          UNION ALL
+          SELECT resolved_at, 0, 1 FROM disputes
+           WHERE CAST(:disputes AS boolean) AND resolved_at >= :since
+        )
+        SELECT CAST(timezone(:zone, at) AS date) AS day,
+               sum(intake) AS intake, sum(cleared) AS cleared
+          FROM moves
+         GROUP BY 1
+        """,
+        since=since,
+        zone=zone,
+        kyb=kyb,
+        integrity=integrity,
+        disputes=disputes,
+    )
+
+
+# ---------------------------------------------------------------------------
+# The full candidate page (2026-09-29). Read on the bypass session, after the
+# service has written the audit row naming the candidate.
+# ---------------------------------------------------------------------------
+async def candidate_onboarding(reader: AsyncSession, *, user_id: uuid.UUID) -> RowMapping | None:
+    """What the candidate told us at sign-up and on their profile."""
+    return await _one(
+        reader,
+        """
+        SELECT u.id, u.status, u.locale, u.email, u.phone, u.created_at,
+               p.full_name, p.city, p.state_code,
+               q.answers AS questionnaire_answers, q.submitted_at AS questionnaire_submitted_at
+          FROM users u
+          LEFT JOIN candidate_profiles p ON p.user_id = u.id
+          LEFT JOIN questionnaire_responses q ON q.user_id = u.id
+         WHERE u.id = :u AND u.pool = 'CANDIDATE'
+        """,
+        u=user_id,
+    )
+
+
+async def candidate_resume(
+    reader: AsyncSession, *, user_id: uuid.UUID
+) -> dict[str, RowMapping | None]:
+    """The newest resume version, and the newest confirmed one when that is
+    older: what the candidate is working on, and what their score was built
+    from."""
+    return {
+        "latest": await _one(
+            reader,
+            """
+            SELECT v.id, v.source, v.parsed, v.confirmed_at, v.created_at,
+                   f.s3_key, f.mime, f.size_bytes, f.uploaded_at
+              FROM resume_versions v
+              LEFT JOIN resume_files f ON f.id = v.resume_file_id
+             WHERE v.user_id = :u
+             ORDER BY v.created_at DESC, v.id DESC LIMIT 1
+            """,
+            u=user_id,
+        ),
+        "confirmed": await _one(
+            reader,
+            """
+            SELECT v.id, v.source, v.parsed, v.confirmed_at, v.created_at,
+                   f.s3_key, f.mime, f.size_bytes, f.uploaded_at
+              FROM resume_versions v
+              LEFT JOIN resume_files f ON f.id = v.resume_file_id
+             WHERE v.user_id = :u AND v.confirmed_at IS NOT NULL
+             ORDER BY v.confirmed_at DESC, v.id DESC LIMIT 1
+            """,
+            u=user_id,
+        ),
+    }
+
+
+async def score_history(reader: AsyncSession, *, user_id: uuid.UUID) -> list[RowMapping]:
+    """Every score row, oldest first. The service turns each into the display
+    value; the stored number never leaves it."""
+    return await _rows(
+        reader,
+        """
+        SELECT id, raw_value, addon_value, resume_version_id, algorithm_version, computed_at
+          FROM scores WHERE user_id = :u
+         ORDER BY computed_at, id
+        """,
+        u=user_id,
+    )
+
+
+async def candidate_applications(
+    reader: AsyncSession, *, user_id: uuid.UUID
+) -> tuple[list[RowMapping], dict[str, int]]:
+    """Every application, newest first, with the job and employer, and how
+    many ever reached each stage."""
+    rows = await _rows(
+        reader,
+        """
+        SELECT a.id, a.stage, a.created_at AS applied_at, a.updated_at,
+               a.interview_at, j.id AS job_id, j.title AS job_title,
+               j.location AS job_location, a.tenant_id AS employer_tenant_id,
+               e.legal_name AS employer_name
+          FROM applications a
+          JOIN jobs j ON j.id = a.job_id
+          LEFT JOIN employers e ON e.tenant_id = a.tenant_id
+         WHERE a.candidate_id = :u
+         ORDER BY a.created_at DESC, a.id DESC
+        """,
+        u=user_id,
+    )
+    reached = await _counts(
+        reader,
+        """
+        SELECT e.to_stage AS key, count(DISTINCT e.application_id) AS n
+          FROM application_events e
+          JOIN applications a ON a.id = e.application_id
+         WHERE a.candidate_id = :u AND e.to_stage IS NOT NULL
+         GROUP BY e.to_stage
+        """,
+        u=user_id,
+    )
+    return rows, reached

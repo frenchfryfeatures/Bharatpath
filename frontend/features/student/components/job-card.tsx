@@ -18,7 +18,7 @@ import {
   workModeLabel,
 } from "@/features/student/formatters";
 
-import { MonogramTile, StatusChip } from "./primitives";
+import { interactiveCardClass, MonogramTile, StatusChip } from "./primitives";
 
 export function JobCard({ job }: { job: JobListing }) {
   const router = useRouter();
@@ -37,7 +37,7 @@ export function JobCard({ job }: { job: JobListing }) {
           open();
         }
       }}
-      className="flex cursor-pointer flex-col gap-3.5 rounded-[20px] border border-[#E7E0D4] bg-white p-4 text-left transition-transform active:scale-[.99]"
+      className={`flex flex-col gap-3.5 rounded-[20px] border border-[#E7E0D4] bg-white p-4 text-left ${interactiveCardClass}`}
     >
       <div className="flex items-center gap-3">
         <MonogramTile tint="indigo">
@@ -59,7 +59,7 @@ export function JobCard({ job }: { job: JobListing }) {
             event.stopPropagation();
             dispatch(toggleSavedJob(job.id));
           }}
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[#5F6B80] transition-colors hover:bg-[#F7F4EC]"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[#5F6B80] transition-colors hover:bg-[#F7F4EC] hover:text-[#5F4DB2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30"
         >
           <Bookmark
             size={17}

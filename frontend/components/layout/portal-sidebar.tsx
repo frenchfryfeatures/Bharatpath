@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
@@ -16,12 +17,7 @@ import {
 
 import {
   useAppDispatch,
-  useAppSelector,
 } from "@/store/hooks";
-
-import {
-  selectTenantName,
-} from "@/store/common/selectors/tenant.selectors";
 
 import {
   clearTenant,
@@ -31,34 +27,19 @@ import {
   clearUser,
 } from "@/store/common/slices/auth.slice";
 
-import { ConfirmModal } from "@/components/ui";
-
-/*
- * ============================================================
- * EMPLOYER APPLICATIONS
- * ============================================================
- *
- * This selector should come from:
- *
- * store/employer/applications/applications.selectors.ts
- *
- * It calculates:
- *
- * applications.filter(application => application.stage < 4)
- *
- * So the sidebar badge is global and is NOT dependent on:
- *
- * - current pathname
- * - Applications page being open
- * - selected job filter
- * - local Applications component state
- *
- * Therefore the badge stays visible everywhere.
- */
-
+import { clearStoredToken } from "@/lib/auth/token";
 import {
-  selectPendingApplicationsCount,
-} from "@/store/employer/applications";
+  identityInitials,
+  roleLabel,
+  useSessionIdentity,
+} from "@/lib/auth/use-session-identity";
+
+import { ConfirmModal } from "@/components/ui";
+import { Skeleton } from "@/components/common/loading";
+import { useGetCollegeOrganisationQuery } from "@/store/college/settings/settings.api";
+import { useGetEmployerDashboardQuery } from "@/store/employer/dashboard";
+import { useGetEmployerOrganisationQuery } from "@/store/employer/settings";
+import logo from "@/assets/Logo.png";
 
 interface PortalSidebarProps {
   collapsed: boolean;
@@ -79,15 +60,43 @@ export function PortalSidebar({
 
   /*
    * ============================================================
-   * TENANT / COMPANY NAME
+   * SIGNED-IN ACCOUNT
    * ============================================================
+   *
+   * The person comes from the session; the organisation from the
+   * portal's own organisation endpoint. Nothing here is a placeholder:
+   * while either is loading, a skeleton is shown instead.
    */
 
-  const tenantName =
-    useAppSelector(selectTenantName) ??
+  const { user: identity, isResolving: isIdentityResolving } =
+    useSessionIdentity();
+  const employerOrganisation = useGetEmployerOrganisationQuery(undefined, {
+    skip: portal !== "employer",
+  });
+  const collegeOrganisation = useGetCollegeOrganisationQuery(undefined, {
+    skip: portal !== "college",
+  });
+
+  const organisationName =
+    portal === "employer"
+      ? employerOrganisation.data?.legalName || null
+      : portal === "college"
+        ? collegeOrganisation.data?.name || null
+        : portal === "admin"
+          ? "BharatPath operations"
+          : null;
+
+  const accountEmail = identity?.email || null;
+  const accountTitle = accountEmail ?? "Signed-in account";
+  const accountRole = roleLabel(identity?.backendRole);
+  const accountDetail =
+    [accountRole, organisationName].filter(Boolean).join(" · ") ||
     (portal === "employer"
-      ? "BharatPath Employer"
-      : "Sinhgad Institute of Technology");
+      ? "Employer account"
+      : portal === "college"
+        ? "College account"
+        : "Staff account");
+  const initials = identityInitials(accountEmail);
 
   /*
    * ============================================================
@@ -96,15 +105,18 @@ export function PortalSidebar({
    *
    * Only employer has Applications.
    *
-   * This value comes from the global store, not from the
-   * Applications page.
+   * The paginated applications list only contains loaded rows. The dashboard
+   * aggregate is the authoritative count across the full organisation.
    */
 
-  const employerPendingApplications = useAppSelector(
-    selectPendingApplicationsCount,
+  const employerDashboardQuery = useGetEmployerDashboardQuery(
+    { topJobs: 3 },
+    { skip: portal !== "employer" },
   );
   const pendingApplications =
-    portal === "employer" ? employerPendingApplications : 0;
+    portal === "employer"
+      ? employerDashboardQuery.data?.applications.open ?? 0
+      : 0;
 
   /*
    * ============================================================
@@ -156,29 +168,16 @@ export function PortalSidebar({
 
   /*
    * ============================================================
-   * INITIALS
-   * ============================================================
-   */
-
-  const initials = tenantName
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((word) => word[0])
-    .join("")
-    .toUpperCase();
-
-  /*
-   * ============================================================
    * LOGOUT
    * ============================================================
    */
 
   const handleLogout = () => {
+    clearStoredToken();
     dispatch(clearUser());
     dispatch(clearTenant());
 
-    router.push("/login");
+    router.push("/api/auth/logout");
   };
 
   return (
@@ -230,21 +229,19 @@ export function PortalSidebar({
               className="
                 absolute
                 inset-0
-                flex
                 cursor-pointer
-                items-center
-                justify-center
-                rounded-lg
-                bg-[#151b2b]
-                text-sm
-                font-bold
-                text-white
                 opacity-100
                 transition-opacity
                 group-hover:opacity-0
               "
             >
-              B
+              <Image
+                src={logo}
+                alt=""
+                className="h-full w-full object-contain"
+                sizes="32px"
+                priority
+              />
             </Link>
 
             {/* =====================================================
@@ -289,21 +286,19 @@ export function PortalSidebar({
               href={basePath}
               aria-label="Go to dashboard"
               className="
-                flex
                 h-8
                 w-8
                 shrink-0
                 cursor-pointer
-                items-center
-                justify-center
-                rounded-lg
-                bg-[#151b2b]
-                text-sm
-                font-bold
-                text-white
               "
             >
-              B
+              <Image
+                src={logo}
+                alt=""
+                className="h-full w-full object-contain"
+                sizes="32px"
+                priority
+              />
             </Link>
 
             {/* =====================================================
@@ -622,7 +617,7 @@ export function PortalSidebar({
             gap-[10px]
             ${
               collapsed
-                ? "justify-center px-2"
+                ? "flex-col justify-center gap-2 px-2 py-3"
                 : "px-[16px]"
             }
           `}
@@ -632,6 +627,7 @@ export function PortalSidebar({
           ====================================================== */}
 
           <span
+            title={collapsed ? accountTitle : undefined}
             className="
               grid
               h-10
@@ -647,76 +643,84 @@ export function PortalSidebar({
               font: '600 13px/16px "General Sans", sans-serif',
             }}
           >
-            {initials}
+            {isIdentityResolving ? "" : initials}
           </span>
 
           {!collapsed && (
-            <>
-              {/* =================================================
-                  USER / TENANT
-              ================================================== */}
+            <div className="min-w-0 flex-1">
+              {!isIdentityResolving ? (
+                <>
+                  {/* ===========================================
+                      SIGNED-IN PERSON
+                  ============================================ */}
 
-              <div className="min-w-0 flex-1">
-                <div
-                  className="truncate"
-                  style={{
-                    font: '600 13px/17px "General Sans", sans-serif',
-                    color:
-                      "var(--navy)",
-                  }}
-                >
-                  {tenantName}
+                  <div
+                    className="truncate"
+                    title={accountTitle}
+                    style={{
+                      font: '600 13px/17px "General Sans", sans-serif',
+                      color:
+                        "var(--navy)",
+                    }}
+                  >
+                    {accountTitle}
+                  </div>
+
+                  {/* ===========================================
+                      ROLE · ORGANISATION
+                  ============================================ */}
+
+                  <div
+                    className="truncate"
+                    title={accountDetail}
+                    style={{
+                      marginTop: "1px",
+                      font: '400 12px/16px "General Sans", sans-serif',
+                      color:
+                        "var(--ink-muted)",
+                    }}
+                  >
+                    {accountDetail}
+                  </div>
+                </>
+              ) : (
+                <div aria-busy="true" className="space-y-1.5">
+                  <span className="sr-only">Loading account</span>
+                  <Skeleton width="80%" height={12} radius={6} />
+                  <Skeleton width="55%" height={10} radius={6} />
                 </div>
-
-                <div
-                  className="truncate"
-                  style={{
-                    marginTop: "1px",
-                    font: '400 12px/16px "General Sans", sans-serif',
-                    color:
-                      "var(--ink-muted)",
-                  }}
-                >
-                  {portal === "employer"
-                    ? "Employer account"
-                    : portal === "student"
-                      ? "Student account"
-                      : "Placement cell"}
-                </div>
-              </div>
-
-              {/* =================================================
-                  LOGOUT
-              ================================================== */}
-
-              <button
-                type="button"
-                onClick={() => setLogoutModalOpen(true)}
-                aria-label="Log out"
-                title="Log out"
-                className="
-                  grid
-                  h-8
-                  w-8
-                  shrink-0
-                  cursor-pointer
-                  place-items-center
-                  rounded-lg
-                  transition-colors
-                  hover:bg-[#f5f6f8]
-                "
-              >
-                <LogOut
-                  size={18}
-                  strokeWidth={1.8}
-                  style={{
-                    color:
-                      "var(--ink-muted)",
-                  }}
-                />
-              </button>
-            </>
+              )}
+            </div>
           )}
+
+          {/* =================================================
+              LOGOUT — available collapsed too
+          ================================================== */}
+
+          <button
+            type="button"
+            onClick={() => setLogoutModalOpen(true)}
+            aria-label="Log out"
+            title="Log out"
+            className="
+              grid
+              h-8
+              w-8
+              shrink-0
+              cursor-pointer
+              place-items-center
+              rounded-lg
+              text-(--ink-muted)
+              transition-colors
+              hover:bg-[#fdecec]
+              hover:text-[#c43d3d]
+            "
+          >
+            <LogOut
+              size={18}
+              strokeWidth={1.8}
+            />
+          </button>
         </div>
       </div>
 

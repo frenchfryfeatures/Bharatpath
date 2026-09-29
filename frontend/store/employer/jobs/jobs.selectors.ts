@@ -7,7 +7,3 @@ export const selectJobsSearch = (
 export const selectJobsStatusFilter = (
   state: RootState,
 ) => state.employerJobs.statusFilter;
-
-export const selectJobsCurrentPage = (
-  state: RootState,
-) => state.employerJobs.currentPage;

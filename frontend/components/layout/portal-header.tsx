@@ -20,6 +20,7 @@ import { useGetEmployerSubscriptionQuery } from "@/store/employer/billing";
 import { setActiveTab } from "@/store/employer/settings";
 
 import { NotificationCenter } from "@/features/notifications";
+import { Skeleton } from "@/components/common/loading";
 
 import { SubscriptionStatusButton } from "@/features/employer/billing/components/subscription-status-button";
 
@@ -57,6 +58,7 @@ export function PortalHeader({
   const {
     title,
     subtitle,
+    breadcrumbs,
     // badge, // kept for the temporarily disabled DEMO STATE control
     stat,
     action,
@@ -206,6 +208,57 @@ export function PortalHeader({
             gap-[2px]
           "
         >
+          {breadcrumbs && breadcrumbs.length > 0 ? (
+            <nav
+              aria-label="Breadcrumb"
+              className="flex min-w-0 items-center gap-[6px] text-[12px] leading-[16px]"
+              style={{ fontFamily: "'General Sans', sans-serif" }}
+            >
+              {breadcrumbs.map((crumb, index) => {
+                const isLast = index === breadcrumbs.length - 1;
+
+                return (
+                  <span
+                    key={`${crumb.label}-${index}`}
+                    className="flex min-w-0 items-center gap-[6px]"
+                  >
+                    {crumb.isLoading ? (
+                      <span role="status" className="flex items-center">
+                        <span className="sr-only">{crumb.label}</span>
+                        <Skeleton width={112} height={12} radius={6} />
+                      </span>
+                    ) : crumb.href && !isLast ? (
+                      <button
+                        type="button"
+                        onClick={() => router.push(crumb.href as string)}
+                        className="shrink-0 cursor-pointer font-[500] text-[#3566b8] hover:underline"
+                      >
+                        {crumb.label}
+                      </button>
+                    ) : (
+                      <span
+                        className={
+                          isLast
+                            ? "truncate font-[500] text-[#5D6673]"
+                            : "shrink-0 text-[#5D6673]"
+                        }
+                      >
+                        {crumb.label}
+                      </span>
+                    )}
+
+                    {!isLast ? (
+                      <ChevronRight
+                        size={13}
+                        className="shrink-0 text-[#9aa2b1]"
+                      />
+                    ) : null}
+                  </span>
+                );
+              })}
+            </nav>
+          ) : null}
+
           <h1
             className="
               m-0
@@ -304,7 +357,36 @@ export function PortalHeader({
             COLLEGE / STUDENT STAT
             ========================================== */}
 
-        {!isEmployer && !isAdmin && stat && (
+        {!isEmployer && !isAdmin && stat?.isLoading ? (
+          <div
+            role="status"
+            aria-label="Loading seat usage"
+            aria-busy="true"
+            className="
+              flex
+              h-[40px]
+              shrink-0
+              items-center
+              gap-[10px]
+              rounded-xl
+              border
+              border-[#e5e7ec]
+              bg-white
+              px-[10px]
+              pl-[6px]
+            "
+          >
+            <span className="sr-only">Loading seat usage…</span>
+            <Skeleton width={28} height={28} radius={8} />
+            <span className="flex flex-col gap-[5px]">
+              <Skeleton width={112} height={13} radius={6} />
+              <Skeleton width={96} height={4} radius={999} />
+            </span>
+            <Skeleton width={14} height={14} radius={5} />
+          </div>
+        ) : null}
+
+        {!isEmployer && !isAdmin && stat && !stat.isLoading ? (
           <button
             type="button"
             aria-label="Seats used — open billing"
@@ -404,7 +486,7 @@ export function PortalHeader({
               className="shrink-0 text-[#777f90]"
             />
           </button>
-        )}
+        ) : null}
 
         {/* ==========================================
             OTHER PAGE ACTION

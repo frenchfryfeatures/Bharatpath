@@ -107,7 +107,7 @@ const settingsSlice = createSlice({
     },
 
     saveCompanyProfile(state) {
-      state.toast = "Company profile saved";
+      state.toast = "Company profile saved.";
     },
 
     updateAccountField(
@@ -153,7 +153,7 @@ const settingsSlice = createSlice({
       });
 
       state.inviteModalOpen = false;
-      state.toast = "Invite sent";
+      state.toast = "Invite sent.";
     },
 
     toggleMemberMenu(state, action: PayloadAction<string>) {
@@ -181,12 +181,12 @@ const settingsSlice = createSlice({
         );
       }
       state.removeMemberId = null;
-      state.toast = "Member removed";
+      state.toast = "Team member removed.";
     },
 
     resendInvite(state, action: PayloadAction<string>) {
       state.memberMenuOpenId = null;
-      state.toast = "Invite resent";
+      state.toast = "Invite resent.";
     },
 
     openPaymentModal(state) {
@@ -219,7 +219,7 @@ const settingsSlice = createSlice({
       });
 
       state.paymentModalOpen = false;
-      state.toast = "Payment method added";
+      state.toast = "Payment method added.";
     },
 
     setSelectedCreditPack(state, action: PayloadAction<string>) {
@@ -256,7 +256,7 @@ const settingsSlice = createSlice({
       });
 
       state.checkoutModalOpen = false;
-      state.toast = `${pack.credits} credits added`;
+      state.toast = `${pack.credits} credits added.`;
     },
 
     clearToast(state) {

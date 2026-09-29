@@ -316,10 +316,17 @@ student, expired, or already declined.
 
 **Request body** (`GrantIndividualVisibilityRequest`):
 ```json
-{ "consent_version": "placeholder-2" }
+{ "consent_version": "placeholder-2-2026-09-29" }
 ```
 (A *different* consent text/version than `ROSTER` — always
 `GET .../consent-terms?scope=INDIVIDUAL` first.)
+
+**Version 2 (2026-09-29) shows the college more** — sign-up details
+including phone and email, the CV, practice interviews, course progress, each
+application's stage — and its words say so. A student who agreed to version
+1 keeps version 1's narrower view until they call this again with version 2,
+which **replaces** their old grant (the old row is revoked, a new one
+written) rather than returning it.
 
 **Response** — `201` (or `200` if already granted) `CollegeLinkResponse`,
 now `scope: "INDIVIDUAL"`. `404 college_link_not_found` if there's no live
@@ -387,7 +394,54 @@ attributed to it here.
 **This field list is exactly what it is and no more** — an invariant test
 pins it, because widening it (adding a phone number, say) is a decision for
 counsel and the client about what "letting a college see you by name"
-actually means, not a casual API change.
+actually means, not a casual API change. When the client did widen it
+(2026-09-29), it went into the two endpoints below, behind a new consent
+version, and this one stayed as it was.
+
+### `GET /college/students/{candidate_id}/details` — everything consent version 2 names
+
+**Auth:** any college role + paid. **Response** — `200 OK`:
+```json
+{
+  "candidate_id": "9f2e...", "consent_version": "placeholder-2-2026-09-29",
+  "email": "ravi@example.com", "phone": "+919876543210",
+  "city": "Pune", "state_code": "MH", "locale": "hi",
+  "questionnaire": [
+    { "code": "SHIFT_WILLINGNESS", "question": "Which shifts could you work?", "answer": "Night shift" }
+  ],
+  "questionnaire_submitted_at": "...",
+  "resume_confirmed_at": "...", "has_resume_file": true,
+  "interviews_completed": 2,
+  "courses": [
+    { "code": "COURSE_RESUME_FOUNDATION", "title": "Presenting Your Work", "purchased_at": "...",
+      "lessons_total": 6, "lessons_completed": 3, "percent_complete": 50, "completed_at": null }
+  ],
+  "applications": [
+    { "job_title": "Warehouse Supervisor", "employer_name": "Acme Pvt Ltd", "job_location": "Pune",
+      "stage": "INTERVIEW", "applied_at": "...", "updated_at": "..." }
+  ],
+  "analytics": { "total": 1, "open": 1,
+    "by_stage": { "SUBMITTED": 0, "VIEWED": 0, "SHORTLISTED": 0, "INTERVIEW": 1, "...": 0 },
+    "reached": { "SHORTLISTED": 1, "INTERVIEW": 1, "DECISION": 0, "HIRED": 0 } }
+}
+```
+- `409 college_student_details_not_shared` — the student lets you see them,
+  but under version 1, which did not include this. Only they can agree to
+  version 2. `404` without live consent at all.
+- The questionnaire never includes the free-text accessibility answer: its
+  own help text promises it only to employers the student applies to.
+- Read through consent-joined database functions, like everything a college
+  sees (invariant 9), and audited on every open.
+
+### `GET /college/students/{candidate_id}/resume` — the CV
+
+**Response** — `200 OK`: `{ "confirmed_at", "source", "text", "fields",
+"file_url", "file_mime" }` — the confirmed CV the score was built from, as
+text (or a form-built CV's fields), and the uploaded file by a presigned GET
+that expires. Same consent rule and `409` as `/details`;
+`404 college_student_resume_not_found` before there is one. Its own audit row
+(`college_student_resume_opened`), because a CV is a bigger reveal than the
+profile.
 
 ---
 
@@ -399,4 +453,4 @@ actually means, not a casual API change.
 | College issues/commits/sends (codes, roster commit, send invites) | **Yes** | Reaching students costs money |
 | College revokes/discards (code revoke, import discard) | No | Stopping something is never gated |
 | Student links, consents, revokes | No | Never paywalled, by decision |
-| College reads students (list/open) | **Yes** | Same gate as analytics |
+| College reads students (list/open, details, CV) | **Yes** | Same gate as analytics |

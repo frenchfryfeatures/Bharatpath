@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { Download } from "lucide-react";
 
 import { usePageHeader } from "@/components/layout/header-context";
+import { useScrollToHash } from "@/lib/hooks/use-scroll-to-hash";
 import {
   BarChart,
   Button,
@@ -15,6 +16,7 @@ import {
 
 import { useAnalytics } from "../hooks/use-analytics";
 import { CollegeAnalyticsView } from "../types";
+import { AnalyticsSkeleton } from "./analytics-skeleton";
 import { PlacementsByLocationTable } from "./outcomes-table";
 
 function downloadCsv(filename: string, rows: string[][]) {
@@ -34,7 +36,9 @@ function downloadCsv(filename: string, rows: string[][]) {
 }
 
 export function AnalyticsDashboard() {
-  const { data, isError } = useAnalytics();
+  const { data, isLoading, isError } = useAnalytics();
+
+  useScrollToHash(!isLoading);
 
   const headerAction = useMemo(
     () => (
@@ -44,12 +48,13 @@ export function AnalyticsDashboard() {
         size="md"
         icon={<Download size={15} strokeWidth={2.2} />}
         onClick={() => exportPlacements(data)}
+        disabled={isLoading}
         className="shadow-sm"
       >
         Export report
       </Button>
     ),
-    [data],
+    [data, isLoading],
   );
 
   usePageHeader(
@@ -62,10 +67,15 @@ export function AnalyticsDashboard() {
           data.seatsTotal > 0
             ? (data.seatsUsed / data.seatsTotal) * 100
             : 0,
+        isLoading,
       },
       action: headerAction,
     },
   );
+
+  if (isLoading) {
+    return <AnalyticsSkeleton />;
+  }
 
   const maxLocationHires = Math.max(
     ...data.placementsByLocation.map((entry) => entry.hires),
@@ -91,7 +101,10 @@ export function AnalyticsDashboard() {
         ))}
       </div>
 
-      <div className="grid items-stretch gap-4 lg:grid-cols-[1.55fr_1fr]">
+      <div
+        id="hires"
+        className="grid scroll-mt-4 items-stretch gap-4 lg:grid-cols-[1.55fr_1fr]"
+      >
         <Panel
           title="Hires by month"
           footer="Platform-sourced hires among students who consented to share."
@@ -102,7 +115,8 @@ export function AnalyticsDashboard() {
             <BarChart
               items={data.placementsByMonth.map((entry) => ({
                 label: entry.month,
-                value: entry.hires,
+                value: entry.hires ?? 0,
+                display: entry.hires === null ? "—" : undefined,
               }))}
             />
           )}

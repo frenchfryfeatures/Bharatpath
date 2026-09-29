@@ -2,11 +2,17 @@ import { Skeleton, TableSkeleton } from "@/components/common/loading";
 
 export default function AdminUsersLoading() {
   return (
-    <div className="mx-auto flex max-w-[1280px] flex-col gap-4 py-4">
-      <div className="flex items-center justify-between gap-3">
-        <Skeleton width={280} height={38} radius={10} />
-        <Skeleton width={132} height={36} radius={10} />
+    <div className="min-w-0 space-y-0">
+      <div className="flex h-[42px] items-center gap-1 border-b border-[#e7e9ee]">
+        <Skeleton className="mx-4" width={72} height={12} radius={6} />
+        <Skeleton className="mx-4" width={68} height={12} radius={6} />
+        <Skeleton className="mx-4" width={76} height={12} radius={6} />
       </div>
+
+      <div className="py-4">
+        <Skeleton width={246} height={38} radius={8} />
+      </div>
+
       <div className="overflow-hidden rounded-2xl border border-[#e7e9ee] bg-white">
         <TableSkeleton columns={6} rows={9} />
       </div>

@@ -13,12 +13,14 @@ connection cannot carry one request's tenancy into the next request.
 
 from __future__ import annotations
 
+import ssl
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy import text
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -28,6 +30,23 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import DeclarativeBase
 
 from app.settings import get_settings
+
+
+def connect_args_for(url: str) -> dict[str, Any]:
+    """Extra asyncpg connect args for a given database URL.
+
+    Neon requires TLS, so any ``*.neon.tech`` host gets an SSL context. Disabling
+    asyncpg's statement cache keeps the pooled (PgBouncer) endpoint safe too;
+    it is a harmless no-op on the direct endpoint we normally use. Local
+    Postgres matches neither branch and is left untouched.
+    """
+    try:
+        host = make_url(url).host or ""
+    except Exception:  # a malformed URL surfaces later, at connect time
+        return {}
+    if host.endswith(".neon.tech"):
+        return {"ssl": ssl.create_default_context(), "statement_cache_size": 0}
+    return {}
 
 
 class Base(DeclarativeBase):
@@ -53,6 +72,7 @@ def get_engine() -> AsyncEngine:
             max_overflow=settings.database_max_overflow,
             pool_pre_ping=True,
             echo=settings.database_echo,
+            connect_args=connect_args_for(str(settings.database_url)),
         )
     return _engine
 
@@ -76,7 +96,9 @@ def get_admin_engine() -> AsyncEngine:
     if _admin_engine is None:
         settings = get_settings()
         url = settings.database_admin_url or settings.database_url
-        _admin_engine = create_async_engine(str(url), pool_pre_ping=True)
+        _admin_engine = create_async_engine(
+            str(url), pool_pre_ping=True, connect_args=connect_args_for(str(url))
+        )
     return _admin_engine
 
 

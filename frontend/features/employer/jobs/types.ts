@@ -9,6 +9,7 @@ export interface EmployerJob {
   salaryMax: number;
   minScore: number | null;
   applicantsCount: number;
+  applicantsInPipelineCount: number;
   viewedCount: number;
   shortlistedCount: number;
   interviewCount: number;
@@ -28,6 +29,17 @@ export type JobWorkMode =
   | "HYBRID"
   | "REMOTE";
 
+export type ApiApplicationStage =
+  | "SUBMITTED"
+  | "VIEWED"
+  | "SHORTLISTED"
+  | "INTERVIEW"
+  | "DECISION"
+  | "HIRED"
+  | "REJECTED"
+  | "WITHDRAWN"
+  | "EXPIRED";
+
 export interface EmployerJobApiResponse {
   id: string;
   title: string;
@@ -43,4 +55,18 @@ export interface EmployerJobApiResponse {
   published_at: string | null;
   closed_at: string | null;
   created_at: string;
+}
+
+export interface EmployerJobListItemApiResponse
+  extends EmployerJobApiResponse {
+  application_counts: {
+    total: number;
+    by_stage: Record<ApiApplicationStage, number>;
+  };
+}
+
+export interface EmployerJobPageApiResponse {
+  items: EmployerJobListItemApiResponse[];
+  next_cursor: string | null;
+  total: number | null;
 }

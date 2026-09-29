@@ -1,4 +1,5 @@
 import { API_CONFIG } from "@/config/api";
+import { getStoredToken } from "@/lib/auth/token";
 import { ApiError } from "./errors";
 
 interface RequestOptions extends RequestInit {
@@ -30,8 +31,8 @@ class ApiClient {
           (options.headers as Record<string, string>);
 
       const bearerToken =
-        !hasAuthHeader && process.env.NEXT_PUBLIC_API_BEARER_TOKEN
-          ? process.env.NEXT_PUBLIC_API_BEARER_TOKEN
+        !hasAuthHeader
+          ? getStoredToken() ?? process.env.NEXT_PUBLIC_API_BEARER_TOKEN
           : null;
 
       const response = await fetch(

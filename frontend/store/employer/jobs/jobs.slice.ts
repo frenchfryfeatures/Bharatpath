@@ -11,16 +11,12 @@ export interface EmployerJobsState {
   search: string;
 
   statusFilter: JobsStatusFilter;
-
-  currentPage: number;
 }
 
 const initialState: EmployerJobsState = {
   search: "",
 
   statusFilter: "all",
-
-  currentPage: 1,
 };
 
 const jobsSlice = createSlice({
@@ -34,7 +30,6 @@ const jobsSlice = createSlice({
       action: PayloadAction<string>,
     ) => {
       state.search = action.payload;
-      state.currentPage = 1;
     },
 
     setJobsStatusFilter: (
@@ -42,14 +37,6 @@ const jobsSlice = createSlice({
       action: PayloadAction<JobsStatusFilter>,
     ) => {
       state.statusFilter = action.payload;
-      state.currentPage = 1;
-    },
-
-    setJobsCurrentPage: (
-      state,
-      action: PayloadAction<number>,
-    ) => {
-      state.currentPage = action.payload;
     },
   },
 });
@@ -57,7 +44,6 @@ const jobsSlice = createSlice({
 export const {
   setJobsSearch,
   setJobsStatusFilter,
-  setJobsCurrentPage,
 } = jobsSlice.actions;
 
 export default jobsSlice.reducer;

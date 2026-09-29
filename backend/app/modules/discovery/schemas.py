@@ -74,3 +74,87 @@ class MaskedCandidate(_Base):
         # The candidate module refuses such a city on the way in. This is the
         # second lock, for a row that reached the table some other way.
         return None if value is not None and looks_like_contact(value) else value
+
+
+# ---------------------------------------------------------------------------
+# The filter panel (2026-09-24)
+# ---------------------------------------------------------------------------
+# **No schema here has a count.** "Pune (3)" beside a narrow filter tells an
+# employer whether one particular person is in the pool, the reason search
+# returns no total. `test_search_filters.py` walks every field.
+
+
+class BandChoice(_Base):
+    value: ScoreBand
+    label: str
+
+
+class BadgeChoice(_Base):
+    value: Badge
+    label: str
+
+
+class ExperienceChoice(_Base):
+    #: Sent as `min_experience_years`.
+    min_years: int
+    label: str
+
+
+class StateChoice(_Base):
+    #: Sent as `state`.
+    code: str
+    name: str
+
+
+class SkillChoice(_Base):
+    """A catalogued skill. Send `label` (or `key`) as `skill`; its aliases are
+    searched with it."""
+
+    key: str
+    label: str
+
+
+class CityChoice(_Base):
+    """A catalogued city. Send `label` (or `key`) as `city`; its aliases are
+    searched with it."""
+
+    key: str
+    label: str
+    state_code: str
+
+
+class FilterLimits(_Base):
+    """What the search accepts, so the panel can stop the user before a 422."""
+
+    max_skills: int
+    max_cities: int
+    max_skill_length: int
+    max_city_length: int
+    max_experience_years: int
+
+
+class FilterPanel(_Base):
+    """Everything the filter panel draws before anything is typed.
+
+    `skills` and `cities` are the featured options only; the rest are found
+    by typing (`/filters/skills`, `/filters/locations`). Any text is still a
+    valid filter -- the catalogue suggests, it does not restrict.
+    """
+
+    bands: list[BandChoice]
+    badges: list[BadgeChoice]
+    experience: list[ExperienceChoice]
+    skills: list[SkillChoice]
+    cities: list[CityChoice]
+    states: list[StateChoice]
+    limits: FilterLimits
+    #: Starts `placeholder-` while the starter lists are ours, not the client's.
+    catalogue_version: str
+
+
+class SkillSuggestions(_Base):
+    items: list[SkillChoice]
+
+
+class CitySuggestions(_Base):
+    items: list[CityChoice]

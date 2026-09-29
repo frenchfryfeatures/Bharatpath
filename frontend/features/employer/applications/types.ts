@@ -8,13 +8,15 @@ export type ApplicationStage =
 export type ApplicationOutcome =
   | "hired"
   | "rejected"
+  | "withdrawn"
+  | "expired"
   | null;
 
 export interface ApplicationCandidate {
   id: string;
   name: string;
   initials: string;
-  exactScore: number;
+  exactScore: number | null;
   location: string;
   jobTitle: string;
   unlocked: boolean;
@@ -23,6 +25,7 @@ export interface ApplicationCandidate {
 export interface EmployerApplication {
   id: string;
   jobId: string;
+  jobLocation: string | null;
   candidate: ApplicationCandidate;
 
   stage: ApplicationStage;

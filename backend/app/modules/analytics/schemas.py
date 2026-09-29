@@ -78,3 +78,16 @@ class PlacementReportResponse(_Base):
     total_hires: int | None
     by_month: list[MonthCount]
     by_location: list[LocationCount]
+
+
+class ApplicationFunnelResponse(_Base):
+    """The linked students' applications, counted. **No identifier**; a
+    withheld cell is null, and below the cohort floor everything is."""
+
+    min_cohort_size: int
+    below_floor: bool
+    total_applications: int | None
+    by_stage: dict[str, int | None] = Field(description="Where each application is now.")
+    reached: dict[str, int | None] = Field(
+        description="Applications that ever reached SHORTLISTED, INTERVIEW, DECISION or HIRED."
+    )

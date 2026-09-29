@@ -423,6 +423,71 @@ async def test_a_candidate_drilldown_masks_contacts_and_is_audited(
     assert missing.status_code == 404, "a business account is not a candidate"
 
 
+async def test_staff_find_a_candidate_by_name_or_email_and_the_search_is_audited(
+    client: Any, mint_token: Any
+) -> None:
+    """Candidates are not tenants, so `/admin/tenants` cannot list them. The
+    candidate list can, masked, and every page of it is an audit row that
+    records a search was made without recording what was searched for."""
+    agent = await _staff(mint_token, "SUPPORT_AGENT")
+    candidate = await _candidate(mint_token, scored=False, subscribed=False)
+    token = uuid.uuid4().hex[:12]
+    email = f"cand-{token}@example.test"
+    async with sessions(_seed_url())() as session, session.begin():
+        await session.execute(
+            text("UPDATE users SET email = :e WHERE id = :u"),
+            {"e": email, "u": str(candidate["id"])},
+        )
+        await session.execute(
+            text(
+                "INSERT INTO candidate_profiles (user_id, full_name, city, state_code) "
+                "VALUES (:u, :n, 'Pune', 'MH')"
+            ),
+            {"u": str(candidate["id"]), "n": f"Priya Lister {token}"},
+        )
+    url, headers = f"{ADMIN}/candidates", agent["headers"]
+
+    by_name = await client.get(url, params={"q": token.upper()}, headers=headers)
+    assert by_name.status_code == 200, by_name.text
+    [row] = by_name.json()["items"]
+    assert row["id"] == str(candidate["id"])
+    assert row["full_name"] == f"Priya Lister {token}" and row["city"] == "Pune"
+    assert row["email_masked"] == "c***@example.test"
+    phone = await _scalar("SELECT phone FROM users WHERE id = :u", u=candidate["id"])
+    assert row["phone_masked"] != phone and row["phone_masked"].endswith(phone[-4:])
+    assert not [k for k in row if "raw" in k or "cognito" in k or "score" in k]
+
+    by_email = await client.get(url, params={"email": f"  {email.upper()} "}, headers=headers)
+    assert [r["id"] for r in by_email.json()["items"]] == [str(candidate["id"])]
+
+    wildcard = await client.get(url, params={"q": f"{token}%"}, headers=headers)
+    assert wildcard.json()["items"] == [], "a % in the search is a character, not a wildcard"
+    suspended = await client.get(url, params={"q": token, "status": "SUSPENDED"}, headers=headers)
+    assert suspended.json()["items"] == []
+    staff_email = await _scalar("SELECT email FROM users WHERE id = :u", u=agent["user_id"])
+    business = await client.get(url, params={"email": staff_email}, headers=headers)
+    assert business.json()["items"] == [], "a business account is never a candidate"
+
+    searches = int(
+        await _scalar(
+            "SELECT count(*) FROM audit_events WHERE action = 'admin_bypass_session_opened' "
+            "AND actor_id = :u AND metadata->>'view' = 'candidates'",
+            u=agent["user_id"],
+        )
+    )
+    assert searches == 5
+    leaked = await _scalar(
+        "SELECT count(*) FROM audit_events WHERE actor_id = :u AND metadata::text ILIKE :t",
+        u=agent["user_id"],
+        t=f"%{token}%",
+    )
+    assert int(leaked) == 0, "the search terms are a name and an address, not ids"
+    assert await _find(client, url, headers, str(candidate["id"])) is not None, "unfiltered, paged"
+
+    kyb = await _staff(mint_token, "KYB_REVIEWER")
+    assert (await client.get(url, headers=kyb["headers"])).status_code == 403
+
+
 async def test_employer_and_college_drilldowns_are_audited(client: Any, mint_token: Any) -> None:
     admin = await _staff(mint_token)
     employer = await _employer(client, mint_token)

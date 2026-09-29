@@ -1,31 +1,45 @@
 "use client";
 
+import { useMemo } from "react";
+
 import {
   ApplicationPipeline,
   ApplicationFilter,
   ApplicationDrawer,
   ApplicationsPipelineSkeleton,
 } from "@/features/employer/applications";
-import { CursorPagination, ErrorState } from "@/components/ui";
+import { ErrorState } from "@/components/ui";
+import {
+  usePageHeader,
+  type Breadcrumb,
+} from "@/components/layout/header-context";
 
 import { useApplicationsPage } from "../hooks/use-applications-page";
 
 export function ApplicationsPageContent() {
   const {
     applications,
-    isLoading,
-    jobFilter,
-    jobOptions,
-    currentPage,
+    loadedApplicationCount,
     pageSize,
+    isLoading,
+    isLoadingMore,
+    jobFilter,
+    jobSearch,
+    jobOptions,
+    isSearchingJobs,
+    isLoadingMoreJobOptions,
+    jobOptionsHaveMore,
+    selectedJobTitle,
+    isSelectedJobTitleLoading,
     hasNextPage,
     selectedApplication,
     error,
 
     handleJobFilterChange,
-    handlePageSizeChange,
-    handlePreviousPage,
-    handleNextPage,
+    handleJobSearchChange,
+    handleJobMenuOpenChange,
+    handleLoadMoreJobOptions,
+    handleLoadMore,
     handleOpenApplication,
     handleCloseApplication,
     handleMoveStage,
@@ -33,6 +47,28 @@ export function ApplicationsPageContent() {
     handleMeetingLinkChange,
     handleConfirmHire,
   } = useApplicationsPage();
+
+  // When a specific job is in focus (a stage number was clicked on the jobs
+  // table), show `Jobs > {job} > Applications`, matching the approved design.
+  // While the job's title loads, that crumb is a skeleton, never a guess.
+  const breadcrumbs = useMemo<Breadcrumb[] | undefined>(() => {
+    if (jobFilter === "all" || (!selectedJobTitle && !isSelectedJobTitleLoading)) {
+      return undefined;
+    }
+    return [
+      { label: "Jobs", href: "/employer/jobs" },
+      selectedJobTitle
+        ? { label: selectedJobTitle }
+        : { label: "Loading job", isLoading: true },
+      { label: "Applications" },
+    ];
+  }, [isSelectedJobTitleLoading, jobFilter, selectedJobTitle]);
+
+  usePageHeader(
+    "Applications",
+    "Track applicants through your hiring pipeline",
+    { breadcrumbs },
+  );
 
   return (
     <div
@@ -59,8 +95,20 @@ export function ApplicationsPageContent() {
         <ApplicationFilter
           value={jobFilter}
           total={applications.length}
+          loadedTotal={loadedApplicationCount}
+          pageSize={pageSize}
+          hasNextPage={hasNextPage}
+          isLoadingMore={isLoadingMore}
           options={jobOptions}
+          search={jobSearch}
+          isSearching={isSearchingJobs}
+          isLoadingMoreJobOptions={isLoadingMoreJobOptions}
+          jobOptionsHaveMore={jobOptionsHaveMore}
           onChange={handleJobFilterChange}
+          onSearchChange={handleJobSearchChange}
+          onJobMenuOpenChange={handleJobMenuOpenChange}
+          onLoadMoreJobOptions={handleLoadMoreJobOptions}
+          onLoadMore={handleLoadMore}
         />
 
         {error ? (
@@ -88,6 +136,10 @@ export function ApplicationsPageContent() {
         ) : (
           <ApplicationPipeline
             applications={applications}
+            loadedApplicationCount={loadedApplicationCount}
+            hasNextPage={hasNextPage}
+            isLoadingMore={isLoadingMore}
+            onLoadMore={handleLoadMore}
             onApplicationClick={
               handleOpenApplication
             }
@@ -95,19 +147,6 @@ export function ApplicationsPageContent() {
           />
         )}
       </div>
-
-      <CursorPagination
-        currentPage={currentPage}
-        itemCount={applications.length}
-        pageSize={pageSize}
-        hasNextPage={hasNextPage}
-        isLoading={isLoading}
-        onPreviousPage={handlePreviousPage}
-        onNextPage={handleNextPage}
-        onPageSizeChange={handlePageSizeChange}
-        itemLabel={applications.length === 1 ? "application" : "applications"}
-        className="mt-3 shrink-0 rounded-[11px] border border-[#e1e5eb]"
-      />
 
       {/* =====================================================
           APPLICATION DRAWER

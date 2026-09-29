@@ -20,6 +20,7 @@ export interface CandidateFiltersState {
   bands: CandidateBand[];
   skills: string[];
   locations: string[];
+  state: string;
   experiences: string[];
   addons: CandidateBadge[];
 }

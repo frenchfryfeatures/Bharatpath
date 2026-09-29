@@ -271,7 +271,8 @@ ssh ec2-user@$HOST 'cd /opt/bharatpath && docker compose -f docker-compose.prod.
 ssh ec2-user@$HOST 'cd /opt/bharatpath && docker compose -f docker-compose.prod.yml ps'
 ```
 
-`migrate` runs to completion first (Alembic, then `seed_config.py`), then the
+`migrate` runs to completion first (Alembic, then `seed_config.py`, then
+`seed_filter_options.py`), then the
 API, worker and beat start. Then:
 
 ```bash

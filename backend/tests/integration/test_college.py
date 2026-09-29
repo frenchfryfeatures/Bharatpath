@@ -314,8 +314,18 @@ async def test_codes_are_issued_behind_payment_and_revoked_without_it(
     issued = await _code(client, college, expires_in_days=30, max_uses=5)
     assert len(issued["code"]) == 14 and issued["code"][4] == "-" and issued["state"] == "ACTIVE"
     assert issued["uses"] == 0 and issued["max_uses"] == 5
-    listed = (await client.get(f"{COLLEGE}/referral-codes", headers=college["headers"])).json()
+    listed = (await client.get(f"{COLLEGE}/referral-codes", headers=college["headers"])).json()[
+        "items"
+    ]
     assert [c["id"] for c in listed] == [issued["id"]]
+    active = (
+        await client.get(
+            f"{COLLEGE}/referral-codes",
+            params={"active_only": True, "limit": 1},
+            headers=college["headers"],
+        )
+    ).json()["items"]
+    assert [code["id"] for code in active] == [issued["id"]]
 
     audit = await _scalar(
         "SELECT metadata::text FROM audit_events WHERE action = 'referral_code_issued' "
@@ -333,6 +343,50 @@ async def test_codes_are_issued_behind_payment_and_revoked_without_it(
         f"{COLLEGE}/referral-codes/{issued['id']}/revoke", headers=college["headers"]
     )
     assert again.status_code == 200 and again.json()["revoked_at"] == revoked.json()["revoked_at"]
+    active_after_revoke = (
+        await client.get(
+            f"{COLLEGE}/referral-codes",
+            params={"active_only": True, "limit": 1},
+            headers=college["headers"],
+        )
+    ).json()["items"]
+    assert active_after_revoke == []
+
+
+async def test_referral_codes_are_cursor_paginated(client: Any, mint_token: Any) -> None:
+    college = await _college(client, mint_token)
+    issued = [await _code(client, college) for _ in range(3)]
+
+    first_response = await client.get(
+        f"{COLLEGE}/referral-codes",
+        params={"limit": 2},
+        headers=college["headers"],
+    )
+    assert first_response.status_code == 200, first_response.text
+    first = first_response.json()
+    assert [item["id"] for item in first["items"]] == [
+        issued[2]["id"],
+        issued[1]["id"],
+    ]
+    assert first["next_cursor"]
+
+    second_response = await client.get(
+        f"{COLLEGE}/referral-codes",
+        params={"limit": 2, "cursor": first["next_cursor"]},
+        headers=college["headers"],
+    )
+    assert second_response.status_code == 200, second_response.text
+    second = second_response.json()
+    assert [item["id"] for item in second["items"]] == [issued[0]["id"]]
+    assert second["next_cursor"] is None
+
+    invalid = await client.get(
+        f"{COLLEGE}/referral-codes",
+        params={"cursor": "not-a-cursor"},
+        headers=college["headers"],
+    )
+    assert invalid.status_code == 422
+    assert invalid.json()["code"] == "invalid_cursor"
 
 
 async def test_entering_a_code_links_the_student_with_roster_consent_only(
@@ -382,7 +436,9 @@ async def test_entering_a_code_links_the_student_with_roster_consent_only(
     links = (await client.get(STUDENT, headers=student["headers"])).json()
     assert [link["college_id"] for link in links] == [college["tenant_id"]]
     # The college learns a count exists, and nothing about who.
-    listed = (await client.get(f"{COLLEGE}/referral-codes", headers=college["headers"])).json()
+    listed = (await client.get(f"{COLLEGE}/referral-codes", headers=college["headers"])).json()[
+        "items"
+    ]
     assert listed[0]["uses"] == 1 and str(student["id"]) not in str(listed)
 
 

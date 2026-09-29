@@ -24,6 +24,7 @@ from app.core.deps import (
 )
 from app.modules.analytics import service
 from app.modules.analytics.schemas import (
+    ApplicationFunnelResponse,
     CohortOverviewResponse,
     LocationCount,
     MonthCount,
@@ -89,4 +90,24 @@ async def get_placements(user: CurrentUser, session: DbSession) -> PlacementRepo
         total_hires=report.total_hires,
         by_month=[MonthCount(month=m, hires=n) for m, n in report.by_month],
         by_location=[LocationCount(location=loc, hires=n) for loc, n in report.by_location],
+    )
+
+
+@router.get(
+    "/applications",
+    response_model=ApplicationFunnelResponse,
+    dependencies=CollegeReaders,
+    summary="Where the linked students' applications stand, by stage",
+)
+async def get_applications(user: CurrentUser, session: DbSession) -> ApplicationFunnelResponse:
+    """Counted over students who are linked right now: current stage, and how
+    many applications ever reached each milestone. Nothing under the cohort
+    floor; small cells are withheld (null) with a partner, as in the overview."""
+    funnel = await service.applications(session, ctx=user)
+    return ApplicationFunnelResponse(
+        min_cohort_size=funnel.min_cohort_size,
+        below_floor=funnel.below_floor,
+        total_applications=funnel.total,
+        by_stage=funnel.by_stage,
+        reached=funnel.reached,
     )

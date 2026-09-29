@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Dropdown } from "@/components/ui/dropdown";
@@ -12,16 +11,23 @@ import {
     useGetEmployerJobsQuery,
     selectJobsSearch,
     selectJobsStatusFilter,
-    selectJobsCurrentPage,
     setJobsSearch,
     setJobsStatusFilter,
-    setJobsCurrentPage,
 } from "@/store/employer/jobs";
 import type { JobsStatusFilter } from "@/store/employer/jobs";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import type { EmployerJob } from "../types";
+import { useCursorPagination } from "@/lib/pagination/use-cursor-pagination";
+import { useDebouncedSearch } from "@/lib/hooks/use-debounced-value";
+import type { ApiJobStatus, EmployerJob } from "../types";
 
 const DEFAULT_PAGE_SIZE = 10;
+const EMPTY_JOBS: EmployerJob[] = [];
+const STATUS_TO_API: Record<Exclude<JobsStatusFilter, "all">, ApiJobStatus> = {
+    live: "PUBLISHED",
+    draft: "DRAFT",
+    paused: "PAUSED",
+    closed: "CLOSED",
+};
 
 export function JobsPage() {
     const router = useRouter();
@@ -41,21 +47,36 @@ export function JobsPage() {
         "Manage job postings and track how each one is performing"
     );
 
-    const {
-        data: employerJobs = [],
-        isLoading,
-        isError,
-        error,
-    } = useGetEmployerJobsQuery();
-
     const search = useAppSelector(selectJobsSearch);
     const statusFilter = useAppSelector(
         selectJobsStatusFilter
     );
-    const currentPage = useAppSelector(
-        selectJobsCurrentPage
+    const debouncedSearch = useDebouncedSearch(search);
+    const apiStatus =
+        statusFilter === "all"
+            ? undefined
+            : STATUS_TO_API[statusFilter];
+    const pagination = useCursorPagination(
+        [debouncedSearch, apiStatus],
+        DEFAULT_PAGE_SIZE,
     );
-    const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+    const {
+        currentData,
+        isLoading,
+        isFetching,
+        isError,
+        error,
+    } = useGetEmployerJobsQuery(
+        {
+            status: apiStatus,
+            q: debouncedSearch || undefined,
+            cursor: pagination.cursor,
+            limit: pagination.pageSize,
+        },
+        { refetchOnMountOrArgChange: true },
+    );
+    const employerJobs = currentData?.items ?? EMPTY_JOBS;
+    const nextCursor = currentData?.nextCursor ?? null;
 
     const statusOptions = [
         {
@@ -83,44 +104,6 @@ export function JobsPage() {
         label: string;
     }[];
 
-    const liveJobsCount = useMemo(() => {
-        return employerJobs.filter(
-            (job) => job.status === "live"
-        ).length;
-    }, [employerJobs]);
-
-    const filteredJobs = useMemo(() => {
-        const query = search.trim().toLowerCase();
-
-        return employerJobs.filter((job) => {
-            const matchesSearch =
-                query.length === 0 ||
-                job.title.toLowerCase().includes(query) ||
-                job.location.toLowerCase().includes(query);
-
-            const matchesStatus =
-                statusFilter === "all" ||
-                job.status === statusFilter;
-
-            return matchesSearch && matchesStatus;
-        });
-    }, [employerJobs, search, statusFilter]);
-
-    const totalPages = Math.max(
-        1,
-        Math.ceil(filteredJobs.length / pageSize)
-    );
-
-    const paginatedJobs = useMemo(() => {
-        const start =
-            (currentPage - 1) * pageSize;
-
-        return filteredJobs.slice(
-            start,
-            start + pageSize
-        );
-    }, [filteredJobs, currentPage, pageSize]);
-
     function handleSearch(value: string) {
         dispatch(setJobsSearch(value));
     }
@@ -129,17 +112,6 @@ export function JobsPage() {
         value: JobsStatusFilter
     ) {
         dispatch(setJobsStatusFilter(value));
-    }
-
-    function handlePageChange(page: number) {
-        dispatch(
-            setJobsCurrentPage(
-                Math.min(
-                    Math.max(page, 1),
-                    totalPages
-                )
-            )
-        );
     }
 
     function handleViewApplicants(job: EmployerJob) {
@@ -171,7 +143,6 @@ export function JobsPage() {
                     className="
             flex
             items-center
-            justify-between
             gap-4
             border-b
             border-[#edf0f3]
@@ -179,21 +150,6 @@ export function JobsPage() {
             py-3
           "
                 >
-                    {/* Summary */}
-                    <div className="flex items-center gap-2 text-[12px]">
-                        <span className="font-medium text-[#3566b8]">
-                            {filteredJobs.length} jobs
-                        </span>
-
-                        <span className="text-[#b0b5bd]">
-                            |
-                        </span>
-
-                        <span className="font-medium text-[#1f7a4d]">
-                            {liveJobsCount} live
-                        </span>
-                    </div>
-
                     {/* Filters */}
                     <div className="flex items-center gap-2">
                         {/* Search */}
@@ -258,13 +214,14 @@ export function JobsPage() {
                     </div>
                 ) : (
                     <JobsTable
-                        jobs={paginatedJobs}
-                        currentPage={currentPage}
-                        pageSize={pageSize}
-                        totalCount={filteredJobs.length}
-                        isLoading={isLoading}
-                        onPageChange={handlePageChange}
-                        onPageSizeChange={setPageSize}
+                        jobs={employerJobs}
+                        currentPage={pagination.currentPage}
+                        pageSize={pagination.pageSize}
+                        hasNextPage={Boolean(nextCursor)}
+                        isLoading={isLoading || isFetching}
+                        onNextPage={() => pagination.goToNextPage(nextCursor)}
+                        onPreviousPage={pagination.goToPreviousPage}
+                        onPageSizeChange={pagination.setPageSize}
                         onViewApplicants={handleViewApplicants}
                         onEditJob={handleEditJob}
                     />

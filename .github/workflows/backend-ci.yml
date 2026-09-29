@@ -99,6 +99,7 @@ jobs:
       # No payment gateway exists. The stub signs callbacks with a real HMAC,
       # so verification is exercised; Settings refuses it outside local/dev.
       PAYMENTS_PROVIDER: stub
+      INTERVIEW_QUESTION_PROVIDER: stub
       # One runner IP makes more requests a minute than any person; the global
       # tier is switched on by tests/integration/test_rate_limits.py.
       RATE_LIMIT_GLOBAL_ENABLED: "false"
@@ -169,6 +170,10 @@ jobs:
           # Settings, which now requires an authentication mechanism. Nothing
           # here connects to either service -- the URLs are placeholders.
           AUTH_ALLOW_LOCAL_TOKENS: "true"
+          # The default question provider is OpenAI, and Settings refuses to
+          # construct without its key. The schema does not depend on which
+          # provider writes the questions.
+          INTERVIEW_QUESTION_PROVIDER: stub
         run: python scripts/export_openapi.py
       - name: export the Postman collection
         # Generated from the schema above, for the same reason it is: a

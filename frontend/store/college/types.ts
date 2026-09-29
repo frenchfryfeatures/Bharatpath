@@ -174,125 +174,10 @@ export interface Payment {
 }
 
 /* =========================================================
-   Students (INDIVIDUAL consent)
-========================================================= */
-
-export type StudentScoreBand =
-  | "ENTRY"
-  | "DEVELOPING"
-  | "SOLID"
-  | "STRONG";
-
-export interface VisibleStudent {
-  candidateId: string;
-  fullName: string | null;
-  visibleSince: string;
-}
-
-export interface VisibleStudentsPage {
-  items: VisibleStudent[];
-  nextCursor: string | null;
-}
-
-export interface StudentHire {
-  jobTitle: string;
-  employerName: string;
-  hiredAt: string;
-  source: "PLATFORM";
-}
-
-export interface CollegeStudentDetail
-  extends VisibleStudent {
-  score: number | null;
-  band: StudentScoreBand | null;
-  scoredAt: string | null;
-  applications: number;
-  interviews: number;
-  hires: StudentHire[];
-}
-
-/* =========================================================
-   Referral codes
-========================================================= */
-
-export type ReferralCodeState =
-  | "ACTIVE"
-  | "EXPIRED"
-  | "REVOKED"
-  | "EXHAUSTED";
-
-export interface ReferralCode {
-  id: string;
-  code: string;
-  state: ReferralCodeState;
-  uses: number;
-  maxUses: number | null;
-  expiresAt: string;
-  revokedAt: string | null;
-  createdAt: string;
-}
-
-/* =========================================================
-   Roster imports
-========================================================= */
-
-export type RosterImportState =
-  | "PREVIEW"
-  | "COMMITTED"
-  | "DISCARDED";
-
-export type RosterRowState =
-  | "VALID"
-  | "INVALID"
-  | "DUPLICATE";
-
-export interface InvitationCounts {
-  pending: number;
-  sent: number;
-  accepted: number;
-  declined: number;
-  expired: number;
-}
-
-export interface RosterImport {
-  id: string;
-  fileName: string;
-  state: RosterImportState;
-  totalRows: number;
-  validRows: number;
-  invalidRows: number;
-  duplicateRows: number;
-  ignoredColumns: string[];
-  createdAt: string;
-  committedAt: string | null;
-  invitations: InvitationCounts;
-}
-
-export interface RosterRow {
-  rowNumber: number;
-  fullName: string | null;
-  phone: string | null;
-  email: string | null;
-  studentRef: string | null;
-  rowState: RosterRowState;
-  issues: string[];
-  inviteState: string | null;
-}
-
-export interface RosterRowsPage {
-  items: RosterRow[];
-  nextCursor: string | null;
-}
-
-export interface InvitationsSent {
-  sent: number;
-  invitations: InvitationCounts;
-}
-
-/* =========================================================
    Analytics
 ========================================================= */
 
+/** A band is `null` when it is withheld: too few students to show safely. */
 export interface ScoreDistribution {
   entry: number | null;
   developing: number | null;
@@ -305,6 +190,7 @@ export interface CohortOverview {
   individuallyVisible: number;
   minCohortSize: number;
   belowFloor: boolean;
+  /* Every figure below is `null` under the cohort privacy floor. */
   scoredStudents: number | null;
   scoreDistribution: ScoreDistribution | null;
   medianScore: number | null;

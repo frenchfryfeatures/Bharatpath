@@ -43,6 +43,8 @@ from app.modules.interview.schemas import (
     OfferResponse,
     QuestionFeedbackSchema,
     QuestionSchema,
+    RecordingSchema,
+    SessionHistoryItem,
     SessionResponse,
     SessionSummary,
 )
@@ -66,11 +68,12 @@ def _session_response(view: service.SessionView) -> SessionResponse:
         created_at=row.created_at,
         started_at=row.started_at,
         completed_at=row.completed_at,
+        questions_total=QUESTIONS_PER_SESSION,
         questions=[
             QuestionSchema(
                 index=i,
                 code=q.code,
-                key=q.key,
+                key=q.key or None,
                 prompt=q.prompt,
                 preparation_seconds=PREPARATION_SECONDS,
                 answer_seconds=ANSWER_SECONDS,
@@ -89,7 +92,7 @@ def _session_response(view: service.SessionView) -> SessionResponse:
                 duration_ms=view.answers[i].duration_ms if i in view.answers else None,
                 uploaded_at=view.answers[i].uploaded_at if i in view.answers else None,
             )
-            for i in range(len(view.question_set.questions))
+            for i in range(QUESTIONS_PER_SESSION)
         ],
     )
 
@@ -98,7 +101,7 @@ def _session_response(view: service.SessionView) -> SessionResponse:
     "/offer",
     response_model=OfferResponse,
     dependencies=PayingCandidate,
-    summary="Interview availability, device check, and score-cap disclosure",
+    summary="Price, the device check, and whether a session would increase the score",
 )
 async def get_offer(user: CurrentUser, session: DbSession) -> OfferResponse:
     offer = await service.offer(session, user_id=user.user_id)
@@ -123,7 +126,7 @@ async def get_offer(user: CurrentUser, session: DbSession) -> OfferResponse:
     response_model=DeviceCheckResponse,
     status_code=status.HTTP_201_CREATED,
     dependencies=PayingCandidate,
-    summary="Record a device check before the interview",
+    summary="Record a device check (before payment)",
 )
 async def create_device_check(
     payload: DeviceCheckRequest, user: CurrentUser, session: DbSession
@@ -156,8 +159,7 @@ async def create_device_check(
     response_model=CheckoutResponse,
     status_code=status.HTTP_201_CREATED,
     dependencies=PayingCandidate,
-    deprecated=True,
-    summary="Legacy one-off interview checkout",
+    summary="Buy a mock interview session",
 )
 async def checkout_session(
     payload: InterviewCheckoutRequest, user: CurrentUser, session: DbSession
@@ -179,7 +181,7 @@ async def checkout_session(
     response_model=SessionResponse,
     status_code=status.HTTP_201_CREATED,
     dependencies=PayingCandidate,
-    summary="Start a subscription-included session, or resume the open one",
+    summary="Start a session, or resume the one in progress",
 )
 async def start_session(user: CurrentUser, session: DbSession) -> SessionResponse:
     started = await service.start_session(session, user_id=user.user_id)
@@ -198,6 +200,31 @@ async def list_sessions(user: CurrentUser, session: DbSession) -> list[SessionSu
 
 
 @router.get(
+    "/history",
+    response_model=list[SessionHistoryItem],
+    dependencies=PayingCandidate,
+    summary="Every session the candidate has sat, newest first, for the history screen",
+)
+async def get_history(user: CurrentUser, session: DbSession) -> list[SessionHistoryItem]:
+    items = await service.history(session, user_id=user.user_id)
+    return [
+        SessionHistoryItem(
+            id=item.session.id,
+            session_number=item.session.session_number,
+            state=item.session.state,
+            question_set_code=item.session.question_set_code,
+            created_at=item.session.created_at,
+            completed_at=item.session.completed_at,
+            question_set_title=service.question_set_title(item.session.question_set_code),
+            questions_asked=item.questions_asked,
+            answers_stored=item.answers_stored,
+            report_status=item.report_status,
+        )
+        for item in items
+    ]
+
+
+@router.get(
     "/sessions/{session_id}",
     response_model=SessionResponse,
     dependencies=PayingCandidate,
@@ -208,6 +235,42 @@ async def get_session(
 ) -> SessionResponse:
     view = await service.get_session(session, user_id=user.user_id, session_id=session_id)
     return _session_response(view)
+
+
+@router.post(
+    "/sessions/{session_id}/next-question",
+    response_model=SessionResponse,
+    dependencies=PayingCandidate,
+    summary="Write the next question, once the previous answer is stored",
+)
+async def next_question(
+    session_id: uuid.UUID, user: CurrentUser, session: DbSession
+) -> SessionResponse:
+    """For a session whose questions are written for the candidate
+    (`question_set_code` ADAPTIVE): hears the answers so far and writes the
+    next question, which is the last entry of `questions`. Takes a few seconds;
+    show the candidate that the interviewer is thinking. Called before the
+    latest question's answer is stored it returns the session unchanged, so a
+    retry gets the same question. 409 `interview_previous_answer_not_stored`
+    only if an earlier answer is missing. A bank session already holds every
+    question and is returned unchanged."""
+    view = await service.next_question(session, user_id=user.user_id, session_id=session_id)
+    return _session_response(view)
+
+
+@router.get(
+    "/sessions/{session_id}/recordings",
+    response_model=list[RecordingSchema],
+    dependencies=PayingCandidate,
+    summary="Play back the candidate's own answers",
+)
+async def get_recordings(
+    session_id: uuid.UUID, user: CurrentUser, session: DbSession
+) -> list[RecordingSchema]:
+    """One presigned GET per stored answer, expiring in `expires_in_seconds`.
+    Ask again for fresh links rather than storing them."""
+    rows = await service.recordings(session, user_id=user.user_id, session_id=session_id)
+    return [RecordingSchema.model_validate(r, from_attributes=True) for r in rows]
 
 
 @router.post(

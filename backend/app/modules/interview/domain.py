@@ -27,7 +27,9 @@ this is the layer the invariant property tests exercise directly.
 
 from __future__ import annotations
 
+import re
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Final
@@ -40,6 +42,8 @@ from app.modules.interview.bank import (
     RATING_MAX,
     RATING_MIN,
     SESSIONS_THAT_EARN_POINTS,
+    InterviewQuestion,
+    set_for_session,
 )
 
 # ---------------------------------------------------------------------------
@@ -367,7 +371,7 @@ class InterviewReport:
 
 def assemble_report(
     *,
-    question_set_code: str,
+    questions: tuple[InterviewQuestion, ...],
     transcripts: dict[int, str],
     evaluations: tuple[QuestionEvaluation, ...],
 ) -> InterviewReport:
@@ -376,8 +380,10 @@ def assemble_report(
     Deterministic and pure: the same rows always produce the same report, so a
     report is re-assembled on every read rather than stored twice. **No total,
     no average, no rating** leaves this function -- only levels, in words.
+
+    `questions` are the ones this session actually asked, in order: written
+    for the candidate since 2026-09-29, a bank set before that.
     """
-    question_set = next(s for s in QUESTION_SETS if s.code == question_set_code)
     rated = {e.question_code: e for e in evaluations}
     dimensions = tuple(
         DimensionFeedback(
@@ -389,7 +395,7 @@ def assemble_report(
         )
         for d in DIMENSIONS
     )
-    questions = tuple(
+    feedback = tuple(
         QuestionFeedback(
             index=index,
             code=q.code,
@@ -399,12 +405,144 @@ def assemble_report(
             spoken=is_spoken(transcripts.get(index)),
             comment=(rated[q.code].comment or None) if q.code in rated else None,
         )
-        for index, q in enumerate(question_set.questions)
+        for index, q in enumerate(questions)
     )
     return InterviewReport(
         report_version=REPORT_VERSION,
         dimensions=dimensions,
         strengths=tuple(d.code for d in dimensions if d.level == LEVEL_STRONG),
         focus_areas=tuple(d.code for d in dimensions if d.level == LEVEL_FOCUS_AREA),
-        questions=questions,
+        questions=feedback,
     )
+
+
+# ---------------------------------------------------------------------------
+# Questions written for the candidate (2026-09-29)
+# ---------------------------------------------------------------------------
+# The client asked for questions drawn from the candidate's CV and onboarding
+# answers, each one either following up what they just said or opening new
+# ground -- and **never a question they were asked in an earlier session**,
+# because a second paid rehearsal that repeats the first is money wasted.
+#
+# A model writes every question -- there are no fixed ones (client,
+# 2026-09-29) -- and these rules decide whether what it wrote may be asked.
+# The model is told every earlier question and asked not to repeat one, and
+# `parse_drafted_question` refuses an exact repeat anyway, because a
+# rule that lives only in a prompt is a request. "Exact" is after
+# `normalise_prompt`: case, punctuation and spacing do not make a new question.
+
+#: The session-level code of a session whose questions were written for it.
+ADAPTIVE_SET_CODE: Final = "ADAPTIVE"
+ADAPTIVE_SET_TITLE: Final = "Questions written for you"
+
+#: Where a question came from. Every question since 2026-09-29 is MODEL; BANK
+#: is kept for the schema's sake and never written now.
+KIND_OPENING: Final = "OPENING"
+KIND_FOLLOW_UP: Final = "FOLLOW_UP"
+KIND_NEW_TOPIC: Final = "NEW_TOPIC"
+KIND_BANK: Final = "BANK"
+QUESTION_KINDS: Final = (KIND_OPENING, KIND_FOLLOW_UP, KIND_NEW_TOPIC, KIND_BANK)
+SOURCE_MODEL: Final = "MODEL"
+SOURCE_BANK: Final = "BANK"
+QUESTION_SOURCES: Final = (SOURCE_MODEL, SOURCE_BANK)
+
+MIN_PROMPT_CHARS: Final = 12
+MAX_PROMPT_CHARS: Final = 400
+MIN_LOOKING_FOR_CHARS: Final = 12
+MAX_LOOKING_FOR_CHARS: Final = 600
+
+#: Drafts the model gets per question before the request is a 503 the app
+#: retries. Each retry is told what was refused and why.
+MAX_DRAFT_ATTEMPTS: Final = 3
+
+#: How much CV the model is shown. A long CV is mostly repetition, and the
+#: prompt is paid per token on every question of every session.
+MAX_RESUME_CHARS_FOR_QUESTIONS: Final = 12_000
+
+_NON_WORD = re.compile(r"[^\w\s]", re.UNICODE)
+_SPACES = re.compile(r"\s+")
+# The same shapes the log redactor catches, applied to a CV before it leaves
+# for a model. The question writer needs someone's work, not how to reach them.
+_EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")
+_PHONE = re.compile(r"\+?\d[\d\s\-()]{8,14}\d")
+_URL = re.compile(r"(?:https?://|www\.)\S+", re.IGNORECASE)
+REDACTED: Final = "[removed]"
+
+
+class QuestionInvalid(ValueError):
+    """What the model wrote cannot be asked. The service asks the model again,
+    saying why; nothing is written until a question may be asked."""
+
+
+@dataclass(frozen=True, slots=True)
+class DraftedQuestion:
+    kind: str
+    prompt: str
+    looking_for: str
+
+
+def normalise_prompt(prompt: str) -> str:
+    """The comparison form of a question: lower case, no punctuation, single
+    spaces. Two prompts equal here are the same question."""
+    return _SPACES.sub(" ", _NON_WORD.sub(" ", prompt.casefold())).strip()
+
+
+def redact_contacts(text: str, *, known: Iterable[str | None] = ()) -> str:
+    """Remove email addresses, phone numbers, links, and any `known` value
+    (the account's own phone, email and name) from CV text."""
+    for value in known:
+        if value and len(value.strip()) >= 3:
+            text = re.sub(re.escape(value.strip()), REDACTED, text, flags=re.IGNORECASE)
+    text = _EMAIL.sub(REDACTED, text)
+    text = _URL.sub(REDACTED, text)
+    return _PHONE.sub(REDACTED, text)
+
+
+def allowed_kinds(index: int) -> tuple[str, ...]:
+    """The first question opens; every later one follows up or moves on."""
+    return (KIND_OPENING,) if index == 0 else (KIND_FOLLOW_UP, KIND_NEW_TOPIC)
+
+
+def parse_drafted_question(
+    raw: object, *, index: int, already_asked: Iterable[str]
+) -> DraftedQuestion:
+    """Read what the model wrote, exactly, or refuse it.
+
+    Expected: `{"kind", "prompt", "looking_for"}`. Refused: a kind this
+    position cannot have, text too short or too long, and **any prompt the
+    candidate has been asked before** -- in this session or any earlier one.
+    """
+    if not isinstance(raw, dict):
+        raise QuestionInvalid("expected an object")
+    kind, prompt, looking_for = raw.get("kind"), raw.get("prompt"), raw.get("looking_for")
+    if kind not in allowed_kinds(index):
+        raise QuestionInvalid(f"kind {kind!r} is not allowed at question {index}")
+    if not isinstance(prompt, str) or not isinstance(looking_for, str):
+        raise QuestionInvalid("prompt and looking_for must be text")
+    prompt, looking_for = prompt.strip(), looking_for.strip()
+    if not MIN_PROMPT_CHARS <= len(prompt) <= MAX_PROMPT_CHARS:
+        raise QuestionInvalid("prompt length out of range")
+    if not MIN_LOOKING_FOR_CHARS <= len(looking_for) <= MAX_LOOKING_FOR_CHARS:
+        raise QuestionInvalid("looking_for length out of range")
+    if normalise_prompt(prompt) in {normalise_prompt(p) for p in already_asked}:
+        raise QuestionInvalid("the candidate has been asked this before")
+    return DraftedQuestion(str(kind), prompt, looking_for)
+
+
+def generated_question_code(*, session_number: int, index: int) -> str:
+    """Unique within a session, and says where it sits: `S2Q4`."""
+    return f"S{session_number}Q{index + 1}"
+
+
+def bank_questions_for(
+    *, question_set_code: str, session_number: int
+) -> tuple[InterviewQuestion, ...]:
+    """The questions a session asked before questions were stored per session:
+    the bank set it names. A written (ADAPTIVE) session always stores its
+    questions, so without rows it has asked none yet."""
+    if question_set_code == ADAPTIVE_SET_CODE:
+        return ()
+    for question_set in QUESTION_SETS:
+        if question_set.code == question_set_code:
+            return question_set.questions
+    return set_for_session(session_number).questions

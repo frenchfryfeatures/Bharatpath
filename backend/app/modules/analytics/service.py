@@ -31,10 +31,12 @@ from app.core.tenant import TenantContext
 from app.modules.analytics import repository
 from app.modules.analytics.domain import (
     DEFAULT_FLOORS,
+    ApplicationFunnel,
     CohortOverview,
     PlacementReport,
     PrivacyFloors,
     PrivacyFloorsError,
+    build_application_funnel,
     build_overview,
     build_placements,
     floors_from_config,
@@ -109,3 +111,21 @@ async def placements(
         await repository.cohort_hires(session) if counts.connected >= floors.min_cohort_size else []
     )
     return build_placements(counts.connected, hires, floors, now=now)
+
+
+async def applications(
+    session: AsyncSession, *, ctx: TenantContext, now: datetime | None = None
+) -> ApplicationFunnel:
+    """Where the linked students' applications stand, by stage, and how many
+    reached each milestone -- floored and suppressed like every aggregate."""
+    await _bind_college(session, ctx)
+    floors = await load_floors(session, now=now or datetime.now(UTC))
+    counts = await repository.cohort_counts(session)
+    if counts is None:
+        raise PermissionDeniedError()
+    rows = (
+        await repository.cohort_applications(session)
+        if counts.connected >= floors.min_cohort_size
+        else []
+    )
+    return build_application_funnel(counts.connected, rows, floors)
