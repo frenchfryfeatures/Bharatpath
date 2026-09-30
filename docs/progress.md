@@ -2973,8 +2973,7 @@ Pushed to PR #11 as `e1f3a97`: **all five CI jobs green on the first push**.
 - **Suppression found its own bug.** The exhaustive test over every
   four-cell combination of 0–7 caught the case the first version missed: one
   small cell and every other cell zero, which had no partner to withhold. The
-  partner is now a zero cell when nothing else is available. This remains the
-  score-band rule; monthly placement suppression was removed on 2026-09-26.
+  partner is now a zero cell when nothing else is available.
 - **Interviews** means applications that reached INTERVIEW (from
   `application_events`), not mock interviews. **Hires** means HIRED, both
   confirmations; a disputed hire counts as none (E12).
