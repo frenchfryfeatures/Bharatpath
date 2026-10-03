@@ -113,6 +113,10 @@ resource "aws_cognito_user_pool_client" "candidates" {
   # Lambda triggers were never written. Add it back with them.
   explicit_auth_flows = [
     "ALLOW_USER_SRP_AUTH", # email + password
+    # The mobile app signs candidates in with InitiateAuth USER_PASSWORD_AUTH
+    # (mobile-app/services/api/auth.ts). It was enabled in the console and
+    # recorded here on 2026-10-03; without it an apply breaks mobile sign-in.
+    "ALLOW_USER_PASSWORD_AUTH",
     "ALLOW_REFRESH_TOKEN_AUTH",
   ]
 

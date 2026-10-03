@@ -9,6 +9,21 @@ states. Newest entries first.
 
 ---
 
+## 2026-10-03 — Terraform records the mobile app's Cognito sign-in flow
+
+A plan for an unrelated change wanted to remove `ALLOW_USER_PASSWORD_AUTH`
+from the candidate pool's app client. Someone had enabled it in the console,
+and the mobile app signs in with `InitiateAuth` `USER_PASSWORD_AUTH`
+(`mobile-app/services/api/auth.ts`), so applying the plan would have broken
+mobile sign-in. `cognito.tf` now lists it; a full plan shows no resource
+changes.
+
+Also: SSH to the host is pinned to the user's home IP, which changed to
+38.183.13.187. `ssh_allowed_cidrs` in the gitignored `deploy.auto.tfvars` was
+updated and applied with a plan targeted at `aws_security_group.app[0]` only.
+
+---
+
 ## 2026-10-03 — staff fill the onboarding in when they invite
 
 Asked for: an admin inviting an employer, college or student can fill in the
