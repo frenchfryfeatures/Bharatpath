@@ -125,6 +125,35 @@ async def test_the_provider_subject_never_appears_in_a_response(client, mint_tok
         await _delete_user(subject)
 
 
+async def test_me_returns_the_callers_email_and_candidate_name(client, mint_token) -> None:
+    """`/auth/me` carries the caller's own email, and a candidate's profile name."""
+    email = f"{uuid.uuid4().hex[:10]}@example.test"
+    headers, subject = mint_token(pool="CANDIDATE", email=email)
+    try:
+        before = (await client.get(ME, headers=headers)).json()
+        assert before["email"] == email
+        assert before["full_name"] is None  # nothing set yet: null, not an error
+
+        named = await client.put(
+            "/api/v1/candidate/profile/name", json={"full_name": "Asha Rao"}, headers=headers
+        )
+        assert named.status_code == 200, named.text
+
+        after = (await client.get(ME, headers=headers)).json()
+        assert after["full_name"] == "Asha Rao"
+    finally:
+        await _delete_user(subject)
+
+
+async def test_a_business_account_has_an_email_and_no_name(
+    client, mint_token, business_member
+) -> None:
+    headers, _ = mint_token(pool="BUSINESS", subject=business_member["subject"])
+    body = (await client.get(ME, headers=headers)).json()
+    assert body["email"] is not None
+    assert body["full_name"] is None
+
+
 async def test_a_candidate_has_no_tenant(client, mint_token) -> None:
     headers, subject = mint_token(pool="CANDIDATE", phone=f"+9196{uuid.uuid4().int % 10**8:08d}")
     try:

@@ -22,7 +22,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request, status
 
-from app.core.deps import CurrentUser
+from app.core.deps import CurrentUser, DbSession
+from app.modules.candidate import service as candidate_service
 from app.modules.identity import service
 from app.modules.identity.schemas import (
     DevTokenRequest,
@@ -68,19 +69,28 @@ if get_settings().auth_phone_otp_enabled:  # pragma: no cover - off until phone 
 
 
 @router.get("/me", response_model=MeResponse, summary="The caller's resolved identity")
-async def me(user: CurrentUser) -> MeResponse:
+async def me(user: CurrentUser, session: DbSession) -> MeResponse:
     """Who the server thinks you are.
 
     Cheap and load-bearing: it is the smallest endpoint that proves the whole
     authentication chain works -- token verified, user row resolved, membership
     read from our tables. When something is wrong with auth, this is the first
     thing to call.
+
+    `email` is the caller's own, from `users`. `full_name` exists only for a
+    candidate (their profile name); a business account has no stored name, so
+    it is null rather than guessed from the address.
     """
+    full_name = None
+    if user.role == "CANDIDATE":
+        full_name = (await candidate_service.get_profile(session, ctx=user)).full_name
     return MeResponse(
         user_id=user.user_id,
         role=user.role,
         pool=user.pool,
         tenant_id=user.tenant_id,
+        email=await service.email_of(session, user_id=user.user_id),
+        full_name=full_name,
     )
 
 

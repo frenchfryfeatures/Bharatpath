@@ -84,6 +84,15 @@ class MeResponse(_Base):
     role: str
     pool: str
     tenant_id: uuid.UUID | None = None
+    email: str | None = Field(
+        default=None,
+        description="The caller's own address, from our `users` row. Null only if none is held.",
+    )
+    full_name: str | None = Field(
+        default=None,
+        description="The name a candidate gave on their profile. Null for a candidate who has "
+        "not set one, and always null for a business account, which has no stored name.",
+    )
 
 
 # ---------------------------------------------------------------------------

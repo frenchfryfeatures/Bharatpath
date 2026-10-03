@@ -80,7 +80,7 @@ which means "create your organisation" (`POST /employer/organisation` or
 | Method | Path | Auth | Body | Response | Notes |
 |---|---|---|---|---|---|
 | ~~POST~~ | ~~`/auth/otp/start`~~ | — | — | — | **Not registered** since 2026-09-18: the client deferred phone OTP. Exists only with `AUTH_PHONE_OTP_ENABLED=true`. Sign-in is email + password on both pools; Cognito emails every code |
-| GET | `/auth/me` | Any authenticated user | — | `{user_id, role, pool, tenant_id}` | Smallest possible proof the auth chain works end to end |
+| GET | `/auth/me` | Any authenticated user | — | `{user_id, role, pool, tenant_id, email, full_name}` | Smallest possible proof the auth chain works end to end. `email` is the caller's own. `full_name` is a candidate's profile name (null until set) and always null for a business account, which has no stored name |
 | POST | `/auth/dev/token` | Dev-only, flag-gated | `{subject, pool, phone?, email?}` | `{access_token, subject, expires_in}` | Only exists when `AUTH_ALLOW_LOCAL_TOKENS=true`; mints a real RS256 token locally |
 
 ## candidate — `/candidate` (+ extra router at `/employer/discovery`)

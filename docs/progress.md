@@ -42,6 +42,23 @@ Validated: CI's static checks, `test_admin_accounts.py` and
 
 ---
 
+## 2026-10-03 — `/auth/me` returns the caller's email and name
+
+`GET /auth/me` carried only `user_id, role, pool, tenant_id`; a web client
+wanted to show who is signed in.
+
+- Added `email` (the caller's own `users.email`) and `full_name` to
+  `MeResponse`. Both nullable, so existing clients are unaffected.
+- **`full_name` exists only for a candidate** (`candidate_profiles.full_name`,
+  via `candidate.service.get_profile`). **A business account has no stored
+  name anywhere**, so it is null rather than guessed from the address. Giving
+  staff and employers a name means a new column on `users`, its entry in
+  `erase_candidate`, and a way to set it -- not done; a product decision.
+- Tests added in `test_auth_chain.py` (a candidate's email, then name after
+  `PUT /candidate/profile/name`; a business account's email and null name).
+
+---
+
 ## 2026-10-03 — the Vercel web app may call the API (CORS)
 
 PR #33 moved the web frontend's sign-in to Cognito in the browser and removed
