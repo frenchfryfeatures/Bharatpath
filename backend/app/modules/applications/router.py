@@ -48,15 +48,21 @@ from app.modules.applications.schemas import (
     ApplicationDetailResponse,
     ApplicationResponse,
     ApplicationStage,
+    ApplicationStatus,
     ApplyRequest,
     CandidateMessageResponse,
     EmployerApplicationDetail,
     EmployerApplicationListItem,
     EmployerDashboard,
     EmployerMessageResponse,
+    InvitationStatus,
     MoveStageRequest,
     ScheduleInterviewRequest,
     SendMessageRequest,
+    ShortlistEntry,
+    ShortlistInvitation,
+    ShortlistRequest,
+    ShortlistStatus,
 )
 
 router = APIRouter()
@@ -112,10 +118,19 @@ async def apply(
 async def list_mine(
     user: CurrentUser,
     session: DbSession,
+    status: Annotated[
+        ApplicationStatus | None,
+        Query(
+            description="ACTIVE: still in the pipeline (SUBMITTED to DECISION). "
+            "CLOSED: hired, rejected, withdrawn or expired. Leave out for both."
+        ),
+    ] = None,
     cursor: Annotated[str | None, Query(max_length=512)] = None,
     limit: Annotated[int | None, Query(ge=1, le=MAX_PAGE_SIZE)] = None,
 ) -> Page[ApplicationResponse]:
-    return await service.list_mine(session, ctx=user, cursor=cursor, limit=limit)
+    """A cursor belongs to the filter it was issued under; keep `status` the
+    same while paging."""
+    return await service.list_mine(session, ctx=user, cursor=cursor, limit=limit, status=status)
 
 
 @router.get(
@@ -180,6 +195,7 @@ async def dispute_hire(
     summary="The organisation's applications, oldest first, for one job or all of them",
 )
 async def list_applications(
+    request: Request,
     user: CurrentUser,
     session: DbSession,
     job_id: Annotated[uuid.UUID | None, Query()] = None,
@@ -191,11 +207,22 @@ async def list_applications(
     pipeline board fills from this one request. Each row carries `job_title`
     and `job_location`. Another organisation's `job_id` is `job_not_found`.
 
+    Each row's `candidate` names who applied (name, band, experience,
+    skills, city), or is null while an integrity review hides them. No
+    contact and no score: those are on the opened application. Each page
+    that names anyone is one audit row.
+
     Read-only: listing never records VIEWED. Opening one application
     (`GET /employer/applications/{id}`) does, so never open each row to draw
     a list."""
     return await service.list_for_employer(
-        session, ctx=user, job_id=job_id, stage=stage, cursor=cursor, limit=limit
+        session,
+        ctx=user,
+        job_id=job_id,
+        stage=stage,
+        cursor=cursor,
+        limit=limit,
+        request_id=get_request_id(request),
     )
 
 
@@ -206,10 +233,18 @@ async def list_applications(
     summary="Open an application",
 )
 async def open_application(
-    application_id: uuid.UUID, user: CurrentUser, session: DbSession
+    application_id: uuid.UUID, request: Request, user: CurrentUser, session: DbSession
 ) -> EmployerApplicationDetail:
-    """Opening a SUBMITTED application moves it to VIEWED, once."""
-    return await service.open_application(session, ctx=user, application_id=application_id)
+    """Opening a SUBMITTED application moves it to VIEWED, once.
+
+    `candidate` is the applicant in full -- name, phone, email, display
+    score, band, experience, skills, badges, city and the CV their score was
+    built from (`resume`: text, sections and a presigned link to the file).
+    Every response carrying it is audited, this one and the moves below.
+    Null while an integrity review hides the candidate from employers."""
+    return await service.open_application(
+        session, ctx=user, application_id=application_id, request_id=get_request_id(request)
+    )
 
 
 @employer_router.post(
@@ -219,12 +254,21 @@ async def open_application(
     summary="Move an application to the next stage, or reject it",
 )
 async def move_stage(
-    application_id: uuid.UUID, payload: MoveStageRequest, user: CurrentUser, session: DbSession
+    application_id: uuid.UUID,
+    payload: MoveStageRequest,
+    request: Request,
+    user: CurrentUser,
+    session: DbSession,
 ) -> EmployerApplicationDetail:
     """One stage forward, or REJECTED. 409 `application_invalid_transition`
     for anything else; moving to the current stage changes nothing."""
     return await service.move_stage(
-        session, ctx=user, application_id=application_id, target=payload.stage, note=payload.note
+        session,
+        ctx=user,
+        application_id=application_id,
+        target=payload.stage,
+        note=payload.note,
+        request_id=get_request_id(request),
     )
 
 
@@ -237,6 +281,7 @@ async def move_stage(
 async def schedule_interview(
     application_id: uuid.UUID,
     payload: ScheduleInterviewRequest,
+    request: Request,
     user: CurrentUser,
     session: DbSession,
 ) -> EmployerApplicationDetail:
@@ -248,6 +293,7 @@ async def schedule_interview(
         application_id=application_id,
         interview_at=payload.interview_at,
         meeting_url=payload.meeting_url,
+        request_id=get_request_id(request),
     )
 
 
@@ -303,10 +349,12 @@ async def list_messages(
     summary="Mark as hired, pending the candidate's confirmation",
 )
 async def propose_hire(
-    application_id: uuid.UUID, user: CurrentUser, session: DbSession
+    application_id: uuid.UUID, request: Request, user: CurrentUser, session: DbSession
 ) -> EmployerApplicationDetail:
     """At DECISION only (409 `hire_not_allowed`). Idempotent."""
-    return await service.propose_hire(session, ctx=user, application_id=application_id)
+    return await service.propose_hire(
+        session, ctx=user, application_id=application_id, request_id=get_request_id(request)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -375,3 +423,164 @@ async def my_messages(
         )
         for r in rows
     ]
+
+
+# ---------------------------------------------------------------------------
+# The shortlist (2026-10-05)
+# ---------------------------------------------------------------------------
+#: Mounted at `/employer/shortlist`.
+shortlist_router = APIRouter()
+
+#: Mounted at `/candidate/shortlist-invitations`.
+invitations_router = APIRouter()
+
+
+@shortlist_router.post(
+    "",
+    response_model=ShortlistEntry,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Movers, PayingEmployer],
+    summary="Shortlist a candidate you have opened: save them, or invite them to a job",
+    responses={200: {"description": "Already saved or invited; the existing entry"}},
+)
+async def shortlist_candidate(
+    payload: ShortlistRequest,
+    request: Request,
+    response: Response,
+    user: CurrentUser,
+    session: DbSession,
+) -> ShortlistEntry:
+    """The Shortlist button on an opened profile
+    (`GET /employer/discovery/candidates/{id}`, whose `shortlist` says what
+    the button should show).
+
+    * **With `job_id`**: an invitation. The candidate is emailed and told in
+      the app; on accepting, the application is filed and lands in your
+      pipeline at **SHORTLISTED** -- the Submitted and Viewed steps recorded
+      for you. They may decline; that answer stands for this job.
+    * **Without**: saved privately for later. The candidate is not told.
+
+    201 for a new entry, 200 for a repeat. Refusals: 404
+    `candidate_not_found` (not visible, or never opened by your
+    organisation), 404 `job_not_found`, 409 `shortlist_job_not_open` (not
+    PUBLISHED), 409 `already_applied` (`params.application_id`), 409
+    `shortlist_declined` / `shortlist_already_accepted`, 403 `kyb_required`,
+    429 `rate_limited` (60 invitations an hour per organisation).
+    """
+    entry, created = await service.shortlist_candidate(
+        session,
+        ctx=user,
+        candidate_id=payload.candidate_id,
+        job_id=payload.job_id,
+        request_id=get_request_id(request),
+    )
+    if not created:
+        response.status_code = status.HTTP_200_OK
+    return entry
+
+
+@shortlist_router.get(
+    "",
+    response_model=Page[ShortlistEntry],
+    dependencies=[Readers, PayingEmployer],
+    summary="Your organisation's shortlist, newest first",
+)
+async def list_shortlist(
+    request: Request,
+    user: CurrentUser,
+    session: DbSession,
+    job_id: Annotated[uuid.UUID | None, Query(description="Invitations to one job")] = None,
+    status_: Annotated[
+        ShortlistStatus | None, Query(alias="status", description="One state only")
+    ] = None,
+    cursor: Annotated[str | None, Query(max_length=512)] = None,
+    limit: Annotated[int | None, Query(ge=1, le=MAX_PAGE_SIZE)] = None,
+) -> Page[ShortlistEntry]:
+    """Each row names who it is (`candidate`: name, band, experience, skills,
+    city -- no contact, no score) and the job. A page that names anyone is one
+    audit row. `candidate` is null while an integrity review hides them."""
+    return await service.list_shortlist(
+        session,
+        ctx=user,
+        job_id=job_id,
+        status=status_,
+        cursor=cursor,
+        limit=limit,
+        request_id=get_request_id(request),
+    )
+
+
+@shortlist_router.post(
+    "/{shortlist_id}/cancel",
+    response_model=ShortlistEntry,
+    dependencies=[Movers, PayingEmployer],
+    summary="Withdraw an invitation the candidate has not answered",
+)
+async def cancel_invitation(
+    shortlist_id: uuid.UUID, user: CurrentUser, session: DbSession
+) -> ShortlistEntry:
+    """Repeating it returns the cancelled entry. 409 `shortlist_not_pending`
+    once the candidate has answered. You may invite them again later."""
+    return await service.cancel_invitation(session, ctx=user, shortlist_id=shortlist_id)
+
+
+@shortlist_router.delete(
+    "/{shortlist_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Movers, PayingEmployer],
+    summary="Remove a saved candidate",
+)
+async def remove_saved(shortlist_id: uuid.UUID, user: CurrentUser, session: DbSession) -> None:
+    """SAVED entries only; an invitation is cancelled instead (409
+    `shortlist_not_pending`)."""
+    await service.remove_saved(session, ctx=user, shortlist_id=shortlist_id)
+
+
+@invitations_router.get(
+    "",
+    response_model=Page[ShortlistInvitation],
+    dependencies=[CandidateOnly],
+    summary="Employers who shortlisted you for a job, newest first",
+)
+async def my_invitations(
+    user: CurrentUser,
+    session: DbSession,
+    status_: Annotated[
+        InvitationStatus | None, Query(alias="status", description="One state only")
+    ] = None,
+    cursor: Annotated[str | None, Query(max_length=512)] = None,
+    limit: Annotated[int | None, Query(ge=1, le=MAX_PAGE_SIZE)] = None,
+) -> Page[ShortlistInvitation]:
+    """Not paywalled. `job_title` is null once a job has left the board."""
+    return await service.my_invitations(
+        session, ctx=user, status=status_, cursor=cursor, limit=limit
+    )
+
+
+@invitations_router.post(
+    "/{shortlist_id}/accept",
+    response_model=ShortlistInvitation,
+    dependencies=[CandidateOnly],
+    summary="Accept: your application is filed, already shortlisted",
+)
+async def accept_invitation(
+    shortlist_id: uuid.UUID, user: CurrentUser, session: DbSession
+) -> ShortlistInvitation:
+    """`application_id` is the new application, at SHORTLISTED on your board.
+    No subscription needed and no minimum score: the employer chose you.
+    Repeating it returns the accepted invitation. 409
+    `shortlist_not_pending` (cancelled or declined), 409
+    `shortlist_job_not_open`, 409 `application_unavailable`."""
+    return await service.accept_invitation(session, ctx=user, shortlist_id=shortlist_id)
+
+
+@invitations_router.post(
+    "/{shortlist_id}/decline",
+    response_model=ShortlistInvitation,
+    dependencies=[CandidateOnly],
+    summary="Decline: the employer cannot invite you to this job again",
+)
+async def decline_invitation(
+    shortlist_id: uuid.UUID, user: CurrentUser, session: DbSession
+) -> ShortlistInvitation:
+    return await service.decline_invitation(session, ctx=user, shortlist_id=shortlist_id)

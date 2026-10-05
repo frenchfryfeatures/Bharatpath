@@ -344,3 +344,36 @@ class ResumeConfirmResponse(_Base):
         "Confirming twice is a retry, not an error, and `confirmed_at` still "
         "reports the original moment rather than this one."
     )
+
+
+# ---------------------------------------------------------------------------
+# A CV shown to someone other than its owner (2026-10-05)
+# ---------------------------------------------------------------------------
+class SharedResumeSection(_Base):
+    kind: SectionKind
+    heading: str | None = Field(description="As written in the CV. Null for `header`.")
+    body: str
+
+
+class SharedResumeView(_Base):
+    """The CV a score was built from, as an employer who opened the candidate
+    sees it: the confirmed version only, never a draft the candidate has not
+    checked. Draw `sections` for a readable page, offer `file_url` for the
+    original; `text` is the same words in one string."""
+
+    version_id: uuid.UUID
+    source: VersionSource
+    confirmed_at: datetime
+    text: str | None = Field(description="The CV as read, or as the candidate edited it.")
+    sections: list[SharedResumeSection] = Field(
+        description="`text` split at its headings, in order. Empty for a form-built CV."
+    )
+    fields: dict[str, Any] = Field(
+        description="A form-built CV's fields, when it has no text. Empty otherwise."
+    )
+    file_url: str | None = Field(
+        description="Presigned GET of the uploaded PDF or DOCX. Null for a pasted or "
+        "form-built CV. Expires at `file_url_expires_at`; fetch the profile again for a new one."
+    )
+    file_mime: str | None
+    file_url_expires_at: datetime | None

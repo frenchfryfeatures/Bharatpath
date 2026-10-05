@@ -43,6 +43,11 @@ REVEALED_FIELDS = frozenset(
         "badges",
         "city",
         "state_code",
+        # 2026-10-05: the confirmed CV the score was built from, asked for by
+        # the employer portal and agreed by the backend owner.
+        "resume",
+        # 2026-10-05: the organisation's own shortlist record of this person.
+        "shortlist",
     }
 )
 EMPLOYER_SURFACES = (f"{API}/employer", f"{API}/college", f"{API}/admin")

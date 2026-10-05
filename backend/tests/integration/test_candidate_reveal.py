@@ -102,6 +102,15 @@ async def test_an_opened_profile_has_contact_details_and_the_display_score(
     assert skill in body["skills"]
     # A pasted CV names nobody, and no name is guessed from it.
     assert body["full_name"] is None
+    # The confirmed CV the score was built from (2026-10-05).
+    async with sessions(_seed_url())() as session:
+        version = await session.scalar(
+            text("SELECT resume_version_id FROM scores WHERE user_id = :u"),
+            {"u": str(candidate["id"])},
+        )
+    assert body["resume"]["version_id"] == str(version)
+    assert body["resume"]["confirmed_at"] and body["resume"]["text"]
+    assert body["resume"]["sections"]
 
 
 async def test_the_name_typed_on_the_form_is_shown(client: Any, mint_token: Any) -> None:

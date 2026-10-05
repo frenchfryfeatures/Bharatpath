@@ -410,6 +410,16 @@ EMAIL_TEMPLATES: Final[tuple[MessageTemplate, ...]] = (
         ("employer",),
         subject="An update on your application",
     ),
+    # 2026-10-05: an employer invited the candidate from search to a job.
+    MessageTemplate(
+        "EMAIL_SHORTLIST_INVITED",
+        "EMAIL",
+        "email.shortlist_invited",
+        "{employer} has shortlisted you for a job. Open BharatPath to see the role and "
+        "accept or decline.",
+        ("employer",),
+        subject="You have been shortlisted for a job",
+    ),
     MessageTemplate(
         "EMAIL_PAYMENT_FAILED",
         "EMAIL",
@@ -520,6 +530,13 @@ IN_APP_TEMPLATES: Final[tuple[MessageTemplate, ...]] = (
         "IN_APP",
         "in_app.application_update",
         "There is an update on your application to {employer}.",
+        ("employer",),
+    ),
+    MessageTemplate(
+        "IN_APP_SHORTLIST_INVITED",
+        "IN_APP",
+        "in_app.shortlist_invited",
+        "{employer} has shortlisted you for a job. Accept or decline.",
         ("employer",),
     ),
     MessageTemplate(

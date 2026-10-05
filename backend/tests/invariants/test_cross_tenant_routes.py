@@ -219,6 +219,42 @@ async def _reveal_other_member(client: Any, attacker: dict, victim: dict) -> Any
     )
 
 
+def _shortlist_case(method: str, suffix: str) -> Case:
+    """2026-10-05. Tenant B saves a candidate it opened; tenant A names B's
+    entry. Both are approved and paid, so the refusal is the lookup's."""
+
+    async def case(client: Any, attacker: dict, victim: dict) -> Any:
+        from tests.integration.test_masked_search import _candidate, _token
+
+        async with sessions(_seed_url())() as session, session.begin():
+            await session.execute(
+                text("UPDATE employers SET kyb_status = 'APPROVED' WHERE tenant_id IN (:a, :v)"),
+                {"a": attacker["tenant_id"], "v": victim["tenant_id"]},
+            )
+        candidate = await _candidate(victim["mint_token"], _token())
+        opened = await client.get(
+            f"{API}/employer/discovery/candidates/{candidate['id']}", headers=victim["headers"]
+        )
+        assert opened.status_code == 200, opened.text
+        saved = await client.post(
+            f"{API}/employer/shortlist",
+            json={"candidate_id": str(candidate["id"])},
+            headers=victim["headers"],
+        )
+        assert saved.status_code == 201, saved.text
+        entry_id = saved.json()["id"]
+        response = await client.request(
+            method, f"{API}/employer/shortlist/{entry_id}{suffix}", headers=attacker["headers"]
+        )
+        theirs = (await client.get(f"{API}/employer/shortlist", headers=victim["headers"])).json()
+        assert [(e["id"], e["status"]) for e in theirs["items"]] == [(entry_id, "SAVED")], (
+            "the other organisation's shortlist changed"
+        )
+        return response
+
+    return case
+
+
 # ---------------------------------------------------------------------------
 # Colleges (Day 17). The employer organisations the runner builds cannot name
 # a college's resources, so each case builds a college on each side.
@@ -369,6 +405,11 @@ CROSS_TENANT_CASES: dict[tuple[str, str], Case] = {
     ("GET", f"{API}/employer/applications/{{application_id}}/messages"): _pipeline_case(
         "GET", "/messages"
     ),
+    # 2026-10-05.
+    ("POST", f"{API}/employer/shortlist/{{shortlist_id}}/cancel"): _shortlist_case(
+        "POST", "/cancel"
+    ),
+    ("DELETE", f"{API}/employer/shortlist/{{shortlist_id}}"): _shortlist_case("DELETE", ""),
 }
 
 

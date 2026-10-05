@@ -13,12 +13,14 @@ import pytest
 from app.modules.integrity.domain import (
     HIDDEN_TEXT_MIN_CHARS,
     RULE_IDS,
+    RULE_TEXT,
     RULE_VERSION,
     EmploymentPeriod,
     ResumeClaims,
     Signal,
     detect,
     find_injected_instructions,
+    hides_candidate,
     highest_severity,
     month_index,
     suppresses_from_discovery,
@@ -353,3 +355,26 @@ def test_no_signal_is_raised_for_an_employment_gap() -> None:
         ),
     )
     assert detect(claims, as_of_month=NOW) == ()
+
+
+def test_every_rule_has_words_for_the_reviewer() -> None:
+    """The queue shows `rule_title`; a rule without one would show its id."""
+    assert set(RULE_TEXT) == RULE_IDS
+    assert all(title and description for title, description in RULE_TEXT.values())
+
+
+@pytest.mark.parametrize(
+    ("severity", "state", "hidden"),
+    [
+        ("HIGH", "OPEN", True),
+        ("HIGH", "CONFIRMED", True),
+        ("HIGH", "CLEARED", False),
+        ("MEDIUM", "OPEN", False),
+        ("LOW", "CONFIRMED", False),
+    ],
+)
+def test_only_an_unclear_high_signal_hides_a_candidate(
+    severity: str, state: str, hidden: bool
+) -> None:
+    """The discovery CTE's rule: HIGH and OPEN or CONFIRMED; only CLEARED restores."""
+    assert hides_candidate(severity, state) is hidden

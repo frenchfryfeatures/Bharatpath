@@ -226,6 +226,13 @@ ERASURE_PLAN: Final[Mapping[str, TablePlan]] = {
         "reach it -- but it is the one erasure that removes something from a "
         "third party's workspace, and counsel should look at it (blockers B3).",
     ),
+    "employer_shortlists": _erase(
+        "candidate_id",
+        "That an organisation kept them from search, or invited them to a job, and "
+        "their answer (2026-10-05). About the person, in a third party's workspace, "
+        "like their applications; deleted before the applications an accepted "
+        "invitation points at.",
+    ),
     "application_events": _erase(
         "application_id",
         "The stage history of an erased application, including an employer's "
@@ -397,6 +404,7 @@ EXPORT_SECTIONS: Final = (
     "interview_questions",
     "courses",
     "messages",
+    "shortlists",
     "questionnaire",
     "streaks",
     "streak_days",

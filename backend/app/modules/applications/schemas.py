@@ -21,11 +21,14 @@ from __future__ import annotations
 import uuid
 from datetime import date as date_
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import AwareDatetime, Field
+from pydantic import AwareDatetime, Field, field_validator
 
 from app.core.schemas import ApiSchema
+from app.modules.discovery.domain import MAX_CARD_SKILLS, MAX_EXPERIENCE_YEARS, displayable_skills
+from app.modules.discovery.schemas import Badge, ScoreBand
+from app.modules.resume.schemas import SharedResumeView
 
 ApplicationStage = Literal[
     "SUBMITTED",
@@ -40,6 +43,8 @@ ApplicationStage = Literal[
 ]
 #: `applications.domain.EMPLOYER_TARGETS`, as a type.
 EmployerTarget = Literal["VIEWED", "SHORTLISTED", "INTERVIEW", "DECISION", "REJECTED"]
+#: `applications.domain.STATUS_STAGES`, as a type: the candidate board's tabs.
+ApplicationStatus = Literal["ACTIVE", "CLOSED"]
 HireConfirmation = Literal["NONE", "PENDING", "DISPUTED", "CONFIRMED"]
 EventKind = Literal["STAGE_CHANGED", "INTERVIEW_SCHEDULED", "HIRE_PROPOSED", "HIRE_DISPUTED"]
 Actor = Literal["CANDIDATE", "EMPLOYER", "SYSTEM"]
@@ -114,13 +119,48 @@ class ScheduleInterviewRequest(_Base):
     meeting_url: str = Field(min_length=1, max_length=1024)
 
 
+class ApplicantCard(_Base):
+    """Who applied, as a pipeline list shows them (2026-10-05): a name and
+    the search card's facts. **No contact and no score** -- the band is what a
+    list carries; the number, phone, email and CV are on the opened
+    application. Every list page that carries these is audited."""
+
+    full_name: Annotated[str | None, Field(default=None, max_length=200)] = None
+    band: ScoreBand
+    experience_years: Annotated[int, Field(ge=0, le=MAX_EXPERIENCE_YEARS)]
+    skills: Annotated[list[str], Field(max_length=MAX_CARD_SKILLS)]
+    badges: list[Badge]
+    city: Annotated[str | None, Field(default=None, max_length=100)] = None
+    state_code: Annotated[str | None, Field(default=None, min_length=2, max_length=2)] = None
+
+    @field_validator("skills", mode="before")
+    @classmethod
+    def _only_displayable(cls, value: object) -> list[str]:
+        if not isinstance(value, list | tuple):
+            raise ValueError("skills must be a list")
+        return displayable_skills(value)
+
+
+class ApplicantProfile(ApplicantCard):
+    """The applicant in full, on one opened application (2026-10-05): contact
+    details, the display score and the CV the score was built from. Each
+    response that carries it is one audit row. **`score` is the display
+    score, never the stored value** (R4)."""
+
+    phone: str | None = None
+    email: str | None = None
+    score: int
+    resume: SharedResumeView | None = Field(
+        default=None, description="Null only if the confirmed CV cannot be read."
+    )
+
+
 class EmployerApplicationSummary(_Base):
     """An application in the employer's pipeline.
 
-    **Not a candidate profile.** No name, contact details or score: who the
-    candidate is, and what an employer may see of them, is the reveal on
-    Days 13-14, behind the access window and its audit row. `candidate_id` is
-    the handle that reveal will take.
+    **The application, not the person.** Who applied is the separate
+    `candidate` block on the list row (`ApplicantCard`) and the opened
+    application (`ApplicantProfile`), both audited; nothing here names them.
     """
 
     id: uuid.UUID
@@ -156,10 +196,20 @@ class EmployerApplicationListItem(EmployerApplicationSummary):
 
     job_title: str | None = None
     job_location: str | None = None
+    candidate: ApplicantCard | None = Field(
+        default=None,
+        description="Who applied. Null while an integrity review hides the candidate "
+        "from employers, or once their account is closed.",
+    )
 
 
 class EmployerApplicationDetail(EmployerApplicationSummary):
     history: list[EmployerHistoryItem]
+    candidate: ApplicantProfile | None = Field(
+        default=None,
+        description="The applicant in full: contact, display score and CV. Null while an "
+        "integrity review hides the candidate from employers, or once their account is closed.",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -316,3 +366,78 @@ class CandidateMessageResponse(_Base):
     link: str | None
     employer_name: str | None
     created_at: datetime
+
+
+# ---------------------------------------------------------------------------
+# The shortlist (2026-10-05)
+# ---------------------------------------------------------------------------
+#: `applications.domain.SHORTLIST_STATUSES`, as a type.
+ShortlistStatus = Literal["SAVED", "INVITED", "ACCEPTED", "DECLINED", "CANCELLED"]
+InvitationStatus = Literal["INVITED", "ACCEPTED", "DECLINED", "CANCELLED"]
+
+
+class ShortlistRequest(_Base):
+    """Keep a candidate you have opened, or invite them to one of your jobs."""
+
+    candidate_id: uuid.UUID
+    job_id: uuid.UUID | None = Field(
+        default=None,
+        description="A PUBLISHED job of yours: the candidate is invited and told, and "
+        "on accepting lands in your pipeline at SHORTLISTED. Leave out to save them "
+        "privately; they are not told.",
+    )
+
+
+class ShortlistEntry(_Base):
+    """One row of the organisation's shortlist."""
+
+    id: uuid.UUID
+    candidate_id: uuid.UUID
+    job_id: uuid.UUID | None
+    job_title: str | None = None
+    status: ShortlistStatus
+    application_id: uuid.UUID | None = Field(
+        description="Set once the candidate accepted: open it in the pipeline."
+    )
+    created_at: datetime
+    updated_at: datetime
+    answered_at: datetime | None
+    candidate: ApplicantCard | None = Field(
+        default=None,
+        description="Who it is, on the list only. Null while an integrity review hides "
+        "the candidate, or once their account is closed.",
+    )
+
+
+class ShortlistInvitationState(_Base):
+    id: uuid.UUID
+    job_id: uuid.UUID
+    status: InvitationStatus
+    application_id: uuid.UUID | None
+
+
+class CandidateShortlistState(_Base):
+    """What the opened profile's Shortlist button should say: whether the
+    organisation saved this candidate, and every invitation it sent them."""
+
+    saved_id: uuid.UUID | None = Field(
+        default=None, description="The SAVED row's id, to remove it; null if not saved."
+    )
+    invitations: list[ShortlistInvitationState] = Field(default_factory=list)
+
+
+class ShortlistInvitation(_Base):
+    """An invitation as the candidate sees it. Never who at the employer sent it."""
+
+    id: uuid.UUID
+    job_id: uuid.UUID
+    job_title: str | None = Field(
+        description="Null once the job has left the board; it can then not be accepted."
+    )
+    employer_name: str | None
+    status: InvitationStatus
+    application_id: uuid.UUID | None = Field(
+        description="The application accepting filed, at SHORTLISTED."
+    )
+    created_at: datetime
+    answered_at: datetime | None

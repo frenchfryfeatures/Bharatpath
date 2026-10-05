@@ -102,6 +102,7 @@ NOTIFYING_EVENTS: Final = frozenset(
         "applications.hire_proposed",
         "applications.application_expired",
         "applications.message_sent",
+        "applications.shortlist_invited",
         "billing.payment_succeeded",
         "billing.payment_failed",
         "subscriptions.state_changed",
@@ -145,6 +146,14 @@ def plan_for(event_type: str, payload: dict[str, object]) -> tuple[Planned, ...]
         return (candidate_update,)
     if event_type == "applications.message_sent":
         return (message_plan(payload),)
+    if event_type == "applications.shortlist_invited":
+        return (
+            Planned(
+                "CANDIDATE",
+                ("EMAIL_SHORTLIST_INVITED", "IN_APP_SHORTLIST_INVITED"),
+                ("employer",),
+            ),
+        )
     if event_type == "billing.payment_succeeded":
         return (Planned("USER", ("IN_APP_PAYMENT_RECEIVED",)),)
     if event_type == "billing.payment_failed":

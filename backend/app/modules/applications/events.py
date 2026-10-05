@@ -35,3 +35,10 @@ HIRE_CONFIRMED: Final = f"{MODULE}.hire_confirmed"
 #: invitation, or a message. Notifications emails and posts it in the app.
 #: The payload carries the message id; the words are read at dispatch.
 MESSAGE_SENT: Final = f"{MODULE}.message_sent"
+
+#: An employer invited a candidate from search to a job (2026-10-05).
+#: Notifications tells the candidate; the payload names ids only.
+SHORTLIST_INVITED: Final = f"{MODULE}.shortlist_invited"
+#: The candidate answered an invitation: ACCEPTED (an application now exists)
+#: or DECLINED.
+SHORTLIST_ANSWERED: Final = f"{MODULE}.shortlist_answered"

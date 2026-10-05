@@ -9,6 +9,80 @@ states. Newest entries first.
 
 ---
 
+## 2026-10-05 — applicants named, CVs to employers, the shortlist, passwords
+
+Backend only. Six requests from the portal teams, agreed with the backend owner.
+
+### Built
+
+- **Password minimums** (`infra/terraform/cognito.tf`): candidate pool 12 → **8**,
+  business pool 14 → **12**. **Applied 2026-10-05** (`2 changed`, in place;
+  confirmed with `describe-user-pool`, and a re-plan shows no drift). Web and
+  app forms still enforce their own length until their teams change it.
+- **`GET /candidate/applications?status=ACTIVE|CLOSED`** -- ACTIVE is the
+  pipeline stages, CLOSED the terminal ones (`applications.domain.STATUS_STAGES`).
+- **The pipeline names who applied.** List rows carry `candidate`
+  (`ApplicantCard`: name, band, experience, skills, badges, city -- no
+  contact, no score). The opened application carries `candidate`
+  (`ApplicantProfile`: plus phone, email, display score and the CV). Both go
+  through `discovery.applicant_cards` / `open_applicant`, built on
+  `VISIBLE_CANDIDATES_CTE` and joined to the tenant's own application, so a
+  candidate a HIGH signal hides is an application with `candidate: null`.
+  **Audited**: one `applicants_listed` row per list page, one
+  `applicant_profile_viewed` per response that carries the profile (the moves
+  included). No view caps and no view event: they applied.
+- **The CV on the reveal and the opened application** --
+  `resume.service.shared_resume`, confirmed versions only, `SharedResumeView`
+  (text, sections from `resume/sections.py`, form fields, presigned file
+  link with `file_url_expires_at`).
+- **The shortlist** (`employer_shortlists`, migration `0010`). From an opened
+  profile an employer **saves** a candidate (private) or **invites** them to
+  a published job. The candidate sees invitations at
+  `/candidate/shortlist-invitations` and is emailed; **accepting files the
+  application and lands it at SHORTLISTED** (SUBMITTED by the candidate,
+  VIEWED and SHORTLISTED as the inviting employer's), through the SECURITY
+  DEFINER `accept_shortlist_invitation`. A decline stands for that job; an
+  employer may cancel and re-invite before an answer. The reveal carries
+  `shortlist` (button state). Guard trigger, RLS (tenant + two candidate
+  policies; a SAVED row is never the candidate's to see), erasure plan,
+  `erase_candidate` replaced, export section `shortlists`.
+- **Integrity queue** carries rule title and description
+  (`integrity.domain.RULE_TEXT`), `hides_candidate`, the candidate's name and
+  masked contact, other open signals, resolver and note. The detail adds the
+  resume version's dates, display score and band, `visible_to_employers` and
+  the candidate's other signals. Never the CV text (its own endpoint).
+
+### Decisions taken inside that work
+
+- **`test_the_pipeline_is_not_a_candidate_profile` was narrowed, not
+  dropped**: the application's own fields still name nobody, and identity
+  rides only in the audited `candidate` block. `REVEALED_FIELDS` gained
+  `resume` and `shortlist`.
+- **Shortlisting needs a prior reveal by the same organisation**
+  (`discovery.require_shortlistable`). Otherwise the shortlist list would show
+  names of people picked off masked cards, a reveal that skipped the caps.
+- **A VIEWER sees who applied and the score, never contact or the CV**
+  (`applications.service.CONTACT_ROLES`): the reveal already refuses viewers,
+  and the pipeline must not be a way round that.
+- **Accepting is not paywalled and skips the job's minimum score**: the
+  employer chose the person. The discovery rule still applies.
+- **No stage-changed events on accept**, only `application_submitted` (when the
+  application is new) and `shortlist_answered`: the candidate just said yes, and
+  a "you were shortlisted" email a second later is noise.
+- Invitations are rate-limited at 60 an hour per organisation
+  (`applications.shortlist_invite`). Ours.
+
+### Found while building
+
+- **The data export reads RLS-protected sections on an unbound session**
+  (`app/tasks/privacy_requests.run_export`): `applications`, `messages`,
+  `colleges` and now `shortlists` will read empty under the app role. No test
+  looks at those sections' contents. Not fixed here.
+- Non-English strings for the new notification carry the bundles'
+  `needs_native_speaker_pass`.
+
+---
+
 ## 2026-10-05 — resume loading follows the backend parse state
 
 The resume-reading checklist no longer advances through contact, education,

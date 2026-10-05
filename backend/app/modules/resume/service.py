@@ -10,6 +10,7 @@ transaction closes.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy.exc import IntegrityError
@@ -29,7 +30,13 @@ from app.modules.resume.domain import (
 )
 from app.modules.resume.events import MODULE
 from app.modules.resume.scanner import get_document_scanner
-from app.modules.resume.schemas import ManualResumeRequest, ResumeEditRequest
+from app.modules.resume.schemas import (
+    ManualResumeRequest,
+    ResumeEditRequest,
+    SharedResumeSection,
+    SharedResumeView,
+)
+from app.modules.resume.sections import split_sections
 from app.settings import Settings, get_settings
 
 logger = get_logger(__name__)
@@ -460,6 +467,64 @@ async def get_scorable_version(session: AsyncSession, *, user_id: uuid.UUID) -> 
     if row is None:
         raise ResumeNotConfirmedError()
     return row
+
+
+async def shared_resume(
+    session: AsyncSession,
+    *,
+    user_id: uuid.UUID,
+    resume_version_id: uuid.UUID,
+    settings: Settings | None = None,
+) -> SharedResumeView | None:
+    """The version a score was built from, for showing to someone other than
+    its owner (an employer who opened the candidate), or None.
+
+    **Confirmed versions only** (SRS 1.4.4): an unconfirmed version is what
+    the candidate has not yet checked, and it reaches nobody. Callers pass the
+    version a score names, which is confirmed by construction; the check here
+    keeps that true for a caller that passes anything else. `sections` is the
+    review screen's view of the text, computed here and never stored. The
+    caller audits; this only reads.
+    """
+    settings = settings or get_settings()
+    row = await repository.get_version(
+        session, resume_version_id=resume_version_id, user_id=user_id
+    )
+    if row is None or row.confirmed_at is None:
+        return None
+    parsed = row.parsed if isinstance(row.parsed, dict) else {}
+    body = parsed.get("raw_text")
+    text = body if isinstance(body, str) else None
+    file = (
+        await repository.get_resume_file(
+            session, resume_file_id=row.resume_file_id, user_id=user_id
+        )
+        if row.resume_file_id is not None
+        else None
+    )
+    ttl = settings.presigned_url_ttl_seconds
+    url = (
+        await storage.presign_get(
+            bucket=settings.s3_bucket_resumes, key=file.s3_key, expires_in=ttl
+        )
+        if file is not None
+        else None
+    )
+    return SharedResumeView(
+        version_id=row.id,
+        source=row.source,
+        confirmed_at=row.confirmed_at,
+        text=text,
+        sections=[
+            SharedResumeSection(kind=s.kind, heading=s.heading, body=s.body)
+            for s in (split_sections(text) if text is not None else [])
+        ],
+        # A form-built CV's fields; never the extractor's provenance block.
+        fields={} if text is not None else {k: v for k, v in parsed.items() if k != "extractor"},
+        file_url=url,
+        file_mime=file.mime if file is not None else None,
+        file_url_expires_at=datetime.now(UTC) + timedelta(seconds=ttl) if url else None,
+    )
 
 
 async def users_with_any_resume(

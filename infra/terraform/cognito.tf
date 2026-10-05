@@ -38,8 +38,10 @@ resource "aws_cognito_user_pool" "candidates" {
   # temporary_password_validity_days: a staff-created account's emailed
   # password (2026-09-18). A day was too short for someone who reads work
   # email weekly; staff can resend.
+  # minimum_length 8 (2026-10-05, was 12): candidates, students among them,
+  # sign in on a phone. The business pool keeps the stricter bar below.
   password_policy {
-    minimum_length                   = 12
+    minimum_length                   = 8
     require_lowercase                = true
     require_uppercase                = true
     require_numbers                  = true
@@ -150,8 +152,10 @@ resource "aws_cognito_user_pool" "business" {
   auto_verified_attributes = ["email"]
   username_attributes      = ["email"]
 
+  # minimum_length 12 (2026-10-05, was 14). Symbols and mandatory TOTP stay:
+  # these accounts reach candidate PII in bulk.
   password_policy {
-    minimum_length                   = 14
+    minimum_length                   = 12
     require_lowercase                = true
     require_uppercase                = true
     require_numbers                  = true

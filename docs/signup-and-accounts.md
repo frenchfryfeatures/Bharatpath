@@ -10,6 +10,7 @@ app and web teams; the API reference is `openapi.json` / `docs/APIs.md`.
 |---|---|
 | Who can sign up | **Anyone**, as a candidate, an employer or a college. Staff can also create any of the three. |
 | How people sign in | **Email and password only**, on both Cognito pools. Business accounts also set up an authenticator app (MFA). |
+| Password rules | Set in Cognito (`infra/terraform/cognito.tf`), not the API. **Candidates and students: at least 8 characters**, with upper case, lower case and a number. **Employers, colleges and staff: at least 12**, with upper case, lower case, a number and a symbol (2026-10-05; were 12 and 14). Apps should show the same rule before calling `SignUp`. |
 | Phone OTP | **Deferred**, and there is **no SMS of any kind**, until the organisation's registration (and with it TRAI DLT) exists. Every code and every message goes by email or to the in-app inbox. |
 | Codes by email | **Cognito sends them**: sign-up verification, password reset, and the temporary password of a staff-created account. It sends through Amazon SES once the client's domain is verified. The backend never generates or checks a code. |
 | Discount codes | Staff create them in the console. Payers apply them to a subscription checkout. The policy is a **placeholder** until the client answers three questions (below). |

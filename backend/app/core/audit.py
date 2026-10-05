@@ -119,6 +119,18 @@ class AuditAction(StrEnum):
     # A college opening a student's CV under INDIVIDUAL consent (2026-09-29).
     COLLEGE_STUDENT_RESUME_OPENED = "college_student_resume_opened"
 
+    # An employer reading its own applicants (2026-10-05). A pipeline page
+    # names people, so each page is a row (ids only), like a college's
+    # student list; opening one applicant, with contact and CV, is another.
+    APPLICANTS_LISTED = "applicants_listed"
+    APPLICANT_PROFILE_VIEWED = "applicant_profile_viewed"
+
+    # An employer shortlisting a candidate from search (2026-10-05): an
+    # invitation to one job, or a private save. Metadata holds ids only.
+    CANDIDATE_SHORTLISTED = "candidate_shortlisted"
+    SHORTLIST_ANSWERED = "shortlist_answered"
+    SHORTLIST_LISTED = "shortlist_listed"
+
     # An employer writing to an applicant through the platform (2026-09-29).
     # Metadata holds the kind and ids, never the words.
     APPLICATION_MESSAGE_SENT = "application_message_sent"

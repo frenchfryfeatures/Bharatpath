@@ -94,7 +94,7 @@ Candidate's own profile, and — co-located because it needs the display score
 | PUT | `/candidate/profile/location` | CANDIDATE | `{city?, state?}` | `CandidateProfileResponse` | Shown on masked employer cards; city rejects digits/`@` |
 | PUT | `/candidate/profile/name` | CANDIDATE | `{full_name}` | `CandidateProfileResponse` | Only ever shown to an employer who reveals the profile; never guessed from a CV |
 | GET | `/candidate/profile/views` | CANDIDATE | `?cursor&limit` | `Page[ProfileView]` | Who viewed my profile: one entry per organisation (`employer_name`, `last_viewed_at`), last 90 days, latest first. Never the recruiter, no count of opens, no total. Not paywalled |
-| GET | `/employer/discovery/candidates/{candidate_id}` | OWNER/RECRUITER + `require_active_access_window` | path | `RevealedCandidate` | **The reveal.** Name, contact, display score. Every call — including re-opens — writes an audit row and a view event in the same transaction. 402 `access_window_expired`, 403 `kyb_required`, 429 rate/view-cap, 404 not visible |
+| GET | `/employer/discovery/candidates/{candidate_id}` | OWNER/RECRUITER + `require_active_access_window` | path | `RevealedCandidate` | **The reveal.** Name, contact, display score, **`resume`** (confirmed CV: `text`, `sections`, `file_url` presigned, 2026-10-05) and **`shortlist`** (`saved_id`, `invitations[]` — the Shortlist button's state). Every call — including re-opens — writes an audit row and a view event in the same transaction. 402 `access_window_expired`, 403 `kyb_required`, 429 rate/view-cap, 404 not visible |
 
 ## resume — `/candidate/resume`
 
@@ -238,19 +238,33 @@ migrator, can bypass.
 | Method | Path | Auth | Body/Params | Response | Notes |
 |---|---|---|---|---|
 | POST | `/candidate/applications` | CANDIDATE + active subscription | `{job_id}` | `ApplicationResponse` (201 new / 200 repeat) | 404 job not on the board, 409 `score_pending`/`application_unavailable`, 403 `eligibility_below_threshold` — no gap or number given |
-| GET | `/candidate/applications` | CANDIDATE | `cursor, limit` | `Page[ApplicationResponse]` | Not paywalled — reading your own data is always allowed |
+| GET | `/candidate/applications` | CANDIDATE | `status` (`ACTIVE`\|`CLOSED`, 2026-10-05), `cursor, limit` | `Page[ApplicationResponse]` | Not paywalled — reading your own data is always allowed. ACTIVE = SUBMITTED…DECISION; CLOSED = HIRED, REJECTED, WITHDRAWN, EXPIRED; omit for both. Keep `status` while paging |
 | GET | `/candidate/applications/{id}` | CANDIDATE | path | `ApplicationDetailResponse` | With stage history |
 | POST | `/candidate/applications/{id}/withdraw` | CANDIDATE | path | `ApplicationResponse` | Any pre-outcome stage; 409 once hired/rejected/expired |
 | POST | `/candidate/applications/{id}/hire/confirm` | CANDIDATE | path | `ApplicationResponse` | Finalizes a hire the employer proposed; the candidate's confirmation, not the employer's, is what writes HIRED; 409 `hire_confirmation_not_pending` |
 | POST | `/candidate/applications/{id}/hire/dispute` | CANDIDATE | path | `ApplicationResponse` | |
-| GET | `/employer/applications` | OWNER/RECRUITER/VIEWER + active subscription | `job_id, stage, cursor, limit` (all optional) | `Page[EmployerApplicationListItem]` | Oldest first. No `job_id` = every job in one list; each row carries `job_title`, `job_location`. Read-only: never records VIEWED |
-| GET | `/employer/applications/{id}` | OWNER/RECRUITER/VIEWER + active subscription | path | `EmployerApplicationDetail` | Opening a SUBMITTED application auto-moves it to VIEWED, once |
+| GET | `/employer/applications` | OWNER/RECRUITER/VIEWER + active subscription | `job_id, stage, cursor, limit` (all optional) | `Page[EmployerApplicationListItem]` | Oldest first. No `job_id` = every job in one list; each row carries `job_title`, `job_location` and **`candidate`** (2026-10-05: `full_name`, `band`, `experience_years`, `skills`, `badges`, `city`, `state_code` — no contact, no score; `null` while an integrity review hides them). Each page that names anyone is audited. Read-only: never records VIEWED |
+| GET | `/employer/applications/{id}` | OWNER/RECRUITER/VIEWER + active subscription | path | `EmployerApplicationDetail` | Opening a SUBMITTED application auto-moves it to VIEWED, once. **`candidate`** (2026-10-05) is the applicant in full: name, `phone`, `email`, display `score`, `band`, experience, skills, badges, city and `resume` (confirmed CV: `text`, `sections`, presigned `file_url` + `file_url_expires_at`). Every detail response (moves included) carries it and is audited; `null` while an integrity review hides them |
 | POST | `/employer/applications/{id}/stage` | OWNER/RECRUITER + active subscription | path + `{stage, note}` | `EmployerApplicationDetail` | One stage forward, or REJECTED; 409 otherwise |
 | PUT | `/employer/applications/{id}/interview` | OWNER/RECRUITER + active subscription | path + `{interview_at, meeting_url}` | `EmployerApplicationDetail` | Book/rebook, only at INTERVIEW stage (409 otherwise); 422 for a non-https link or a time over a year out |
 | POST | `/employer/applications/{id}/hire` | OWNER/RECRUITER + active subscription | path | `EmployerApplicationDetail` | *Proposes* a hire (`employer_confirmed_at`) — HIRED itself is never the employer's to write. Only from DECISION stage (409 `hire_not_allowed`); idempotent |
 | POST | `/employer/applications/{id}/messages` | OWNER/RECRUITER + active subscription | path + `{kind: INTERVIEW\|ASSESSMENT\|GENERAL, body, scheduled_at?, link?}` | `EmployerMessageResponse` (201) | 2026-09-29. Sent to the candidate **by email and in the app**; the employer never sees their address. INTERVIEW needs `scheduled_at`, ASSESSMENT needs `link` (https). 422 `message_invalid` with the reason as `code`; 409 `message_not_allowed_at_stage` once the application is closed; 429 `message_limit_reached` after 10 to one application in a day (plus `applications.message`, 300/hour per organisation) |
 | GET | `/employer/applications/{id}/messages` | OWNER/RECRUITER/VIEWER + active subscription | path | `list[EmployerMessageResponse]` | Oldest first, with `sender_id` |
 | GET | `/candidate/applications/{id}/messages` | CANDIDATE | path | `list[CandidateMessageResponse]` | Not paywalled. `employer_name`, never which recruiter wrote it |
+
+### The shortlist — `/employer/shortlist`, `/candidate/shortlist-invitations` (2026-10-05)
+
+From an opened profile, an employer **saves** a candidate (private) or **invites** them to one published job. Only the candidate's **accept** files an application — and it lands at **SHORTLISTED** (Submitted and Viewed recorded for the employer). A decline stands for that job.
+
+| Method | Path | Auth | Body/Params | Response | Notes |
+|---|---|---|---|---|---|
+| POST | `/employer/shortlist` | OWNER/RECRUITER + active subscription | `{candidate_id, job_id?}` | `ShortlistEntry` (201 new / 200 repeat) | No `job_id` = SAVED (candidate not told). With `job_id` = INVITED (candidate emailed + in-app). Candidate must have been **opened by your organisation** (else 404 `candidate_not_found`). 404 `job_not_found`, 409 `shortlist_job_not_open`, 409 `already_applied` (`params.application_id`), 409 `shortlist_declined` / `shortlist_already_accepted`, 403 `kyb_required`, 429 (60 invitations/hour per organisation). A CANCELLED invitation is re-sent |
+| GET | `/employer/shortlist` | OWNER/RECRUITER/VIEWER + active subscription | `job_id, status, cursor, limit` | `Page[ShortlistEntry]` | Newest first. Each row: `status`, `job_title`, `application_id` once accepted, `candidate` card (no contact/score). Audited per page |
+| POST | `/employer/shortlist/{id}/cancel` | OWNER/RECRUITER + active subscription | path | `ShortlistEntry` | Withdraw an unanswered invitation; idempotent; 409 `shortlist_not_pending` once answered |
+| DELETE | `/employer/shortlist/{id}` | OWNER/RECRUITER + active subscription | path | 204 | SAVED entries only (409 `shortlist_not_pending` for an invitation) |
+| GET | `/candidate/shortlist-invitations` | CANDIDATE | `status, cursor, limit` | `Page[ShortlistInvitation]` | Not paywalled. `job_title`, `employer_name`, `status`, `application_id`. Never shows SAVED rows or who sent it. `job_title` null once the job left the board |
+| POST | `/candidate/shortlist-invitations/{id}/accept` | CANDIDATE | path | `ShortlistInvitation` | Files the application at SHORTLISTED (`application_id`). No subscription, no minimum score. Uses an application already made for the job. Idempotent. 409 `shortlist_not_pending`, `shortlist_job_not_open`, `application_unavailable` |
+| POST | `/candidate/shortlist-invitations/{id}/decline` | CANDIDATE | path | `ShortlistInvitation` | Final for this job; idempotent |
 
 ## discovery — `/employer/discovery`
 
@@ -379,8 +393,8 @@ session opens**; a read whose audit cannot be written returns nothing.
 | GET | `/admin/kyb/submissions` | PLATFORM_ADMIN, KYB_REVIEWER | `state`, `cursor`, `limit` | `KybSubmissionsPage` | No answers. `review_required` shows `kyb.require_approval`: while false this is a record, not a queue |
 | GET | `/admin/kyb/submissions/{submission_id}` | same | path | `KybSubmissionResponse` | Answers and documents. Audited (`admin_kyb_submission_opened`) |
 | POST | `/admin/kyb/submissions/{submission_id}/decision` | same | `{decision, reason?}` | `KybSubmissionResponse` | `kyb.service.review`; reason required to reject or ask for more |
-| GET | `/admin/integrity/signals` | PLATFORM_ADMIN, INTEGRITY_REVIEWER | `state` (OPEN), `severity`, `cursor` | `IntegritySignalsPage` | Oldest first, no evidence. Audited as a bypass read |
-| GET | `/admin/integrity/signals/{signal_id}` | same | path | `IntegritySignalDetail` | Evidence can quote the CV. Audited |
+| GET | `/admin/integrity/signals` | PLATFORM_ADMIN, INTEGRITY_REVIEWER | `state` (OPEN), `severity`, `cursor` | `IntegritySignalsPage` | Oldest first, no evidence. Audited as a bypass read. Each row (2026-10-05): `rule_title`, `rule_description`, `hides_candidate`, `candidate` {`full_name`, `status`, `phone_masked`, `email_masked`}, `other_open_signals`, `thresholds_version`, `resolved_by`, `resolved_by_email`, `resolution_note` |
+| GET | `/admin/integrity/signals/{signal_id}` | same | path | `IntegritySignalDetail` | Evidence can quote the CV. Audited. Adds (2026-10-05) `resume_version` {dates, `is_latest`}, `score` {display, band}, `visible_to_employers`, `other_signals[]`. The CV text stays at `/admin/candidates/{id}/resume` |
 | POST | `/admin/integrity/signals/{signal_id}/resolve` | same | `{outcome: CLEARED\|CONFIRMED, note?}` | `IntegritySignalDetail` | Only CLEARED restores search visibility. Final (409 twice). Never moves a score |
 | GET | `/admin/tenants` | PLATFORM_ADMIN, KYB_REVIEWER, SUPPORT_AGENT | `type`, `status`, `q`, `cursor` | `TenantsPage` | Employers and colleges; never the PLATFORM tenant. Not audited (names no person) |
 | POST | `/admin/tenants/{tenant_id}/suspend` | PLATFORM_ADMIN | `{reason}` | `SuspensionResponse` (201) | **Immediate**: every member's next request is 403 `tenant_suspended`; jobs leave the board; a college's seat access stops (E29). Deletes nothing. 409 if already suspended or PLATFORM |

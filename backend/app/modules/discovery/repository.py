@@ -283,6 +283,157 @@ async def revealed_candidate(session: AsyncSession, *, candidate_id: uuid.UUID) 
     return result.first()
 
 
+# ---------------------------------------------------------------------------
+# Applicants (2026-10-05)
+# ---------------------------------------------------------------------------
+#: An applicant as their employer sees them, minus contact: the columns the
+#: pipeline list and the opened application share. **Only for a candidate who
+#: applied to this tenant and is visible right now**: the join to
+#: `applications` on the tenant is the first condition, the CTE the second.
+#: A candidate a HIGH signal is hiding is a miss, and the caller shows the
+#: application without the person.
+_APPLICANT_COLUMNS = """
+        a.id AS application_id, vc.user_id, vc.resume_version_id,
+        d.band, d.experience_months, d.skills, d.badges,
+        p.full_name, p.city, p.state_code
+"""
+_APPLICANT_JOINS = """
+          FROM applications a
+          JOIN visible_candidates vc
+            ON vc.user_id = a.candidate_id
+          JOIN candidate_search_documents d
+            ON d.user_id = vc.user_id
+           AND d.resume_version_id = vc.resume_version_id
+          LEFT JOIN candidate_profiles p
+            ON p.user_id = vc.user_id
+"""
+
+
+async def applicant_cards(
+    session: AsyncSession,
+    *,
+    tenant_id: uuid.UUID,
+    application_ids: list[uuid.UUID],
+    candidate_ids: list[uuid.UUID],
+) -> list[Any]:
+    """Name and card facts for a page of this tenant's applications. No phone,
+    no email, no score id: a list names people, it does not reveal them.
+
+    `candidate_ids` repeats what the applications hold so the predicate on
+    `vc.user_id` reaches inside the CTE, which then reads a page of people
+    rather than every score in the database."""
+    query = (
+        "WITH "
+        + VISIBLE_CANDIDATES_CTE
+        + " SELECT "
+        + _APPLICANT_COLUMNS
+        + _APPLICANT_JOINS
+        + """
+         WHERE a.tenant_id = CAST(:tenant AS uuid)
+           AND a.id = ANY(CAST(:apps AS uuid[]))
+           AND vc.user_id = ANY(CAST(:cids AS uuid[]))
+        """
+    )
+    result = await session.execute(
+        text(query),
+        {
+            "tenant": str(tenant_id),
+            "apps": [str(a) for a in application_ids],
+            "cids": [str(c) for c in candidate_ids],
+        },
+    )
+    return list(result)
+
+
+async def applicant_profile(
+    session: AsyncSession,
+    *,
+    tenant_id: uuid.UUID,
+    application_id: uuid.UUID,
+    candidate_id: uuid.UUID,
+) -> Any:
+    """One applicant with contact details and the score's id, or None. The
+    reveal's columns, reached through an application instead of search."""
+    query = (
+        "WITH "
+        + VISIBLE_CANDIDATES_CTE
+        + " SELECT "
+        + _APPLICANT_COLUMNS
+        + ", u.phone, u.email, d.score_id"
+        + _APPLICANT_JOINS
+        + """
+          JOIN users u
+            ON u.id = vc.user_id
+         WHERE a.tenant_id = CAST(:tenant AS uuid)
+           AND a.id = CAST(:app AS uuid)
+           AND vc.user_id = CAST(:cid AS uuid)
+        """
+    )
+    result = await session.execute(
+        text(query),
+        {"tenant": str(tenant_id), "app": str(application_id), "cid": str(candidate_id)},
+    )
+    return result.first()
+
+
+async def opened_and_visible(
+    session: AsyncSession, *, tenant_id: uuid.UUID, candidate_id: uuid.UUID
+) -> bool:
+    """Visible under the discovery rule, **and opened by this organisation at
+    least once** (2026-10-05). The shortlist asks both: a candidate it shows
+    by name must have been revealed -- counted against the caps, audited --
+    first, or shortlisting from a masked card would be a free reveal."""
+    query = (
+        "WITH "  # noqa: S608 - see the note on visible_candidate_ids
+        + VISIBLE_CANDIDATES_CTE
+        + """
+        SELECT 1 FROM visible_candidates vc
+         WHERE vc.user_id = CAST(:cid AS uuid)
+           AND EXISTS (
+                 SELECT 1 FROM candidate_view_events e
+                  WHERE e.tenant_id = CAST(:tenant AS uuid) AND e.candidate_id = vc.user_id
+               )
+        """
+    )
+    result = await session.execute(
+        text(query), {"cid": str(candidate_id), "tenant": str(tenant_id)}
+    )
+    return result.first() is not None
+
+
+async def shortlisted_cards(
+    session: AsyncSession, *, tenant_id: uuid.UUID, candidate_ids: list[uuid.UUID]
+) -> list[Any]:
+    """Name and card facts for candidates this organisation has shortlisted,
+    visible right now. The shortlist join keeps it to the tenant's own rows;
+    the CTE keeps out anyone a HIGH signal is hiding."""
+    query = (
+        "WITH "  # noqa: S608 - see the note on visible_candidate_ids
+        + VISIBLE_CANDIDATES_CTE
+        + """
+        SELECT DISTINCT ON (vc.user_id)
+               vc.user_id, vc.resume_version_id,
+               d.band, d.experience_months, d.skills, d.badges,
+               p.full_name, p.city, p.state_code
+          FROM visible_candidates vc
+          JOIN employer_shortlists s
+            ON s.candidate_id = vc.user_id
+           AND s.tenant_id = CAST(:tenant AS uuid)
+          JOIN candidate_search_documents d
+            ON d.user_id = vc.user_id
+           AND d.resume_version_id = vc.resume_version_id
+          LEFT JOIN candidate_profiles p
+            ON p.user_id = vc.user_id
+         WHERE vc.user_id = ANY(CAST(:cids AS uuid[]))
+         ORDER BY vc.user_id
+        """
+    )
+    result = await session.execute(
+        text(query), {"tenant": str(tenant_id), "cids": [str(c) for c in candidate_ids]}
+    )
+    return list(result)
+
+
 async def record_view(
     session: AsyncSession, *, tenant_id: uuid.UUID, actor_id: uuid.UUID, candidate_id: uuid.UUID
 ) -> bool:

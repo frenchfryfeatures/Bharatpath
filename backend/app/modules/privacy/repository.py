@@ -409,6 +409,19 @@ _EXPORT_QUERIES: dict[str, str] = {
          WHERE a.candidate_id = :user_id
          ORDER BY m.created_at
     """,
+    # Organisations that kept them or invited them to a job, and their answer
+    # (2026-10-05). A private SAVED row is theirs to know about too. Never
+    # which recruiter: that is the employer's.
+    "shortlists": """
+        SELECT coalesce(e.legal_name, t.name) AS employer, j.title AS job, s.status,
+               s.created_at, s.answered_at
+          FROM employer_shortlists s
+          JOIN tenants t ON t.id = s.tenant_id
+          LEFT JOIN employers e ON e.tenant_id = s.tenant_id
+          LEFT JOIN jobs j ON j.id = s.job_id
+         WHERE s.candidate_id = :user_id
+         ORDER BY s.created_at
+    """,
     "questionnaire": """
         SELECT bank_version, answers, submitted_at
           FROM questionnaire_responses WHERE user_id = :user_id
