@@ -11,7 +11,8 @@ import {
   signUpWithCognito,
   verifyTotpSetupCognito,
 } from "@/lib/auth/cognito";
-import { clearStoredToken, getStoredToken, setStoredToken } from "@/lib/auth/token";
+import { getFreshToken, refreshSession } from "@/lib/auth/refresh-session";
+import { clearStoredToken, setStoredToken } from "@/lib/auth/token";
 import { LoginResponse, SignupRequest, SignupResponse } from "../types";
 
 /*
@@ -316,7 +317,7 @@ export const authService = {
   },
 
   async me(): Promise<LoginResponse> {
-    const token = getStoredToken();
+    const token = await getFreshToken();
     if (!token) {
       throw new ApiError("You are not signed in.", 401, "AUTH_ERROR");
     }
@@ -325,7 +326,11 @@ export const authService = {
       return await resolveSession(token, "", { pool: "CANDIDATE" });
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
-        handleSessionExpired();
+        const renewed = await refreshSession(true);
+        if (renewed.status === "OK") {
+          return resolveSession(renewed.token, "", { pool: "CANDIDATE" });
+        }
+        if (renewed.status === "EXPIRED") handleSessionExpired();
       }
       throw error;
     }

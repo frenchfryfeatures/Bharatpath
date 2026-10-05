@@ -1,3 +1,5 @@
+import type { RevealedCandidateResponse } from "@/store/employer/candidates/candidates.api";
+
 export type ApplicationStage =
   | 0
   | 1
@@ -23,6 +25,7 @@ export interface ApplicationCandidate {
 }
 
 export interface EmployerApplication {
+  resume?: RevealedCandidateResponse["resume"];
   id: string;
   jobId: string;
   jobLocation: string | null;

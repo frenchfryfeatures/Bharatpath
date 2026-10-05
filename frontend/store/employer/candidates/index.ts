@@ -19,6 +19,7 @@ export {
 } from "./candidates.selectors";
 export {
   employerCandidatesApi,
+  useShortlistEmployerCandidateMutation,
   useGetEmployerCandidateFiltersQuery,
   useGetEmployerCandidateSkillSuggestionsQuery,
   useGetEmployerCandidateLocationSuggestionsQuery,

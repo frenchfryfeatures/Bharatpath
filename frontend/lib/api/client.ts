@@ -1,5 +1,6 @@
 import { API_CONFIG } from "@/config/api";
 import { handleSessionExpired } from "@/lib/auth/handle-session-expired";
+import { getFreshToken, refreshSession } from "@/lib/auth/refresh-session";
 import { getStoredToken } from "@/lib/auth/token";
 import { ApiError } from "./errors";
 
@@ -17,6 +18,7 @@ class ApiClient {
   private async request<T>(
     endpoint: string,
     options: RequestOptions = {},
+    retried = false,
   ): Promise<T> {
     const controller = new AbortController();
 
@@ -33,7 +35,7 @@ class ApiClient {
 
       const bearerToken =
         !hasAuthHeader
-          ? getStoredToken() ?? process.env.NEXT_PUBLIC_API_BEARER_TOKEN
+          ? (await getFreshToken()) ?? process.env.NEXT_PUBLIC_API_BEARER_TOKEN
           : null;
 
       const response = await fetch(
@@ -62,7 +64,19 @@ class ApiClient {
         ? await response.json()
         : await response.text();
 
-      if (response.status === 401) {
+      if (response.status === 401 && !hasAuthHeader && getStoredToken()) {
+        // Try the 30-day refresh token once before giving up on the session.
+        if (!retried) {
+          const renewed = await refreshSession(true);
+          if (renewed.status === "OK") {
+            clearTimeout(timeout);
+            return this.request<T>(endpoint, options, true);
+          }
+          if (renewed.status === "EXPIRED") handleSessionExpired();
+        } else {
+          handleSessionExpired();
+        }
+      } else if (response.status === 401) {
         handleSessionExpired();
       }
 

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { handleSessionExpired, isSessionExpired, subscribeSessionExpired, redirectAfterSessionExpired } from "@/lib/auth/handle-session-expired";
 import { Modal } from "@/components/ui/modal";
 import { isPublicAuthPath } from "@/lib/auth/session-routes";
+import { REFRESH_LEEWAY_MS, isTokenFresh, refreshSession } from "@/lib/auth/refresh-session";
 import { getStoredToken } from "@/lib/auth/token";
 import { getTokenExpiration } from "@/lib/auth/token-expiration";
 import { clearUser } from "@/store/common/slices/auth.slice";
@@ -12,6 +13,7 @@ import { clearTenant } from "@/store/common/slices/tenant.slice";
 import { useAppDispatch } from "@/store/hooks";
 
 const MAX_TIMEOUT = 2_147_483_647;
+const RETRY_MS = 30_000;
 
 export function SessionGuard() {
   const pathname = usePathname();
@@ -26,8 +28,16 @@ export function SessionGuard() {
     }
 
     let timeoutId: number | undefined;
+    let cancelled = false;
 
-    const checkSession = () => {
+    const schedule = (delay: number) => {
+      timeoutId = window.setTimeout(
+        () => void checkSession(),
+        Math.min(Math.max(delay, 1_000), MAX_TIMEOUT),
+      );
+    };
+
+    const checkSession = async () => {
       if (timeoutId !== undefined) {
         window.clearTimeout(timeoutId);
       }
@@ -48,34 +58,46 @@ export function SessionGuard() {
         return;
       }
 
-      const remaining = expiration * 1000 - Date.now();
-      if (remaining <= 0) {
-        handleSessionExpired();
+      // Renew shortly before the access token lapses. The refresh token lasts
+      // 30 days, so only Cognito refusing it ends the session.
+      const remaining = expiration * 1000 - Date.now() - REFRESH_LEEWAY_MS;
+      if (remaining > 0) {
+        schedule(remaining);
         return;
       }
 
-      timeoutId = window.setTimeout(
-        checkSession,
-        Math.min(remaining, MAX_TIMEOUT),
-      );
+      const result = await refreshSession(true);
+      if (cancelled || isSessionExpired()) return;
+
+      if (result.status === "EXPIRED") {
+        handleSessionExpired();
+      } else if (result.status === "OK" && isTokenFresh(result.token)) {
+        void checkSession();
+      } else {
+        // Offline or Cognito unreachable: keep the session and try again.
+        schedule(RETRY_MS);
+      }
     };
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        checkSession();
+        void checkSession();
       }
     };
 
-    checkSession();
+    void checkSession();
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("storage", checkSession);
+    window.addEventListener("storage", handleVisibilityChange);
+    window.addEventListener("online", handleVisibilityChange);
 
     return () => {
+      cancelled = true;
       if (timeoutId !== undefined) {
         window.clearTimeout(timeoutId);
       }
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("storage", checkSession);
+      window.removeEventListener("storage", handleVisibilityChange);
+      window.removeEventListener("online", handleVisibilityChange);
     };
   }, [dispatch, pathname, router]);
 

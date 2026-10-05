@@ -1,6 +1,8 @@
 "use client";
 
 import { X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useGetEmployerApplicationQuery } from "@/store/employer/applications/applications.api";
 import { useScrollLock } from "@/hooks/use-scroll-lock";
 
 import type { EmployerApplication, ApplicationStage } from "../types";
@@ -27,12 +29,20 @@ export function ApplicationDrawer({
   onConfirmHire,
 }: ApplicationDrawerProps) {
   useScrollLock(application !== null);
+  const detail = useGetEmployerApplicationQuery(application?.id ?? "", { skip: !application });
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
+  useEffect(() => {
+    if (!application) return;
+    const timer = window.setInterval(() => setCurrentTime(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [application]);
 
   if (!application) {
     return null;
   }
 
   const candidate = application.candidate;
+  const resume = detail.currentData ? detail.currentData.resume : application.resume;
   const band = getScoreBand(application.candidate.exactScore);
 
   const currentStage = Number(application.stage);
@@ -106,6 +116,25 @@ export function ApplicationDrawer({
               currentStage={currentStage}
               currentStageLabel={currentStageLabel}
             />
+
+            <section className="space-y-3 rounded-lg border border-[#e7e9ee] p-4">
+              <h3 className="text-sm font-semibold text-[#151b2b]">Resume</h3>
+              {detail.isFetching ? <p role="status" className="text-xs text-[#777f90]">Loading resume...</p> : detail.isError ? (
+                <div className="text-xs"><p>Unable to load resume.</p><button type="button" onClick={() => void detail.refetch()} className="mt-2 font-semibold text-[#51449a]">Retry</button></div>
+              ) : resume ? (
+                <>
+                  {resume.file_url && (resume.file_url_expires_at && Date.parse(resume.file_url_expires_at) <= currentTime ? (
+                    <button type="button" onClick={() => void detail.refetch()} className="text-xs font-semibold text-[#51449a]">Refresh resume download link</button>
+                  ) : <a href={resume.file_url} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-[#51449a] hover:underline">Download original resume</a>)}
+                  {resume.sections.length > 0 ? resume.sections.map((section, index) => (
+                    <div key={`${section.kind}-${index}`}>
+                      <h4 className="text-xs font-semibold text-[#273142]">{section.heading || section.kind.replaceAll("_", " ")}</h4>
+                      <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-5 text-[#43516a]">{section.body}</p>
+                    </div>
+                  )) : <p className="whitespace-pre-wrap break-words text-xs leading-5 text-[#43516a]">{resume.text || "No resume content is available."}</p>}
+                </>
+              ) : <p className="text-xs text-[#777f90]">No confirmed resume is available.</p>}
+            </section>
 
             {application.outcome === null && (
               <StageMoveControls

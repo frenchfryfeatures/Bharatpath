@@ -46,6 +46,8 @@ interface ApplicationBatch {
 
 export function useApplicationsPage() {
   const dispatch = useAppDispatch();
+  const [refreshVersion, setRefreshVersion] = useState(0);
+  const handleRefresh = useCallback(() => setRefreshVersion((value) => value + 1), []);
   const [stageErrorToast, setStageErrorToast] = useState<number | null>(null);
   const stageErrorToastId = useRef(0);
   const showStageError = useCallback(() => {
@@ -199,6 +201,7 @@ export function useApplicationsPage() {
   }, [
     dispatch,
     loadApplicationBatch,
+    refreshVersion,
   ]);
 
   const handleLoadMore = useCallback(async () => {
@@ -483,6 +486,8 @@ export function useApplicationsPage() {
    */
 
   return {
+    refreshVersion,
+    handleRefresh,
     stageErrorToast,
     dismissStageError,
     applications,

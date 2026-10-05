@@ -19,6 +19,7 @@ import { usePageHeader } from "@/components/layout/header-context";
 import { useConfirmDialog } from "@/features/employer/components/use-confirm-dialog";
 import { getApiErrorMessage } from "@/lib/api/error-message";
 import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
+import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 
 import { useJobCreateForm } from "../hooks/use-job-create-form";
 import {
@@ -102,15 +103,22 @@ export function JobCreatePage({
     skip: !canChangeToPublished,
   });
   const canPublish = hasHydrated && organisation?.kybStatus === "APPROVED";
-  const { data: thresholdPreviewData } = usePreviewEmployerJobThresholdQuery(
-    previewThreshold(values.minScore),
+  // Keep the slider responsive, but wait for one second of inactivity before
+  // changing the query argument. An unchanged score keeps the same query.
+  const debouncedMinScore = useDebouncedValue(values.minScore, 1_000);
+  const { currentData: thresholdPreviewData } = usePreviewEmployerJobThresholdQuery(
+    previewThreshold(debouncedMinScore),
     {
       skip:
         !isFormEditable ||
-        !hasThreshold(values.minScore),
+        !hasThreshold(values.minScore) ||
+        !hasThreshold(debouncedMinScore),
     },
   );
-  const thresholdPreview = hasHydrated ? thresholdPreviewData : undefined;
+  const thresholdPreview =
+    hasHydrated && values.minScore === debouncedMinScore
+      ? thresholdPreviewData
+      : undefined;
   const thresholdSet = hasThreshold(values.minScore);
   const [createJob, { isLoading: isCreating }] = useCreateEmployerJobMutation();
   const [updateJob, { isLoading: isUpdating }] = useUpdateEmployerJobMutation();
@@ -461,7 +469,7 @@ export function JobCreatePage({
               </div>
             </FieldShell>
 
-            {isFormEditable ? (
+            {isFormEditable && thresholdSet ? (
               <div className="flex items-center gap-2.5 rounded-[10px] bg-[#edf2fa] px-3.5 py-3">
                 <UsersRound
                   size={17}
@@ -470,9 +478,7 @@ export function JobCreatePage({
                 />
 
                 <span className="text-[13px] font-medium leading-[17px] text-[#28578f]">
-                  {!thresholdSet
-                    ? "Every scored candidate in your pool meets this bar"
-                    : `${thresholdPreview?.fewer_than_ten
+                  {`${thresholdPreview?.fewer_than_ten
                         ? "Fewer than 10 candidates"
                         : `${thresholdPreview?.approximate_count ?? "—"} candidates`} in your pool currently meet this bar`}
                 </span>

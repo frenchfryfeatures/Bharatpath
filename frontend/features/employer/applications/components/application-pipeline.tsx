@@ -12,10 +12,13 @@ import {
   APPLICATION_COLUMNS,
 } from "../data";
 
+import { InvitationColumn } from "./invitation-column";
+
 import { ApplicationColumn } from "./application-column";
 
 interface ApplicationPipelineProps {
   applications: EmployerApplication[];
+  jobId?: string;
   loadedApplicationCount: number;
   hasNextPage: boolean;
   isLoadingMore: boolean;
@@ -32,6 +35,7 @@ interface ApplicationPipelineProps {
 }
 
 export function ApplicationPipeline({
+  jobId,
   applications,
   loadedApplicationCount,
   hasNextPage,
@@ -91,6 +95,8 @@ export function ApplicationPipeline({
         "
       >
         <div className="flex h-full min-w-max gap-3">
+          <InvitationColumn status="INVITED" jobId={jobId} />
+          <InvitationColumn status="DECLINED" jobId={jobId} />
           {columns.map(
             ({
               column,

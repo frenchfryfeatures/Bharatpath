@@ -1,4 +1,5 @@
 import { baseApi } from "@/store/api/base-api";
+import type { RevealedCandidateResponse } from "@/store/employer/candidates/candidates.api";
 
 export type EmployerApplicationStage =
   | "SUBMITTED"
@@ -22,6 +23,7 @@ export interface EmployerApplicationApiModel {
   meetingLink: string;
   hireEmployerConfirmed: boolean;
   hireCandidateConfirmed: boolean;
+  resume?: RevealedCandidateResponse["resume"];
   candidate: {
     id: string;
     name: string;
@@ -34,6 +36,13 @@ export interface EmployerApplicationApiModel {
 }
 
 interface EmployerApplicationResponse {
+  candidate?: {
+    full_name: string | null;
+    city: string | null;
+    state_code: string | null;
+    score?: number;
+    resume?: RevealedCandidateResponse["resume"];
+  } | null;
   id: string;
   job_id: string;
   candidate_id: string;
@@ -96,6 +105,7 @@ export function mapEmployerApplication(
     jobId: application.job_id,
     jobLocation,
     candidateId: application.candidate_id,
+    resume: application.candidate?.resume,
     stage: STAGE_TO_NUMBER[application.stage],
     outcome,
     appliedDate: new Date(application.created_at).toLocaleDateString("en-IN", {
@@ -111,12 +121,12 @@ export function mapEmployerApplication(
     hireCandidateConfirmed: application.hire_confirmation === "CONFIRMED",
     candidate: {
       id: application.candidate_id,
-      name: `Candidate ${maskedCandidateId}`,
-      initials: "MC",
-      exactScore: null,
-      location: "Profile not opened",
+      name: application.candidate?.full_name ?? `Candidate ${maskedCandidateId}`,
+      initials: application.candidate?.full_name?.split(/\s+/).filter(Boolean).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "MC",
+      exactScore: application.candidate?.score ?? null,
+      location: [application.candidate?.city, application.candidate?.state_code].filter(Boolean).join(" · ") || "Location not shared",
       jobTitle,
-      unlocked: false,
+      unlocked: application.candidate?.score !== undefined,
     },
   };
 }
