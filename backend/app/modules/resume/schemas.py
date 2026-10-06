@@ -18,6 +18,7 @@ from pydantic import Field, field_validator, model_validator
 from app.core.schemas import ApiSchema
 from app.modules.resume.domain import normalise_pasted_text
 from app.modules.resume.sections import HEADER, SectionKind, assemble_sections, heading_kind
+from app.modules.resume.structuring import StructuredResume, StructuredStatus
 
 
 class _Base(ApiSchema):
@@ -248,6 +249,19 @@ class ResumeVersionDetailResponse(_Base):
         "pasted or text-edited version. Null for a structured one, whose "
         "`parsed` already has its fields. Every line of the text is in exactly "
         "one section.",
+    )
+    structured_resume: StructuredResume | None = Field(
+        default=None,
+        description="The CV sorted into fields by a model -- contacts and profile "
+        "links, each job, each qualification, projects, certifications and the "
+        "rest -- for display and review. **Never scored**: `parsed.raw_text` is "
+        "what is scored. Null unless `structured_status` is READY.",
+    )
+    structured_status: StructuredStatus = Field(
+        default="UNAVAILABLE",
+        description="READY; FAILED (the model could not read it -- show "
+        "`sections`); or UNAVAILABLE (not configured, or a version created "
+        "before structuring existed).",
     )
     confirmed: bool
     confirmed_at: datetime | None = None

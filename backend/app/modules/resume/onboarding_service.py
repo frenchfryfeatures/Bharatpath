@@ -20,6 +20,8 @@ from app.modules.resume.models import ResumeVersion
 from app.modules.resume.parser import ExtractedDocument, LocalResumeParser
 from app.modules.resume.scanner import get_document_scanner, may_process
 from app.modules.resume.service import UploadRejectedError
+from app.modules.resume.structuring import STORED_KEY as STRUCTURED_KEY
+from app.modules.resume.structuring import structure_resume
 from app.settings import get_settings
 
 
@@ -77,6 +79,9 @@ async def intake(session: AsyncSession, *, user_id: uuid.UUID, content: bytes) -
     if not may_process(scan_status):
         await storage.delete_object(bucket=settings.s3_bucket_resumes, key=key)
         raise UploadRejectedError(code="resume_scan_blocked")
+    # Before any row is written: the model call is the slow part of this
+    # request, and it never fails it (`resume/structuring.py`).
+    structured = await structure_resume(extracted.text, settings=settings)
     await repository.create_resume_file(
         session,
         resume_file_id=file_id,
@@ -96,6 +101,7 @@ async def intake(session: AsyncSession, *, user_id: uuid.UUID, content: bytes) -
             "page_count": extracted.page_count,
             "hidden_text": extracted.hidden.as_stored(),
             "extractor": {"parser": extracted.parser, "parser_version": extracted.parser_version},
+            STRUCTURED_KEY: structured,
         },
     )
     await repository.set_parse_status(session, resume_file_id=file_id, status="DONE")

@@ -38,6 +38,8 @@ from app.modules.resume.schemas import (
     SharedResumeView,
 )
 from app.modules.resume.sections import split_sections
+from app.modules.resume.structuring import STORED_KEY as STRUCTURED_KEY
+from app.modules.resume.structuring import structure_resume, structured_view
 from app.settings import Settings, get_settings
 
 logger = get_logger(__name__)
@@ -204,6 +206,7 @@ async def create_pasted_version(session: AsyncSession, *, user_id: uuid.UUID, te
         parsed={
             "raw_text": text,
             "extractor": {"parser": "paste", "parser_version": "1"},
+            STRUCTURED_KEY: await structure_resume(text),
         },
     )
     await emit(
@@ -343,7 +346,10 @@ async def edit_version(
     else:
         # `text` or `sections`: the schema guarantees exactly one shape was
         # sent, and a section edit is stored as the text it assembles to.
-        replacement = {"raw_text": payload.edited_text()}
+        # The corrected text is structured afresh: a structured view carried
+        # over from the version being replaced would show what was corrected.
+        edited = payload.edited_text()
+        replacement = {"raw_text": edited, STRUCTURED_KEY: await structure_resume(edited or "")}
 
     parsed = build_edited_parsed(previous_parsed=previous.parsed, replacement=replacement)
 
@@ -575,21 +581,29 @@ async def profile_resume_preview(
     version = await get_version_for_profile(
         session, user_id=user_id, resume_version_id=resume_version_id
     )
-    text = (version.parsed or {}).get("raw_text", "")
+    parsed = version.parsed or {}
+    text = parsed.get("raw_text", "")
+    structured, structured_status = structured_view(parsed)
+    # Beside whatever the preview draws: the fields the candidate reviews.
+    fields = {
+        "structured_resume": structured.model_dump(mode="json") if structured else None,
+        "structured_status": structured_status,
+    }
     if version.resume_file_id is None:
-        return {"pages": [], "text": text or str(version.parsed), "truncated": False}
+        shown = {k: v for k, v in parsed.items() if k != STRUCTURED_KEY}
+        return {"pages": [], "text": text or str(shown), "truncated": False, **fields}
     row = await repository.get_resume_file(
         session, resume_file_id=version.resume_file_id, user_id=user_id
     )
     if row is None:
         raise UploadNotFoundError()
     if row.mime != "application/pdf":
-        return {"pages": [], "text": text, "truncated": False}
+        return {"pages": [], "text": text, "truncated": False, **fields}
     content = await storage.read_whole_object(
         bucket=get_settings().s3_bucket_resumes, key=row.s3_key
     )
     pages, truncated = await asyncio.to_thread(render_pdf, content)
-    return {"pages": pages, "text": "", "truncated": truncated}
+    return {"pages": pages, "text": "", "truncated": truncated, **fields}
 
 
 async def users_with_any_resume(
