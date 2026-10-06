@@ -95,8 +95,6 @@ export function ApplicationPipeline({
         "
       >
         <div className="flex h-full min-w-max gap-3">
-          <InvitationColumn status="INVITED" jobId={jobId} />
-          <InvitationColumn status="DECLINED" jobId={jobId} />
           {columns.map(
             ({
               column,
@@ -117,6 +115,8 @@ export function ApplicationPipeline({
               />
             ),
           )}
+          <InvitationColumn status="INVITED" jobId={jobId} />
+          <InvitationColumn status="DECLINED" jobId={jobId} />
         </div>
       </div>
 

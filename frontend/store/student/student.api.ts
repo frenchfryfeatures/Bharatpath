@@ -477,7 +477,7 @@ export const studentApi = baseApi.injectEndpoints({
     }),
     getStudentApplications: builder.query<
       Page<JobApplication>,
-      { cursor?: string; limit?: number; filter?: "active" | "closed" } | void
+      { cursor?: string; limit?: number; status?: "ACTIVE" | "CLOSED" } | void
     >({
       query: (args) => ({
         url: "/candidate/applications",

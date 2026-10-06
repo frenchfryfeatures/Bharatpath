@@ -13,6 +13,16 @@ from app.modules.candidate.domain import normalise_city
 
 Text = Annotated[str, Field(max_length=300)]
 
+INACTIVE_EMPLOYMENT_DEFAULTS = {
+    "company_name": "",
+    "job_title": "",
+    "employment_start": "",
+    "employment_end": "",
+    "annual_salary": None,
+    "notice_period": "",
+    "job_role": "",
+}
+
 
 class CareerDetails(ApiSchema):
     phone: Annotated[str, Field(default="", max_length=20)] = ""
@@ -58,6 +68,17 @@ class CareerDetails(ApiSchema):
     preferred_salary: Annotated[int | None, Field(default=None, ge=0, le=1_000_000_000)] = None
     gender: Literal["", "FEMALE", "MALE", "NON_BINARY", "SELF_DESCRIBE", "PREFER_NOT_TO_SAY"] = ""
 
+    @model_validator(mode="before")
+    @classmethod
+    def remove_inapplicable_employment(cls, value: Any) -> Any:
+        if not isinstance(value, dict):
+            return value
+        if value.get("currently_employed") == "NO":
+            return {**value, **INACTIVE_EMPLOYMENT_DEFAULTS}
+        if value.get("currently_employed") == "YES":
+            return {**value, "employment_end": ""}
+        return value
+
     @model_validator(mode="after")
     def validate_details(self) -> CareerDetails:
         if self.current_city:
@@ -101,7 +122,6 @@ def missing_required(details: CareerDetails) -> list[str]:
         "phone",
         "work_status",
         "current_city",
-        "key_skills",
         "highest_qualification",
         "course",
         "course_type",
@@ -110,9 +130,9 @@ def missing_required(details: CareerDetails) -> list[str]:
         "passing_year",
     ]
     if details.work_status == "EXPERIENCED":
-        required += ["currently_employed", "company_name", "job_title", "employment_start"]
-        if details.currently_employed == "NO":
-            required += ["employment_end"]
+        required += ["currently_employed"]
+        if details.currently_employed == "YES":
+            required += ["company_name", "job_title", "employment_start"]
     missing = [key for key in required if not getattr(details, key)]
     if details.work_status == "EXPERIENCED" and not (
         details.experience_years or details.experience_months
@@ -129,6 +149,7 @@ def form_fields() -> list[dict[str, Any]]:
             [
                 ("phone", "Mobile number", "tel", True),
                 ("work_status", "Work status", "select", True),
+                ("current_city", "Current city", "text", True),
             ],
         ),
         (
@@ -139,12 +160,11 @@ def form_fields() -> list[dict[str, Any]]:
                 ("experience_months", "Total work experience - months", "number", False),
                 ("company_name", "Company name", "text", False),
                 ("job_title", "Current / most recent job title", "text", False),
-                ("current_city", "Current city", "text", True),
                 ("employment_start", "Employment starting month", "month", False),
                 ("employment_end", "Employment ending month", "month", False),
                 ("annual_salary", "Annual salary (INR)", "number", False),
                 ("notice_period", "Notice period", "select", False),
-                ("key_skills", "Key skills", "list", True),
+                ("key_skills", "Key skills", "list", False),
                 ("industry", "Industry", "text", False),
                 ("department", "Department", "text", False),
                 ("role_category", "Role category", "text", False),

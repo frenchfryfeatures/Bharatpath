@@ -20,6 +20,7 @@ interface ConfirmModalProps {
   readonly children?: ReactNode;
   readonly onClose: () => void;
   readonly onConfirm: () => void;
+  readonly variant?: "default" | "student";
 }
 
 export function ConfirmModal({
@@ -34,6 +35,7 @@ export function ConfirmModal({
   children,
   onClose,
   onConfirm,
+  variant = "default",
 }: ConfirmModalProps) {
   useEffect(() => {
     if (!open) {
@@ -64,7 +66,7 @@ export function ConfirmModal({
       <div
         aria-labelledby="confirm-modal-title"
         aria-describedby="confirm-modal-description"
-        className="w-full max-w-105 rounded-[14px] border border-[#e7e9ee] bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.18)]"
+        className={`w-full max-w-105 rounded-[14px] border border-[#e7e9ee] bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.18)] ${variant === "student" ? "font-sans text-[13px] leading-5 lg:text-[14px]" : ""}`}
       >
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
@@ -80,13 +82,13 @@ export function ConfirmModal({
             <div>
               <h2
                 id="confirm-modal-title"
-                className="text-[16px] font-semibold leading-5.5 text-[#151b2b]"
+                className={`${variant === "student" ? "text-[16px] leading-6 lg:text-[18px]" : "text-[16px] leading-5.5"} font-semibold text-[#151b2b]`}
               >
                 {title}
               </h2>
               <p
                 id="confirm-modal-description"
-                className="mt-1.5 text-[13px] leading-4.75 text-[#5d6673]"
+                className={`mt-1.5 text-[#5d6673] ${variant === "student" ? "text-[13px] leading-5 lg:text-[14px]" : "text-[13px] leading-4.75"}`}
               >
                 {description}
               </p>
@@ -111,6 +113,7 @@ export function ConfirmModal({
             type="button"
             variant="secondary"
             size="sm"
+            className={variant === "student" ? "lg:h-9 lg:text-[13px]" : ""}
             onClick={onClose}
             disabled={confirmLoading}
           >
@@ -121,7 +124,7 @@ export function ConfirmModal({
               type="button"
               onClick={onConfirm}
               disabled={confirmLoading}
-              className="inline-flex h-9 cursor-pointer items-center justify-center rounded-lg bg-[#c92f3f] px-4 text-[13px] font-semibold text-white transition-colors hover:bg-[#a82331] disabled:cursor-not-allowed disabled:opacity-60"
+              className={`inline-flex h-9 cursor-pointer items-center justify-center rounded-lg bg-[#c92f3f] px-4 text-[13px] font-semibold text-white transition-colors hover:bg-[#a82331] disabled:cursor-not-allowed disabled:opacity-60 ${variant === "student" ? "lg:text-[14px]" : ""}`}
             >
               {confirmLoading ? "Working…" : confirmLabel}
             </button>
@@ -130,6 +133,7 @@ export function ConfirmModal({
               type="button"
               variant="dark"
               size="sm"
+              className={variant === "student" ? "lg:h-9 lg:text-[13px]" : ""}
               onClick={onConfirm}
               isLoading={confirmLoading}
             >

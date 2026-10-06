@@ -1,5 +1,6 @@
 import { baseApi } from "@/store/api/base-api";
 import type { RevealedCandidateResponse } from "@/store/employer/candidates/candidates.api";
+import type { CandidateBand } from "@/features/employer/candidates/types";
 
 export type EmployerApplicationStage =
   | "SUBMITTED"
@@ -29,6 +30,7 @@ export interface EmployerApplicationApiModel {
     name: string;
     initials: string;
     exactScore: number | null;
+    band: CandidateBand | null;
     location: string;
     jobTitle: string;
     unlocked: boolean;
@@ -38,6 +40,7 @@ export interface EmployerApplicationApiModel {
 interface EmployerApplicationResponse {
   candidate?: {
     full_name: string | null;
+    band?: CandidateBand | null;
     city: string | null;
     state_code: string | null;
     score?: number;
@@ -124,6 +127,7 @@ export function mapEmployerApplication(
       name: application.candidate?.full_name ?? `Candidate ${maskedCandidateId}`,
       initials: application.candidate?.full_name?.split(/\s+/).filter(Boolean).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "MC",
       exactScore: application.candidate?.score ?? null,
+      band: application.candidate?.band ?? null,
       location: [application.candidate?.city, application.candidate?.state_code].filter(Boolean).join(" · ") || "Location not shared",
       jobTitle,
       unlocked: application.candidate?.score !== undefined,

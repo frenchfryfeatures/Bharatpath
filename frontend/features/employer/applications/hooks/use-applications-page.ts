@@ -370,6 +370,22 @@ export function useApplicationsPage() {
     [dispatch, moveApplication, selectedApplication, showStageError],
   );
 
+  const handleRejectApplication = useCallback(() => {
+    if (!selectedApplication || selectedApplication.outcome !== null) {
+      return;
+    }
+
+    void moveApplication({
+      applicationId: selectedApplication.id,
+      stage: "REJECTED",
+    })
+      .unwrap()
+      .then((application) => {
+        dispatch(replaceApplication(application));
+      })
+      .catch(showStageError);
+  }, [dispatch, moveApplication, selectedApplication, showStageError]);
+
   const handleMoveToColumn = useCallback(
     (applicationId: string, column: ApplicationColumnDefinition) => {
       const application = applications.find(
@@ -523,6 +539,7 @@ export function useApplicationsPage() {
     handleOpenApplication,
     handleCloseApplication,
     handleMoveStage,
+    handleRejectApplication,
     handleMoveToColumn,
     handleMeetingLinkChange,
     handleConfirmHire,

@@ -341,7 +341,7 @@ function SectionsReview({
       </div>
 
       <div className="sticky bottom-0 -mx-1 flex flex-col gap-3 bg-[#FFFCF7] px-1 pb-3.5 pt-4">
-        <PillButton onClick={() => void confirm()} isLoading={busy} className="w-full py-[18px]">
+        <PillButton onClick={() => void confirm()} isLoading={busy} disabled={!dirty && version.confirmed} className="w-full py-[18px]">
           {busy ? "Saving…" : confirmLabel}
         </PillButton>
         <div className="flex items-center justify-between gap-3 text-[12px] leading-4 text-[#5F6B80]">
@@ -349,7 +349,8 @@ function SectionsReview({
           <button
             type="button"
             onClick={onStartOver}
-            className="cursor-pointer font-semibold text-[#3A4761] hover:text-[#0A1931]"
+            disabled={!dirty && version.confirmed}
+            className="cursor-pointer font-semibold text-[#3A4761] hover:text-[#0A1931] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {startOverLabel}
           </button>
@@ -791,7 +792,7 @@ function StructuredReview({
       </div>
 
       <div className="sticky bottom-0 -mx-1 flex flex-col gap-3 bg-[#FFFCF7] px-1 pb-3.5 pt-4">
-        <PillButton onClick={() => void confirm()} isLoading={isLoading} className="w-full py-[18px]">
+        <PillButton onClick={() => void confirm()} isLoading={isLoading} disabled={version.confirmed} className="w-full py-[18px]">
           {confirmLabel}
         </PillButton>
         <div className="flex items-center justify-between gap-3 text-[12px] leading-4 text-[#5F6B80]">
@@ -799,7 +800,8 @@ function StructuredReview({
           <button
             type="button"
             onClick={onStartOver}
-            className="cursor-pointer font-semibold text-[#3A4761] hover:text-[#0A1931]"
+            disabled={version.confirmed}
+            className="cursor-pointer font-semibold text-[#3A4761] hover:text-[#0A1931] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {startOverLabel}
           </button>
@@ -852,13 +854,13 @@ function Sheet({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-[28px] bg-white px-5 pb-5 pt-3 shadow-[0_-8px_40px_-12px_rgba(10,25,49,0.22)] sm:max-w-[620px] sm:rounded-[28px] sm:p-6"
+        className="flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-[28px] bg-white px-5 pb-5 pt-3 font-sans text-[13px] leading-5 shadow-[0_-8px_40px_-12px_rgba(10,25,49,0.22)] sm:max-w-[620px] sm:rounded-[28px] sm:p-6 lg:text-[14px]"
       >
         <div className="mx-auto mb-4 h-1 w-10 shrink-0 rounded-full bg-[#E7E0D4] sm:hidden" aria-hidden="true" />
         <div className="flex shrink-0 items-start gap-3 pb-5">
           <div className="flex flex-1 flex-col gap-1">
-            <span className="text-[20px] font-bold leading-6 tracking-[-0.02em] text-[#0A1931]">{title}</span>
-            {subtitle && <span className="text-[13px] leading-[18px] text-[#5F6B80]">{subtitle}</span>}
+            <span className="text-[20px] font-bold leading-6 tracking-[-0.02em] text-[#0A1931] lg:text-[18px]">{title}</span>
+            {subtitle && <span className="text-[13px] leading-[18px] text-[#5F6B80] lg:text-[14px] lg:leading-5">{subtitle}</span>}
           </div>
           <button
             type="button"

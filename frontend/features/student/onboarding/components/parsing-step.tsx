@@ -25,6 +25,7 @@ interface ParsingStepProps {
   onReview: (resumeVersionId: string) => void;
   onTryAnother: () => void;
   onPaste: () => void;
+  onCancel: () => void;
 }
 
 const LONG_WAIT_SECONDS = 45;
@@ -86,6 +87,7 @@ export function ParsingStep({
   onReview,
   onTryAnother,
   onPaste,
+  onCancel,
 }: Readonly<ParsingStepProps>) {
   const [stopPolling, setStopPolling] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -274,6 +276,13 @@ export function ParsingStep({
             {readable ? "Review what we found" : "Reading…"}
           </PillButton>
         )}
+        <button
+          type="button"
+          onClick={onCancel}
+          className="cursor-pointer self-center px-3 py-1 text-[12px] font-semibold text-[#5F6B80] hover:text-[#0A1931]"
+        >
+          Cancel and return to previous resume
+        </button>
       </div>
     </div>
   );

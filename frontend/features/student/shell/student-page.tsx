@@ -17,7 +17,7 @@ export function StudentPage({
   return (
     <div
       className={[
-        "mx-auto w-full max-w-[1280px] p-4",
+        "w-full px-3 py-4 sm:px-4",
         className,
       ].join(" ")}
     >

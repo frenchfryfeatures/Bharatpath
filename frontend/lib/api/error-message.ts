@@ -26,6 +26,8 @@ const CODE_MESSAGES: Record<string, string> = {
     "This invitation is no longer available. Check your latest invitations.",
   shortlist_not_pending:
     "This invitation has already been answered or cancelled. Check its latest status.",
+  already_applied:
+    "This candidate has already applied to this job. You can review their application in Applications.",
   shortlist_job_not_open:
     "This job is no longer open, so the invitation cannot be accepted.",
   application_unavailable:

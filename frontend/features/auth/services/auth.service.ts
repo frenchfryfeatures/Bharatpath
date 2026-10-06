@@ -12,7 +12,8 @@ import {
   verifyTotpSetupCognito,
 } from "@/lib/auth/cognito";
 import { getFreshToken, refreshSession } from "@/lib/auth/refresh-session";
-import { clearStoredToken, setStoredToken } from "@/lib/auth/token";
+import { clearBrowserAuthStorage, setStoredToken } from "@/lib/auth/token";
+import { clearSession } from "@/lib/auth/session";
 import { LoginResponse, SignupRequest, SignupResponse } from "../types";
 
 /*
@@ -311,9 +312,12 @@ export const authService = {
   },
 
   async logout(): Promise<void> {
-    await signOutCognito();
-
-    clearStoredToken();
+    try {
+      await signOutCognito();
+    } finally {
+      clearBrowserAuthStorage();
+      clearSession();
+    }
   },
 
   async me(): Promise<LoginResponse> {

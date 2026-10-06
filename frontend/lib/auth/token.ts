@@ -44,3 +44,49 @@ export function clearStoredToken(): void {
     /* ignore storage failures */
   }
 }
+
+/** Clear browser-persisted authentication and session material on logout. */
+export function clearBrowserAuthStorage(): void {
+  if (typeof window === "undefined") return;
+
+  clearStoredToken();
+
+  const isAuthKey = (key: string) => {
+    const normalized = key.toLowerCase();
+    return ["auth", "session", "token", "identity", "cognito", "amplify"]
+      .some((term) => normalized.includes(term));
+  };
+
+  try {
+    for (const key of Object.keys(window.localStorage)) {
+      if (isAuthKey(key)) window.localStorage.removeItem(key);
+    }
+  } catch {
+    // Storage may be disabled by browser privacy settings.
+  }
+
+  try {
+    for (const key of Object.keys(window.sessionStorage)) {
+      if (isAuthKey(key)) window.sessionStorage.removeItem(key);
+    }
+  } catch {
+    // Storage may be disabled by browser privacy settings.
+  }
+
+  // JavaScript can expire only cookies that are not HttpOnly. Cognito's
+  // signOut handles its own provider session cookies where applicable.
+  try {
+    const cookieNames = document.cookie
+      .split(";")
+      .map((cookie) => cookie.trim().split("=")[0])
+      .filter((name) => name && isAuthKey(name));
+    const paths = new Set(["/", window.location.pathname]);
+    for (const name of cookieNames) {
+      for (const path of paths) {
+        document.cookie = `${name}=; Max-Age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=${path}; SameSite=Lax`;
+      }
+    }
+  } catch {
+    // Cookie access may be disabled by browser privacy settings.
+  }
+}
