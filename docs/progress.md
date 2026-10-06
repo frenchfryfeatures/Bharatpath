@@ -9,6 +9,30 @@ states. Newest entries first.
 
 ---
 
+## 2026-10-06 — the resume prefill no longer fails on one bad field
+
+`POST /auth/resume-preview` answered 503 `resume_prefill_unavailable` for some
+CVs while OpenAI answered 200 each time, and the same file usually worked on
+retry. Reproduced on the host, one run in eight: the model wrote the city as
+"Bengaluru, Karnataka", `normalise_city` refuses the comma, and that one
+`ValidationError` discarded the whole draft. The strict schema cannot carry
+`CareerDetails`' rules (lengths, phone and date formats, the city's
+characters, the cross-field checks), so any of them could do the same.
+`/candidate/profile/prefill` did not catch it at all and answered 500.
+
+- **`candidate.extraction.draft_from`** validates the model's answer and
+  leaves each refused field blank (one bad list item, not the list), for the
+  person to fill. A cross-field error names no field; the first of
+  `_CROSS_FIELD` whose removal clears it is dropped. The rules are unchanged:
+  nothing they refuse is kept, so a city still never carries a PIN or digits.
+- The prompt now asks for the city name alone.
+- Logs `career_prefill_fields_dropped` (field names only) and, on the 503 that
+  remains (OpenAI unreachable or a truncated answer),
+  `resume_prefill_unavailable` with the reason. Neither logs a value.
+- Tests: `tests/unit/test_career_prefill_draft.py`.
+
+---
+
 ## 2026-10-06 — the full job posting, and one job page for every portal
 
 Branch `Rishabh/CreateJobUpdate`. The client asked for a Naukri-style job page

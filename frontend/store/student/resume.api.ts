@@ -1,4 +1,5 @@
 import { baseApi } from "@/store/api/base-api";
+import type { StructuredResume, StructuredStatus } from "@/components/resume/structured-resume";
 
 /*
  * Candidate resume intake, review and confirm - `/candidate/resume/*`.
@@ -104,6 +105,8 @@ export interface ResumeVersionDetail {
   parsed: Record<string, unknown>;
   /** Null for a structured (form) version, whose `parsed` holds the fields. */
   sections: ResumeSection[] | null;
+  structuredResume: StructuredResume | null;
+  structuredStatus: StructuredStatus;
   confirmed: boolean;
   confirmedAt: string | null;
   supersedesId: string | null;
@@ -119,7 +122,8 @@ export interface ResumeConfirmed {
 
 export type ResumeEdit =
   | { sections: Array<Pick<ResumeSection, "kind" | "heading" | "body">> }
-  | { structured: ManualResume };
+  | { structured: ManualResume }
+  | { text: string };
 
 /* Wire shapes ---------------------------------------------------------- */
 
@@ -139,6 +143,8 @@ interface VersionSummaryResponse extends VersionCreatedResponse {
 interface VersionDetailResponse extends VersionSummaryResponse {
   parsed: Record<string, unknown>;
   sections: ResumeSection[] | null;
+  structured_resume: StructuredResume | null;
+  structured_status: StructuredStatus;
 }
 
 const mapCreated = (response: VersionCreatedResponse): ResumeVersionCreated => ({
@@ -279,6 +285,8 @@ export const studentResumeApi = baseApi.injectEndpoints({
         ...mapSummary(response),
         parsed: response.parsed ?? {},
         sections: response.sections,
+        structuredResume: response.structured_resume,
+        structuredStatus: response.structured_status,
       }),
       providesTags: (_result, _error, id) => [
         { type: "Student", id: `RESUME_VERSION_${id}` },

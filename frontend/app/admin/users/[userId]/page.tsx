@@ -5,6 +5,8 @@ import { useParams } from "next/navigation";
 import { ArrowLeft, BriefcaseBusiness, BookOpen, FileText, Mic2, TrendingUp } from "lucide-react";
 
 import { Skeleton } from "@/components/common/loading";
+import { ResumeFieldsView, StructuredResumeView, type StructuredResume } from "@/components/resume/structured-resume";
+import { ResumeTextView } from "@/components/resume/resume-text-view";
 import { usePageHeader } from "@/components/layout/header-context";
 import { ErrorState } from "@/components/ui";
 import { CandidatePageSkeleton } from "@/features/admin/users/components/candidate-page-skeleton";
@@ -40,12 +42,13 @@ function humanise(value: string) {
   return value.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function Field({ label, value }: { label: string; value: string | number | null | undefined }) {
-  return <div className="min-w-0"><dt className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#8992a1]">{label}</dt><dd className="mt-1 break-words text-[13px] font-semibold text-[#172033]">{value === null || value === undefined || value === "" ? "Not provided" : value}</dd></div>;
-}
-
-function Section({ title, detail, children, className = "" }: { title: string; detail?: string; children: React.ReactNode; className?: string }) {
-  return <section className={`${panel} ${className}`}><div className="mb-4 flex flex-wrap items-center justify-between gap-2"><h2 className="text-[14px] font-bold text-[#172033]">{title}</h2>{detail && <span className={muted}>{detail}</span>}</div>{children}</section>;
+function Section({ title, detail, headerAction, children, className = "", scrollable = false }: { title: string; detail?: string; headerAction?: React.ReactNode; children: React.ReactNode; className?: string; scrollable?: boolean }) {
+  return <section className={`${panel} ${className}`}>
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-2"><h2 className="text-[14px] font-bold text-[#172033]">{title}</h2><div className="flex flex-wrap items-center gap-3">{detail && <span className={muted}>{detail}</span>}{headerAction}</div></div>
+    {scrollable ? (
+      <div className="max-h-[560px] overflow-y-auto overscroll-contain pr-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#315c9f]" role="region" aria-label={`${title} content`} tabIndex={0}>{children}</div>
+    ) : children}
+  </section>;
 }
 
 function SectionSkeleton() {
@@ -56,14 +59,26 @@ function Empty({ children }: { children: React.ReactNode }) {
   return <p className="rounded-lg border border-dashed border-[#e1e5eb] bg-[#fbfcfd] px-4 py-5 text-[12px] text-[#7b8494]">{children}</p>;
 }
 
-function ResumeContent({ version }: { version: ResumeVersion }) {
-  const fields = Object.entries(version.fields ?? {});
+function UploadedResumeLink({ url }: { url: string }) {
+  return <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-[#d5dfee] px-3 py-2 text-[12px] font-semibold text-[#315c9f] hover:bg-[#f4f7fc]"><FileText size={15} /> Open uploaded resume</a>;
+}
+
+function ResumeContent({ version, showFileLink = true }: { version: ResumeVersion; showFileLink?: boolean }) {
+  const fields = Object.fromEntries(
+    Object.entries(version.fields ?? {}).filter(([key]) => key !== "extractor" && key !== "structured_resume"),
+  );
+  const stored = version.fields?.structured_resume;
+  const storedResume =
+    stored && typeof stored === "object" && "status" in stored && stored.status === "READY" &&
+    "data" in stored && stored.data && typeof stored.data === "object"
+      ? stored.data as StructuredResume
+      : null;
+  const structured = version.structured_status === "READY" ? version.structured_resume : storedResume;
+  const hasFields = Object.keys(fields).length > 0;
   return <div className="space-y-4">
     <div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-[#eef3fb] px-2.5 py-1 text-[10px] font-bold text-[#315c9f]">{humanise(version.source)}</span><span className={muted}>{version.confirmed_at ? `Confirmed ${formatDate(version.confirmed_at)}` : `Added ${formatDate(version.created_at)}`}</span></div>
-    {version.text && <div className="max-h-72 overflow-y-auto whitespace-pre-wrap rounded-lg bg-[#f8f9fb] p-4 text-[12px] leading-5 text-[#344054]">{version.text}</div>}
-    {fields.length > 0 && <dl className="grid gap-4 sm:grid-cols-2">{fields.map(([key, value]) => <Field key={key} label={humanise(key)} value={Array.isArray(value) ? value.join(", ") : typeof value === "object" && value !== null ? Object.entries(value).map(([k, v]) => `${humanise(k)}: ${String(v)}`).join(" · ") : String(value ?? "")} />)}</dl>}
-    {!version.text && fields.length === 0 && <Empty>No resume content available.</Empty>}
-    {version.file_url && <a href={version.file_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-[#d5dfee] px-3 py-2 text-[12px] font-semibold text-[#315c9f] hover:bg-[#f4f7fc]"><FileText size={15} /> Open uploaded resume</a>}
+    {structured ? <StructuredResumeView resume={structured} /> : version.text ? <ResumeTextView text={version.text} /> : hasFields ? <ResumeFieldsView fields={fields} /> : <Empty>No resume content available.</Empty>}
+    {showFileLink && version.file_url && <UploadedResumeLink url={version.file_url} />}
   </div>;
 }
 
@@ -106,7 +121,7 @@ export default function AdminCandidatePage() {
 
     <div className="flex flex-col gap-5 xl:flex-row xl:items-stretch">
       <div className="flex min-w-0 flex-col gap-5 xl:flex-1">
-        {onboarding.isLoading ? <SectionSkeleton /> : <Section title="Onboarding details" detail={onboarding.data?.questionnaire.length ? `${onboarding.data.questionnaire.length} answers` : undefined}>
+        {onboarding.isLoading ? <SectionSkeleton /> : <Section title="Onboarding details" detail={onboarding.data?.questionnaire.length ? `${onboarding.data.questionnaire.length} answers` : undefined} scrollable>
           {onboarding.error ? <Empty>Onboarding details are unavailable for this account.</Empty> : onboarding.data && <>
             <CandidateOnboardingDetails onboarding={onboarding.data} />
             <div className="mt-5 border-t border-[#edf0f3] pt-4"><h3 className="mb-3 text-[12px] font-bold">Onboarding answers</h3>{onboarding.data.questionnaire.length ? <dl className="space-y-3">{onboarding.data.questionnaire.map((answer) => <div key={answer.code}><dt className="text-[11px] text-[#7b8494]">{answer.question}</dt><dd className="mt-0.5 text-[12px] font-medium text-[#172033]">{answer.answer}</dd></div>)}</dl> : <Empty>No questionnaire answers submitted.</Empty>}</div>
@@ -123,12 +138,12 @@ export default function AdminCandidatePage() {
         {resume.isLoading ? (
           <SectionSkeleton />
         ) : (
-          <Section title="Resume" detail={latestResume ? "Latest version" : undefined}>
+          <Section title="Resume" detail={latestResume ? "Latest version" : undefined} headerAction={latestResume?.file_url ? <UploadedResumeLink url={latestResume.file_url} /> : undefined} scrollable>
             {resume.error ? (
               <Empty>Resume details are unavailable.</Empty>
             ) : latestResume ? (
               <div className="space-y-5">
-                <ResumeContent version={latestResume} />
+                <ResumeContent version={latestResume} showFileLink={false} />
                 {confirmedResume && confirmedResume.id !== latestResume.id ? (
                   <div className="border-t border-[#edf0f3] pt-4">
                     <h3 className="mb-3 text-[12px] font-bold">Scored from this version</h3>

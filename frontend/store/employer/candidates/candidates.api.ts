@@ -76,6 +76,8 @@ export interface RevealedCandidateResponse {
     text: string | null;
     sections: Array<{ kind: string; heading: string | null; body: string }>;
     fields: Record<string, unknown>;
+    structured_resume?: import("@/components/resume/structured-resume").StructuredResume | null;
+    structured_status?: import("@/components/resume/structured-resume").StructuredStatus;
     file_url: string | null;
     file_mime: string | null;
     file_url_expires_at: string | null;

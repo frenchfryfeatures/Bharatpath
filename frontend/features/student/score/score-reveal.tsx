@@ -99,10 +99,9 @@ export function ScoreReveal() {
               </span>
             ) : null}
             <PillButton
-              variant="secondary"
-              onClick={() => router.push("/student/jobs")}
+              onClick={() => router.push("/student")}
             >
-              View eligible jobs
+              Continue to dashboard
             </PillButton>
           </div>
         </div>

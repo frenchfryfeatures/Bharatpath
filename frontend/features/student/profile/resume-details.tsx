@@ -34,8 +34,8 @@ export function ResumeDetails() {
   const [completeUpload] = useCompleteResumeUploadMutation();
   const current = useMemo(
     () => versions.data?.find((version) => version.confirmed && !version.superseded)
-      ?? versions.data?.find((version) => version.confirmed)
       ?? versions.data?.find((version) => !version.superseded)
+      ?? versions.data?.find((version) => version.confirmed)
       ?? versions.data?.[0],
     [versions.data],
   );
@@ -162,7 +162,7 @@ export function ResumeDetails() {
                     </button>
                   )}
                 </div>
-                <ReviewStep key={activeView.versionId} resumeVersionId={activeView.versionId} title="Resume details" subtitle="Review and edit the details extracted from your resume. Changes are saved as a new version." confirmLabel="Save & update score" startOverLabel="Cancel and return to previous resume" onStartOver={cancelUpdate} onEditStructured={(resume, versionId) => setView({ name: "edit", versionId, resume })} onConfirmed={() => { showSuccessFeedback("Resume saved and score update started."); void versions.refetch(); }} />
+                <ReviewStep key={activeView.versionId} resumeVersionId={activeView.versionId} title="Resume details" subtitle="Review and edit the details extracted from your resume. Changes are saved as a new version." confirmLabel="Save & update score" startOverLabel="Cancel and return to previous resume" onStartOver={cancelUpdate} onEditStructured={(resume, versionId) => setView({ name: "edit", versionId, resume })} onConfirmed={() => { showSuccessFeedback("Resume saved and score update started."); setView(null); void versions.refetch(); }} />
               </div>
             )}
           </main>

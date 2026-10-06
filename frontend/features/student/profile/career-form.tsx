@@ -2,13 +2,14 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, Mail, Phone, Plus, User, X } from "lucide-react";
 import { OnboardingBackButton } from "@/components/common/onboarding-back-button";
+import { Spinner } from "@/components/common/loading";
 import { AppSelect } from "@/components/ui/app-select";
 import {
   useGetStudentProfileQuery,
   useUpdateStudentNameMutation,
 } from "@/store/student";
 import { useAppSelector } from "@/store/hooks";
-import { getApiErrorMessage } from "@/lib/api/error-message";
+import { getApiErrorCode, getApiErrorMessage } from "@/lib/api/error-message";
 import {
   Field,
   fieldClass,
@@ -28,6 +29,7 @@ import {
   usePreviewSignupResumeMutation,
   useIntakeCareerResumeMutation,
   type CareerDetails,
+  type CareerField,
   type CareerProfile,
 } from "./career-api";
 
@@ -37,6 +39,21 @@ const sections = [
   { key: "education", title: "Education details" },
   { key: "preferences", title: "Headline and preferences" },
 ] as const;
+
+function incompleteCareerFields(error: unknown): string[] {
+  if (getApiErrorCode(error) !== "career_profile_incomplete") return [];
+  if (typeof error !== "object" || error === null || !("data" in error))
+    return [];
+  const data = error.data;
+  if (typeof data !== "object" || data === null || !("params" in data))
+    return [];
+  const params = data.params;
+  if (typeof params !== "object" || params === null || !("fields" in params))
+    return [];
+  return Array.isArray(params.fields)
+    ? params.fields.filter((field): field is string => typeof field === "string")
+    : [];
+}
 
 export type CareerEditSection =
   | "all"
@@ -89,6 +106,7 @@ export function CareerForm({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [listText, setListText] = useState<Record<string, string>>({});
   const [locationInput, setLocationInput] = useState("");
+  const [serverRequiresSkills, setServerRequiresSkills] = useState(false);
   useEffect(() => {
     onSectionChange?.(step);
   }, [step, onSectionChange]);
@@ -151,11 +169,11 @@ export function CareerForm({
     );
   if (!draft || !fields.data || prefillState.isLoading)
     return (
-      <p className="py-8 text-[#5F6B80]">
-        {prefillState.isLoading
-          ? "Reading your resume to prefill your profile. No scoring is taking place."
-          : "Loading profile details…"}
-      </p>
+      <div
+        className={`flex items-center justify-center ${editing ? "min-h-72" : "min-h-[calc(100dvh-8rem)]"}`}
+      >
+        <Spinner size={36} tone="primary" />
+      </div>
     );
   const section = sections[step];
   const editingAll = editing && editSection === "all";
@@ -169,8 +187,12 @@ export function CareerForm({
           ? field.key === "headline"
           : field.section === section.key &&
             (!editing || field.key !== "headline"))) &&
-      visibleCareerField(field, draft),
+      (visibleCareerField(field, draft) ||
+        (serverRequiresSkills && field.key === "key_skills")),
   );
+  const fieldRequired = (field: CareerField, details: CareerDetails) =>
+    careerFieldRequired(field, details) ||
+    (serverRequiresSkills && field.key === "key_skills");
   const busy =
     saveState.isLoading ||
     selectedPreviewState.isLoading ||
@@ -234,6 +256,31 @@ export function CareerForm({
     update("preferred_locations", [...locations, location]);
     setLocationInput("");
   };
+  const showMissingFields = (missing: string[]) => {
+    if (editing && !editingAll) return false;
+    const first = missing.find((key) =>
+      key === "full_name" ||
+      fields.data.some(
+        (field) =>
+          field.key === key &&
+          (visibleCareerField(field, draft) || key === "key_skills"),
+      ),
+    );
+    if (!first) return false;
+    if (missing.includes("key_skills")) setServerRequiresSkills(true);
+    setErrors(
+      Object.fromEntries(missing.map((key) => [key, "This field is required."])),
+    );
+    setError("Complete the highlighted profile fields to continue.");
+    const sectionKey =
+      first === "full_name"
+        ? "basic"
+        : fields.data.find((field) => field.key === first)?.section;
+    const targetStep = sections.findIndex((item) => item.key === sectionKey);
+    if (targetStep >= 0) setStep(targetStep);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    return true;
+  };
   return (
     <form
       noValidate
@@ -256,7 +303,7 @@ export function CareerForm({
         const nextErrors: Record<string, string> = {};
         for (const field of activeFields)
           if (
-            careerFieldRequired(field, employmentDetails) &&
+            fieldRequired(field, employmentDetails) &&
             (!employmentDetails[field.key] ||
               (Array.isArray(employmentDetails[field.key]) &&
                 !(employmentDetails[field.key] as string[]).length))
@@ -299,6 +346,31 @@ export function CareerForm({
         )
           nextErrors.experience_years =
             "Enter at least one month of experience, or choose fresher.";
+        if (!editing && step === sections.length - 1) {
+          for (const field of fields.data) {
+            if (
+              (visibleCareerField(field, employmentDetails) ||
+                (serverRequiresSkills && field.key === "key_skills")) &&
+              fieldRequired(field, employmentDetails) &&
+              (!employmentDetails[field.key] ||
+                (Array.isArray(employmentDetails[field.key]) &&
+                  !(employmentDetails[field.key] as string[]).length))
+            )
+              nextErrors[field.key] = "This field is required.";
+          }
+          if (!fullName.trim())
+            nextErrors.full_name = "Enter your full name.";
+        }
+        if (
+          !editing && step === sections.length - 1 &&
+          Object.keys(nextErrors).some((key) =>
+            key === "full_name" ||
+            fields.data.some((field) => field.key === key && field.section !== section.key),
+          )
+        ) {
+          showMissingFields(Object.keys(nextErrors));
+          return;
+        }
         const validEmploymentMonth = (value: unknown) =>
           typeof value === "string" &&
           /^(?:19|20)\d{2}-(?:0[1-9]|1[0-2])$/.test(value);
@@ -332,8 +404,11 @@ export function CareerForm({
                   ),
                 }
               : employmentDetails;
+          const cleanedDetails = careerDetailsForSave(detailsToSave);
+          if (serverRequiresSkills)
+            cleanedDetails.key_skills = detailsToSave.key_skills;
           const result = await save({
-            details: careerDetailsForSave(detailsToSave),
+            details: cleanedDetails,
             resume_filename: selectedFilename ?? resumeFilename,
             resume_version_id:
               selectedVersionId ??
@@ -349,6 +424,8 @@ export function CareerForm({
             window.scrollTo({ top: 0, behavior: "smooth" });
           }
         } catch (failure) {
+          const missing = incompleteCareerFields(failure);
+          if (missing.length && showMissingFields(missing)) return;
           setError(
             getApiErrorMessage(failure, "Check your details and try again."),
           );
@@ -499,9 +576,9 @@ export function CareerForm({
                 )}
               <Field
               id={id}
-              label={`${field.label}${careerFieldRequired(field, draft) ? " *" : ""}`}
+              label={`${field.label}${fieldRequired(field, draft) ? " *" : ""}`}
               error={errors[field.key]}
-              optional={!careerFieldRequired(field, draft)}
+              optional={!fieldRequired(field, draft)}
               hint={
                 field.type === "list"
                   ? field.key === "preferred_locations"
