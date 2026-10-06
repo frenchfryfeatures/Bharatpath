@@ -63,12 +63,27 @@ async def get_job(session: AsyncSession, *, tenant_id: uuid.UUID, job_id: uuid.U
     return result.scalar_one_or_none()
 
 
+def _has_skill(skill: str) -> Any:
+    """The job asks for `skill`, compared case-insensitively and whole."""
+    return text(
+        "EXISTS (SELECT 1 FROM jsonb_array_elements_text(jobs.skills) AS s(name) "
+        "WHERE lower(s.name) = lower(:skill))"
+    ).bindparams(skill=skill)
+
+
 def _employer_job_filters(
-    *, tenant_id: uuid.UUID, status: str | None, query: str | None
+    *,
+    tenant_id: uuid.UUID,
+    statuses: Sequence[str] | None,
+    query: str | None,
+    work_mode: str | None = None,
+    skill: str | None = None,
+    created_from: datetime | None = None,
+    created_before: datetime | None = None,
 ) -> list[Any]:
     filters: list[Any] = [Job.tenant_id == tenant_id]
-    if status is not None:
-        filters.append(Job.status == status)
+    if statuses:
+        filters.append(Job.status.in_(list(statuses)))
     if query:
         pattern = _contains(query)
         filters.append(
@@ -77,6 +92,14 @@ def _employer_job_filters(
                 Job.location.ilike(pattern, escape="\\"),
             )
         )
+    if work_mode is not None:
+        filters.append(Job.work_mode == work_mode)
+    if skill:
+        filters.append(_has_skill(skill))
+    if created_from is not None:
+        filters.append(Job.created_at >= created_from)
+    if created_before is not None:
+        filters.append(Job.created_at < created_before)
     return filters
 
 
@@ -84,13 +107,25 @@ async def list_jobs(
     session: AsyncSession,
     *,
     tenant_id: uuid.UUID,
-    status: str | None,
+    statuses: Sequence[str] | None,
     query: str | None,
+    work_mode: str | None = None,
+    skill: str | None = None,
+    created_from: datetime | None = None,
+    created_before: datetime | None = None,
     after: tuple[datetime, uuid.UUID] | None,
     limit: int,
 ) -> list[Job]:
     stmt = select(Job).where(
-        *_employer_job_filters(tenant_id=tenant_id, status=status, query=query)
+        *_employer_job_filters(
+            tenant_id=tenant_id,
+            statuses=statuses,
+            query=query,
+            work_mode=work_mode,
+            skill=skill,
+            created_from=created_from,
+            created_before=created_before,
+        )
     )
     if after is not None:
         stmt = stmt.where(tuple_(Job.created_at, Job.id) < after)
@@ -264,12 +299,7 @@ async def search_board(
     if work_mode:
         stmt = stmt.where(Job.work_mode == work_mode)
     if skill:
-        stmt = stmt.where(
-            text(
-                "EXISTS (SELECT 1 FROM jsonb_array_elements_text(jobs.skills) AS s(name) "
-                "WHERE lower(s.name) = lower(:skill))"
-            ).bindparams(skill=skill)
-        )
+        stmt = stmt.where(_has_skill(skill))
     if min_salary_minor is not None:
         # A range that reaches the asked-for figure, not one that starts at it.
         stmt = stmt.where(Job.salary_max_minor >= min_salary_minor)

@@ -91,6 +91,23 @@ async def active_for(
     return result.scalar_one_or_none()
 
 
+async def hired_for(
+    session: AsyncSession, *, job_id: uuid.UUID, candidate_id: uuid.UUID
+) -> Application | None:
+    """The candidate's HIRED application for this job, if there is one.
+    HIRED is terminal, so `active_for` does not see it."""
+    result = await session.execute(
+        select(Application)
+        .where(
+            Application.job_id == job_id,
+            Application.candidate_id == candidate_id,
+            Application.stage == "HIRED",
+        )
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_for_candidate(
     session: AsyncSession,
     *,
@@ -162,25 +179,40 @@ async def list_for_employer(
     *,
     tenant_id: uuid.UUID,
     job_id: uuid.UUID | None,
-    stage: str | None,
+    stages: tuple[str, ...] | None,
+    candidate_ids: list[uuid.UUID] | None = None,
+    applied_from: datetime | None = None,
+    applied_before: datetime | None = None,
+    newest_first: bool = False,
     after: tuple[datetime, uuid.UUID] | None,
     limit: int,
 ) -> list[Application]:
-    """**Oldest first**, unlike the candidate's board: a pipeline is worked in
-    the order people applied, and the oldest are the ones nearest expiry.
+    """**Oldest first** by default, unlike the candidate's board: a pipeline is
+    worked in the order people applied, and the oldest are the ones nearest
+    expiry. `newest_first` turns it round for a list that wants the latest.
 
     One job (`ix_applications_job_stage`) or, with `job_id` None, every job
-    the organisation has (`ix_applications_tenant_created`)."""
+    the organisation has (`ix_applications_tenant_created`). `candidate_ids`
+    is a name search already resolved by discovery; an empty list is no one."""
     stmt = select(Application).where(Application.tenant_id == tenant_id)
     if job_id is not None:
         stmt = stmt.where(Application.job_id == job_id)
-    if stage is not None:
-        stmt = stmt.where(Application.stage == stage)
+    if stages is not None:
+        stmt = stmt.where(Application.stage.in_(stages))
+    if candidate_ids is not None:
+        stmt = stmt.where(Application.candidate_id.in_(candidate_ids))
+    if applied_from is not None:
+        stmt = stmt.where(Application.created_at >= applied_from)
+    if applied_before is not None:
+        stmt = stmt.where(Application.created_at < applied_before)
     if after is not None:
-        stmt = stmt.where(_keyset(after, descending=False))
-    result = await session.execute(
-        stmt.order_by(Application.created_at.asc(), Application.id.asc()).limit(limit)
+        stmt = stmt.where(_keyset(after, descending=newest_first))
+    order = (
+        (Application.created_at.desc(), Application.id.desc())
+        if newest_first
+        else (Application.created_at.asc(), Application.id.asc())
     )
+    result = await session.execute(stmt.order_by(*order).limit(limit))
     return list(result.scalars().all())
 
 

@@ -51,6 +51,8 @@ async def _parse(resume_file_id: str) -> dict[str, Any]:
     from app.modules.resume.models import ResumeFile
     from app.modules.resume.parser import get_resume_parser
     from app.modules.resume.scanner import may_process
+    from app.modules.resume.structuring import STORED_KEY as STRUCTURED_KEY
+    from app.modules.resume.structuring import structure_resume
     from app.settings import get_settings
 
     settings = get_settings()
@@ -131,6 +133,10 @@ async def _parse(resume_file_id: str) -> dict[str, Any]:
             )
             return {"status": "unparseable", "code": exc.code}
 
+        # Display only, never scored, and never fatal: a model that is down
+        # leaves a FAILED status beside a perfectly good version.
+        structured = await structure_resume(extracted.text, settings=settings)
+
         version = await repository.create_version(
             session,
             user_id=row.user_id,
@@ -152,6 +158,8 @@ async def _parse(resume_file_id: str) -> dict[str, Any]:
                     "parser": extracted.parser,
                     "parser_version": extracted.parser_version,
                 },
+                # The review screen's structured view (`resume/structuring.py`).
+                STRUCTURED_KEY: structured,
             },
         )
         await emit(

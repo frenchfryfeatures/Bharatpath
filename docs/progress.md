@@ -9,6 +9,74 @@ states. Newest entries first.
 
 ---
 
+## 2026-10-06 — the CV as structured JSON, for review and preview
+
+Backend only, asked for by the backend owner: give the apps the CV as fields
+(contacts and profile links, each job, each qualification, projects,
+certifications, languages, the rest) rather than the parser's text.
+
+- **`resume/structuring.py`**: one OpenAI call per created version, schema
+  `StructuredResume` (facts only -- no rating, nothing on age, gender, marital
+  status or family; the prompt forbids them and `_without_personal_details`
+  drops what slips into the catch-all sections). Links become full https URLs.
+- **Written beside `raw_text` at creation**, under `parsed.structured_resume`
+  with status, model id, prompt and schema versions -- in the parse task,
+  `/intake`, paste and text/section edits. A version is immutable, so it is
+  never added later. Form-built versions are mapped on read, with no model.
+- **Never scored.** `raw_text` is still Layer 1's input (`sections.py` says
+  why) and no scoring code reads the new key. Employer, college and admin
+  views show `fields` only for text-less versions, so they never see it.
+- **Best effort.** No key, switched off (`RESUME_STRUCTURING_ENABLED`) or a
+  failed call stores `UNAVAILABLE`/`FAILED` and the version is still created;
+  the sections view remains. CI has no key, so CI never calls it.
+- **Responses:** `GET /resume/versions/{id}` gains `structured_resume` and
+  `structured_status` (the stored copy is left out of its `parsed` echo);
+  `GET /resume/versions/{id}/preview` gains the same two keys. Additive:
+  `parsed.raw_text` and `sections` are unchanged for the apps until they switch.
+- **Cost and latency:** the model call sits inside `/intake`, paste and edit
+  requests (seconds), and in the parse task. Versions made before today read
+  `UNAVAILABLE` and are not back-filled.
+- Tests: `tests/unit/test_resume_structuring.py`,
+  `tests/integration/test_resume_structured_view.py`.
+
+---
+
+## 2026-10-06 — filters on the employer's jobs and applications lists
+
+Asked for by the portal team; the filter set is ours (no UI spec existed).
+All filters AND together; dates are IST days, both ends inclusive, through
+`app.core.pagination.ist_day_range` (422 `invalid_date_range` when inverted).
+
+- **`GET /employer/jobs`**: `status` now repeatable, plus `work_mode`, `skill`
+  (whole, any case -- the board's `_has_skill`), `created_from`/`created_to`.
+- **`GET /employer/applications`**: `stage` now repeatable, plus `status`
+  (ACTIVE/CLOSED, `STATUS_STAGES`), `q` (applicant's profile name),
+  `applied_from`/`applied_to`, `order=oldest|newest` (default unchanged).
+- **The name search is discovery's** (`applicants_named`, on the CTE). Searching
+  `candidate_profiles` from `applications` would find a hidden candidate by
+  name and their `candidate: null` row would confirm who it is. Ids only, not
+  audited; the page drawn from it is, through `applicant_cards`.
+- Both changes are additive: a single `?status=`/`?stage=` still works.
+- Tests: `tests/integration/test_employer_list_filters.py`.
+
+REJECTED / WITHDRAWN / EXPIRED may be re-invited -- confirmed by the backend
+owner the same day.
+
+## 2026-10-06 — no invitation to a candidate already hired for the job
+
+Portal team found an invitation going to a candidate who was already HIRED for
+that job. `shortlist_candidate` refused only `repository.active_for`, which
+excludes `TERMINAL_STAGES`, and HIRED is terminal -- so a candidate who applied
+directly and was hired had no shortlist row and nothing stopped the invite.
+Now 409 `already_hired` (`params.application_id`), `repository.hired_for`,
+test `test_a_candidate_already_hired_for_the_job_is_not_invited`. REJECTED,
+WITHDRAWN and EXPIRED still allow a fresh invitation, by decision.
+
+**Not changed:** an invitation sent *before* the hire stays INVITED, and
+`insert_if_absent` lets a hired candidate apply to the same job again.
+
+---
+
 ## 2026-10-05 — applicants named, CVs to employers, the shortlist, passwords
 
 Backend only. Six requests from the portal teams, agreed with the backend owner.

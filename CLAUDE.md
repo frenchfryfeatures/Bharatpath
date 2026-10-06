@@ -199,6 +199,11 @@ attached to it.
   (`resume/sections.py`, 2026-09-23). A `sections` edit is assembled back into
   text. Do not "upgrade" it to the structured form: that drops the prose Layer 1
   reads, so fixing a typo would lower a score.
+- **`parsed.structured_resume` is a model's display view, never scored**
+  (`resume/structuring.py`, 2026-10-06). Written at version creation beside
+  `raw_text`, best effort (no key = `UNAVAILABLE`). Never make it a scoring
+  input, and never show it on a surface that shows `fields` -- it holds
+  every contact and link on the CV.
 
 Anything that feeds a deliberately unreadable document into the parse chain
 will call **Textract for real** unless it is pinned to `LocalResumeParser` —

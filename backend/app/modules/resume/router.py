@@ -42,6 +42,8 @@ from app.modules.resume.schemas import (
     UploadTicketResponse,
 )
 from app.modules.resume.sections import section_items, split_sections
+from app.modules.resume.structuring import STORED_KEY as STRUCTURED_KEY
+from app.modules.resume.structuring import structured_view
 from app.settings import get_settings
 
 router = APIRouter()
@@ -247,11 +249,15 @@ async def review_version(
     row, superseded = await service.get_version_for_review(
         session, user_id=user.user_id, resume_version_id=resume_version_id
     )
+    structured, structured_status = structured_view(row.parsed)
     return ResumeVersionDetailResponse(
         resume_version_id=row.id,
         source=row.source,
-        parsed=row.parsed,
+        # The stored structured document is returned once, below, not twice.
+        parsed={k: v for k, v in row.parsed.items() if k != STRUCTURED_KEY},
         sections=_sections_of(row.parsed),
+        structured_resume=structured,
+        structured_status=structured_status,
         confirmed=row.confirmed_at is not None,
         confirmed_at=row.confirmed_at,
         supersedes_id=row.supersedes_id,
