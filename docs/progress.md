@@ -9,6 +9,31 @@ states. Newest entries first.
 
 ---
 
+## 2026-10-06 — the frontend builds again (7 type errors)
+
+`cd frontend && npm run build` failed on the branch `Rishabh/CreateJobUpdate`.
+`tsc --noEmit` named exactly seven errors, both from commits that touched one
+side of a shared component and not the other.
+
+- **`store/shortlist/shortlist.api.ts`** typed `EmployerInvitation.candidate`
+  as `{ full_name, city, band }` while the invitation drawer read
+  `state_code`, `experience_years` and `skills` too. The block is the
+  backend's `ApplicantCard`, which returns all of those plus `badges`, so the
+  type was stale rather than the UI wrong. It now mirrors `ApplicantCard`
+  exactly (`ShortlistedCandidate`, reusing `CandidateBand`/`CandidateBadge`).
+  **No contact and no score** — widening it to `ApplicantProfile` would put a
+  reveal's fields on a list row.
+- **`ParsingStep` gained a required `onCancel`** (commit `9f6a4c1`, "Update the
+  student flow") with the button *Cancel and return to previous resume*.
+  `resume-details.tsx` was wired; the sign-up flow was not, so its call site
+  failed. The prop is now optional and the button renders only when a caller
+  passes one: sign-up has no previous resume, so the label would be a lie
+  there.
+- Both `tsc --noEmit` and `npm run build` exit 0 afterwards. The four
+  remaining `npm run lint` errors are pre-existing, in files not touched.
+
+---
+
 ## 2026-10-06 — the resume prefill no longer fails on one bad field
 
 `POST /auth/resume-preview` answered 503 `resume_prefill_unavailable` for some
