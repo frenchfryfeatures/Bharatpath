@@ -24,7 +24,7 @@ const approvalOptions: Array<{
     key: "manual",
     label: "Manual approval",
     description:
-      "Every employer waits for an operator decision before becoming fully active. Slower, but nothing clears unreviewed.",
+      "Currently unavailable. Employers cannot be switched to manual approval.",
   },
   {
     key: "auto",
@@ -72,7 +72,7 @@ export function KybApprovalTab({
               <button
                 key={option.key}
                 type="button"
-                disabled={Boolean(hasError || isLoading || isSaving || kybMode === option.key)}
+                disabled={Boolean(option.key === "manual" || hasError || isLoading || isSaving || kybMode === option.key)}
                 onClick={() => onModeChange(option.key)}
                 className={[
                   "flex w-full items-start gap-3 rounded-[12px] border p-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-70",
@@ -103,6 +103,12 @@ export function KybApprovalTab({
                     <span className="text-[13px] font-semibold text-[#172033]">
                       {option.label}
                     </span>
+
+                    {option.key === "manual" && !active && (
+                      <span className="shrink-0 text-[11px] font-medium text-[#7b8494]">
+                        Unavailable
+                      </span>
+                    )}
 
                     {active && !isLoading && (
                       <span className="shrink-0 rounded-full bg-[#6255d8] px-2.5 py-1 text-[10px] font-bold uppercase text-white">
