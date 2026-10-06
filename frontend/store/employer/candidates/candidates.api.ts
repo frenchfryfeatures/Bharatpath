@@ -3,6 +3,7 @@ import type { Candidate, CandidateBadge, CandidateBand } from "@/features/employ
 
 interface MaskedCandidateResponse {
   candidate_id: string;
+  full_name?: string | null;
   band: CandidateBand;
   experience_years: number;
   skills: string[];
@@ -68,6 +69,21 @@ export interface RevealedCandidateResponse {
   badges: CandidateBadge[];
   city: string | null;
   state_code: string | null;
+  resume?: {
+    version_id: string;
+    source: string;
+    confirmed_at: string;
+    text: string | null;
+    sections: Array<{ kind: string; heading: string | null; body: string }>;
+    fields: Record<string, unknown>;
+    file_url: string | null;
+    file_mime: string | null;
+    file_url_expires_at: string | null;
+  } | null;
+  shortlist?: {
+    saved_id: string | null;
+    invitations: Array<{ id: string; job_id: string; status: string; application_id: string | null }>;
+  };
 }
 
 export interface EmployerCandidatesQuery {
@@ -85,6 +101,7 @@ export interface EmployerCandidatesQuery {
 function mapCandidate(candidate: MaskedCandidateResponse): Candidate {
   return {
     candidateId: candidate.candidate_id,
+    fullName: candidate.full_name,
     band: candidate.band,
     experienceYears: candidate.experience_years,
     location: [candidate.city, candidate.state_code].filter(Boolean).join(" · ") || "Location not shared",
@@ -95,6 +112,10 @@ function mapCandidate(candidate: MaskedCandidateResponse): Candidate {
 
 export const employerCandidatesApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
+    shortlistEmployerCandidate: builder.mutation<{ id: string; candidate_id: string; status: string }, { candidate_id: string; job_id?: string }>({
+      query: (body) => ({ url: "/employer/shortlist", method: "POST", body }),
+      invalidatesTags: (_result, error, body) => error ? [] : [{ type: "Candidate", id: body.candidate_id }, { type: "Candidate", id: "INVITATIONS" }],
+    }),
     getEmployerCandidateFilters: builder.query<
       CandidateFilterPanelResponse,
       void
@@ -188,6 +209,7 @@ export const employerCandidatesApi = baseApi.injectEndpoints({
 });
 
 export const {
+  useShortlistEmployerCandidateMutation,
   useGetEmployerCandidateFiltersQuery,
   useGetEmployerCandidateSkillSuggestionsQuery,
   useGetEmployerCandidateLocationSuggestionsQuery,

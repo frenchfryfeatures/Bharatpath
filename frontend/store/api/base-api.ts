@@ -5,6 +5,7 @@ import {
 
 import { getStoredToken } from "@/lib/auth/token";
 import { handleSessionExpired } from "@/lib/auth/handle-session-expired";
+import { getFreshToken, refreshSession } from "@/lib/auth/refresh-session";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ??
@@ -34,7 +35,7 @@ const rawBaseQuery = fetchBaseQuery({
 
   credentials: "include",
 
-  prepareHeaders: (headers) => {
+  prepareHeaders: async (headers) => {
     headers.set(
       "Accept",
       "application/json",
@@ -46,7 +47,7 @@ const rawBaseQuery = fetchBaseQuery({
      * local-dev NEXT_PUBLIC_API_BEARER_TOKEN when no one is signed in.
      */
     const bearerToken =
-      getStoredToken() ?? process.env.NEXT_PUBLIC_API_BEARER_TOKEN;
+      (await getFreshToken()) ?? process.env.NEXT_PUBLIC_API_BEARER_TOKEN;
 
     if (bearerToken) {
       headers.set(
@@ -64,8 +65,21 @@ export const baseApi = createApi({
 
   baseQuery: async (args, api, extraOptions) => {
     const hadSession = Boolean(getStoredToken());
-    const result = await rawBaseQuery(args, api, extraOptions);
-    if (hadSession && result.error?.status === 401) handleSessionExpired();
+    let result = await rawBaseQuery(args, api, extraOptions);
+    if (hadSession && result.error?.status === 401) {
+      // The access token lives under an hour; the refresh token behind it
+      // lasts 30 days. Only a refused refresh ends the session.
+      const renewed = await refreshSession(true);
+      if (renewed.status === "OK") {
+        result = await rawBaseQuery(args, api, extraOptions);
+      }
+      if (
+        renewed.status === "EXPIRED" ||
+        (renewed.status === "OK" && result.error?.status === 401)
+      ) {
+        handleSessionExpired();
+      }
+    }
     return result;
   },
 

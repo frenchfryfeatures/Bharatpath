@@ -1,5 +1,6 @@
 import {
   House,
+  Mail,
   Briefcase,
   ListChecks,
   MicVocal,
@@ -25,6 +26,7 @@ export interface StudentNavItem {
 export const studentNavItems: StudentNavItem[] = [
   { key: "home", label: "Home", href: "/student", icon: House },
   { key: "jobs", label: "Jobs", href: "/student/jobs", icon: Briefcase },
+  { key: "invites", label: "Invites", href: "/student/invites", icon: Mail },
   { key: "board", label: "Board", href: "/student/board", icon: ListChecks },
   { key: "interview", label: "Interview", href: "/student/interview", icon: MicVocal },
   { key: "courses", label: "Courses", href: "/student/courses", icon: BookOpen },

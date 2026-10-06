@@ -20,7 +20,7 @@ export interface ErrorStateProps {
   title?: string;
   /**
    * `inline` — a compact banner for in-context failures (default).
-   * `block`  — a centred panel for whole-section load failures.
+   * `block`  — a compact card with a heading for section load failures.
    */
   variant?: "inline" | "block";
   /** When provided, a "Try again" button is shown. */
@@ -53,40 +53,41 @@ export function ErrorState({
       <div
         role="alert"
         className={[
-          "flex flex-col items-center justify-center gap-2 rounded-xl",
-          "border border-[#f0c8cc] bg-[#fff7f7] px-6 py-8 text-center",
+          "flex items-start gap-3 rounded-xl",
+          "border border-[#f2dadd] bg-[#fff9f9] px-4 py-3",
           className ?? "",
         ].join(" ")}
       >
-        <AlertCircle
-          className="h-5 w-5 text-[#c52b2b]"
-          aria-hidden="true"
-        />
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#fcebed] text-[#bc3545]">
+          <AlertCircle className="h-4 w-4" aria-hidden="true" />
+        </span>
 
-        {title && (
-          <p className="text-[13px] font-semibold text-[#9f2432]">
-            {title}
+        <div className="min-w-0 flex-1">
+          {title && (
+            <p className="text-[12px] font-semibold leading-5 text-[#9f2432]">
+              {title}
+            </p>
+          )}
+
+          <p className="break-words text-[12px] leading-5 text-[#91555e]">
+            {text}
           </p>
-        )}
 
-        <p className="text-[12px] text-[#9f2432]">
-          {text}
-        </p>
-
-        {(onRetry || action) && (
-          <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
-            {onRetry && (
-              <button
-                type="button"
-                onClick={onRetry}
-                className="cursor-pointer rounded-lg border border-[#e0aeb4] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#9f2432] transition-colors hover:bg-[#fdeef0]"
-              >
-                Try again
-              </button>
-            )}
-            {action}
-          </div>
-        )}
+          {(onRetry || action) && (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {onRetry && (
+                <button
+                  type="button"
+                  onClick={onRetry}
+                  className="cursor-pointer rounded-md border border-[#efd3d8] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#9f2432] transition-colors hover:bg-[#fdeef0] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#bc3545]"
+                >
+                  Try again
+                </button>
+              )}
+              {action}
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -95,17 +96,17 @@ export function ErrorState({
     <div
       role="alert"
       className={[
-        "flex items-start gap-2.5 rounded-lg border border-[#f0d4d8]",
-        "bg-[#fff7f7] px-3 py-2.5 text-[12px] leading-5 text-[#9f2432]",
+        "flex flex-wrap items-start gap-x-2.5 gap-y-2 rounded-lg border border-[#f2dadd]",
+        "bg-[#fff9f9] px-3 py-2 text-[12px] leading-5 text-[#91555e]",
         className ?? "",
       ].join(" ")}
     >
       <AlertCircle
-        className="mt-0.5 h-4 w-4 shrink-0 text-[#c52b2b]"
+        className="mt-0.5 h-4 w-4 shrink-0 text-[#bc3545]"
         aria-hidden="true"
       />
 
-      <span className="min-w-0 flex-1">{text}</span>
+      <span className="min-w-0 flex-1 break-words">{text}</span>
 
       {onRetry && (
         <button

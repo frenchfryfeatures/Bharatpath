@@ -32,6 +32,9 @@ function sectionFor(pathname: string): Section {
   if (pathname.startsWith("/student/jobs")) {
     return { title: "Jobs", subtitle: "Roles matched to your score" };
   }
+  if (pathname.startsWith("/student/invites")) {
+    return { title: "Invites", subtitle: "Job invitations from employers" };
+  }
   if (pathname.startsWith("/student/board")) {
     return { title: "Board", subtitle: "Where your applications stand" };
   }

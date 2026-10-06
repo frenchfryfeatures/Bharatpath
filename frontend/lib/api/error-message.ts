@@ -22,6 +22,14 @@ const GENERIC_MESSAGE =
 
 /** Known backend `code`s that benefit from specific copy. */
 const CODE_MESSAGES: Record<string, string> = {
+  shortlist_not_found:
+    "This invitation is no longer available. Check your latest invitations.",
+  shortlist_not_pending:
+    "This invitation has already been answered or cancelled. Check its latest status.",
+  shortlist_job_not_open:
+    "This job is no longer open, so the invitation cannot be accepted.",
+  application_unavailable:
+    "Your profile is currently unavailable for applications. Check your profile visibility before trying again.",
   rate_limited:
     "Too many requests. Please wait a moment and try again.",
   operation_in_progress:

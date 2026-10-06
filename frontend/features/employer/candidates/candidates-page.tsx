@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { CursorPagination } from "@/components/ui";
 import { EmployerErrorState } from "@/features/employer/components/employer-error-state";
@@ -91,19 +91,24 @@ export function CandidatesPage() {
   const [selectedCandidateId, setSelectedCandidateId] =
     useState<string | null>(null);
   const [revealed, setRevealed] = useState<RevealedCandidateResponse | null>(null);
+  const [openedCandidates, setOpenedCandidates] = useState<Record<string, RevealedCandidateResponse>>({});
+  const profileRequest = useRef(0);
 
   async function openCandidateProfile(candidateId: string) {
+    const request = ++profileRequest.current;
     setSelectedCandidateId(candidateId);
     setRevealed(null);
     revealState.reset();
 
     const result = await revealCandidate(candidateId);
     if (result.data) {
-      setRevealed(result.data);
+      if (request === profileRequest.current) setRevealed(result.data);
+      setOpenedCandidates((previous) => ({ ...previous, [candidateId]: result.data! }));
     }
   }
 
   function closeCandidateProfile() {
+    profileRequest.current += 1;
     setSelectedCandidateId(null);
     setRevealed(null);
     revealState.reset();
@@ -167,7 +172,7 @@ export function CandidatesPage() {
             {!isCandidateListLoading && candidates.map((candidate) => (
               <CandidateCard
                 key={candidate.candidateId}
-                candidate={candidate}
+                candidate={{ ...candidate, fullName: openedCandidates[candidate.candidateId]?.full_name ?? candidate.fullName }}
                 onReveal={() =>
                   void openCandidateProfile(candidate.candidateId)
                 }

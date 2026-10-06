@@ -1,6 +1,6 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
-import { getStoredToken } from "@/lib/auth/token";
+import { getFreshToken } from "@/lib/auth/refresh-session";
 
 import type {
   Notification,
@@ -16,6 +16,7 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "https://bharatpath-api.duckdns.org/api/v1";
 
 function notificationType(templateCode: string): NotificationType {
+  if (templateCode.includes("SHORTLIST_INVITED")) return "JOB";
   if (templateCode.includes("APPLICATION")) return "HIRING";
   if (templateCode.includes("PAYMENT") || templateCode.includes("DEBIT")) {
     return "PAYMENT";
@@ -36,6 +37,7 @@ function toNotification(item: NotificationInboxItem): Notification {
     title: item.body,
     timestamp: item.created_at,
     read: item.read_at !== null,
+    href: item.template_code === "IN_APP_SHORTLIST_INVITED" ? "/student/invites" : undefined,
   };
 }
 
@@ -44,11 +46,11 @@ const rawBaseQuery = fetchBaseQuery({
 
   credentials: "include",
 
-  prepareHeaders: (headers) => {
+  prepareHeaders: async (headers) => {
     headers.set("Accept", "application/json");
 
     const bearerToken =
-      getStoredToken() ?? process.env.NEXT_PUBLIC_API_BEARER_TOKEN;
+      (await getFreshToken()) ?? process.env.NEXT_PUBLIC_API_BEARER_TOKEN;
     if (bearerToken) {
       headers.set("Authorization", `Bearer ${bearerToken}`);
     }

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   BriefcaseBusiness,
+  FileText,
   Mail,
   MapPin,
   Phone,
@@ -11,8 +12,14 @@ import {
 } from "lucide-react";
 
 import { EmployerErrorState } from "@/features/employer/components/employer-error-state";
+import { AppSelect } from "@/components/ui/app-select";
+import { useDebouncedSearch } from "@/lib/hooks/use-debounced-value";
 import { useScrollLock } from "@/hooks/use-scroll-lock";
 import type { RevealedCandidateResponse } from "@/store/employer/candidates";
+import { useShortlistEmployerCandidateMutation } from "@/store/employer/candidates";
+
+import { useLazyGetEmployerJobsQuery } from "@/store/employer/jobs";
+import { useCursorLoadMore } from "@/lib/pagination/use-cursor-load-more";
 
 import type { CandidateBand } from "./types";
 
@@ -72,6 +79,41 @@ export function CandidateDetailsDialog({
   onClose,
 }: CandidateDetailsDialogProps) {
   useScrollLock(open);
+  const [shortlistCandidate, shortlistState] = useShortlistEmployerCandidateMutation();
+  const [selection, setSelection] = useState({ candidateId: "", jobId: "", jobTitle: "" });
+  const jobId = selection.candidateId === candidate?.candidate_id ? selection.jobId : "";
+  const [sentInvitations, setSentInvitations] = useState<Record<string, string>>({});
+  const [jobSearch, setJobSearch] = useState("");
+  const debouncedJobSearch = useDebouncedSearch(jobSearch);
+  const [loadJobs] = useLazyGetEmployerJobsQuery();
+  const jobs = useCursorLoadMore(useCallback((cursor: string | undefined) =>
+    loadJobs({ status: "PUBLISHED", q: debouncedJobSearch || undefined, cursor, limit: 20 }).unwrap(),
+    [loadJobs, debouncedJobSearch]), [debouncedJobSearch], open);
+  const jobOptions = jobs.items.map((job) => ({ value: job.id, label: job.title }));
+  if (jobId && !jobOptions.some((option) => option.value === jobId)) {
+    jobOptions.unshift({ value: jobId, label: selection.jobTitle });
+  }
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
+  useEffect(() => {
+    if (!open) return;
+    const timer = window.setInterval(() => setCurrentTime(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [open]);
+  const invitationKey = `${candidate?.candidate_id}:${jobId}`;
+  const invitationStatus = sentInvitations[invitationKey] ?? candidate?.shortlist?.invitations.find((item) => item.job_id === jobId)?.status;
+  const alreadyInvited = Boolean(invitationStatus && invitationStatus !== "CANCELLED");
+  const shortlistError = shortlistState.originalArgs?.candidate_id === candidate?.candidate_id
+    ? shortlistState.error : undefined;
+
+  async function handleShortlist() {
+    if (!candidate || !jobId || alreadyInvited || shortlistState.isLoading) return;
+    try {
+      const result = await shortlistCandidate({ candidate_id: candidate.candidate_id, job_id: jobId }).unwrap();
+      setSentInvitations((previous) => ({ ...previous, [invitationKey]: result.status }));
+    } catch {
+      // Keep the selection available for retry; render the API error below.
+    }
+  }
 
   useEffect(() => {
     if (!open) {
@@ -240,11 +282,72 @@ export function CandidateDetailsDialog({
                 )}
               </section>
 
+              <section>
+                <SectionHeading icon={FileText} title="Resume" />
+                {candidate.resume ? (
+                  <div className="mt-3 space-y-4 rounded-xl border border-[#e5e8ee] p-4">
+                    {candidate.resume.file_url ? (
+                      candidate.resume.file_url_expires_at && Date.parse(candidate.resume.file_url_expires_at) <= currentTime ? (
+                        <button type="button" onClick={onRetry} className="text-[12px] font-semibold text-[#51449a]">Refresh resume download link</button>
+                      ) : (
+                        <a href={candidate.resume.file_url} target="_blank" rel="noopener noreferrer" className="inline-flex text-[12px] font-semibold text-[#51449a] hover:underline">Download original resume</a>
+                      )
+                    ) : null}
+                    {candidate.resume.sections.length > 0 ? candidate.resume.sections.map((section, index) => (
+                      <div key={`${section.kind}-${index}`}>
+                        {section.heading ? <h4 className="mb-2 text-[13px] font-semibold text-[#273142]">{section.heading}</h4> : null}
+                        <p className="whitespace-pre-wrap break-words text-[12px] leading-5 text-[#43516a]">{section.body}</p>
+                      </div>
+                    )) : candidate.resume.text ? (
+                      <p className="whitespace-pre-wrap break-words text-[12px] leading-5 text-[#43516a]">{candidate.resume.text}</p>
+                    ) : Object.keys(candidate.resume.fields).length > 0 ? (
+                      <ResumeFields value={candidate.resume.fields} />
+                    ) : <EmptyDetail text="No resume content is available." />}
+                  </div>
+                ) : <EmptyDetail text="No confirmed resume is available." />}
+              </section>
             </div>
           ) : null}
         </div>
 
-        <footer className="flex shrink-0 justify-end border-t border-[#e8ebf0] bg-[#fafbfc] px-5 py-3">
+        <footer className="shrink-0 space-y-3 border-t border-[#e8ebf0] bg-[#fafbfc] px-5 py-3">
+          {!isLoading && !error && candidate ? (
+            <div className="space-y-2">
+              <p className="text-[13px] font-semibold text-[#273142]">Shortlist for a job</p>
+              <AppSelect
+                value={jobId}
+                onChange={(value) => setSelection({ candidateId: candidate.candidate_id, jobId: value, jobTitle: jobOptions.find((option) => option.value === value)?.label ?? "Selected job" })}
+                options={jobOptions}
+                placeholder="Select a published job"
+                ariaLabel="Shortlist for a job"
+                searchable
+                searchPlaceholder="Search published jobs"
+                onSearchChange={setJobSearch}
+                isSearching={jobs.isLoading || jobSearch.trim() !== debouncedJobSearch}
+                loadingMessage={jobSearch ? "Searching jobs..." : "Loading jobs..."}
+                noOptionsMessage={jobSearch ? "No published jobs match your search" : "No published jobs available"}
+                hasMoreOptions={jobs.hasMore}
+                onLoadMoreOptions={jobs.loadMore}
+                isLoadingMoreOptions={jobs.isLoadingMore}
+                menuPlacement="top"
+                portal
+                menuClassName="!z-[110]"
+              />
+              {jobs.error ? <EmployerErrorState error={jobs.error} onRetry={jobs.retry} /> : null}
+              {shortlistError ? <EmployerErrorState error={shortlistError} fallback="This invitation could not be sent. Please try again." /> : null}
+              <p className="text-[12px] text-[#687182]">The candidate enters Shortlisted after accepting your invitation.</p>
+              {alreadyInvited ? <p role="status" className="text-[12px] font-medium text-[#51449a]">{invitationStatus === "DECLINED" ? "Invitation rejected for this job." : invitationStatus === "ACCEPTED" ? "Invitation accepted." : "Invitation sent. Awaiting candidate response."}</p> : null}
+            </div>
+          ) : null}
+          <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => void handleShortlist()}
+            disabled={!candidate || isLoading || Boolean(error) || shortlistState.isLoading || !jobId || alreadyInvited}
+            className="rounded-lg bg-[#5b4fcf] px-4 py-2 text-[12px] font-semibold text-white transition-colors hover:bg-[#51449a] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {shortlistState.isLoading ? "Sending..." : invitationStatus === "DECLINED" ? "Invitation rejected" : invitationStatus === "ACCEPTED" ? "Shortlisted" : alreadyInvited ? "Invited" : "Shortlist & invite"}
+          </button>
           <button
             type="button"
             onClick={onClose}
@@ -252,10 +355,27 @@ export function CandidateDetailsDialog({
           >
             Close
           </button>
+          </div>
         </footer>
       </aside>
     </div>
   );
+}
+
+function ResumeFields({ value }: { value: unknown }) {
+  if (value === null || value === undefined || value === "") return null;
+  if (Array.isArray(value)) {
+    return <div className="space-y-2">{value.map((item, index) => <ResumeFields key={index} value={item} />)}</div>;
+  }
+  if (typeof value === "object") {
+    return <dl className="space-y-3">{Object.entries(value).map(([key, item]) => (
+      <div key={key}>
+        <dt className="text-[12px] font-semibold capitalize text-[#273142]">{key.replaceAll("_", " ")}</dt>
+        <dd className="mt-1 pl-2"><ResumeFields value={item} /></dd>
+      </div>
+    ))}</dl>;
+  }
+  return <p className="whitespace-pre-wrap break-words text-[12px] leading-5 text-[#43516a]">{String(value)}</p>;
 }
 
 function SectionHeading({

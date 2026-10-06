@@ -20,6 +20,8 @@ import { useApplicationsPage } from "../hooks/use-applications-page";
 
 export function ApplicationsPageContent() {
   const {
+    refreshVersion,
+    handleRefresh,
     stageErrorToast,
     dismissStageError,
     applications,
@@ -127,6 +129,7 @@ export function ApplicationsPageContent() {
           pb-4
         "
       >
+        <button type="button" onClick={handleRefresh} disabled={isLoading} className="mb-3 rounded-lg border border-[#d9dee7] bg-white px-3 py-2 text-xs font-semibold text-[#51449a]">Refresh applications & invitations</button>
         <ApplicationFilter
           value={jobFilter}
           total={applications.length}
@@ -171,6 +174,8 @@ export function ApplicationsPageContent() {
           <ApplicationsPipelineSkeleton />
         ) : (
           <ApplicationPipeline
+            key={refreshVersion}
+            jobId={jobFilter === "all" ? undefined : jobFilter}
             applications={applications}
             loadedApplicationCount={loadedApplicationCount}
             hasNextPage={hasNextPage}
