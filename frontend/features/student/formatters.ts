@@ -77,6 +77,7 @@ export function formatDateTime(value: string): string {
 }
 
 export function formatSalary(job: JobListing): string {
+  if (!job.salaryDisclosed) return "Not disclosed";
   const formatter = new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",

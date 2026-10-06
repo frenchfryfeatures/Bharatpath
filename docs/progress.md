@@ -9,6 +9,39 @@ states. Newest entries first.
 
 ---
 
+## 2026-10-06 — the full job posting, and one job page for every portal
+
+Branch `Rishabh/CreateJobUpdate`. The client asked for a Naukri-style job page
+and a twelve-section job composer.
+
+- **`jobs.details`** (migration `0012_job_details`, JSONB, `{}` default),
+  validated by `jobs/details.py` `JobDetails`: basics, extra locations,
+  experience max and salary period/type/disclosure, responsibilities and
+  qualifications, preferred skills and tools, education, languages and notice
+  period, application method, screening questions, hiring process, visibility.
+  Strict shape, optional presence -- an old client sending no `details` still
+  works. The composer decides what is required.
+- **Refused, deliberately: minimum/maximum age and gender.** Invariant 5 and
+  the discrimination rule (`blockers.md` C3). `extra="forbid"` makes either a
+  422; `test_a_job_cannot_ask_for_age_or_gender` holds it. The composer says so
+  in section 7.
+- **Candidates read `CandidateJobDetails`**: no hiring manager, no screening
+  questions or knockout answers, no internal settings (featured only).
+- **Enforced**: visibility -- only PUBLIC jobs are listed on the board;
+  PRIVATE/INVITE_ONLY are published but unlisted (open by link). External
+  application URLs must be https.
+- **Recorded, not yet acted on**: screening questions are not asked at apply
+  (the apply request is held to `job_id` alone by a test); cover letter and
+  portfolio are shown, not collected; `featured` is a badge, not a ranking;
+  referrals and applicant access change no permission; `publish_on` is a
+  planned date, publishing stays manual. Salary "not disclosed" hides the
+  range on screen (`salary_disclosed` on board rows) but the range is still
+  mandatory and still in the API (PRD 5.2).
+- **Frontend**: `features/jobs/` holds the shared types and
+  `JobDescriptionView` (tone `student` / `employer`), used by the student job
+  page, the new employer page `/employer/jobs/[id]` and the composer preview.
+  Colleges have no job surface to put it on. The mobile app is unchanged.
+
 ## 2026-10-06 — the CV as structured JSON, for review and preview
 
 Backend only, asked for by the backend owner: give the apps the CV as fields

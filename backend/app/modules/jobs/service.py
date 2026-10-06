@@ -55,6 +55,7 @@ from app.core.tenant import TenantContext
 from app.modules.discovery import service as discovery_service
 from app.modules.employer import service as employer_service
 from app.modules.jobs import repository
+from app.modules.jobs.details import check_against_columns, for_candidate, parse_stored
 from app.modules.jobs.domain import coarse_count, eligibility, is_editable, refuse_transition
 from app.modules.jobs.events import MODULE
 from app.modules.jobs.schemas import (
@@ -100,6 +101,11 @@ class SalaryRangeError(ValidationError):
     title = "Salary maximum is below the minimum"
 
 
+class JobDetailsError(ValidationError):
+    code = "job_details_invalid"
+    title = "The job's details do not agree with its requirements"
+
+
 async def _bind(session: AsyncSession, ctx: TenantContext) -> uuid.UUID:
     if ctx.tenant_id is None:
         raise PermissionDeniedError()
@@ -121,7 +127,11 @@ async def create_job(
 ) -> Any:
     """A draft. Creating one needs no verification; publishing it does."""
     tenant_id = await _bind(session, ctx)
-    job = await repository.create_job(session, tenant_id=tenant_id, fields=payload.model_dump())
+    fields = payload.model_dump()
+    # Stored as JSON, so dates become ISO strings and the document reads back
+    # through `JobDetails` exactly as it was validated.
+    fields["details"] = payload.details.model_dump(mode="json")
+    job = await repository.create_job(session, tenant_id=tenant_id, fields=fields)
     await emit(
         session,
         event_type=f"{MODULE}.job_created",
@@ -241,6 +251,19 @@ async def update_job(
         # Checked against the merged values: an edit that sends only a new
         # minimum can still invert a range the database would then refuse.
         raise SalaryRangeError(params={"salary_min_minor": low, "salary_max_minor": high})
+
+    if payload.details is not None:
+        changes["details"] = payload.details.model_dump(mode="json")
+    # The document and the columns beside it are checked together on the
+    # merged values: an edit may change the required skills without resending
+    # the details that name one of them as primary.
+    problem = check_against_columns(
+        parse_stored(changes.get("details", job.details)),
+        skills=changes.get("skills", job.skills),
+        experience_min_months=changes.get("experience_min_months", job.experience_min_months),
+    )
+    if problem:
+        raise JobDetailsError(params={"reason": problem})
 
     return await repository.apply_changes(session, job=job, changes=changes)
 
@@ -390,6 +413,7 @@ def _summary(job: Any, *, employer_name: str | None, score: int | None) -> dict[
         "experience_min_months": job.experience_min_months,
         "salary_min_minor": job.salary_min_minor,
         "salary_max_minor": job.salary_max_minor,
+        "salary_disclosed": parse_stored(job.details).compensation.disclosed,
         "published_at": job.published_at,
         "eligibility": eligibility(min_score=job.min_score, score=score),
     }
@@ -454,6 +478,7 @@ async def get_board_job(
     return BoardJobDetail(
         **_summary(job, employer_name=names.get(job.tenant_id), score=score),
         description=job.description,
+        details=for_candidate(parse_stored(job.details)),
     )
 
 

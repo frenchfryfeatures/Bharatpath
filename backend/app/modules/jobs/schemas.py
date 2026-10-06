@@ -25,6 +25,7 @@ from pydantic import Field, model_validator
 
 from app.core.schemas import ApiSchema
 from app.modules.applications.schemas import ApplicationStage
+from app.modules.jobs.details import CandidateJobDetails, JobDetails, check_against_columns
 
 WorkMode = Literal["ONSITE", "HYBRID", "REMOTE"]
 JobStatus = Literal["DRAFT", "PUBLISHED", "PAUSED", "CLOSED"]
@@ -55,11 +56,19 @@ class CreateJobRequest(_Base):
     #: The lowest score an applicant needs. 700 is the base every candidate
     #: has, so a threshold below it filters nothing.
     min_score: Annotated[int | None, Field(default=None, ge=700, le=990)] = None
+    #: The rest of the posting. Optional, so a client that sends only the
+    #: columns above still creates a valid draft. See `jobs/details.py`.
+    details: JobDetails = Field(default_factory=JobDetails)
 
     @model_validator(mode="after")
     def _salary_range(self) -> CreateJobRequest:
         if self.salary_max_minor < self.salary_min_minor:
             raise ValueError("salary_max_minor is below salary_min_minor")
+        problem = check_against_columns(
+            self.details, skills=self.skills, experience_min_months=self.experience_min_months
+        )
+        if problem:
+            raise ValueError(problem)
         return self
 
 
@@ -77,12 +86,23 @@ class UpdateJobRequest(_Base):
     salary_min_minor: Annotated[int | None, Field(default=None, ge=0, le=_MAX_MINOR)] = None
     salary_max_minor: Annotated[int | None, Field(default=None, ge=0, le=_MAX_MINOR)] = None
     min_score: Annotated[int | None, Field(default=None, ge=700, le=990)] = None
+    #: Replaces the whole document when sent. Sections are not merged: the
+    #: composer always holds the full posting, and a merge would make removing
+    #: a responsibility or a screening question impossible to express.
+    details: JobDetails | None = None
 
     @model_validator(mode="after")
     def _something(self) -> UpdateJobRequest:
         if not self.model_fields_set:
             raise ValueError("send at least one field to change")
-        for required in ("title", "description", "skills", "salary_min_minor", "salary_max_minor"):
+        for required in (
+            "title",
+            "description",
+            "skills",
+            "salary_min_minor",
+            "salary_max_minor",
+            "details",
+        ):
             if required in self.model_fields_set and getattr(self, required) is None:
                 raise ValueError(f"{required} cannot be cleared")
         return self
@@ -99,6 +119,7 @@ class JobResponse(_Base):
     salary_min_minor: int
     salary_max_minor: int
     min_score: int | None = None
+    details: JobDetails = Field(default_factory=JobDetails)
     status: JobStatus
     published_at: datetime | None = None
     closed_at: datetime | None = None
@@ -151,12 +172,19 @@ class BoardJobSummary(_Base):
     experience_min_months: int | None = None
     salary_min_minor: int
     salary_max_minor: int
+    #: False when the employer chose not to show the range. The numbers are
+    #: still sent (the salary filter compares against them, and PRD 5.2 makes
+    #: the range mandatory); a client draws "Not disclosed" instead.
+    salary_disclosed: bool = True
     published_at: datetime
     eligibility: EligibilityStatus
 
 
 class BoardJobDetail(BoardJobSummary):
     description: str
+    #: The candidate's projection of the posting: no hiring manager, no
+    #: screening questions, no internal settings (`jobs/details.py`).
+    details: CandidateJobDetails = Field(default_factory=CandidateJobDetails)
 
 
 class ThresholdPreviewResponse(_Base):

@@ -44,6 +44,7 @@ EDITABLE_FIELDS: Final[frozenset[str]] = frozenset(
         "salary_min_minor",
         "salary_max_minor",
         "min_score",
+        "details",
     }
 )
 
@@ -266,6 +267,14 @@ def _contains(value: str) -> str:
     return f"%{escaped}%"
 
 
+def _listed() -> Any:
+    """Only PUBLIC jobs are searchable. PRIVATE and INVITE_ONLY jobs are
+    published but unlisted: reachable by id (a shared link, an invitation),
+    never by browsing. A row written before `details` existed is `{}` and
+    therefore public, which is what every job was then."""
+    return func.coalesce(Job.details["settings"]["visibility"].astext, "PUBLIC") == "PUBLIC"
+
+
 async def search_board(
     session: AsyncSession,
     *,
@@ -288,7 +297,7 @@ async def search_board(
     what it is. The indexed search on Day 13 is for candidates, which is the
     query that grows; this one is bounded by how many jobs are live.
     """
-    stmt = select(Job).where(Job.status == "PUBLISHED")
+    stmt = select(Job).where(Job.status == "PUBLISHED", _listed())
     if query:
         pattern = _contains(query)
         stmt = stmt.where(

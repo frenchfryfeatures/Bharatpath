@@ -1,3 +1,5 @@
+import type { CandidateJobDetails } from "@/features/jobs/job-details";
+
 export type ScoreStatus = "READY" | "PENDING";
 
 export interface StudentScore {
@@ -123,12 +125,16 @@ export interface JobListing {
   title: string;
   employerName: string | null;
   description?: string;
+  /** The full posting. Only the single-job endpoint sends it. */
+  details?: CandidateJobDetails;
   skills: string[];
   location: string | null;
   workMode: JobWorkMode;
   experienceMinMonths: number | null;
   salaryMinMinor: number;
   salaryMaxMinor: number;
+  /** False when the employer hides the range; draw "Not disclosed". */
+  salaryDisclosed: boolean;
   publishedAt: string;
   eligibility: JobEligibility;
 }

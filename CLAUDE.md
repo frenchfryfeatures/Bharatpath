@@ -427,6 +427,15 @@ is where a third one would have to be argued for.
 - **The application names nobody; its `candidate` block does** (narrowed
   2026-10-05). See _Applicants and the shortlist_ below.
 
+## Job postings carry a `details` document — 2026-10-06
+
+`jobs.details` (`jobs/details.py`). Columns stay for what is searched or
+constrained; the rest of the posting is one validated JSONB document.
+**It has no age and no gender field, and must never get one** (invariant 5,
+C3). A candidate reads `CandidateJobDetails`, built from narrower models, so a
+new employer field stays employer-only until added there on purpose. Only
+PUBLIC jobs are listed on the board (`repository._listed`).
+
 ## Masked search — Day 13
 
 - **`MaskedCandidate` has no field for contact or the score**, and
