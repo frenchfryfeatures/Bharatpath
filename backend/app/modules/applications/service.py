@@ -41,7 +41,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any, Final
 
 from fastapi import status
@@ -60,7 +60,13 @@ from app.core.errors import (
 )
 from app.core.logging import get_logger
 from app.core.outbox import emit
-from app.core.pagination import Page, clamp_limit, decode_cursor, encode_cursor
+from app.core.pagination import (
+    Page,
+    clamp_limit,
+    decode_cursor,
+    encode_cursor,
+    ist_day_range,
+)
 from app.core.ratelimit import enforce
 from app.core.tenant import TenantContext
 from app.modules.applications import repository
@@ -685,28 +691,54 @@ async def list_for_employer(
     *,
     ctx: TenantContext,
     job_id: uuid.UUID | None,
-    stage: str | None,
+    stages: list[str] | None = None,
+    status: str | None = None,
+    name: str | None = None,
+    applied_from: date | None = None,
+    applied_to: date | None = None,
+    newest_first: bool = False,
     cursor: str | None,
     limit: int | None,
     request_id: str | None = None,
 ) -> Page[EmployerApplicationListItem]:
-    """The organisation's applications, oldest first, optionally for one job
-    and optionally at one stage. Each row names its job.
+    """The organisation's applications, oldest first unless `newest_first`.
+    Each row names its job. Every filter narrows; together they intersect,
+    so `stages` and `status` both given is the stages inside that tab.
 
     Without `job_id` the page spans every job, so a pipeline board fills from
     one request rather than one per job. With it, the job is looked up first,
     so another organisation's job id is `job_not_found` rather than an empty
     page that confirms nothing and explains nothing.
+
+    `name` searches the applicant's profile name through discovery's
+    visibility rule, so a hidden candidate is never found by name. The dates
+    are IST days, both ends inclusive.
     """
     tenant_id = await _bind_tenant(session, ctx)
     if job_id is not None:
         await jobs_service.get_job(session, ctx=ctx, job_id=job_id)
+    start, end = ist_day_range(applied_from, applied_to)
+    wanted: tuple[str, ...] | None = tuple(dict.fromkeys(stages)) if stages else None
+    if status is not None:
+        tab = STATUS_STAGES[status]
+        wanted = tab if wanted is None else tuple(s for s in wanted if s in tab)
+    candidate_ids: list[uuid.UUID] | None = None
+    if name is not None and name.strip():
+        candidate_ids = await discovery_service.applicants_named(
+            session, ctx=ctx, name=name.strip()
+        )
+    if wanted == () or candidate_ids == []:
+        return Page[EmployerApplicationListItem](items=[], next_cursor=None)
     page_size = clamp_limit(limit)
     rows = await repository.list_for_employer(
         session,
         tenant_id=tenant_id,
         job_id=job_id,
-        stage=stage,
+        stages=wanted,
+        candidate_ids=candidate_ids,
+        applied_from=start,
+        applied_before=end,
+        newest_first=newest_first,
         after=_after(cursor),
         limit=page_size + 1,
     )
@@ -1287,6 +1319,14 @@ class AlreadyAppliedError(ConflictError):
     title = "This candidate has already applied to this job"
 
 
+class AlreadyHiredError(ConflictError):
+    """The candidate was hired into this job. HIRED is terminal, so it is not
+    "in the pipeline" and `AlreadyAppliedError` does not cover it."""
+
+    code = "already_hired"
+    title = "This candidate has already been hired for this job"
+
+
 class ShortlistRefusedError(ConflictError):
     """`code` is the domain's: `shortlist_declined` (the candidate said no to
     this job; their answer stands) or `shortlist_already_accepted`."""
@@ -1331,7 +1371,8 @@ async def shortlist_candidate(
     Repeating either is a retry and returns the same row. A CANCELLED
     invitation is re-opened; a DECLINED one is refused, because the
     candidate's answer to this job stands. A candidate already in the
-    pipeline for the job is 409 `already_applied`, naming the application.
+    pipeline for the job is 409 `already_applied`, naming the application; one
+    already HIRED into it is 409 `already_hired`.
     """
     tenant_id = await discovery_service.require_shortlistable(
         session, ctx=ctx, candidate_id=candidate_id
@@ -1345,6 +1386,9 @@ async def shortlist_candidate(
         active = await repository.active_for(session, job_id=job_id, candidate_id=candidate_id)
         if active is not None:
             raise AlreadyAppliedError(params={"application_id": str(active.id)})
+        hired = await repository.hired_for(session, job_id=job_id, candidate_id=candidate_id)
+        if hired is not None:
+            raise AlreadyHiredError(params={"application_id": str(hired.id)})
 
     existing = await repository.shortlist_entry(
         session, tenant_id=tenant_id, candidate_id=candidate_id, job_id=job_id, for_update=True

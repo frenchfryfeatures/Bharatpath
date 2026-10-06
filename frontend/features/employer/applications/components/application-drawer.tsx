@@ -3,6 +3,7 @@
 import { Maximize2, Minimize2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useGetEmployerApplicationQuery } from "@/store/employer/applications/applications.api";
+import { ResumeFieldsView, StructuredResumeView } from "@/components/resume/structured-resume";
 import { useScrollLock } from "@/hooks/use-scroll-lock";
 import { ResumeShowcase } from "@/features/employer/components/resume-showcase";
 

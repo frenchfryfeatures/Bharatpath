@@ -1,4 +1,5 @@
 import { baseApi } from "@/store/api/base-api";
+import type { StructuredResume, StructuredStatus } from "@/components/resume/structured-resume";
 
 import type {
   CollegeStudentDetail,
@@ -86,7 +87,7 @@ export const collegeStudentsApi = baseApi.injectEndpoints({
       applications: Array<{ job_title: string; employer_name: string; job_location: string | null; stage: string; applied_at: string; updated_at: string }>;
       analytics: { total: number; open: number; by_stage: Record<string, number>; reached: Record<string, number> };
     }, string>({ query: (id) => `/college/students/${id}/details` }),
-    getCollegeStudentResume: builder.query<{ confirmed_at: string | null; text: string | null; fields: Record<string, unknown>; file_url: string | null; file_mime: string | null; source: string }, string>({ query: (id) => `/college/students/${id}/resume` }),
+    getCollegeStudentResume: builder.query<{ confirmed_at: string | null; text: string | null; fields: Record<string, unknown>; structured_resume?: StructuredResume | null; structured_status?: StructuredStatus; file_url: string | null; file_mime: string | null; source: string }, string>({ query: (id) => `/college/students/${id}/resume` }),
     getCollegeStudents: builder.query<
       VisibleStudentsPage,
       {

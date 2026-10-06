@@ -238,6 +238,7 @@ def _after(cursor: str | None) -> tuple[int, uuid.UUID] | None:
 def _card(row: Any) -> MaskedCandidate:
     return MaskedCandidate(
         candidate_id=row.user_id,
+        full_name=row.full_name,
         band=row.band,
         experience_years=experience_years(int(row.experience_months)),
         skills=list(row.skills),
@@ -532,6 +533,17 @@ async def applicant_cards(
             },
         )
     return cards
+
+
+async def applicants_named(
+    session: AsyncSession, *, ctx: TenantContext, name: str
+) -> list[uuid.UUID]:
+    """Candidate ids of this organisation's visible applicants whose name
+    contains `name` -- the pipeline's search box. Ids only, and not audited:
+    the page the caller then draws goes through `applicant_cards`, which is."""
+    if ctx.tenant_id is None:
+        return []
+    return await repository.applicants_named(session, tenant_id=ctx.tenant_id, name=name)
 
 
 async def open_applicant(

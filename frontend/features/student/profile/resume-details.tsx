@@ -7,19 +7,18 @@ import { ArrowLeft, ArrowUpRight, CheckCircle2, FileText, History, ShieldCheck, 
 import { FormSkeleton } from "@/components/common/loading";
 import { StudentErrorState } from "@/features/student/components";
 import { formatDateTime } from "@/features/student/formatters";
-import { ManualStep, PasteStep, resumeFileProblem } from "@/features/student/onboarding/components/intake-steps";
+import { PasteStep, resumeFileProblem } from "@/features/student/onboarding/components/intake-steps";
 import { ParsingStep, type UploadPhase } from "@/features/student/onboarding/components/parsing-step";
 import { ReviewStep } from "@/features/student/onboarding/components/review-step";
 import { parseFailureMessage } from "@/features/student/onboarding/constants";
 import { StudentPage } from "@/features/student/shell";
 import { getApiErrorCode, getApiErrorMessage } from "@/lib/api/error-message";
 import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
-import { useCompleteResumeUploadMutation, useCreateResumeUploadMutation, useGetResumeVersionsQuery, useUploadResumeFileMutation, type ManualResume } from "@/store/student";
+import { useCompleteResumeUploadMutation, useCreateResumeUploadMutation, useGetResumeVersionsQuery, useUploadResumeFileMutation } from "@/store/student";
 import { useGetCareerProfileQuery, useLazyGetProfileResumeDocumentQuery } from "./career-api";
 
 type View =
   | { name: "review"; versionId: string }
-  | { name: "edit"; versionId: string; resume: ManualResume }
   | { name: "paste" }
   | { name: "parsing"; fileName: string; fileSize: number; phase: UploadPhase; resumeFileId?: string; uploadId?: string; error?: string };
 
@@ -34,8 +33,8 @@ export function ResumeDetails() {
   const [completeUpload] = useCompleteResumeUploadMutation();
   const current = useMemo(
     () => versions.data?.find((version) => version.confirmed && !version.superseded)
-      ?? versions.data?.find((version) => version.confirmed)
       ?? versions.data?.find((version) => !version.superseded)
+      ?? versions.data?.find((version) => version.confirmed)
       ?? versions.data?.[0],
     [versions.data],
   );
@@ -135,17 +134,6 @@ export function ResumeDetails() {
               <ParsingStep key={activeView.resumeFileId ?? activeView.fileName} fileName={activeView.fileName} fileSize={activeView.fileSize} phase={activeView.phase} resumeFileId={activeView.resumeFileId} error={activeView.error} onRetry={activeView.uploadId ? () => void finishUpload(activeView.uploadId!, activeView.fileName, activeView.fileSize) : undefined} onReview={(versionId) => { setView({ name: "review", versionId }); void versions.refetch(); }} onTryAnother={() => fileInput.current?.click()} onPaste={() => setView({ name: "paste" })} onCancel={cancelUpdate} />
             ) : activeView.name === "paste" ? (
               <PasteStep onBack={() => { if (current) setView({ name: "review", versionId: current.resumeVersionId }); }} onCreated={(versionId) => { setView({ name: "review", versionId }); void versions.refetch(); }} />
-            ) : activeView.name === "edit" ? (
-              <ManualStep
-                initial={activeView.resume}
-                editOf={activeView.versionId}
-                defaultName={activeView.resume.full_name}
-                onBack={() => setView({ name: "review", versionId: activeView.versionId })}
-                onCreated={(versionId) => {
-                  setView({ name: "review", versionId });
-                  void versions.refetch();
-                }}
-              />
             ) : (
               <div className="flex flex-col gap-5">
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -162,7 +150,7 @@ export function ResumeDetails() {
                     </button>
                   )}
                 </div>
-                <ReviewStep key={activeView.versionId} resumeVersionId={activeView.versionId} title="Resume details" subtitle="Review and edit the details extracted from your resume. Changes are saved as a new version." confirmLabel="Save & update score" startOverLabel="Cancel and return to previous resume" onStartOver={cancelUpdate} onEditStructured={(resume, versionId) => setView({ name: "edit", versionId, resume })} onConfirmed={() => { showSuccessFeedback("Resume saved and score update started."); void versions.refetch(); }} />
+                <ReviewStep key={activeView.versionId} resumeVersionId={activeView.versionId} title="Resume details" subtitle="Review and edit the details extracted from your resume. Changes are saved as a new version." confirmLabel="Save & update score" startOverLabel="Cancel and return to previous resume" onStartOver={cancelUpdate} onConfirmed={() => { showSuccessFeedback("Resume saved and score update started."); setView(null); void versions.refetch(); }} />
               </div>
             )}
           </main>

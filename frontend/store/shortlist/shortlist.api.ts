@@ -1,4 +1,8 @@
 import { baseApi } from "@/store/api/base-api";
+import type {
+  CandidateBadge,
+  CandidateBand,
+} from "@/features/employer/candidates/types";
 
 export type InvitationStatus = "INVITED" | "ACCEPTED" | "DECLINED" | "CANCELLED";
 export interface Invitation {
@@ -11,16 +15,22 @@ export interface Invitation {
   created_at: string;
   answered_at: string | null;
 }
+/**
+ * `ShortlistEntry.candidate` is the backend's `ApplicantCard`: who they are,
+ * with no contact and no score. Null while an integrity review hides them.
+ */
+export interface ShortlistedCandidate {
+  full_name: string | null;
+  band: CandidateBand;
+  experience_years: number;
+  skills: string[];
+  badges: CandidateBadge[];
+  city: string | null;
+  state_code: string | null;
+}
 export interface EmployerInvitation extends Omit<Invitation, "employer_name"> {
   candidate_id: string;
-  candidate: {
-    full_name: string | null;
-    city: string | null;
-    band: string;
-    state_code?: string | null;
-    experience_years?: number | null;
-    skills?: string[];
-  } | null;
+  candidate: ShortlistedCandidate | null;
 }
 interface Page<T> { items: T[]; next_cursor: string | null }
 interface Query { cursor?: string; job_id?: string; status?: InvitationStatus; limit?: number }

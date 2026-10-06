@@ -84,10 +84,18 @@ def test_inapplicable_employment_values_are_discarded_before_validation():
             "job_role": "Old role",
         }
     )
-    assert all(getattr(details, key) == value for key, value in {
-        "company_name": "", "job_title": "", "employment_start": "",
-        "employment_end": "", "annual_salary": None, "notice_period": "", "job_role": "",
-    }.items())
+    assert all(
+        getattr(details, key) == value
+        for key, value in {
+            "company_name": "",
+            "job_title": "",
+            "employment_start": "",
+            "employment_end": "",
+            "annual_salary": None,
+            "notice_period": "",
+            "job_role": "",
+        }.items()
+    )
 
 
 def test_current_job_discards_employment_end():
@@ -189,14 +197,16 @@ async def test_unemployed_experienced_candidate_completes_without_job_dates(monk
         return row
 
     monkeypatch.setattr(career_service.repository, "set_career", write)
-    details = CareerDetails.model_validate({
-        **fresher().model_dump(),
-        "work_status": "EXPERIENCED",
-        "currently_employed": "NO",
-        "experience_years": 2,
-        "experience_months": 6,
-        "key_skills": [],
-    })
+    details = CareerDetails.model_validate(
+        {
+            **fresher().model_dump(),
+            "work_status": "EXPERIENCED",
+            "currently_employed": "NO",
+            "experience_years": 2,
+            "experience_months": 6,
+            "key_skills": [],
+        }
+    )
     result = await career_service.save_details(
         AsyncMock(), ctx=ctx, payload=CareerSaveRequest(details=details, complete=True)
     )

@@ -27,7 +27,7 @@ candidate policies in the baseline migration.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any, Final
 
 from sqlalchemy.exc import DBAPIError
@@ -43,7 +43,13 @@ from app.core.errors import (
 )
 from app.core.logging import get_logger
 from app.core.outbox import emit
-from app.core.pagination import Page, clamp_limit, decode_cursor, encode_cursor
+from app.core.pagination import (
+    Page,
+    clamp_limit,
+    decode_cursor,
+    encode_cursor,
+    ist_day_range,
+)
 from app.core.ratelimit import STATIC_POLICIES, hit
 from app.core.tenant import TenantContext
 from app.modules.discovery import service as discovery_service
@@ -144,12 +150,17 @@ async def list_jobs(
     session: AsyncSession,
     *,
     ctx: TenantContext,
-    status: str | None,
+    statuses: list[str] | None,
     query: str | None = None,
+    work_mode: str | None = None,
+    skill: str | None = None,
+    created_from: date | None = None,
+    created_to: date | None = None,
     cursor: str | None = None,
     limit: int | None = None,
 ) -> Page[JobListItem]:
     """The organisation's jobs, newest first, each with its pipeline counts.
+    Filters combine (AND); the dates are IST days, both ends inclusive.
 
     The counts are a second aggregate over the page, not a query per job. An
     employer's list is the screen every other employer screen is reached
@@ -157,12 +168,17 @@ async def list_jobs(
     turn one request into one per job.
     """
     tenant_id = await _bind(session, ctx)
+    start, end = ist_day_range(created_from, created_to)
     page_size = clamp_limit(limit)
     rows = await repository.list_jobs(
         session,
         tenant_id=tenant_id,
-        status=status,
+        statuses=statuses,
         query=query.strip() or None if query is not None else None,
+        work_mode=work_mode,
+        skill=skill.strip() or None if skill is not None else None,
+        created_from=start,
+        created_before=end,
         after=_employer_jobs_after(cursor),
         limit=page_size + 1,
     )

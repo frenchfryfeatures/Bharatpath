@@ -14,7 +14,11 @@ import {
 } from "lucide-react";
 
 import { EmployerErrorState } from "@/features/employer/components/employer-error-state";
+<<<<<<< HEAD
 import { ResumeShowcase } from "@/features/employer/components/resume-showcase";
+=======
+import { StructuredResumeView } from "@/components/resume/structured-resume";
+>>>>>>> origin/main
 import { AppSelect } from "@/components/ui/app-select";
 import { useDebouncedSearch } from "@/lib/hooks/use-debounced-value";
 import { useScrollLock } from "@/hooks/use-scroll-lock";

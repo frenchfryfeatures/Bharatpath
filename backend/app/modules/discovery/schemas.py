@@ -50,11 +50,15 @@ class MaskedCandidate(_Base):
     2026-08-24), and the band is what the design system draws.
 
     `candidate_id` is the handle the Day 14 reveal opens, behind the access
-    window and its audit row. It is already what the employer pipeline shows
-    for an applicant, so a card names no one the pipeline would not.
+    window and its audit row.
+
+    **`full_name` is on the card since 2026-10-06** (product decision): the
+    name the candidate gave (`candidate_profiles`), or None. Contact details,
+    the CV and the score still need the reveal, and its caps and audit row.
     """
 
     candidate_id: uuid.UUID
+    full_name: Annotated[str | None, Field(default=None, max_length=200)] = None
     band: ScoreBand
     experience_years: Annotated[int, Field(ge=0, le=MAX_EXPERIENCE_YEARS)]
     skills: Annotated[list[str], Field(max_length=MAX_CARD_SKILLS)]

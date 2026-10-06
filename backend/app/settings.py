@@ -170,6 +170,15 @@ class Settings(BaseSettings):
     # it cannot be used as free object storage.
     resume_max_text_chars: int = 60_000
 
+    # A display-only structured document (contacts, each job, each
+    # qualification) written beside `raw_text` when a version is created
+    # (`resume/structuring.py`, 2026-10-06). It never reaches a score. Best
+    # effort: with no OPENAI_API_KEY, or switched off, versions are created
+    # without it and read `UNAVAILABLE`. One model call per created version.
+    resume_structuring_enabled: bool = True
+    # Pinned snapshot, never the bare alias.
+    resume_structuring_model_id: str = "gpt-5.4-mini-2026-03-17"
+
     # -- scoring -----------------------------------------------------------
     # Layer 1 (reading a CV into facts) needs a model. Off by default and off
     # in CI: with no extractor wired, a score stays PENDING rather than being

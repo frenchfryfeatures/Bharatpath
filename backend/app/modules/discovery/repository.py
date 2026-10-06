@@ -170,10 +170,10 @@ async def search_candidates(
 ) -> list[Any]:
     """A page of masked search rows: stronger bands first, then by id.
 
-    **Selects nothing a card may not show.** No score, no name, no contact --
-    the search document does not hold them, and the profile is read for its
-    location only. The row is not a `MaskedCandidate` yet; the service makes it
-    one, and the schema drops whatever it cannot show.
+    **Selects nothing a card may not show.** No score and no contact -- the
+    search document does not hold them, and the profile is read for the name
+    and location only. The row is not a `MaskedCandidate` yet; the service
+    makes it one, and the schema drops whatever it cannot show.
 
     **Only the filters asked for are in the SQL.** `(:x IS NULL OR ...)` would
     be one statement for every search, and a generic plan for it can use none
@@ -227,7 +227,7 @@ async def search_candidates(
         + VISIBLE_CANDIDATES_CTE
         + """
         SELECT d.user_id, d.band, d.band_rank, d.experience_months, d.skills, d.badges,
-               p.city, p.state_code
+               p.full_name, p.city, p.state_code
           FROM visible_candidates vc
           JOIN candidate_search_documents d
             ON d.user_id = vc.user_id
@@ -344,6 +344,36 @@ async def applicant_cards(
         },
     )
     return list(result)
+
+
+async def applicants_named(
+    session: AsyncSession, *, tenant_id: uuid.UUID, name: str
+) -> list[uuid.UUID]:
+    """The candidates who applied to this tenant, are visible right now, and
+    whose profile name contains `name`, ignoring case.
+
+    **Through the CTE like every other applicant read**: a name search that
+    matched a hidden candidate would return their application, and the row's
+    `candidate: null` beside the name typed would say who it is."""
+    # The CTE is a module constant; the name is a bind parameter.
+    query = (
+        "WITH "  # noqa: S608
+        + VISIBLE_CANDIDATES_CTE
+        + """
+        SELECT DISTINCT a.candidate_id
+          FROM applications a
+          JOIN candidate_profiles p
+            ON p.user_id = a.candidate_id
+          JOIN visible_candidates vc
+            ON vc.user_id = a.candidate_id
+         WHERE a.tenant_id = CAST(:tenant AS uuid)
+           AND p.full_name ILIKE :pattern ESCAPE '\\'
+        """
+    )
+    result = await session.execute(
+        text(query), {"tenant": str(tenant_id), "pattern": _contains(name)}
+    )
+    return [row[0] for row in result]
 
 
 async def applicant_profile(

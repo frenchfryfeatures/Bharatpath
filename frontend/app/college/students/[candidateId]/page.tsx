@@ -5,6 +5,8 @@ import { useParams } from "next/navigation";
 import { ArrowLeft, BookOpen, BriefcaseBusiness, FileText, Mic2, TrendingUp } from "lucide-react";
 
 import { Skeleton } from "@/components/common/loading";
+import { StructuredResumeView } from "@/components/resume/structured-resume";
+import { ResumeTextView } from "@/components/resume/resume-text-view";
 import { usePageHeader } from "@/components/layout/header-context";
 import { CollegeErrorState } from "@/features/college/components/college-error-state";
 import { CollegeStudentPageSkeleton } from "@/features/college/students/college-student-page-skeleton";
@@ -52,7 +54,7 @@ export default function CollegeStudentPage() {
   const id = useParams<{ candidateId: string }>().candidateId;
   const student = useGetCollegeStudentQuery(id);
   const details = useGetCollegeStudentDetailsQuery(id);
-  const resume = useGetCollegeStudentResumeQuery(id, { skip: !details.data?.has_resume_file });
+  const resume = useGetCollegeStudentResumeQuery(id, { skip: !details.data?.resume_confirmed_at });
 
   usePageHeader("Students", "Roster, invites, bulk upload and consent...");
 
@@ -80,8 +82,8 @@ export default function CollegeStudentPage() {
         {details.error ? <Notice>The student has not shared additional profile details with your college under the current consent.</Notice> : details.data && <><dl className="grid gap-4 sm:grid-cols-2"><Field label="Full name" value={profile.fullName} /><Field label="Email" value={details.data.email} /><Field label="Phone" value={details.data.phone} /><Field label="Location" value={[details.data.city, details.data.state_code].filter(Boolean).join(", ")} /><Field label="Language" value={details.data.locale} /></dl><div className="mt-5 border-t border-[#edf0f3] pt-4"><h3 className="mb-3 text-[12px] font-bold">Onboarding answers</h3>{details.data.questionnaire.length ? <dl className="space-y-3">{details.data.questionnaire.map((answer) => <div key={answer.code}><dt className="text-[11px] text-[#7b8494]">{answer.question}</dt><dd className="mt-0.5 text-[12px] font-medium">{answer.answer}</dd></div>)}</dl> : <Notice>No questionnaire answers submitted.</Notice>}</div></>}
       </Section>}
 
-      {details.isLoading || (details.data?.has_resume_file && resume.isLoading) ? <SectionSkeleton /> : <Section title="Resume" detail={resume.data?.confirmed_at ? `Confirmed ${formatDate(resume.data.confirmed_at)}` : undefined}>
-        {details.error ? <Notice>The student has not shared resume access with your college under the current consent.</Notice> : resume.error ? <Notice>The resume could not be opened right now.</Notice> : resume.data ? <div className="space-y-4"><span className="rounded-full bg-[#eef3fb] px-2.5 py-1 text-[10px] font-bold text-[#315c9f]">{humanise(resume.data.source)}</span>{resume.data.text && <div className="max-h-72 overflow-y-auto whitespace-pre-wrap rounded-lg bg-[#f8f9fb] p-4 text-[12px] leading-5 text-[#344054]">{resume.data.text}</div>}<ResumeFields fields={resume.data.fields} />{resume.data.file_url && <a href={resume.data.file_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-[#d5dfee] px-3 py-2 text-[12px] font-semibold text-[#315c9f] hover:bg-[#f4f7fc]"><FileText size={15} /> Open uploaded resume</a>}</div> : <Notice>No confirmed resume is available.</Notice>}
+      {details.isLoading || (details.data?.resume_confirmed_at && resume.isLoading) ? <SectionSkeleton /> : <Section title="Resume" detail={resume.data?.confirmed_at ? `Confirmed ${formatDate(resume.data.confirmed_at)}` : undefined}>
+        {details.error ? <Notice>The student has not shared resume access with your college under the current consent.</Notice> : resume.error ? <Notice>The resume could not be opened right now.</Notice> : resume.data ? <div className="space-y-4"><span className="rounded-full bg-[#eef3fb] px-2.5 py-1 text-[10px] font-bold text-[#315c9f]">{humanise(resume.data.source)}</span>{resume.data.structured_status === "READY" && resume.data.structured_resume ? <StructuredResumeView resume={resume.data.structured_resume} /> : <>{resume.data.text && <ResumeTextView text={resume.data.text} />}<ResumeFields fields={resume.data.fields} /></>}{resume.data.file_url && <a href={resume.data.file_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-[#d5dfee] px-3 py-2 text-[12px] font-semibold text-[#315c9f] hover:bg-[#f4f7fc]"><FileText size={15} /> Open uploaded resume</a>}</div> : <Notice>No confirmed resume is available.</Notice>}
       </Section>}
 
       <Section title="Score and outcomes" detail={profile.scoredAt ? `Scored ${formatDate(profile.scoredAt)}` : undefined}><div className="grid gap-4 sm:grid-cols-2"><Field label="Current score" value={profile.score ?? "Not scored"} /><Field label="Score band" value={profile.band ? humanise(profile.band) : "Not scored"} /><Field label="Applications" value={profile.applications} /><Field label="Employer interviews reached" value={profile.interviews} /></div></Section>

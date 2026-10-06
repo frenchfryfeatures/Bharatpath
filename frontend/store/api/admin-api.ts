@@ -125,7 +125,7 @@ export type CandidateOnboarding = {
   college_links: Array<{ tenant_id: string; college: string; scope: string; granted_at: string }>;
 };
 export type CandidateResume = { latest: ResumeVersion | null; confirmed: ResumeVersion | null };
-export type ResumeVersion = { id: string; source: string; created_at: string; text: string | null; fields: Record<string, unknown>; file_url: string | null; confirmed_at: string | null };
+export type ResumeVersion = { id: string; source: string; created_at: string; text: string | null; fields: Record<string, unknown>; structured_resume?: import("@/components/resume/structured-resume").StructuredResume | null; structured_status?: import("@/components/resume/structured-resume").StructuredStatus; file_url: string | null; confirmed_at: string | null };
 export type ScoreTimeline = { points: Array<{ computed_at: string; display_value: number; band: string; change: number | null; cause: string }> };
 export type InterviewRow = { id: string; session_number: number; state: string; question_set_title: string; created_at: string; completed_at: string | null; questions_asked: number; answers_stored: number; report_status: string };
 export type RecordingRow = { question_index: number; question_code: string; prompt: string; url: string; expires_in_seconds: number; mime: string | null; duration_ms: number | null; uploaded_at: string | null; transcript: string | null };

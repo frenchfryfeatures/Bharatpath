@@ -17,6 +17,7 @@ or the literal path would be matched as a job id and answered with a 422.
 from __future__ import annotations
 
 import uuid
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
@@ -84,18 +85,41 @@ async def create_job(
 async def list_jobs(
     user: CurrentUser,
     session: DbSession,
-    status_filter: Annotated[JobStatus | None, Query(alias="status")] = None,
-    q: Annotated[str | None, Query(max_length=100)] = None,
+    status_filter: Annotated[
+        list[JobStatus] | None,
+        Query(alias="status", description="Repeat for several: `?status=DRAFT&status=PAUSED`"),
+    ] = None,
+    q: Annotated[
+        str | None, Query(max_length=100, description="Part of the title or location")
+    ] = None,
+    work_mode: Annotated[WorkMode | None, Query()] = None,
+    skill: Annotated[
+        str | None, Query(max_length=80, description="One skill the job asks for, whole")
+    ] = None,
+    created_from: Annotated[
+        date | None, Query(description="Created on or after this IST day")
+    ] = None,
+    created_to: Annotated[
+        date | None, Query(description="Created on or before this IST day")
+    ] = None,
     cursor: Annotated[str | None, Query(max_length=512)] = None,
     limit: Annotated[int | None, Query(ge=1, le=MAX_PAGE_SIZE)] = None,
 ) -> Page[JobListItem]:
     """`application_counts` is where each job's applications stand now, so the
-    list draws its funnel without a request per row."""
+    list draws its funnel without a request per row.
+
+    Filters combine (AND). A range that ends before it starts is 422
+    `invalid_date_range`. A cursor belongs to the filters it was issued
+    under; keep them the same while paging."""
     return await service.list_jobs(
         session,
         ctx=user,
-        status=status_filter,
+        statuses=list(status_filter) if status_filter else None,
         query=q,
+        work_mode=work_mode,
+        skill=skill,
+        created_from=created_from,
+        created_to=created_to,
         cursor=cursor,
         limit=limit,
     )
