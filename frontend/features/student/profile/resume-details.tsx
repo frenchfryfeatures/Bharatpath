@@ -33,15 +33,22 @@ export function ResumeDetails() {
   const [uploadFile] = useUploadResumeFileMutation();
   const [completeUpload] = useCompleteResumeUploadMutation();
   const current = useMemo(
-    () => versions.data?.find((version) => !version.superseded) ?? versions.data?.[0],
+    () => versions.data?.find((version) => version.confirmed && !version.superseded)
+      ?? versions.data?.find((version) => version.confirmed)
+      ?? versions.data?.find((version) => !version.superseded)
+      ?? versions.data?.[0],
     [versions.data],
   );
   const [view, setView] = useState<View | null>(null);
   const activeView: View | null =
     view ?? (current ? { name: "review", versionId: current.resumeVersionId } : null);
 
+  const cancelUpdate = () => {
+    setView(current ? { name: "review", versionId: current.resumeVersionId } : null);
+  };
+
   const openResume = async () => {
-    const versionId = profile.data?.resume_version_id ?? current?.resumeVersionId;
+    const versionId = current?.resumeVersionId ?? profile.data?.resume_version_id;
     if (!versionId) return;
     const preview = window.open("about:blank", "_blank");
     if (preview) preview.opener = null;
@@ -99,7 +106,7 @@ export function ResumeDetails() {
           <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to profile
         </button>
 
-        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,720px)_minmax(260px,1fr)] lg:gap-8">
+        <div className={`grid items-start gap-6 ${activeView?.name === "parsing" ? "grid-cols-1" : "lg:grid-cols-[minmax(0,720px)_minmax(260px,1fr)] lg:gap-8"}`}>
           <main className="min-w-0">
             {versions.isLoading ? (
               <FormSkeleton fields={6} actions />
@@ -125,7 +132,7 @@ export function ResumeDetails() {
                 </button>
               </div>
             ) : activeView.name === "parsing" ? (
-              <ParsingStep key={activeView.resumeFileId ?? activeView.fileName} fileName={activeView.fileName} fileSize={activeView.fileSize} phase={activeView.phase} resumeFileId={activeView.resumeFileId} error={activeView.error} onRetry={activeView.uploadId ? () => void finishUpload(activeView.uploadId!, activeView.fileName, activeView.fileSize) : undefined} onReview={(versionId) => { setView({ name: "review", versionId }); void versions.refetch(); }} onTryAnother={() => fileInput.current?.click()} onPaste={() => setView({ name: "paste" })} />
+              <ParsingStep key={activeView.resumeFileId ?? activeView.fileName} fileName={activeView.fileName} fileSize={activeView.fileSize} phase={activeView.phase} resumeFileId={activeView.resumeFileId} error={activeView.error} onRetry={activeView.uploadId ? () => void finishUpload(activeView.uploadId!, activeView.fileName, activeView.fileSize) : undefined} onReview={(versionId) => { setView({ name: "review", versionId }); void versions.refetch(); }} onTryAnother={() => fileInput.current?.click()} onPaste={() => setView({ name: "paste" })} onCancel={cancelUpdate} />
             ) : activeView.name === "paste" ? (
               <PasteStep onBack={() => { if (current) setView({ name: "review", versionId: current.resumeVersionId }); }} onCreated={(versionId) => { setView({ name: "review", versionId }); void versions.refetch(); }} />
             ) : activeView.name === "edit" ? (
@@ -155,12 +162,12 @@ export function ResumeDetails() {
                     </button>
                   )}
                 </div>
-                <ReviewStep key={activeView.versionId} resumeVersionId={activeView.versionId} title="Resume details" subtitle="Review and edit the details extracted from your resume. Changes are saved as a new version." confirmLabel="Save & update score" startOverLabel="Back to profile" onStartOver={() => router.push("/student/profile")} onEditStructured={(resume, versionId) => setView({ name: "edit", versionId, resume })} onConfirmed={() => { showSuccessFeedback("Resume saved and score update started."); void versions.refetch(); }} />
+                <ReviewStep key={activeView.versionId} resumeVersionId={activeView.versionId} title="Resume details" subtitle="Review and edit the details extracted from your resume. Changes are saved as a new version." confirmLabel="Save & update score" startOverLabel="Cancel and return to previous resume" onStartOver={cancelUpdate} onEditStructured={(resume, versionId) => setView({ name: "edit", versionId, resume })} onConfirmed={() => { showSuccessFeedback("Resume saved and score update started."); void versions.refetch(); }} />
               </div>
             )}
           </main>
 
-          <aside className="hidden lg:sticky lg:top-6 lg:flex lg:flex-col lg:gap-4">
+          <aside className={`${activeView?.name === "parsing" ? "hidden" : "hidden lg:sticky lg:top-6 lg:flex lg:flex-col lg:gap-4"}`}>
             <InfoCard
               icon={<ShieldCheck className="h-5 w-5" aria-hidden="true" />}
               title="Your resume stays private"

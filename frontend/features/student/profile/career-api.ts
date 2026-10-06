@@ -94,28 +94,41 @@ export const {
   useLazyGetProfileResumeDocumentQuery,
 } = careerApi;
 
+const inactiveEmploymentFields = [
+  "company_name",
+  "job_title",
+  "employment_start",
+  "employment_end",
+  "annual_salary",
+  "notice_period",
+  "job_role",
+];
+
+export function careerDetailsForSave(details: CareerDetails): CareerDetails {
+  const result = { ...details };
+  delete result.key_skills;
+  if (details.currently_employed === "NO") {
+    for (const key of inactiveEmploymentFields) delete result[key];
+  } else if (details.currently_employed === "YES") {
+    delete result.employment_end;
+  }
+  return result;
+}
+
 export function careerFieldRequired(
   field: CareerField,
   details: CareerDetails,
 ) {
-  if (
-    field.key === "company_name" &&
-    details.work_status === "EXPERIENCED" &&
-    details.currently_employed === "NO"
-  ) return false;
+  if (field.key === "key_skills") return false;
   if (field.required) return true;
   if (details.work_status !== "EXPERIENCED") return false;
-  return (
-    [
-      "currently_employed",
-      "company_name",
-      "job_title",
-      "employment_start",
-    ].includes(field.key) ||
-    (field.key === "employment_end" && details.currently_employed === "NO")
-  );
+  if (field.key === "currently_employed") return true;
+  return details.currently_employed === "YES" &&
+    ["company_name", "job_title", "employment_start"].includes(field.key);
 }
 export function visibleCareerField(field: CareerField, details: CareerDetails) {
+  if (field.key === "employment_end") return false;
+  if (field.key === "key_skills") return false;
   const experiencedOnly = [
     "currently_employed",
     "experience_years",
@@ -135,7 +148,6 @@ export function visibleCareerField(field: CareerField, details: CareerDetails) {
     !(
       details.work_status === "FRESHER" && experiencedOnly.includes(field.key)
     ) &&
-    !(field.key === "company_name" && details.currently_employed === "NO") &&
-    !(field.key === "employment_end" && details.currently_employed === "YES")
+    !(details.currently_employed === "NO" && inactiveEmploymentFields.includes(field.key))
   );
 }

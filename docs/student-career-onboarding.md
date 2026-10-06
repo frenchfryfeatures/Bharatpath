@@ -137,9 +137,6 @@ retries do not grant the same payment twice.
 - Backend: isolated unit/ASGI tests cover required/optional fields, invalid dates,
   salary/phone validation, profile ownership, revision creation, absent password
   storage, unpaid scoring refusal, authentication and bounded PDF previews.
-- Browser: `npx playwright test` exercises the four profile sections, required
-  education validation, persistence before payment, absence of scoring calls and
-  profile section/report ordering using mocked API responses.
 - Web: TypeScript, changed-file ESLint and production Next.js build.
 - Mobile: TypeScript, changed-file ESLint and Expo bundle export. A physical-device
   run and a real payment/provider integration are separate deployment checks.

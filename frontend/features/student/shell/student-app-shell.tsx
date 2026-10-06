@@ -115,6 +115,7 @@ export function StudentAppShell({ children }: { children: ReactNode }) {
 
       <ConfirmModal
         open={logoutOpen}
+        variant="student"
         title="Log out?"
         description="You'll need to sign in again to see your score and applications."
         confirmLabel="Log out"

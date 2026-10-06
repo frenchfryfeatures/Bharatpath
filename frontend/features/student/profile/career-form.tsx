@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { AlertCircle, CheckCircle2, Mail, Phone, User } from "lucide-react";
+import { Fragment, useEffect, useRef, useState } from "react";
+import { AlertCircle, CheckCircle2, Mail, Phone, Plus, User, X } from "lucide-react";
 import { OnboardingBackButton } from "@/components/common/onboarding-back-button";
 import { AppSelect } from "@/components/ui/app-select";
 import {
@@ -17,6 +17,7 @@ import {
   StepHeader,
 } from "@/features/student/onboarding/components/ui";
 import {
+  careerDetailsForSave,
   careerFieldRequired,
   visibleCareerField,
   useGetCareerIdentityQuery,
@@ -37,12 +38,18 @@ const sections = [
   { key: "preferences", title: "Headline and preferences" },
 ] as const;
 
+export type CareerEditSection =
+  | "all"
+  | "headline"
+  | (typeof sections)[number]["key"];
+
 export function CareerForm({
   resumeVersionId,
   resumeFilename,
   onDone,
   onBack,
   editing = false,
+  editSection = "all",
   initialSection = 0,
   onSectionChange,
 }: {
@@ -51,6 +58,7 @@ export function CareerForm({
   onDone: (profile: CareerProfile) => void;
   onBack: () => void;
   editing?: boolean;
+  editSection?: CareerEditSection;
   initialSection?: number;
   onSectionChange?: (section: number) => void;
 }) {
@@ -80,6 +88,7 @@ export function CareerForm({
   const [error, setError] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [listText, setListText] = useState<Record<string, string>>({});
+  const [locationInput, setLocationInput] = useState("");
   useEffect(() => {
     onSectionChange?.(step);
   }, [step, onSectionChange]);
@@ -149,10 +158,18 @@ export function CareerForm({
       </p>
     );
   const section = sections[step];
+  const editingAll = editing && editSection === "all";
+  const updateEmploymentFields = !editing || editingAll || editSection === "employment";
+  const showIdentityFields = section.key === "basic" && (!editing || editingAll);
+  const modalFieldClass = editing ? "lg:py-3 lg:text-[15px] lg:leading-5" : "";
   const activeFields = fields.data.filter(
     (field) =>
-      field.key !== "job_role" &&
-      field.section === section.key && visibleCareerField(field, draft),
+      (editingAll ||
+        (editing && editSection === "headline"
+          ? field.key === "headline"
+          : field.section === section.key &&
+            (!editing || field.key !== "headline"))) &&
+      visibleCareerField(field, draft),
   );
   const busy =
     saveState.isLoading ||
@@ -161,7 +178,7 @@ export function CareerForm({
   const update = (key: string, value: CareerDetails[string]) => {
     setDraft((current) => {
       const next = { ...(current ?? draft), [key]: value };
-      if (key === "work_status" && value === "FRESHER")
+      if ((!editing || editingAll) && key === "work_status" && value === "FRESHER")
         Object.assign(next, {
           experience_years: 0,
           experience_months: 0,
@@ -171,72 +188,160 @@ export function CareerForm({
           employment_start: "",
           employment_end: "",
           annual_salary: null,
-          notice_period: "NOT_WORKING",
+          notice_period: "",
+          job_role: "",
         });
-      if (key === "currently_employed" && value === "YES")
+      if (updateEmploymentFields && key === "currently_employed" && value === "YES")
         next.employment_end = "";
-      if (key === "currently_employed" && value === "NO")
-        next.company_name = "NA";
-      if (
-        key === "currently_employed" &&
-        value === "YES" &&
-        next.company_name === "NA"
-      )
-        next.company_name = "";
+      if (updateEmploymentFields && key === "currently_employed" && value === "NO")
+        Object.assign(next, {
+          company_name: "",
+          job_title: "",
+          employment_start: "",
+          employment_end: "",
+          annual_salary: null,
+          notice_period: "",
+          job_role: "",
+        });
       return next;
     });
-    setErrors((current) => ({ ...current, [key]: "" }));
+    setErrors((current) =>
+      key === "currently_employed"
+        ? {
+            ...current,
+            [key]: "",
+            company_name: "",
+            job_title: "",
+            employment_start: "",
+            annual_salary: "",
+            notice_period: "",
+            employment_end: "",
+            job_role: "",
+          }
+        : { ...current, [key]: "" },
+    );
+  };
+  const addPreferredLocation = () => {
+    const location = locationInput.trim();
+    const locations = Array.isArray(draft.preferred_locations)
+      ? draft.preferred_locations
+      : [];
+    if (
+      !location ||
+      locations.length >= 5 ||
+      locations.some((saved) => saved.toLowerCase() === location.toLowerCase())
+    ) return;
+    update("preferred_locations", [...locations, location]);
+    setLocationInput("");
   };
   return (
     <form
       noValidate
-      className="flex flex-col gap-6"
+      className={`flex flex-col gap-6 ${editing ? "font-sans text-[13px] leading-5 lg:text-[14px]" : ""}`}
       onSubmit={async (event) => {
         event.preventDefault();
+        const pendingLocation = locationInput.trim();
+        const savedLocations = Array.isArray(draft.preferred_locations)
+          ? draft.preferred_locations
+          : [];
+        const submittedDraft =
+          pendingLocation &&
+          savedLocations.length < 5 &&
+          !savedLocations.some(
+            (location) => location.toLowerCase() === pendingLocation.toLowerCase(),
+          )
+            ? { ...draft, preferred_locations: [...savedLocations, pendingLocation] }
+            : draft;
+        const employmentDetails = submittedDraft;
         const nextErrors: Record<string, string> = {};
         for (const field of activeFields)
           if (
-            careerFieldRequired(field, draft) &&
-            (!draft[field.key] ||
-              (Array.isArray(draft[field.key]) &&
-                !(draft[field.key] as string[]).length))
+            careerFieldRequired(field, employmentDetails) &&
+            (!employmentDetails[field.key] ||
+              (Array.isArray(employmentDetails[field.key]) &&
+                !(employmentDetails[field.key] as string[]).length))
           )
             nextErrors[field.key] = "This field is required.";
         if (
-          section.key === "basic" &&
-          draft.phone &&
-          !/^\+[1-9]\d{7,14}$/.test(String(draft.phone))
+          activeFields.some((field) => field.key === "phone") &&
+          employmentDetails.phone &&
+          !/^\+[1-9]\d{7,14}$/.test(String(employmentDetails.phone))
         )
           nextErrors.phone =
             "Use international format, for example +919876543210.";
-        if (section.key === "basic" && !fullName.trim())
+        if (showIdentityFields && !fullName.trim())
           nextErrors.full_name = "Enter your full name.";
         if (
-          section.key === "employment" &&
-          draft.work_status === "EXPERIENCED" &&
-          !Number(draft.experience_years) &&
-          !Number(draft.experience_months)
+          activeFields.some((field) => field.key === "experience_years") &&
+          employmentDetails.work_status === "EXPERIENCED" &&
+          (typeof employmentDetails.experience_years !== "number" ||
+            !Number.isInteger(employmentDetails.experience_years) ||
+            employmentDetails.experience_years < 0 ||
+            employmentDetails.experience_years > 60)
+        )
+          nextErrors.experience_years = "Enter a whole number from 0 to 60.";
+        if (
+          activeFields.some((field) => field.key === "experience_months") &&
+          employmentDetails.work_status === "EXPERIENCED" &&
+          (typeof employmentDetails.experience_months !== "number" ||
+            !Number.isInteger(employmentDetails.experience_months) ||
+            employmentDetails.experience_months < 0 ||
+            employmentDetails.experience_months > 11)
+        )
+          nextErrors.experience_months = "Enter a whole number from 0 to 11.";
+        if (
+          activeFields.some((field) => field.key === "experience_years") &&
+          employmentDetails.work_status === "EXPERIENCED" &&
+          !Number(employmentDetails.experience_years) &&
+          !Number(employmentDetails.experience_months) &&
+          !nextErrors.experience_years &&
+          !nextErrors.experience_months
         )
           nextErrors.experience_years =
             "Enter at least one month of experience, or choose fresher.";
+        const validEmploymentMonth = (value: unknown) =>
+          typeof value === "string" &&
+          /^(?:19|20)\d{2}-(?:0[1-9]|1[0-2])$/.test(value);
+        if (
+          activeFields.some((field) => field.key === "employment_start") &&
+          employmentDetails.employment_start &&
+          !validEmploymentMonth(employmentDetails.employment_start)
+        )
+          nextErrors.employment_start = "Enter a valid month between 1900 and 2099.";
         setErrors(nextErrors);
         if (Object.keys(nextErrors).length) return;
         setError("");
+        setDraft(employmentDetails);
+        setLocationInput("");
         try {
-          if (section.key === "basic") await saveName(fullName.trim()).unwrap();
+          if (showIdentityFields && fullName.trim() !== identity.data?.fullName)
+            await saveName(fullName.trim()).unwrap();
           const detailsToSave =
-            draft.work_status === "EXPERIENCED" &&
-            draft.currently_employed === "NO"
-              ? { ...draft, company_name: "NA" }
-              : draft;
+            editing && !editingAll
+              ? {
+                  ...saved.data?.details,
+                  ...Object.fromEntries(
+                    fields.data
+                      .filter((field) =>
+                        editSection === "headline"
+                          ? field.key === "headline"
+                          : field.section === section.key &&
+                            field.key !== "headline"
+                      )
+                      .map((field) => [field.key, employmentDetails[field.key]]),
+                  ),
+                }
+              : employmentDetails;
           const result = await save({
-            details: detailsToSave,
+            details: careerDetailsForSave(detailsToSave),
             resume_filename: selectedFilename ?? resumeFilename,
             resume_version_id:
               selectedVersionId ??
               resumeVersionId ??
               saved.data?.resume_version_id,
-            complete: step === sections.length - 1,
+            complete: editing
+              ? Boolean(saved.data?.completed)
+              : step === sections.length - 1,
           }).unwrap();
           if (editing || step === sections.length - 1) onDone(result);
           else {
@@ -251,17 +356,17 @@ export function CareerForm({
       }}
     >
       <div>
-        <StepHeader
-          step={
-            editing
-              ? undefined
-              : section.key === "basic"
-                ? "account"
-                : section.key
-          }
-          title={section.title}
-          subtitle="We filled what we could read from your resume. Review it and add anything missing."
-        />
+        {editing ? (
+          <p className="text-[13px] leading-5 text-[#3A4761] lg:text-[14px]">
+            Update your profile details below.
+          </p>
+        ) : (
+          <StepHeader
+            step={section.key === "basic" ? "account" : section.key}
+            title={section.title}
+            subtitle="We filled what we could read from your resume. Review it and add anything missing."
+          />
+        )}
       </div>
       {error && (
         <p
@@ -333,7 +438,12 @@ export function CareerForm({
             )}
           </Field>
         )}
-        {section.key === "basic" && (
+        {editingAll && (
+          <h3 className="text-[16px] font-semibold text-[#0A1931]">
+            Basic details
+          </h3>
+        )}
+        {showIdentityFields && (
           <>
             <Field
               id="career-full-name"
@@ -350,7 +460,7 @@ export function CareerForm({
                   autoComplete="name"
                   value={fullName}
                   onChange={(event) => setFullName(event.target.value)}
-                  className={`${fieldClass} ${fieldBorder(Boolean(errors.full_name))} pl-12`}
+                  className={`${fieldClass} ${modalFieldClass} ${fieldBorder(Boolean(errors.full_name))} pl-12`}
                 />
               </div>
             </Field>
@@ -369,18 +479,25 @@ export function CareerForm({
                   type="email"
                   readOnly
                   value={email || account.data?.email || ""}
-                  className={`${fieldClass} border-[#E7E0D4] pl-12`}
+                  className={`${fieldClass} ${modalFieldClass} border-[#E7E0D4] pl-12`}
                 />
               </div>
             </Field>
           </>
         )}
-        {activeFields.map((field) => {
+        {activeFields.map((field, index) => {
           const value = draft[field.key];
           const id = `career-${field.key}`;
           return (
-            <Field
-              key={field.key}
+            <Fragment key={field.key}>
+              {editingAll &&
+                field.section !== "basic" &&
+                field.section !== activeFields[index - 1]?.section && (
+                  <h3 className="text-[16px] font-semibold text-[#0A1931]">
+                    {sections.find((item) => item.key === field.section)?.title}
+                  </h3>
+                )}
+              <Field
               id={id}
               label={`${field.label}${careerFieldRequired(field, draft) ? " *" : ""}`}
               error={errors[field.key]}
@@ -388,7 +505,7 @@ export function CareerForm({
               hint={
                 field.type === "list"
                   ? field.key === "preferred_locations"
-                    ? "Separate locations with commas, up to five."
+                    ? "Add up to five preferred work locations."
                     : "Separate skills with commas."
                   : field.type === "month"
                     ? "Month and year"
@@ -403,8 +520,57 @@ export function CareerForm({
                   ariaLabel={field.label}
                   menuPlacement="auto"
                   portal
-                  className="[&>button]:h-[54px] [&>button]:rounded-[16px] [&>button]:border-[1.5px] [&>button]:border-[#E7E0D4] [&>button]:bg-white [&>button]:px-4 [&>button]:text-[16px] [&>button>span]:text-[16px] [&>button>span]:font-medium [&>button]:font-medium [&>button]:text-[#0A1931]"
+                  className={`[&>button]:h-[54px] [&>button]:rounded-[16px] [&>button]:border-[1.5px] [&>button]:border-[#E7E0D4] [&>button]:bg-white [&>button]:px-4 [&>button]:text-[16px] [&>button>span]:text-[16px] [&>button>span]:font-medium [&>button]:font-medium [&>button]:text-[#0A1931] ${editing ? "lg:[&>button]:h-[48px] lg:[&>button]:text-[15px] lg:[&>button>span]:text-[15px]" : ""}`}
                 />
+              ) : field.key === "preferred_locations" ? (
+                <div className="space-y-3">
+                  <div className="relative">
+                    <input
+                      id={id}
+                      type="text"
+                      value={locationInput}
+                      maxLength={100}
+                      disabled={Array.isArray(value) && value.length >= 5}
+                      placeholder="Enter a work location"
+                      aria-invalid={Boolean(errors[field.key])}
+                      aria-describedby={errors[field.key] ? `${id}-error` : `${id}-hint`}
+                      className={`${fieldClass} ${modalFieldClass} ${fieldBorder(Boolean(errors[field.key]))} pr-14`}
+                      onChange={(event) => setLocationInput(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          addPreferredLocation();
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={addPreferredLocation}
+                      disabled={!locationInput.trim() || (Array.isArray(value) && value.length >= 5)}
+                      aria-label="Add work location"
+                      className="absolute right-2 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-xl text-[#5F4DB2] hover:bg-[#F1EAF7] disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <Plus size={20} />
+                    </button>
+                  </div>
+                  {Array.isArray(value) && value.length > 0 && (
+                    <ul className="flex flex-wrap gap-2" aria-label="Selected work locations">
+                      {value.map((location, index) => (
+                        <li key={`${location}-${index}`} className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-[#C9BEEB] bg-[#F1EAF7] px-3 py-1.5 text-[13px] font-medium text-[#4A3E8F]">
+                          <span className="truncate">{location}</span>
+                          <button
+                            type="button"
+                            onClick={() => update(field.key, value.filter((_, itemIndex) => itemIndex !== index))}
+                            aria-label={`Remove ${location}`}
+                            className="shrink-0 rounded-full p-0.5 hover:bg-[#E5DCF5]"
+                          >
+                            <X size={14} />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               ) : (
                 <div className="relative">
                   {field.key === "phone" && (
@@ -416,25 +582,23 @@ export function CareerForm({
                   <input
                     id={id}
                     type={field.type === "list" ? "text" : field.type}
-                    value={
-                      field.type === "list"
-                        ? (listText[field.key] ??
-                          (Array.isArray(value) ? value.join(", ") : ""))
-                        : String(value ?? "")
-                    }
-                    min={field.key.endsWith("year") ? 1950 : 0}
+                    value={field.type === "list" ? (listText[field.key] ?? (Array.isArray(value) ? value.join(", ") : "")) : String(value ?? "")}
+                    min={field.key === "experience_years" ? 0 : field.key.endsWith("year") ? 1950 : 0}
                     max={
                       field.key === "experience_months"
                         ? 11
+                        : field.key === "experience_years"
+                          ? 60
                         : field.key.endsWith("year")
                           ? 2100
                           : undefined
                     }
+                    step={field.key.startsWith("experience_") ? 1 : undefined}
                     aria-invalid={Boolean(errors[field.key])}
                     aria-describedby={
                       errors[field.key] ? `${id}-error` : undefined
                     }
-                    className={`${fieldClass} ${fieldBorder(Boolean(errors[field.key]))} ${field.key === "phone" ? "pl-12" : ""}`}
+                    className={`${fieldClass} ${modalFieldClass} ${fieldBorder(Boolean(errors[field.key]))} ${field.key === "phone" ? "pl-12" : ""}`}
                     onChange={(event) => {
                       const raw = event.target.value;
                       if (field.type === "list") {
@@ -464,23 +628,29 @@ export function CareerForm({
                   />
                 </div>
               )}
-            </Field>
+              </Field>
+            </Fragment>
           );
         })}
       </div>
-      <p className="flex items-center gap-2 text-xs text-[#5F6B80]">
-        <CheckCircle2 size={16} />
-        Salary and gender are optional. Gender does not affect your score.
-      </p>
+      {(editingAll || activeFields.some((field) => field.key === "gender")) && (
+        <p className="flex items-center gap-2 text-xs text-[#5F6B80]">
+          <CheckCircle2 size={16} />
+          Salary and gender are optional. Gender does not affect your score.
+        </p>
+      )}
       <div className="flex items-center gap-3">
         <OnboardingBackButton
           disabled={busy}
+          className={editing ? "lg:h-12 lg:text-[14px]" : ""}
+          label={editing ? "Close" : "Back"}
           onClick={() => {
-            if (step > 0) setStep(step - 1);
+            if (editing) onBack();
+            else if (step > 0) setStep(step - 1);
             else onBack();
           }}
         />
-        <PillButton type="submit" isLoading={busy} className="flex-1">
+        <PillButton type="submit" isLoading={busy} className={`flex-1 ${editing ? "lg:py-3 lg:text-[14px]" : ""}`}>
           {editing || step === sections.length - 1
             ? editing
               ? "Save profile"

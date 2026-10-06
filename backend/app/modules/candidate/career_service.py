@@ -90,7 +90,7 @@ async def save_details(
                         summary=None,
                     )
                 ]
-                if facts.work_status == "EXPERIENCED"
+                if facts.work_status == "EXPERIENCED" and facts.currently_employed == "YES"
                 else [],
                 education=[
                     ManualEducation(
@@ -117,14 +117,19 @@ async def save_details(
             original = parsed.get("raw_text") or str(parsed)
             original = original.split("\n\nCandidate-reviewed career facts:\n", 1)[0]
             facts = payload.details
+            employment_line = (
+                f"Employer: {facts.company_name}; role: {facts.job_title}; "
+                f"dates: {facts.employment_start} to present\n"
+                if facts.work_status == "EXPERIENCED" and facts.currently_employed == "YES"
+                else ""
+            )
             reviewed = (
                 f"\n\nCandidate-reviewed career facts:\n"
                 f"Candidate-confirmed facts take precedence over earlier values.\n"
                 f"Name: {full_name}\nHeadline: {facts.headline}\n"
                 f"Work status: {facts.work_status}; total experience: "
                 f"{facts.experience_years} years {facts.experience_months} months\n"
-                f"Employer: {facts.company_name}; role: {facts.job_title}; "
-                f"dates: {facts.employment_start} to {facts.employment_end or 'present'}\n"
+                f"{employment_line}"
                 f"Education: {facts.highest_qualification}, {facts.course}, "
                 f"{facts.specialization} {facts.specialization_name}, {facts.institution}, "
                 f"{facts.starting_year} to {facts.passing_year}\n"

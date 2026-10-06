@@ -17,8 +17,9 @@ import {
   useGetCareerProfileQuery,
   useLazyGetProfileResumeDocumentQuery,
   usePrefillCareerProfileMutation,
+  visibleCareerField,
 } from "./career-api";
-import { CareerForm } from "./career-form";
+import { CareerForm, type CareerEditSection } from "./career-form";
 import { getApiErrorMessage } from "@/lib/api/error-message";
 import { Modal } from "@/components/ui/modal";
 import { PillButton } from "@/features/student/components";
@@ -49,13 +50,11 @@ export function CareerOverview({
   fullName,
   email,
   summaryStats,
-  identityDetails,
   children,
 }: {
   fullName: string;
   email: string;
   summaryStats?: ReactNode;
-  identityDetails?: ReactNode;
   children?: ReactNode;
 }) {
   const profile = useGetCareerProfileQuery();
@@ -64,7 +63,7 @@ export function CareerOverview({
   const [prefill, prefillState] = usePrefillCareerProfileMutation();
   const attemptedPrefill = useRef<string | null>(null);
   const fields = useGetCareerFieldsQuery();
-  const [editingSection, setEditingSection] = useState<number | null>(null);
+  const [editingSection, setEditingSection] = useState<CareerEditSection | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
     const latest = versions.data?.find((version) => !version.superseded);
@@ -182,7 +181,7 @@ export function CareerOverview({
             Review the details extracted from your resume and add anything
             missing.
           </p>
-          <PillButton onClick={() => setEditingSection(0)} className="w-full">
+          <PillButton onClick={() => setEditingSection("all")} className="w-full">
             Edit profile details
           </PillButton>
         </div>
@@ -248,10 +247,7 @@ export function CareerOverview({
                 <button
                   type="button"
                   onClick={() => {
-                    if (group.id === "basic") return;
-                    const sectionId = group.id === "headline" ? "preferences" : group.id;
-                    const sectionIndex = editableSections.indexOf(sectionId as (typeof editableSections)[number]);
-                    if (sectionIndex >= 0) setEditingSection(sectionIndex);
+                    setEditingSection(group.id as CareerEditSection);
                   }}
                   aria-label={`Edit ${group.title}`}
                   className="grid h-9 w-9 place-items-center rounded-xl border border-[#E7E0D4] text-[#5F4DB2] transition hover:bg-[#F1EAF7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30"
@@ -259,11 +255,6 @@ export function CareerOverview({
                   <Pencil size={17} />
                 </button>
               </div>
-              {group.id === "basic" && identityDetails && (
-                <div className="mb-4 border-b border-[#F0EBDF] pb-4">
-                  {identityDetails}
-                </div>
-              )}
               {group.id === "headline" ? (
                 <p className="text-[13px] leading-5 text-[#3A4761]">
                   {String(
@@ -279,7 +270,8 @@ export function CareerOverview({
                     ?.filter(
                       (field) =>
                         field.section === group.id &&
-                        !["headline", "key_skills"].includes(field.key),
+                        field.key !== "headline" &&
+                        visibleCareerField(field, details),
                     )
                     .map((field) => {
                       const value = details[field.key];
@@ -287,7 +279,9 @@ export function CareerOverview({
                         field.options.find((option) => option.value === value)
                           ?.label ??
                         (Array.isArray(value)
-                          ? value.join(", ")
+                          ? value.length
+                            ? value.join(", ")
+                            : "Not added"
                           : value === null ||
                               value === undefined ||
                               value === ""
@@ -314,15 +308,17 @@ export function CareerOverview({
       {editingSection !== null && (
         <Modal
           open
+          variant="student"
           onClose={() => setEditingSection(null)}
-          title={`Edit ${editableSections[editingSection] === "basic" ? "basic details" : editableSections[editingSection] === "employment" ? "employment details" : editableSections[editingSection] === "education" ? "education details" : "career preferences"}`}
+          title={editingSection === "all" ? "Edit profile details" : `Edit ${groups.find((group) => group.id === editingSection)?.title.toLowerCase()}`}
           panelClassName="max-w-3xl"
         >
           <div className="max-h-[75vh] overflow-y-auto p-1">
             <CareerForm
               key={editingSection}
               editing
-              initialSection={editingSection}
+              editSection={editingSection}
+              initialSection={editingSection === "headline" ? 3 : Math.max(0, editableSections.indexOf(editingSection as (typeof editableSections)[number]))}
               onDone={() => setEditingSection(null)}
               onBack={() => setEditingSection(null)}
             />
