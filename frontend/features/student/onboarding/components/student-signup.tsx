@@ -522,7 +522,7 @@ export function StudentSignup() {
       return frame(
         <ComputingStep
           confirmedAt={stage.confirmedAt}
-          onShowScore={() => router.push("/student/score")}
+          onShowScore={() => router.push("/student")}
           onGoHome={() => router.push("/student")}
         />,
       );

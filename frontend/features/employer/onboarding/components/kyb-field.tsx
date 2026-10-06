@@ -65,6 +65,82 @@ export function isWideField(field: KybField): boolean {
   );
 }
 
+export interface RenderFieldLabelOptions {
+  showOptional?: boolean;
+  optionalText?: string;
+  asteriskColor?: string;
+}
+
+export function renderFieldLabel(
+  label: string,
+  required?: boolean,
+  options?: RenderFieldLabelOptions,
+) {
+  const {
+    showOptional = false,
+    optionalText = "Optional",
+    asteriskColor = "text-[#b42318]",
+  } = options ?? {};
+
+  const trimmed = label.trim();
+  const lastSpaceIndex = trimmed.lastIndexOf(" ");
+
+  if (required) {
+    if (lastSpaceIndex !== -1) {
+      const mainPart = trimmed.slice(0, lastSpaceIndex);
+      const lastWord = trimmed.slice(lastSpaceIndex + 1);
+      return (
+        <>
+          {mainPart}{" "}
+          <span className="whitespace-nowrap">
+            {lastWord}
+            <span className={`ml-0.5 ${asteriskColor}`} aria-hidden="true">
+              *
+            </span>
+          </span>
+        </>
+      );
+    }
+    return (
+      <span className="whitespace-nowrap">
+        {trimmed}
+        <span className={`ml-0.5 ${asteriskColor}`} aria-hidden="true">
+          *
+        </span>
+      </span>
+    );
+  }
+
+  if (showOptional) {
+    if (lastSpaceIndex !== -1) {
+      const mainPart = trimmed.slice(0, lastSpaceIndex);
+      const lastWord = trimmed.slice(lastSpaceIndex + 1);
+      return (
+        <>
+          {mainPart}{" "}
+          <span className="whitespace-nowrap">
+            {lastWord}
+            <span className="ml-1 text-[11px] font-normal text-[#8790a0]">
+              {optionalText}
+            </span>
+          </span>
+        </>
+      );
+    }
+    return (
+      <span className="whitespace-nowrap">
+        {trimmed}
+        <span className="ml-1 text-[11px] font-normal text-[#8790a0]">
+          {optionalText}
+        </span>
+      </span>
+    );
+  }
+
+  return trimmed;
+}
+
+
 export function KybFieldInput({
   field,
   value,
@@ -107,12 +183,7 @@ export function KybFieldInput({
             className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-[#3566b8]"
           />
           <span className="text-sm leading-6 text-[#303747]">
-            {field.label}
-            {field.required && (
-              <span className="ml-1 text-[#b42318]" aria-hidden="true">
-                *
-              </span>
-            )}
+            {renderFieldLabel(field.label, field.required)}
           </span>
         </label>
         <FieldError id={errorId} message={error} />
@@ -241,22 +312,13 @@ export function KybFieldInput({
 
   return (
     <div>
-      <div className="mb-1.5 flex items-center justify-between gap-2">
+      <div className="mb-1.5 flex items-center justify-between gap-1.5">
         <label
           id={`${id}-label`}
           htmlFor={field.type === "SELECT" || field.type === "MULTISELECT" ? undefined : id}
           className="text-[13px] font-semibold text-[#303747]"
         >
-          {field.label}
-          {field.required ? (
-            <span className="ml-1 text-[#b42318]" aria-hidden="true">
-              *
-            </span>
-          ) : (
-            <span className="ml-1.5 text-[11px] font-normal text-[#8790a0]">
-              Optional
-            </span>
-          )}
+          {renderFieldLabel(field.label, field.required, { showOptional: true })}
         </label>
         {field.public && (
           <span

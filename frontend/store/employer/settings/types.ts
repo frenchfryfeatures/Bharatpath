@@ -9,13 +9,49 @@ export type SettingsTab =
 export type TeamRole = "Owner" | "Recruiter" | "View only";
 export type TeamStatus = "Active" | "Invited";
 
+export interface CompanyDocumentItem {
+  docType: string;
+  mime: string | null;
+  uploadedAt: string;
+}
+
+export interface CompanyUndertakings {
+  genuineHiring: boolean;
+  noRedistribution: boolean;
+  authorised: boolean;
+  submittedAt?: string | null;
+}
+
 export interface CompanyProfile {
+  // Read-only / locked
   legalName: string;
-  gstin: string;
   businessType: string;
   industry: string;
   kybStatus: string;
+  pan: string;
+  gstin: string;
+  cin: string;
+  tan: string;
   address: string;
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  state: string;
+  pincode: string;
+  signatoryName: string;
+  signatoryDesignation: string;
+  workEmail: string;
+  workPhone: string;
+  documents: CompanyDocumentItem[];
+  undertakings: CompanyUndertakings;
+
+  // Editable directly
+  tradeName: string;
+  employeeCountBand: string;
+  website: string;
+  about: string;
+  hasSeparateCorrespondenceAddress: boolean;
+  correspondenceAddress: string;
 }
 
 export interface TeamMember {
@@ -75,4 +111,6 @@ export interface EmployerSettingsState {
   memberMenuOpenId: string | null;
   removeMemberId: string | null;
   toast: string | null;
+  hasUnsavedChanges: boolean;
+  pendingTab: SettingsTab | null;
 }

@@ -11,11 +11,36 @@ const initialState: EmployerSettingsState = {
 
   company: {
     legalName: "",
-    gstin: "",
     businessType: "",
     industry: "",
     kybStatus: "",
+    pan: "",
+    gstin: "",
+    cin: "",
+    tan: "",
     address: "",
+    addressLine1: "",
+    addressLine2: "",
+    city: "",
+    state: "",
+    pincode: "",
+    signatoryName: "",
+    signatoryDesignation: "",
+    workEmail: "",
+    workPhone: "",
+    documents: [],
+    undertakings: {
+      genuineHiring: true,
+      noRedistribution: true,
+      authorised: true,
+      submittedAt: null,
+    },
+    tradeName: "",
+    employeeCountBand: "",
+    website: "",
+    about: "",
+    hasSeparateCorrespondenceAddress: false,
+    correspondenceAddress: "",
   },
 
   // Team membership is loaded from GET /employer/team when the Team tab opens.
@@ -72,6 +97,8 @@ const initialState: EmployerSettingsState = {
   memberMenuOpenId: null,
   removeMemberId: null,
   toast: null,
+  hasUnsavedChanges: false,
+  pendingTab: null,
 };
 
 const settingsSlice = createSlice({
@@ -100,10 +127,11 @@ const settingsSlice = createSlice({
       state,
       action: PayloadAction<{
         field: keyof EmployerSettingsState["company"];
-        value: string;
+        value: any;
       }>,
     ) {
-      state.company[action.payload.field] = action.payload.value;
+      (state.company as Record<string, any>)[action.payload.field] =
+        action.payload.value;
     },
 
     saveCompanyProfile(state) {
@@ -262,6 +290,18 @@ const settingsSlice = createSlice({
     clearToast(state) {
       state.toast = null;
     },
+
+    setHasUnsavedChanges(state, action: PayloadAction<boolean>) {
+      state.hasUnsavedChanges = action.payload;
+    },
+
+    setPendingTab(state, action: PayloadAction<SettingsTab | null>) {
+      state.pendingTab = action.payload;
+    },
+
+    clearPendingTab(state) {
+      state.pendingTab = null;
+    },
   },
 });
 
@@ -289,6 +329,9 @@ export const {
   closeCheckoutModal,
   completeCreditPurchase,
   clearToast,
+  setHasUnsavedChanges,
+  setPendingTab,
+  clearPendingTab,
 } = settingsSlice.actions;
 
 export default settingsSlice.reducer;

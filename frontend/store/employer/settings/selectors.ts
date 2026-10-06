@@ -37,3 +37,9 @@ export const selectTotalSpent = (state: RootState) =>
     (total, invoice) => total + invoice.amount,
     0,
   );
+
+export const selectHasUnsavedChanges = (state: RootState) =>
+  state.employerSettings.hasUnsavedChanges;
+
+export const selectPendingTab = (state: RootState) =>
+  state.employerSettings.pendingTab;

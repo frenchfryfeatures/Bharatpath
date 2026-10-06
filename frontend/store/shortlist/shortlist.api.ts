@@ -13,7 +13,14 @@ export interface Invitation {
 }
 export interface EmployerInvitation extends Omit<Invitation, "employer_name"> {
   candidate_id: string;
-  candidate: { full_name: string | null; city: string | null; band: string } | null;
+  candidate: {
+    full_name: string | null;
+    city: string | null;
+    band: string;
+    state_code?: string | null;
+    experience_years?: number | null;
+    skills?: string[];
+  } | null;
 }
 interface Page<T> { items: T[]; next_cursor: string | null }
 interface Query { cursor?: string; job_id?: string; status?: InvitationStatus; limit?: number }

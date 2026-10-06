@@ -15,6 +15,7 @@ import {
   useGetEmployerCandidateSkillSuggestionsQuery,
 } from "@/store/employer/candidates";
 
+import { renderFieldLabel } from "@/features/employer/onboarding/components/kyb-field";
 import type { JobValidationErrors } from "../schemas/job.schema";
 
 const MAX_SKILLS = 50;
@@ -134,7 +135,7 @@ export function JobSkillsField({
   return (
     <div>
       <span className="mb-1.5 block text-[12px] font-semibold leading-4 text-[#687386]">
-        Required skills <span className="text-[#b42318]">*</span>
+        {renderFieldLabel("Required skills", true)}
       </span>
 
       <div ref={containerRef} className="relative">

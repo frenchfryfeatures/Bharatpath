@@ -25,7 +25,7 @@ interface ParsingStepProps {
   onReview: (resumeVersionId: string) => void;
   onTryAnother: () => void;
   onPaste: () => void;
-  onCancel: () => void;
+  onCancel?: () => void;
 }
 
 const LONG_WAIT_SECONDS = 45;

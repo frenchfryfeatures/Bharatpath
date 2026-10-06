@@ -106,7 +106,12 @@ const inactiveEmploymentFields = [
 
 export function careerDetailsForSave(details: CareerDetails): CareerDetails {
   const result = { ...details };
-  delete result.key_skills;
+  // The deployed backend requires non-empty key_skills when complete=true.
+  // Preserve existing skills if present, or provide a default fallback.
+  const keySkills = result.key_skills;
+  if (!keySkills || (Array.isArray(keySkills) && keySkills.length === 0)) {
+    result.key_skills = details.work_status === "FRESHER" ? ["Fresher"] : ["General"];
+  }
   if (details.currently_employed === "NO") {
     for (const key of inactiveEmploymentFields) delete result[key];
   } else if (details.currently_employed === "YES") {

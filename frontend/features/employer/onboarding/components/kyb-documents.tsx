@@ -20,7 +20,7 @@ import type {
   KybDocumentUploader,
   UploadProgress,
 } from "../hooks/use-kyb-document-upload";
-import { FieldError } from "./kyb-field";
+import { FieldError, renderFieldLabel } from "./kyb-field";
 
 const PHASE_LABEL: Record<UploadProgress["phase"], string> = {
   preparing: "Preparing upload…",
@@ -134,16 +134,7 @@ function DocumentRow({
 
           <div className="min-w-0">
             <p className="text-sm font-semibold text-[#17233a]">
-              {label}
-              {required ? (
-                <span className="ml-1 text-[#b42318]" aria-hidden="true">
-                  *
-                </span>
-              ) : (
-                <span className="ml-1.5 text-[11px] font-normal text-[#8790a0]">
-                  Optional
-                </span>
-              )}
+              {renderFieldLabel(label, required, { showOptional: true })}
             </p>
 
             {progress ? (

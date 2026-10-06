@@ -1,5 +1,5 @@
 import React, { ButtonHTMLAttributes, forwardRef, ReactNode } from "react";
-import { Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 
 export type ButtonVariant = "primary" | "secondary" | "dark" | "outline" | "ghost";
 export type ButtonSize = "sm" | "md" | "lg";
@@ -93,3 +93,37 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 );
 
 Button.displayName = "Button";
+
+export interface BackButtonProps extends Omit<ButtonProps, "icon"> {
+  label?: ReactNode;
+}
+
+export const BackButton = forwardRef<HTMLButtonElement, BackButtonProps>(
+  (
+    {
+      label = "Back",
+      variant = "secondary",
+      size = "lg",
+      children,
+      className = "",
+      ...props
+    },
+    ref,
+  ) => {
+    return (
+      <Button
+        ref={ref}
+        variant={variant}
+        size={size}
+        icon={<ArrowLeft className="h-4 w-4" aria-hidden="true" />}
+        className={className}
+        {...props}
+      >
+        {children ?? label}
+      </Button>
+    );
+  },
+);
+
+BackButton.displayName = "BackButton";
+

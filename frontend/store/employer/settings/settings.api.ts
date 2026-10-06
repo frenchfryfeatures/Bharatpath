@@ -23,10 +23,33 @@ export function mapEmployerOrganisation(
     businessType: organisation.employer_type ?? "",
     industry: organisation.industry ?? "",
     kybStatus: organisation.kyb_status,
-    // These fields are retained for the existing form, but are not returned
-    // by the organisation endpoint.
+    pan: "",
     gstin: "",
+    cin: "",
+    tan: "",
     address: "",
+    addressLine1: "",
+    addressLine2: "",
+    city: "",
+    state: "",
+    pincode: "",
+    signatoryName: "",
+    signatoryDesignation: "",
+    workEmail: "",
+    workPhone: "",
+    documents: [],
+    undertakings: {
+      genuineHiring: true,
+      noRedistribution: true,
+      authorised: true,
+      submittedAt: null,
+    },
+    tradeName: "",
+    employeeCountBand: "",
+    website: "",
+    about: "",
+    hasSeparateCorrespondenceAddress: false,
+    correspondenceAddress: "",
   };
 }
 
@@ -145,15 +168,15 @@ export const employerSettingsApi = baseApi.injectEndpoints({
 
     updateEmployerOrganisation: builder.mutation<
       CompanyProfile,
-      Pick<CompanyProfile, "legalName" | "businessType" | "industry">
+      Partial<Pick<CompanyProfile, "legalName" | "businessType" | "industry">>
     >({
       query: (company) => ({
         url: "/employer/organisation",
         method: "PATCH",
         body: {
-          legal_name: company.legalName,
-          employer_type: company.businessType || null,
-          industry: company.industry || null,
+          ...(company.legalName !== undefined ? { legal_name: company.legalName } : {}),
+          ...(company.businessType !== undefined ? { employer_type: company.businessType || null } : {}),
+          ...(company.industry !== undefined ? { industry: company.industry || null } : {}),
         },
       }),
       transformResponse: (response: EmployerOrganisationResponse) =>

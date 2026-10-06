@@ -1,7 +1,7 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
-import { OnboardingBackButton } from "@/components/common/onboarding-back-button";
+import { StudentBackButton } from "@/features/student/components/student-back-button";
 import {
   ArrowRight,
   BriefcaseBusiness,
@@ -79,7 +79,7 @@ export function SubscriptionStep({
           </div>
         </section>
         <div className="flex items-center gap-3">
-          {onBack ? <OnboardingBackButton onClick={onBack} /> : null}
+          {onBack ? <StudentBackButton onClick={onBack} /> : null}
           <PillButton onClick={onContinue} className="min-w-0 flex-1">
             Start resume scoring <ArrowRight size={17} />
           </PillButton>
@@ -235,7 +235,7 @@ export function SubscriptionStep({
       ) : null}
       <div className="flex items-center gap-3">
         {onBack ? (
-          <OnboardingBackButton
+          <StudentBackButton
             disabled={checkoutState.isLoading}
             onClick={onBack}
           />

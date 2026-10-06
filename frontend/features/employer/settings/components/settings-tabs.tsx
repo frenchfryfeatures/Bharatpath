@@ -2,8 +2,10 @@
 
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
+  selectHasUnsavedChanges,
   selectSettingsTab,
   setActiveTab,
+  setPendingTab,
   type SettingsTab,
 } from "@/store/employer/settings";
 
@@ -19,6 +21,16 @@ const tabs: Array<{ id: SettingsTab; label: string }> = [
 export function SettingsTabs() {
   const dispatch = useAppDispatch();
   const active = useAppSelector(selectSettingsTab);
+  const hasUnsavedChanges = useAppSelector(selectHasUnsavedChanges);
+
+  const handleTabClick = (tabId: SettingsTab) => {
+    if (tabId === active) return;
+    if (hasUnsavedChanges && active === "company") {
+      dispatch(setPendingTab(tabId));
+      return;
+    }
+    dispatch(setActiveTab(tabId));
+  };
 
   return (
     <nav
@@ -29,7 +41,7 @@ export function SettingsTabs() {
         <button
           key={tab.id}
           type="button"
-          onClick={() => dispatch(setActiveTab(tab.id))}
+          onClick={() => handleTabClick(tab.id)}
           className={[
             "h-full shrink-0 border-0 border-b-2 bg-transparent px-3.5 text-[13px] font-semibold",
             "cursor-pointer whitespace-nowrap",

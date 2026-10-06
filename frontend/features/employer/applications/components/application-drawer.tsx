@@ -1,9 +1,10 @@
 "use client";
 
-import { X } from "lucide-react";
+import { Maximize2, Minimize2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useGetEmployerApplicationQuery } from "@/store/employer/applications/applications.api";
 import { useScrollLock } from "@/hooks/use-scroll-lock";
+import { ResumeShowcase } from "@/features/employer/components/resume-showcase";
 
 import type { EmployerApplication, ApplicationStage } from "../types";
 import { getScoreBand } from "../band";
@@ -32,6 +33,7 @@ export function ApplicationDrawer({
 }: ApplicationDrawerProps) {
   useScrollLock(application !== null);
   const detail = useGetEmployerApplicationQuery(application?.id ?? "", { skip: !application });
+  const [isExpanded, setIsExpanded] = useState(false);
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   useEffect(() => {
     if (!application) return;
@@ -82,7 +84,11 @@ export function ApplicationDrawer({
       />
 
       {/* Drawer */}
-      <aside className="absolute right-0 top-0 flex h-full w-[520px] max-w-[100vw] flex-col bg-white shadow-[-8px_0_30px_rgba(19,26,38,0.14)]">
+      <aside
+        className={`absolute right-0 top-0 flex h-full ${
+          isExpanded ? "w-[860px]" : "w-[540px]"
+        } max-w-[100vw] flex-col bg-white shadow-[-8px_0_30px_rgba(19,26,38,0.14)] transition-[width] duration-200`}
+      >
         {/* Header */}
         <div className="flex shrink-0 items-center gap-3 border-b border-[#e7e9ee] px-6 py-5">
           <div className="flex min-w-0 flex-1 flex-col gap-[2px]">
@@ -95,14 +101,25 @@ export function ApplicationDrawer({
             </span>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg border border-[#e1e5eb] bg-white text-[#151b2b] transition hover:bg-[#f3f4f7]"
-          >
-            <X size={14} />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setIsExpanded((prev) => !prev)}
+              aria-label={isExpanded ? "Standard width" : "Expand drawer"}
+              title={isExpanded ? "Collapse drawer width" : "Expand drawer width"}
+              className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg border border-[#e1e5eb] bg-white text-[#151b2b] transition hover:bg-[#f3f4f7]"
+            >
+              {isExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg border border-[#e1e5eb] bg-white text-[#151b2b] transition hover:bg-[#f3f4f7]"
+            >
+              <X size={14} />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
@@ -126,26 +143,34 @@ export function ApplicationDrawer({
               currentStageLabel={currentStageLabel}
             />
 
-            <section className="flex max-h-[min(42vh,360px)] min-h-0 flex-col overflow-hidden rounded-lg border border-[#e7e9ee]">
-              <h3 className="shrink-0 border-b border-[#e7e9ee] px-4 py-3 text-sm font-semibold text-[#151b2b]">Resume</h3>
-              <div className="min-h-0 space-y-3 overflow-y-auto overscroll-contain p-4">
-              {detail.isFetching ? <p role="status" className="text-xs text-[#777f90]">Loading resume...</p> : detail.isError ? (
-                <div className="text-xs"><p>Unable to load resume.</p><button type="button" onClick={() => void detail.refetch()} className="mt-2 font-semibold text-[#51449a]">Retry</button></div>
-              ) : resume ? (
-                <>
-                  {resume.file_url && (resume.file_url_expires_at && Date.parse(resume.file_url_expires_at) <= currentTime ? (
-                    <button type="button" onClick={() => void detail.refetch()} className="text-xs font-semibold text-[#51449a]">Refresh resume download link</button>
-                  ) : <a href={resume.file_url} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-[#51449a] hover:underline">Download original resume</a>)}
-                  {resume.sections.length > 0 ? resume.sections.map((section, index) => (
-                    <div key={`${section.kind}-${index}`}>
-                      <h4 className="text-xs font-semibold capitalize text-[#273142]">{section.heading || section.kind.replaceAll("_", " ")}</h4>
-                      <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-5 text-[#43516a]">{section.body}</p>
-                    </div>
-                  )) : <p className="whitespace-pre-wrap break-words text-xs leading-5 text-[#43516a]">{resume.text || "No resume content is available."}</p>}
-                </>
-              ) : <p className="text-xs text-[#777f90]">No confirmed resume is available.</p>}
-              </div>
-            </section>
+            <div>
+              <h3 className="mb-1 text-sm font-semibold text-[#151b2b]">Resume</h3>
+              {detail.isFetching ? (
+                <p role="status" className="text-xs text-[#777f90]">
+                  Loading resume...
+                </p>
+              ) : detail.isError ? (
+                <div className="text-xs">
+                  <p>Unable to load resume.</p>
+                  <button
+                    type="button"
+                    onClick={() => void detail.refetch()}
+                    className="mt-2 font-semibold text-[#51449a]"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : (
+                <ResumeShowcase
+                  resume={resume}
+                  candidateName={candidate.name}
+                  currentTime={currentTime}
+                  onRefresh={() => void detail.refetch()}
+                  isExpanded={isExpanded}
+                  onToggleExpand={() => setIsExpanded((prev) => !prev)}
+                />
+              )}
+            </div>
 
             {application.outcome === null && (
               <StageMoveControls

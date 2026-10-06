@@ -22,10 +22,11 @@ import {
 } from "@/features/student/profile/career-api";
 
 import { AppSelect } from "@/components/ui/app-select";
-import { OnboardingBackButton } from "@/components/common/onboarding-back-button";
+import { StudentBackButton } from "@/features/student/components/student-back-button";
 import { getApiErrorMessage } from "@/lib/api/error-message";
 import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
 import {
+  MIN_CANDIDATE_PASSWORD_LENGTH,
   passwordError,
   useSignupFlow,
 } from "@/features/auth/hooks/use-signup-flow";
@@ -105,7 +106,10 @@ export function AccountStep({
     password?: string;
   }>({});
   const passwordRequirements = [
-    { label: "At least 12 characters", met: password.length >= 12 },
+    {
+      label: `At least ${MIN_CANDIDATE_PASSWORD_LENGTH} characters`,
+      met: password.length >= MIN_CANDIDATE_PASSWORD_LENGTH,
+    },
     { label: "An uppercase letter", met: /[A-Z]/.test(password) },
     { label: "A lowercase letter", met: /[a-z]/.test(password) },
     { label: "A number", met: /\d/.test(password) },
@@ -231,7 +235,7 @@ export function AccountStep({
 
         <div className="flex flex-col gap-3">
           <div className="flex gap-2">
-            <OnboardingBackButton onClick={flow.back} />
+            <StudentBackButton onClick={flow.back} />
             <PillButton
               type="submit"
               isLoading={flow.busy}
@@ -424,7 +428,7 @@ export function AccountStep({
             ? "Your password is already set. You do not need to enter it again."
             : showPasswordFeedback
               ? undefined
-              : "At least 12 characters, with uppercase, lowercase and a number. Symbols are optional."
+              : `At least ${MIN_CANDIDATE_PASSWORD_LENGTH} characters, with uppercase, lowercase and a number. Symbols are optional.`
         }
       >
         <div className="relative">
@@ -777,7 +781,7 @@ export function LocationStep({
 
       <div className="flex flex-col gap-3">
         <div className="flex gap-2">
-          <OnboardingBackButton
+          <StudentBackButton
             disabled={saving}
             onClick={() => onBack({ city, stateCode })}
           />

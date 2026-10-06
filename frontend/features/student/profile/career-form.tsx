@@ -1,7 +1,7 @@
 "use client";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, Mail, Phone, Plus, User, X } from "lucide-react";
-import { OnboardingBackButton } from "@/components/common/onboarding-back-button";
+import { StudentBackButton } from "@/features/student/components/student-back-button";
 import { AppSelect } from "@/components/ui/app-select";
 import {
   useGetStudentProfileQuery,
@@ -640,7 +640,7 @@ export function CareerForm({
         </p>
       )}
       <div className="flex items-center gap-3">
-        <OnboardingBackButton
+        <StudentBackButton
           disabled={busy}
           className={editing ? "lg:h-12 lg:text-[14px]" : ""}
           label={editing ? "Close" : "Back"}
