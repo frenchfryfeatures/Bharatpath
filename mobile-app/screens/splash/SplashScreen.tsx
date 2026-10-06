@@ -156,7 +156,7 @@ export function SplashScreen({ onFinish, autoPlay = true }: SplashScreenProps) {
             ]}
           >
             <Image
-              source={require('../../assets/icons/logo-safron.png')}
+              source={require('../../assets/icons/bharatpath-icon.png')}
               style={styles.logoImage}
               resizeMode="contain"
             />

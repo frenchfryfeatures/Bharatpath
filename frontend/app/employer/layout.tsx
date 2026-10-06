@@ -21,7 +21,7 @@ export default function EmployerLayout({
   const [employerState, setEmployerState] =
     useState<EmployerState>("pending");
 
-  // Banner temporarily hidden — kept for later use.
+  // Banner temporarily hidden - kept for later use.
   // const [bannerDismissed, setBannerDismissed] = useState(false);
   //
   // let banner = {
@@ -58,7 +58,7 @@ export default function EmployerLayout({
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
-      {/* Temporarily hidden — kept for later use.
+      {/* Temporarily hidden - kept for later use.
       {!bannerDismissed && (
         <QueueStatusBanner
           variant={employerState === "approved" ? "success" : "progress"}

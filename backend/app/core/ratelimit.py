@@ -75,6 +75,7 @@ class Policy:
 #: rather than in `jobs` because a limit is only comparable with the others --
 #: and only testable as "the tightest" -- if they all live in one table.
 STATIC_POLICIES: Final[Mapping[str, Policy]] = {
+    "resume.preview": Policy("resume:preview", Scope.IP, 30, 3600),
     # Shared across the organisation: the risk is the organisation learning a
     # score by bisection, not one person asking too often (Day 10).
     "jobs.threshold_preview": Policy("jobs:threshold_preview", Scope.TENANT, 30, 3600),
@@ -161,10 +162,17 @@ async def hit(
     key = f"ratelimit:{bucket}:{subject}"
     try:
         redis = get_redis()
-        pipe = redis.pipeline()
-        pipe.incr(key)
-        pipe.expire(key, window_seconds, nx=True)  # only on the first hit of a window
-        count = int((await pipe.execute())[0])
+        # Atomic fixed window, including Redis versions without EXPIRE NX.
+        count = int(
+            await redis.eval(
+                "local n=redis.call('INCR',KEYS[1]); "
+                "if n==1 or redis.call('TTL',KEYS[1])<0 then "
+                "redis.call('EXPIRE',KEYS[1],ARGV[1]); end; return n",
+                1,
+                key,
+                window_seconds,
+            )
+        )
     except RateLimitedError:
         raise
     except Exception as exc:

@@ -29,10 +29,10 @@ export interface StudentDetailDrawerProps {
 }
 
 function formatDate(value: string | null): string {
-  if (!value) return "—";
+  if (!value) return "-";
 
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
+  if (Number.isNaN(date.getTime())) return "-";
 
   return date.toLocaleDateString("en-IN", {
     day: "numeric",
@@ -43,7 +43,7 @@ function formatDate(value: string | null): string {
 
 /*
  * Opening a single student is the only place a college sees a score, band and
- * activity — and every open is audited server-side (SRS §6). The list view is
+ * activity - and every open is audited server-side (SRS §6). The list view is
  * deliberately name-only so that rendering the roster does not audit everyone.
  */
 export function StudentDetailDrawer({

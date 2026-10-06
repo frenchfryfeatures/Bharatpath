@@ -33,6 +33,7 @@ from pydantic import Field
 
 from app.core.schemas import ApiSchema
 from app.modules.admin.domain import MAX_DISPUTE_DESCRIPTION, MAX_RESOLUTION, DisputeKind
+from app.modules.candidate.career import CareerResponse, form_fields
 
 
 class _Base(ApiSchema):
@@ -797,6 +798,8 @@ class CandidateOnboarding(_Base):
     phone: str | None
     city: str | None
     state_code: str | None
+    career: CareerResponse | None = None
+    career_fields: list[dict[str, Any]] = Field(default_factory=form_fields)
     questionnaire_submitted_at: datetime | None
     questionnaire: list[OnboardingAnswer]
     college_links: list[CollegeLinkSummary]

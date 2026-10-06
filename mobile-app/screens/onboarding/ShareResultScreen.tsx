@@ -98,7 +98,7 @@ export function ShareResultScreen({
             {/* Top Brand Logo Row */}
             <View style={styles.brandRow}>
               <Image
-                source={require('../../assets/icons/logo-safron.png')}
+                source={require('../../assets/icons/bharatpath-icon.png')}
                 style={styles.logoMark}
                 resizeMode="contain"
               />

@@ -14,7 +14,7 @@ export type SignupPhase = "DETAILS" | "CONFIRM" | "TOTP_SETUP";
 export const MIN_PASSWORD_LENGTH = 12;
 
 export function passwordError(password: string, pool: Pool = "BUSINESS"): string | undefined {
-  const minimumLength = pool === "CANDIDATE" ? 8 : MIN_PASSWORD_LENGTH;
+  const minimumLength = MIN_PASSWORD_LENGTH;
   if (password.length < minimumLength) {
     return `Use at least ${minimumLength} characters.`;
   }
@@ -22,17 +22,17 @@ export function passwordError(password: string, pool: Pool = "BUSINESS"): string
     !/[a-z]/.test(password) ||
     !/[A-Z]/.test(password) ||
     !/\d/.test(password) ||
-    !/[^A-Za-z0-9]/.test(password)
+    (pool === "BUSINESS" && !/[^A-Za-z0-9]/.test(password))
   ) {
-    return "Include an uppercase letter, a lowercase letter, a number and a symbol.";
+    return pool === "CANDIDATE" ? "Include an uppercase letter, a lowercase letter and a number." : "Include an uppercase letter, a lowercase letter, a number and a symbol.";
   }
   return undefined;
 }
 
 /**
  * The Cognito sign-up sequence both account steps share: email and password,
- * the emailed confirmation code, and — for the business pool, which requires
- * MFA — the authenticator-app setup. `onSignedUp` fires once a session exists.
+ * the emailed confirmation code, and - for the business pool, which requires
+ * MFA - the authenticator-app setup. `onSignedUp` fires once a session exists.
  */
 export function useSignupFlow(
   pool: Pool,

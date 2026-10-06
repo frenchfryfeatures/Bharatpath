@@ -594,7 +594,7 @@ function basicsOf(body: string) {
   const name = lines[0] ?? "";
   const details = lines
     .slice(1)
-    .map((line) => line === phoneLine ? line.replace(phone, "").replace(/^[\s·—|,-]+|[\s·—|,-]+$/g, "").trim() : line)
+    .map((line) => line === phoneLine ? line.replace(phone, "").replace(/^[\s·|,-]+|[\s·|,-]+$/g, "").trim() : line)
     .filter(Boolean)
     .join("\n");
   return { name, phone, details };

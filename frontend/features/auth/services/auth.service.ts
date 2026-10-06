@@ -16,7 +16,7 @@ import { clearStoredToken, setStoredToken } from "@/lib/auth/token";
 import { LoginResponse, SignupRequest, SignupResponse } from "../types";
 
 /*
- * Every call here goes straight to the backend from the browser — there is
+ * Every call here goes straight to the backend from the browser - there is
  * no Next.js route standing in between. The backend's RS256 bearer token is
  * what authenticates subsequent requests (kept in `lib/auth/token`, attached
  * as `Authorization` by the API clients); nothing here sets a cookie.
@@ -74,7 +74,7 @@ async function resolveSession(
 
     // On sign-in a 403 always means "business account with no organisation
     // yet"; let them in to create one. On sign-up that is true only for the
-    // `no_active_membership` code — other 403s (a conflicting pool, an
+    // `no_active_membership` code - other 403s (a conflicting pool, an
     // inactive account) must still error.
     if (meResponse.status === 403 && (!options.signup || isBusiness)) {
       let code: string | undefined;

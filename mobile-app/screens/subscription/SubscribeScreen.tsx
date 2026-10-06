@@ -1,10 +1,10 @@
 /**
- * BharatPath - Membership (the paywall before resume intake)
+ * BharatPath - Membership after the four profile steps
  *
  * Everything the candidate does next is behind a live subscription: the score
  * itself, job matches and applying, the skill check, mock interviews and
  * courses all answer 402 `subscription_required` without one. So the choice is
- * made here, before a CV is uploaded, and `has_access` is the only thing this
+ * made here, after the profile is saved, and `has_access` is the only thing this
  * screen trusts - plans, prices and periods all come from the API.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -97,7 +97,7 @@ export function SubscribeScreen({
       const sorted = [...planList].sort((a, b) => a.months - b.months);
       setPlans(sorted);
       setSubscription(current);
-      setSelectedCode((existing) => existing || sorted[0]?.code || null);
+      setSelectedCode((existing) => sorted.some((plan) => plan.code === existing) ? existing : sorted[0]?.code || null);
     } catch (error) {
       setLoadError(billingErrorMessage(error, 'Could not load the membership plans.'));
     } finally {
@@ -183,9 +183,6 @@ export function SubscribeScreen({
   const handlePaid = (updated: SubscriptionResponse) => {
     setCheckout(null);
     setSubscription(updated);
-    if (updated.has_access) {
-      onSubscribed();
-    }
   };
 
   if (isLoading) {
@@ -246,16 +243,6 @@ export function SubscribeScreen({
       <StatusBar style="dark" animated />
       <View style={styles.container}>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <View style={styles.headerProgressSection}>
-            <Text style={styles.stepEyebrow}>STEP 3 OF 4</Text>
-            <View style={styles.progressSegmentsRow}>
-              <View style={[styles.progressSegment, styles.segmentActive]} />
-              <View style={[styles.progressSegment, styles.segmentActive]} />
-              <View style={[styles.progressSegment, styles.segmentActive]} />
-              <View style={styles.progressSegment} />
-            </View>
-          </View>
-
           {hasAccess ? (
             <>
               <View style={styles.titleSection}>
@@ -299,6 +286,14 @@ export function SubscribeScreen({
 
               <View style={styles.plansSection}>
                 <Text style={styles.sectionEyebrow}>CHOOSE A LENGTH</Text>
+                {plans.length === 0 && (
+                  <View style={styles.activeCard}>
+                    <Text style={styles.centeredText}>No membership plans are available right now.</Text>
+                    <Pressable accessibilityRole="button" onPress={load}>
+                      <Text style={styles.linkText}>Try again</Text>
+                    </Pressable>
+                  </View>
+                )}
                 {plans.map((plan) => {
                   const isSelected = plan.code === selectedCode;
                   return (
@@ -392,7 +387,7 @@ export function SubscribeScreen({
               onPress={onSubscribed}
               accessibilityRole="button"
             >
-              <Text style={styles.ctaButtonText}>Continue to your resume</Text>
+              <Text style={styles.ctaButtonText}>Start resume scoring</Text>
               <ArrowRight size={18} color="#FFFFFF" weight="bold" />
             </Pressable>
           ) : (
@@ -401,14 +396,14 @@ export function SubscribeScreen({
               onPress={handleCheckout}
               disabled={isCheckingOut || !selectedPlan}
               accessibilityRole="button"
-              accessibilityLabel={`Continue to payment, ${formatMinor(payableMinor)}`}
+              accessibilityLabel={selectedPlan ? `Continue to payment, ${formatMinor(payableMinor)}` : 'Select a membership plan'}
             >
               {isCheckingOut ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
                 <>
                   <Text style={styles.ctaButtonText}>
-                    Continue · {formatMinor(payableMinor)}
+                    {selectedPlan ? `Continue · ${formatMinor(payableMinor)}` : 'Select a membership plan'}
                   </Text>
                   <ArrowRight size={18} color="#FFFFFF" weight="bold" />
                 </>

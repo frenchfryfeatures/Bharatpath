@@ -14,7 +14,8 @@ notice.
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import Any, TypedDict
+from urllib.parse import urlparse
 
 import boto3
 from botocore.config import Config
@@ -40,6 +41,22 @@ _s3_client: Any | None = None
 _s3_presign_client: Any | None = None
 
 
+class _LocalCredentials(TypedDict, total=False):
+    aws_access_key_id: str
+    aws_secret_access_key: str
+
+
+def _local_credentials() -> _LocalCredentials:
+    settings = get_settings()
+    if (
+        settings.environment == "local"
+        and settings.aws_endpoint_url
+        and urlparse(settings.aws_endpoint_url).hostname in ("localhost", "127.0.0.1")
+    ):
+        return {"aws_access_key_id": "local-preview", "aws_secret_access_key": "local-preview"}
+    return {}
+
+
 def get_s3_client() -> Any:
     global _s3_client
     if _s3_client is None:
@@ -54,6 +71,7 @@ def get_s3_client() -> Any:
         _s3_client = boto3.client(
             "s3",
             region_name=settings.aws_region,
+            **_local_credentials(),
             endpoint_url=endpoint,
             config=Config(
                 signature_version="s3v4",
@@ -79,6 +97,7 @@ def _get_presign_client() -> Any:
             _s3_presign_client = boto3.client(
                 "s3",
                 region_name=settings.aws_region,
+                **_local_credentials(),
                 endpoint_url=external,
                 config=Config(
                     signature_version="s3v4",

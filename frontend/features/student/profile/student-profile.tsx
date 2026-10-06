@@ -2,17 +2,16 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { CareerOverview } from "./career-overview";
+import { useAppSelector } from "@/store/hooks";
 import {
-  Bell,
   BookOpen,
   Building2,
   ChevronRight,
-  CircleUser,
   ClipboardCheck,
   Eye,
   FileText,
   Languages,
-  Lock,
   MapPin,
   Mic2,
   Pencil,
@@ -28,18 +27,13 @@ import {
   useUpdateStudentLocationMutation,
   useUpdateStudentNameMutation,
 } from "@/store/student";
-import {
-  useGetNotificationPreferencesQuery,
-  useUpdateNotificationPreferencesMutation,
-} from "@/store/api/notification-api";
 import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
-import { initials, formatDateTime } from "@/features/student/formatters";
+import { formatDateTime } from "@/features/student/formatters";
 import type { StudentProfile as StudentProfileData } from "@/features/student/types";
 import {
   interactiveCardClass,
   NoteStrip,
   PillButton,
-  SectionEyebrow,
   StudentCard,
   StudentErrorState,
 } from "@/features/student/components";
@@ -50,21 +44,16 @@ import { Modal } from "@/components/ui/modal";
 
 export function StudentProfile() {
   const router = useRouter();
+  const accountEmail = useAppSelector((state) => state.auth.user?.email ?? "");
   const profile = useGetStudentProfileQuery();
   const score = useGetStudentScoreQuery();
   const applications = useGetStudentApplicationsQuery({ limit: 100 });
   const courses = useGetStudentCoursesQuery();
-  const preferences = useGetNotificationPreferencesQuery();
-  const [updatePreferences, preferencesState] =
-    useUpdateNotificationPreferencesMutation();
-
-  const notificationsEnabled = preferences.data?.push_enabled ?? false;
   if (
     profile.isLoading ||
     score.isLoading ||
     applications.isLoading ||
-    courses.isLoading ||
-    preferences.isLoading
+    courses.isLoading
   ) {
     return <StudentProfileSkeleton />;
   }
@@ -72,131 +61,140 @@ export function StudentProfile() {
   return (
     <StudentPage>
       <div className="flex flex-col gap-6">
-        <div className="flex items-center gap-4">
-          <span className="grid h-14 w-14 place-items-center rounded-full bg-[#F1EAF7] text-[19px] font-bold text-[#4A3E8F]">
-            {initials(profile.data?.fullName)}
-          </span>
-          <div className="flex flex-1 flex-col gap-1">
-            <span className="text-[18px] font-bold tracking-[-0.02em] text-[#0A1931] sm:text-[22px]">
-              {profile.data?.fullName ?? "Student"}
-            </span>
-            <span className="text-[13px] text-[#5F6B80]">
-              {[profile.data?.city, profile.data?.stateCode]
-                .filter(Boolean)
-                .join(", ") || "Location not added"}
-            </span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-3 gap-2 sm:max-w-md">
-          <StatTile
-            value={
-              score.data?.status === "READY" && score.data.value != null
-                ? String(score.data.value)
-                : "—"
-            }
-            label="Score"
-            tone="indigo"
-            onClick={() => router.push("/student/score")}
-          />
-          <StatTile
-            value={String(
-              applications.data?.total ??
-                applications.data?.items.length ??
-                0,
-            )}
-            label="Applications"
-            onClick={() => router.push("/student/board")}
-          />
-          <StatTile
-            value={String(courses.data?.length ?? 0)}
-            label="Add-ons"
-            onClick={() => router.push("/student/courses")}
-          />
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-2">
-          <div className="flex flex-col gap-3">
-            <SectionEyebrow icon={<CircleUser size={12} />}>
-              My information
-            </SectionEyebrow>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-              <ProfileAction icon={FileText} title="Resume details" detail="Review and edit extracted information" tone="violet" onClick={() => router.push("/student/profile/resume")} />
-              <ProfileAction icon={ClipboardCheck} title="Attribute report" detail="View your completed assessment" tone="green" onClick={() => router.push("/student/attribute")} />
-              <ProfileAction icon={Mic2} title="Interview report" detail="Practice history and feedback" tone="orange" onClick={() => router.push("/student/interview#interview-history")} />
-              <ProfileAction icon={BookOpen} title="Skill courses" detail={`${courses.data?.length ?? 0} available · ${courses.data?.filter((course) => course.completed).length ?? 0} completed`} tone="blue" onClick={() => router.push("/student/courses")} />
-              <ProfileAction icon={Languages} title="Language" detail="English" tone="gold" />
-            </div>
-            {profile.data ? (
-              <ProfileForm
-                profile={profile.data}
+        <CareerOverview
+          fullName={profile.data?.fullName ?? "Student"}
+          email={accountEmail}
+          summaryStats={
+            <div className="grid grid-cols-3 gap-2 sm:max-w-md">
+              <StatTile
+                value={
+                  score.data?.status === "READY" && score.data.value != null
+                    ? String(score.data.value)
+                    : "-"
+                }
+                label="Score"
+                tone="indigo"
+                onClick={() => router.push("/student/score")}
               />
-            ) : (
-              <StudentCard>Loading profile…</StudentCard>
-            )}
-
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <SectionEyebrow icon={<Lock size={12} />}>Privacy and data</SectionEyebrow>
-            <button
-              type="button"
-              onClick={() => router.push("/student/privacy")}
-              className={`flex items-center gap-3 rounded-2xl border border-[#E7E0D4] bg-white p-4 text-left ${interactiveCardClass}`}
+              <StatTile
+                value={String(
+                  applications.data?.total ??
+                    applications.data?.items.length ??
+                    0,
+                )}
+                label="Applications"
+                onClick={() => router.push("/student/board")}
+              />
+              <StatTile
+                value={String(courses.data?.length ?? 0)}
+                label="Add-ons"
+                onClick={() => router.push("/student/courses")}
+              />
+            </div>
+          }
+          identityDetails={
+            profile.data ? (
+              <ProfileForm profile={profile.data} embedded />
+            ) : undefined
+          }
+        >
+          <div className="flex flex-col gap-4">
+            <section
+              id="profile-reports"
+              className="scroll-mt-24 rounded-[20px] border border-[#E7E0D4] bg-white p-4"
             >
-              <Eye size={20} className="text-[#5F4DB2]" />
-              <span className="flex flex-1 flex-col">
-                <span className="text-[15px] font-medium text-[#0A1931]">
-                  Who has seen me
-                </span>
-                <span className="text-[12px] text-[#5F6B80]">
-                  See which employers opened your profile
-                </span>
-              </span>
-              <ChevronRight size={17} className="shrink-0 text-[#7B8495]" aria-hidden="true" />
-            </button>
-            <div className="flex items-center gap-3 rounded-2xl border border-[#E7E0D4] bg-white p-4">
-              <Bell size={20} className="text-[#0A1931]" />
-              <span className="flex flex-1 flex-col">
-                <span className="text-[15px] font-medium text-[#0A1931]">
-                  Push notifications
-                </span>
-                <span className="text-[12px] text-[#5F6B80]">
-                  Application and account updates
-                </span>
-              </span>
+              <h2 className="text-[15px] font-semibold leading-5 text-[#0A1931]">
+                Reports and learning
+              </h2>
+              <p className="mt-1 mb-4 text-[13px] leading-5 text-[#5F6B80]">
+                Your resume review, assessments, interview feedback and courses
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <ProfileAction
+                  icon={FileText}
+                  title="Resume review"
+                  detail="Review your document and scoring history"
+                  tone="violet"
+                  onClick={() => router.push("/student/profile/resume")}
+                />
+                <ProfileAction
+                  icon={ClipboardCheck}
+                  title="Attribute report"
+                  detail="View your completed assessment"
+                  tone="green"
+                  onClick={() => router.push("/student/attribute")}
+                />
+                <ProfileAction
+                  icon={Mic2}
+                  title="Interview report"
+                  detail="Practice history and feedback"
+                  tone="orange"
+                  onClick={() =>
+                    router.push("/student/interview#interview-history")
+                  }
+                />
+                <ProfileAction
+                  icon={BookOpen}
+                  title="Skill courses"
+                  detail={`${courses.data?.length ?? 0} available · ${courses.data?.filter((course) => course.completed).length ?? 0} completed`}
+                  tone="blue"
+                  onClick={() => router.push("/student/courses")}
+                />
+                <ProfileAction
+                  icon={Languages}
+                  title="Language"
+                  detail="English"
+                  tone="gold"
+                />
+              </div>
+            </section>
+
+            <section
+              id="profile-privacy"
+              className="scroll-mt-24 flex flex-col gap-3 rounded-[20px] border border-[#E7E0D4] bg-white p-4"
+            >
+              <h2 className="text-[15px] font-semibold leading-5 text-[#0A1931]">
+                Privacy and account
+              </h2>
               <button
                 type="button"
-                role="switch"
-                aria-checked={notificationsEnabled}
-                disabled={preferences.isLoading || preferencesState.isLoading}
-                onClick={() =>
-                  void updatePreferences({
-                    push_enabled: !notificationsEnabled,
-                  })
-                }
-                className={[
-                  "flex h-7 w-12 cursor-pointer items-center rounded-full p-1 transition-colors disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30",
-                  notificationsEnabled
-                    ? "justify-end bg-[#5F4DB2] enabled:hover:bg-[#4A3E8F]"
-                    : "justify-start bg-[rgba(10,25,49,0.2)] enabled:hover:bg-[rgba(10,25,49,0.3)]",
-                ].join(" ")}
+                onClick={() => router.push("/student/privacy")}
+                className={`flex items-center gap-3 rounded-2xl border border-[#E7E0D4] bg-white p-4 text-left ${interactiveCardClass}`}
               >
-                <span className="h-5 w-5 rounded-full bg-white" />
+                <Eye size={20} className="text-[#5F4DB2]" />
+                <span className="flex flex-1 flex-col">
+                  <span className="text-[15px] font-medium text-[#0A1931]">
+                    Who has seen me
+                  </span>
+                  <span className="text-[12px] text-[#5F6B80]">
+                    See which employers opened your profile
+                  </span>
+                </span>
+                <ChevronRight
+                  size={17}
+                  className="shrink-0 text-[#7B8495]"
+                  aria-hidden="true"
+                />
               </button>
-            </div>
-            <NoteStrip icon={<MapPin size={16} />}>
-              Only your city and state are used for job discovery. Do not enter a
-              street address.
-            </NoteStrip>
+              <NoteStrip icon={<MapPin size={16} />}>
+                Only your city and state are used for job discovery. Do not
+                enter a street address.
+              </NoteStrip>
+            </section>
           </div>
-        </div>
+        </CareerOverview>
       </div>
     </StudentPage>
   );
 }
 
-function ProfileAction({ icon: Icon, title, detail, tone, onClick }: {
+function ProfileAction({
+  icon: Icon,
+  title,
+  detail,
+  tone,
+  onClick,
+}: {
   icon: LucideIcon;
   title: string;
   detail: string;
@@ -213,29 +211,47 @@ function ProfileAction({ icon: Icon, title, detail, tone, onClick }: {
   }[tone];
   const content = (
     <>
-      <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${toneClass}`}>
+      <span
+        className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${toneClass}`}
+      >
         <Icon size={19} aria-hidden="true" />
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="text-[14px] font-semibold text-[#0A1931]">{title}</span>
-        <span className="line-clamp-2 text-[11px] leading-4 text-[#5F6B80]">{detail}</span>
+        <span className="text-[14px] font-semibold text-[#0A1931]">
+          {title}
+        </span>
+        <span className="line-clamp-2 text-[11px] leading-4 text-[#5F6B80]">
+          {detail}
+        </span>
       </span>
-      {onClick ? <ChevronRight size={17} className="shrink-0 text-[#7B8495]" aria-hidden="true" /> : null}
+      {onClick ? (
+        <ChevronRight
+          size={17}
+          className="shrink-0 text-[#7B8495]"
+          aria-hidden="true"
+        />
+      ) : null}
     </>
   );
 
   return onClick ? (
-    <button type="button" onClick={onClick} className={`group flex min-h-20 items-center gap-3 rounded-2xl border border-[#E7E0D4] bg-white p-3.5 text-left ${interactiveCardClass}`}>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`group flex min-h-20 items-center gap-3 rounded-2xl border border-[#E7E0D4] bg-white p-3.5 text-left ${interactiveCardClass}`}
+    >
       {content}
     </button>
   ) : (
-    <div className="flex min-h-20 items-center gap-3 rounded-2xl border border-[#E7E0D4] bg-white p-3.5">{content}</div>
+    <div className="flex min-h-20 items-center gap-3 rounded-2xl border border-[#E7E0D4] bg-white p-3.5">
+      {content}
+    </div>
   );
 }
 
 /**
  * `GET /candidate/profile/views`: the organisations that opened this profile
- * in the last 90 days, latest first. The organisation only — never the
+ * in the last 90 days, latest first. The organisation only - never the
  * recruiter in it, and never a count of opens, which is what the API itself
  * is limited to.
  */
@@ -291,7 +307,7 @@ function ProfileViewsCard() {
             ))}
           </ul>
           <p className="text-[11px] leading-4 text-[#5F6B80]">
-            Last 90 days, most recent first. Which organisation looked — never
+            Last 90 days, most recent first. Which organisation looked - never
             which person, and never how many times.
           </p>
         </>
@@ -306,8 +322,10 @@ function ProfileViewsCard() {
 
 function ProfileForm({
   profile,
+  embedded = false,
 }: {
   profile: StudentProfileData;
+  embedded?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [updateName, nameState] = useUpdateStudentNameMutation();
@@ -316,6 +334,7 @@ function ProfileForm({
   const [city, setCity] = useState(profile.city ?? "");
   const [stateCode, setStateCode] = useState(profile.stateCode ?? "");
   const profileError = nameState.error ?? locationState.error;
+  const Surface = embedded ? "div" : StudentCard;
 
   const saveProfile = async () => {
     try {
@@ -345,33 +364,100 @@ function ProfileForm({
 
   return (
     <>
-      <StudentCard className="flex flex-col gap-4">
+      <Surface className="flex flex-col gap-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-[15px] font-semibold text-[#0A1931]">Personal details</h2>
-            <p className="mt-0.5 text-[12px] text-[#5F6B80]">Your name and location used for job discovery</p>
+            <h2 className="text-[15px] font-semibold text-[#0A1931]">
+              {embedded ? "Name and location" : "Personal details"}
+            </h2>
+            <p className="mt-0.5 text-[12px] text-[#5F6B80]">
+              Your name and location used for job discovery
+            </p>
           </div>
-          <button type="button" onClick={() => setOpen(true)} aria-label="Edit personal details" className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-[#E7E0D4] text-[#5F4DB2] transition-colors hover:bg-[#F5F1FA] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30">
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            aria-label="Edit personal details"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-[#E7E0D4] text-[#5F4DB2] transition-colors hover:bg-[#F5F1FA] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30"
+          >
             <Pencil size={16} aria-hidden="true" />
           </button>
         </div>
         <dl className="grid gap-3 border-t border-[#F0EBDF] pt-3 sm:grid-cols-2">
-          <div><dt className="text-[11px] font-medium text-[#7B8495]">Full name</dt><dd className="mt-1 truncate text-[14px] font-medium text-[#0A1931]">{profile.fullName || "Add your name"}</dd></div>
-          <div><dt className="text-[11px] font-medium text-[#7B8495]">Location</dt><dd className="mt-1 truncate text-[14px] font-medium text-[#0A1931]">{[profile.city, profile.stateCode].filter(Boolean).join(", ") || "Add your city and state"}</dd></div>
-        </dl>
-      </StudentCard>
-      <Modal open={open} title="Edit personal details" description="Keep your profile details up to date. Only your city and state are used for job discovery." onClose={() => setOpen(false)} closeDisabled={nameState.isLoading || locationState.isLoading}>
-        <div className="flex flex-col gap-4">
-          <Field label="Full name" value={fullName} onChange={setFullName} placeholder="Your full name" />
-          <div className="grid grid-cols-[1fr_7rem] gap-3">
-            <Field label="City" value={city} onChange={setCity} placeholder="City" />
-            <Field label="State" value={stateCode} onChange={setStateCode} placeholder="MH" maxLength={2} />
+          <div>
+            <dt className="text-[11px] font-medium text-[#7B8495]">
+              Full name
+            </dt>
+            <dd className="mt-1 truncate text-[14px] font-medium text-[#0A1931]">
+              {profile.fullName || "Add your name"}
+            </dd>
           </div>
-          {profileError ? <StudentErrorState variant="inline" error={profileError} fallback="Could not save your profile." /> : null}
+          <div>
+            <dt className="text-[11px] font-medium text-[#7B8495]">Location</dt>
+            <dd className="mt-1 truncate text-[14px] font-medium text-[#0A1931]">
+              {[profile.city, profile.stateCode].filter(Boolean).join(", ") ||
+                "Add your city and state"}
+            </dd>
+          </div>
+        </dl>
+      </Surface>
+      <Modal
+        open={open}
+        title="Edit personal details"
+        description="Keep your profile details up to date. Only your city and state are used for job discovery."
+        onClose={() => setOpen(false)}
+        closeDisabled={nameState.isLoading || locationState.isLoading}
+      >
+        <div className="flex flex-col gap-4">
+          <Field
+            label="Full name"
+            value={fullName}
+            onChange={setFullName}
+            placeholder="Your full name"
+          />
+          <div className="grid grid-cols-[1fr_7rem] gap-3">
+            <Field
+              label="City"
+              value={city}
+              onChange={setCity}
+              placeholder="City"
+            />
+            <Field
+              label="State"
+              value={stateCode}
+              onChange={setStateCode}
+              placeholder="MH"
+              maxLength={2}
+            />
+          </div>
+          {profileError ? (
+            <StudentErrorState
+              variant="inline"
+              error={profileError}
+              fallback="Could not save your profile."
+            />
+          ) : null}
           <div className="flex gap-2 pt-1">
-            <PillButton variant="secondary" className="flex-1" disabled={nameState.isLoading || locationState.isLoading} onClick={() => setOpen(false)}>Cancel</PillButton>
-            <PillButton className="flex-1" disabled={nameState.isLoading || locationState.isLoading || !fullName.trim()} onClick={() => void saveProfile()}>
-              {nameState.isLoading || locationState.isLoading ? "Saving…" : "Save changes"}
+            <PillButton
+              variant="secondary"
+              className="flex-1"
+              disabled={nameState.isLoading || locationState.isLoading}
+              onClick={() => setOpen(false)}
+            >
+              Cancel
+            </PillButton>
+            <PillButton
+              className="flex-1"
+              disabled={
+                nameState.isLoading ||
+                locationState.isLoading ||
+                !fullName.trim()
+              }
+              onClick={() => void saveProfile()}
+            >
+              {nameState.isLoading || locationState.isLoading
+                ? "Saving…"
+                : "Save changes"}
             </PillButton>
           </div>
         </div>
@@ -437,7 +523,11 @@ function StatTile({
       ].join(" ")}
     >
       <span className="text-[22px] font-extrabold leading-6">{value}</span>
-      <span className={indigo ? "text-[12px] text-[#E0DBF4]" : "text-[12px] text-[#5F6B80]"}>
+      <span
+        className={
+          indigo ? "text-[12px] text-[#E0DBF4]" : "text-[12px] text-[#5F6B80]"
+        }
+      >
         {label}
       </span>
     </button>

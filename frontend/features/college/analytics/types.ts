@@ -44,7 +44,7 @@ export interface CollegeAnalyticsView {
   placementsByMonth: MonthPlacement[];
   placementsByLocation: LocationPlacement[];
 
-  /** `GET /college/analytics/applications` — aggregate, no student named. */
+  /** `GET /college/analytics/applications` - aggregate, no student named. */
   funnelBelowFloor: boolean;
   totalApplications: number | null;
   funnelStages: FunnelCount[];

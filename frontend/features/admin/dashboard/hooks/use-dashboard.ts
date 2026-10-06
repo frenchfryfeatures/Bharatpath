@@ -18,13 +18,13 @@ const EMPTY_TOTALS: PlatformTotal[] = [];
 const EMPTY_INTAKE: IntakeClearedItem[] = [];
 
 /*
- * "2h", "3d", or "just now" from an ISO timestamp — how long an item has been
+ * "2h", "3d", or "just now" from an ISO timestamp - how long an item has been
  * waiting in a queue, computed on the client from the server's timestamp.
  */
 function waitingFor(iso: string): string {
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) {
-    return "—";
+    return "-";
   }
   const hours = Math.floor(Math.max(0, Date.now() - then) / 3_600_000);
   if (hours < 1) {
@@ -67,7 +67,7 @@ function riskOf(
   if (severity === "LOW") {
     return "Low";
   }
-  return "—";
+  return "-";
 }
 
 function shortId(value: string | null): string | null {
@@ -166,7 +166,7 @@ function toOldestItems(
     return {
       name: subject,
       meta: humaniseCode(item.detail),
-      initials: initialsOf(subject) || "—",
+      initials: initialsOf(subject) || "-",
       type: typeOf(item.type),
       risk: riskOf(item.severity),
       waiting: waitingFor(item.waiting_since),

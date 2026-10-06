@@ -178,7 +178,7 @@ export async function signInWithCognito({
   }
 
   if (nextStep.signInStep === "CONTINUE_SIGN_IN_WITH_TOTP_SETUP") {
-    // The challenge response already carries the TOTP secret — `setUpTOTP()`
+    // The challenge response already carries the TOTP secret - `setUpTOTP()`
     // would call `fetchAuthSession()` for an access token, and there is no
     // session yet: the user hasn't finished signing in.
     const totpDetails = nextStep.totpSetupDetails;
@@ -247,7 +247,7 @@ export async function verifyTotpSetupCognito(
   code: string,
 ): Promise<CognitoSignInResult> {
   // `verifyTOTPSetup()` is for an already-signed-in user adding MFA from
-  // their account settings — it needs an access token that doesn't exist
+  // their account settings - it needs an access token that doesn't exist
   // mid-challenge. Completing *this* step, like the TOTP_REQUIRED step, is
   // just answering the sign-in challenge.
   const response = await confirmSignIn({

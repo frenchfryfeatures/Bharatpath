@@ -17,9 +17,9 @@ import {
 const panel = "min-w-0 rounded-xl border border-[#e7e9ee] bg-white p-5";
 
 function formatDate(value: string | null | undefined) {
-  if (!value) return "—";
+  if (!value) return "-";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  return Number.isNaN(date.getTime()) ? "-" : date.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
 function humanise(value: string) {
@@ -63,9 +63,9 @@ export default function CollegeStudentPage() {
   const initials = (profile.fullName ?? "Student").split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
   const shared = Boolean(details.data);
   const summary = [
-    { label: "Current score", value: profile.score ?? "—", detail: profile.band ? humanise(profile.band) : "Not scored", icon: TrendingUp },
-    { label: "Practice interviews", value: details.data?.interviews_completed ?? (details.isLoading ? "…" : "—"), detail: shared ? "Completed on BharatPath" : "Requires individual consent", icon: Mic2 },
-    { label: "Courses", value: details.data?.courses.length ?? (details.isLoading ? "…" : "—"), detail: shared ? "Purchased" : "Requires individual consent", icon: BookOpen },
+    { label: "Current score", value: profile.score ?? "-", detail: profile.band ? humanise(profile.band) : "Not scored", icon: TrendingUp },
+    { label: "Practice interviews", value: details.data?.interviews_completed ?? (details.isLoading ? "…" : "-"), detail: shared ? "Completed on BharatPath" : "Requires individual consent", icon: Mic2 },
+    { label: "Courses", value: details.data?.courses.length ?? (details.isLoading ? "…" : "-"), detail: shared ? "Purchased" : "Requires individual consent", icon: BookOpen },
     { label: "Applications", value: details.data?.analytics.total ?? profile.applications, detail: shared ? `${details.data?.analytics.open ?? 0} open` : "On BharatPath", icon: BriefcaseBusiness },
   ];
 
@@ -86,7 +86,7 @@ export default function CollegeStudentPage() {
 
       <Section title="Score and outcomes" detail={profile.scoredAt ? `Scored ${formatDate(profile.scoredAt)}` : undefined}><div className="grid gap-4 sm:grid-cols-2"><Field label="Current score" value={profile.score ?? "Not scored"} /><Field label="Score band" value={profile.band ? humanise(profile.band) : "Not scored"} /><Field label="Applications" value={profile.applications} /><Field label="Employer interviews reached" value={profile.interviews} /></div></Section>
 
-      {details.isLoading ? <SectionSkeleton /> : <Section title="Practice interviews"><div className="flex items-center gap-3 rounded-lg bg-[#f8f9fb] p-4"><span className="grid h-9 w-9 place-items-center rounded-lg bg-[#eef3fb] text-[#315c9f]"><Mic2 size={17} /></span><div><p className="text-[18px] font-bold leading-none">{shared ? details.data?.interviews_completed : "—"}</p><p className="mt-1 text-[11px] text-[#7b8494]">Completed on BharatPath</p></div></div>{!shared && <p className="mt-3 text-[11px] text-[#7b8494]">The student has not shared this information with your college.</p>}</Section>}
+      {details.isLoading ? <SectionSkeleton /> : <Section title="Practice interviews"><div className="flex items-center gap-3 rounded-lg bg-[#f8f9fb] p-4"><span className="grid h-9 w-9 place-items-center rounded-lg bg-[#eef3fb] text-[#315c9f]"><Mic2 size={17} /></span><div><p className="text-[18px] font-bold leading-none">{shared ? details.data?.interviews_completed : "-"}</p><p className="mt-1 text-[11px] text-[#7b8494]">Completed on BharatPath</p></div></div>{!shared && <p className="mt-3 text-[11px] text-[#7b8494]">The student has not shared this information with your college.</p>}</Section>}
     </div>
 
     {details.isLoading ? <SectionSkeleton /> : <Section title="Courses" detail={details.data?.courses.length ? `${details.data.courses.length} purchased` : undefined}>

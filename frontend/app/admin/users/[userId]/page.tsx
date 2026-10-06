@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/common/loading";
 import { usePageHeader } from "@/components/layout/header-context";
 import { ErrorState } from "@/components/ui";
 import { CandidatePageSkeleton } from "@/features/admin/users/components/candidate-page-skeleton";
+import { CandidateOnboardingDetails } from "@/features/admin/users/components/candidate-onboarding-details";
 import { PracticeInterviews } from "@/features/admin/users/components/practice-interviews";
 import {
   useGetAdminCandidateQuery,
@@ -24,15 +25,15 @@ const panel = "min-w-0 rounded-xl border border-[#e7e9ee] bg-white p-5";
 const muted = "text-[12px] text-[#7b8494]";
 
 function formatDate(value: string | null | undefined) {
-  if (!value) return "—";
+  if (!value) return "-";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  return Number.isNaN(date.getTime()) ? "-" : date.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
 function formatDateTime(value: string | null | undefined) {
-  if (!value) return "—";
+  if (!value) return "-";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
+  return Number.isNaN(date.getTime()) ? "-" : date.toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
 function humanise(value: string) {
@@ -96,10 +97,10 @@ export default function AdminCandidatePage() {
 
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {[
-        { label: "Current score", value: student.score?.display_value ?? "—", detail: student.score?.band ?? "Not scored", icon: TrendingUp },
-        { label: "Practice interviews", value: interviews.data?.length ?? (interviews.isLoading ? "…" : "—"), detail: "Sessions", icon: Mic2 },
-        { label: "Courses", value: courses.data?.filter((course) => course.purchased).length ?? (courses.isLoading ? "…" : "—"), detail: "Purchased", icon: BookOpen },
-        { label: "Applications", value: applications.data?.analytics.total ?? (applications.isLoading ? "…" : "—"), detail: `${applications.data?.analytics.open ?? 0} open`, icon: BriefcaseBusiness },
+        { label: "Current score", value: student.score?.display_value ?? "-", detail: student.score?.band ?? "Not scored", icon: TrendingUp },
+        { label: "Practice interviews", value: interviews.data?.length ?? (interviews.isLoading ? "…" : "-"), detail: "Sessions", icon: Mic2 },
+        { label: "Courses", value: courses.data?.filter((course) => course.purchased).length ?? (courses.isLoading ? "…" : "-"), detail: "Purchased", icon: BookOpen },
+        { label: "Applications", value: applications.data?.analytics.total ?? (applications.isLoading ? "…" : "-"), detail: `${applications.data?.analytics.open ?? 0} open`, icon: BriefcaseBusiness },
       ].map(({ label, value, detail, icon: Icon }) => <div key={label} className={panel}><div className="flex items-center justify-between gap-2"><span className="text-[11px] font-semibold text-[#7b8494]">{label}</span><Icon size={16} className="text-[#315c9f]" /></div><p className="mt-3 text-[25px] font-bold leading-none">{value}</p><p className="mt-1 text-[11px] text-[#7b8494]">{detail}</p></div>)}
     </div>
 
@@ -107,7 +108,7 @@ export default function AdminCandidatePage() {
       <div className="flex min-w-0 flex-col gap-5 xl:flex-1">
         {onboarding.isLoading ? <SectionSkeleton /> : <Section title="Onboarding details" detail={onboarding.data?.questionnaire.length ? `${onboarding.data.questionnaire.length} answers` : undefined}>
           {onboarding.error ? <Empty>Onboarding details are unavailable for this account.</Empty> : onboarding.data && <>
-            <dl className="grid gap-4 sm:grid-cols-2"><Field label="Full name" value={onboarding.data.full_name} /><Field label="Email" value={onboarding.data.email} /><Field label="Phone" value={onboarding.data.phone} /><Field label="Location" value={[onboarding.data.city, onboarding.data.state_code].filter(Boolean).join(", ")} /><Field label="Language" value={onboarding.data.locale} /></dl>
+            <CandidateOnboardingDetails onboarding={onboarding.data} />
             <div className="mt-5 border-t border-[#edf0f3] pt-4"><h3 className="mb-3 text-[12px] font-bold">Onboarding answers</h3>{onboarding.data.questionnaire.length ? <dl className="space-y-3">{onboarding.data.questionnaire.map((answer) => <div key={answer.code}><dt className="text-[11px] text-[#7b8494]">{answer.question}</dt><dd className="mt-0.5 text-[12px] font-medium text-[#172033]">{answer.answer}</dd></div>)}</dl> : <Empty>No questionnaire answers submitted.</Empty>}</div>
             {onboarding.data.college_links.length > 0 && <div className="mt-5 border-t border-[#edf0f3] pt-4"><h3 className="mb-3 text-[12px] font-bold">College links</h3><div className="space-y-2">{onboarding.data.college_links.map((link) => <div key={link.tenant_id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#f8f9fb] px-3 py-2 text-[12px]"><span className="font-semibold">{link.college}</span><span className="text-[#7b8494]">{humanise(link.scope)} · {formatDate(link.granted_at)}</span></div>)}</div></div>}
           </>}
@@ -148,11 +149,11 @@ export default function AdminCandidatePage() {
     </div>
 
     {courses.isLoading ? <SectionSkeleton /> : <Section title="Courses" detail={courses.data?.length ? `${courses.data.length} available` : undefined}>
-      {courses.error ? <Empty>Course status is unavailable.</Empty> : courses.data?.length ? <div className="grid gap-3 lg:grid-cols-2">{courses.data.map((course) => <div key={course.code} className="rounded-lg border border-[#e7e9ee] p-4"><div className="flex items-start justify-between gap-2"><div><h3 className="text-[13px] font-semibold">{course.title}</h3><p className="mt-1 text-[11px] text-[#7b8494]">{course.purchased ? `${course.lessons_completed} of ${course.lessons_total} lessons complete` : "Not purchased"}</p></div><span className="text-[12px] font-bold text-[#315c9f]">{course.purchased ? `${course.percent_complete}%` : "—"}</span></div><div className="mt-3 h-1.5 rounded-full bg-[#e9edf3]"><div className="h-full rounded-full bg-[#315c9f]" style={{ width: `${course.purchased ? Math.min(100, Math.max(0, course.percent_complete)) : 0}%` }} /></div></div>)}</div> : <Empty>No courses available.</Empty>}
+      {courses.error ? <Empty>Course status is unavailable.</Empty> : courses.data?.length ? <div className="grid gap-3 lg:grid-cols-2">{courses.data.map((course) => <div key={course.code} className="rounded-lg border border-[#e7e9ee] p-4"><div className="flex items-start justify-between gap-2"><div><h3 className="text-[13px] font-semibold">{course.title}</h3><p className="mt-1 text-[11px] text-[#7b8494]">{course.purchased ? `${course.lessons_completed} of ${course.lessons_total} lessons complete` : "Not purchased"}</p></div><span className="text-[12px] font-bold text-[#315c9f]">{course.purchased ? `${course.percent_complete}%` : "-"}</span></div><div className="mt-3 h-1.5 rounded-full bg-[#e9edf3]"><div className="h-full rounded-full bg-[#315c9f]" style={{ width: `${course.purchased ? Math.min(100, Math.max(0, course.percent_complete)) : 0}%` }} /></div></div>)}</div> : <Empty>No courses available.</Empty>}
     </Section>}
 
     {applications.isLoading ? <SectionSkeleton /> : <Section title="Job applications" detail={applications.data ? `${applications.data.analytics.total} total · ${applications.data.analytics.open} open` : undefined}>
-      {applications.error ? <Empty>Applications are unavailable.</Empty> : applications.data && <><div className="flex flex-wrap gap-2">{Object.entries(applications.data.analytics.by_stage).map(([stage, count]) => <span key={stage} className="rounded-full bg-[#eef3fb] px-2.5 py-1 text-[11px] font-semibold text-[#315c9f]">{humanise(stage)} · {count}</span>)}</div><div className="mt-3 flex flex-wrap gap-3 text-[11px] text-[#7b8494]">{Object.entries(applications.data.analytics.reached).map(([stage, count]) => <span key={stage}>Reached {humanise(stage)}: <b className="text-[#172033]">{count}</b></span>)}</div>{applications.data.items.length ? <div className="mt-4 overflow-x-auto rounded-lg border border-[#e7e9ee]"><table className="w-full min-w-[620px] text-left text-[12px]"><thead className="bg-[#f8f9fb] text-[11px] text-[#7b8494]"><tr><th className="px-4 py-3 font-semibold">Job</th><th className="px-4 py-3 font-semibold">Employer</th><th className="px-4 py-3 font-semibold">Stage</th><th className="px-4 py-3 font-semibold">Applied</th></tr></thead><tbody>{applications.data.items.map((item) => <tr key={item.id} className="border-t border-[#edf0f3]"><td className="px-4 py-3 font-semibold">{item.job_title}</td><td className="px-4 py-3 text-[#687182]">{item.employer_name ?? "—"}</td><td className="px-4 py-3"><span className="rounded-full bg-[#f0f2f5] px-2 py-1 text-[10px] font-semibold">{humanise(item.stage)}</span></td><td className="px-4 py-3 text-[#687182]">{formatDate(item.applied_at)}</td></tr>)}</tbody></table></div> : <div className="mt-4"><Empty>No jobs applied to yet.</Empty></div>}</>}
+      {applications.error ? <Empty>Applications are unavailable.</Empty> : applications.data && <><div className="flex flex-wrap gap-2">{Object.entries(applications.data.analytics.by_stage).map(([stage, count]) => <span key={stage} className="rounded-full bg-[#eef3fb] px-2.5 py-1 text-[11px] font-semibold text-[#315c9f]">{humanise(stage)} · {count}</span>)}</div><div className="mt-3 flex flex-wrap gap-3 text-[11px] text-[#7b8494]">{Object.entries(applications.data.analytics.reached).map(([stage, count]) => <span key={stage}>Reached {humanise(stage)}: <b className="text-[#172033]">{count}</b></span>)}</div>{applications.data.items.length ? <div className="mt-4 overflow-x-auto rounded-lg border border-[#e7e9ee]"><table className="w-full min-w-[620px] text-left text-[12px]"><thead className="bg-[#f8f9fb] text-[11px] text-[#7b8494]"><tr><th className="px-4 py-3 font-semibold">Job</th><th className="px-4 py-3 font-semibold">Employer</th><th className="px-4 py-3 font-semibold">Stage</th><th className="px-4 py-3 font-semibold">Applied</th></tr></thead><tbody>{applications.data.items.map((item) => <tr key={item.id} className="border-t border-[#edf0f3]"><td className="px-4 py-3 font-semibold">{item.job_title}</td><td className="px-4 py-3 text-[#687182]">{item.employer_name ?? "-"}</td><td className="px-4 py-3"><span className="rounded-full bg-[#f0f2f5] px-2 py-1 text-[10px] font-semibold">{humanise(item.stage)}</span></td><td className="px-4 py-3 text-[#687182]">{formatDate(item.applied_at)}</td></tr>)}</tbody></table></div> : <div className="mt-4"><Empty>No jobs applied to yet.</Empty></div>}</>}
     </Section>}
   </div>;
 }

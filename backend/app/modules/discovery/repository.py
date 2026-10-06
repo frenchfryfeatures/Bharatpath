@@ -265,7 +265,8 @@ async def revealed_candidate(session: AsyncSession, *, candidate_id: uuid.UUID) 
         "WITH "  # noqa: S608 - see the note on visible_candidate_ids
         + VISIBLE_CANDIDATES_CTE
         + """
-        SELECT vc.user_id, vc.resume_version_id, u.phone, u.email,
+        SELECT vc.user_id, vc.resume_version_id,
+               COALESCE(NULLIF(p.career->'details'->>'phone', ''), u.phone) AS phone, u.email,
                d.score_id, d.band, d.experience_months, d.skills, d.badges,
                p.full_name, p.city, p.state_code
           FROM visible_candidates vc

@@ -72,7 +72,7 @@ export function InterviewIntro() {
               <Fact icon={<EyeOff size={19} />}>
                 {offer.data?.willIncreaseScore
                   ? "Completion can increase your score."
-                  : "Feedback only — your score does not move."}
+                  : "Feedback only - your score does not move."}
               </Fact>
             </StudentCard>
             <NoteStrip icon={<Info size={16} />}>

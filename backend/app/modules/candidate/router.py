@@ -9,7 +9,7 @@ import-linter enforces the second half of that sentence.
 from __future__ import annotations
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query, Request
 
@@ -24,7 +24,8 @@ from app.core.deps import (
     require_role,
 )
 from app.core.pagination import MAX_PAGE_SIZE, Page
-from app.modules.candidate import service
+from app.modules.candidate import career_service, service
+from app.modules.candidate.career import CareerResponse, CareerSaveRequest, form_fields
 from app.modules.candidate.schemas import (
     CandidateProfileResponse,
     LocationRequest,
@@ -38,6 +39,36 @@ router = APIRouter()
 employer_router = APIRouter()
 
 CandidateOnly = Depends(require_role(CANDIDATE))
+
+
+@router.get("/profile/form", dependencies=[CandidateOnly])
+async def profile_form() -> list[dict[str, Any]]:
+    return form_fields()
+
+
+@router.get("/profile/details", response_model=CareerResponse, dependencies=[CandidateOnly])
+async def career_details(user: CurrentUser, session: DbSession) -> CareerResponse:
+    return await career_service.get_details(session, ctx=user)
+
+
+@router.put("/profile/details", response_model=CareerResponse, dependencies=[CandidateOnly])
+async def save_career_details(
+    payload: CareerSaveRequest, user: CurrentUser, session: DbSession
+) -> CareerResponse:
+    return await career_service.save_details(session, ctx=user, payload=payload)
+
+
+@router.post(
+    "/profile/prefill/{resume_version_id}",
+    response_model=CareerResponse,
+    dependencies=[CandidateOnly],
+)
+async def prefill_career_details(
+    resume_version_id: uuid.UUID, user: CurrentUser, session: DbSession
+) -> CareerResponse:
+    return await career_service.prefill(session, ctx=user, resume_version_id=resume_version_id)
+
+
 #: The same two roles as search, then the access window: one check, one place
 #: (invariant 7). The window is the employer's subscription, read live.
 Revealers = [

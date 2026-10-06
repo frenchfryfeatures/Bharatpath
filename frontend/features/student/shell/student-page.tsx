@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 /*
  * ==========================================================================
- * STUDENT PAGE — the responsive content container. Every student route uses
+ * STUDENT PAGE - the responsive content container. Every student route uses
  * the same content width and gutters so detail screens do not jump inward.
  * ==========================================================================
  */

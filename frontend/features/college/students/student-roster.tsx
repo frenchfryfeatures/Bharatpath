@@ -253,7 +253,7 @@ export function StudentRoster() {
         />
       </div>
 
-      {/* 5. INVITE STUDENT MODAL — issues a referral code to hand out */}
+      {/* 5. INVITE STUDENT MODAL - issues a referral code to hand out */}
       <InviteStudentModal
         isOpen={isInviteModalOpen}
         onClose={() => setIsInviteModalOpen(false)}

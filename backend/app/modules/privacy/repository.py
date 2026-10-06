@@ -344,7 +344,7 @@ _EXPORT_QUERIES: dict[str, str] = {
           FROM users WHERE id = :user_id
     """,
     "profile": """
-        SELECT full_name, city, updated_at
+        SELECT full_name, city, state_code, career, updated_at
           FROM candidate_profiles WHERE user_id = :user_id
     """,
     "resumes": """

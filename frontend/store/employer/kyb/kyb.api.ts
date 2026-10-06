@@ -92,7 +92,7 @@ function mapKybDocumentTicket(
 }
 
 /* =========================================================
-   Endpoints — all under /employer/kyb, owner only.
+   Endpoints - all under /employer/kyb, owner only.
    See docs/kyb-frontend-integration.md.
 ========================================================= */
 

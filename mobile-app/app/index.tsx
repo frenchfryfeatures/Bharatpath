@@ -7,24 +7,49 @@ import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 
 import { SplashScreen } from '@/screens/splash/SplashScreen';
 import { IntroScreen } from '@/screens/onboarding/IntroScreen';
-import { SignUpScreen, LoginScreen, EmailVerificationScreen, ForgotPasswordScreen } from '@/screens/auth';
+import { CollegeReferralConsentScreen } from '@/screens/onboarding/CollegeReferralConsentScreen';
+import {
+  SignUpScreen,
+  LoginScreen,
+  EmailVerificationScreen,
+  ForgotPasswordScreen,
+} from '@/screens/auth';
 import { SubscribeScreen } from '@/screens/subscription/SubscribeScreen';
 import { LanguageSelectScreen } from '@/screens/onboarding/LanguageSelectScreen';
 import { HowItWorksScreen } from '@/screens/onboarding/HowItWorksScreen';
-import { ResumeIntakeScreen, UploadedFileMeta, ResumeIntakePayload } from '@/screens/onboarding/ResumeIntakeScreen';
+import {
+  ResumeIntakeScreen,
+  UploadedFileMeta,
+  ResumeIntakePayload,
+} from '@/screens/onboarding/ResumeIntakeScreen';
 import { ParsingScreen } from '@/screens/onboarding/ParsingScreen';
-import { ReviewDetailsScreen } from '@/screens/onboarding/ReviewDetailsScreen';
+import { CareerDetailsScreen } from '@/screens/profile/CareerDetailsScreen';
+import { onboardingDestination } from '@/services/profile/onboarding';
+import {
+  getCareerProfile,
+  saveCareerProfile,
+  type CareerDetails,
+} from '@/services/api/career';
+import { AppAlert } from '@/components/feedback/AppAlert';
 import { ScoringScreen } from '@/screens/onboarding/ScoringScreen';
 import { ScoreRevealScreen } from '@/screens/onboarding/ScoreRevealScreen';
 import { NotificationPermissionScreen } from '@/screens/onboarding/NotificationPermissionScreen';
 import { ShareResultScreen } from '@/screens/onboarding/ShareResultScreen';
 import {
   ResumeVersionDetailResponse,
+  confirmResumeVersion,
   getResumeVersionDetails,
   listResumeVersions,
 } from '@/services/api/resume';
 import { extractCandidateResumeInfo } from '@/services/profile/extractedResume';
-import { CandidateScoreResponse, bandIndex, bandLabel, nextBandLabel, pointsToNextBand, getMyScore } from '@/services/api/scoring';
+import {
+  CandidateScoreResponse,
+  bandIndex,
+  bandLabel,
+  nextBandLabel,
+  pointsToNextBand,
+  getMyScore,
+} from '@/services/api/scoring';
 import { HomeScreen } from '@/screens/home/HomeScreen';
 import { useAuthContext } from '@/context/AuthContext';
 import {
@@ -42,6 +67,7 @@ type AppStep =
   | 'login'
   | 'forgot-password'
   | 'verify-email'
+  | 'referral'
   | 'language'
   | 'howItWorks'
   | 'subscribe'
@@ -71,16 +97,29 @@ export default function FoundationPreview() {
   } = useAuthContext();
   const [step, setStep] = useState<AppStep>(params.step || 'splash');
   const [fileMeta, setFileMeta] = useState<UploadedFileMeta | undefined>();
-  const [intakePayload, setIntakePayload] = useState<ResumeIntakePayload | undefined>();
+  const [intakePayload, setIntakePayload] = useState<
+    ResumeIntakePayload | undefined
+  >();
   const [userEmail, setUserEmail] = useState<string>('');
   const [userName, setUserName] = useState<string>('');
   const [userPassword, setUserPassword] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'preview' | 'home' | 'jobs' | 'board' | 'you'>('home');
+  const [collegeReferralCode, setCollegeReferralCode] = useState('');
+  const [onboardingDraft, setOnboardingDraft] = useState<CareerDetails | null>(
+    null,
+  );
+  const [onboardingSection, setOnboardingSection] = useState(0);
+  const [activeTab, setActiveTab] = useState<
+    'preview' | 'home' | 'jobs' | 'board' | 'you'
+  >('home');
 
   const [resumeVersionId, setResumeVersionId] = useState<string | undefined>();
-  const [resumeVersionDetails, setResumeVersionDetails] = useState<ResumeVersionDetailResponse | null>(null);
-  const [localCandidateScore, setLocalCandidateScore] = useState<CandidateScoreResponse | null>(null);
-  const [confirmedAtTimestamp, setConfirmedAtTimestamp] = useState<string | null>(null);
+  const [resumeVersionDetails, setResumeVersionDetails] =
+    useState<ResumeVersionDetailResponse | null>(null);
+  const [localCandidateScore, setLocalCandidateScore] =
+    useState<CandidateScoreResponse | null>(null);
+  const [confirmedAtTimestamp, setConfirmedAtTimestamp] = useState<
+    string | null
+  >(null);
 
   // Synchronize score with AuthContext
   const candidateScore = authCandidateScore || localCandidateScore;
@@ -89,7 +128,7 @@ export default function FoundationPreview() {
   useFocusEffect(
     useCallback(() => {
       refreshScore().catch(() => undefined);
-    }, [refreshScore])
+    }, [refreshScore]),
   );
 
   useEffect(() => {
@@ -109,7 +148,7 @@ export default function FoundationPreview() {
   const resumeInfo = useMemo(() => {
     return extractCandidateResumeInfo(
       resumeVersionDetails,
-      userName || candidateFullName || undefined
+      userName || candidateFullName || undefined,
     );
   }, [resumeVersionDetails, userName, candidateFullName]);
 
@@ -120,6 +159,22 @@ export default function FoundationPreview() {
     }
   };
 
+  const restoreOnboarding = async () => {
+    const [versions, profile] = await Promise.all([listResumeVersions(), getCareerProfile()]);
+    const latest = versions.find((version) => !version.superseded);
+    setOnboardingSection(0);
+    setOnboardingDraft(null);
+    setIntakePayload(undefined);
+    setFileMeta(undefined);
+    setResumeVersionId(latest?.resume_version_id);
+    setResumeVersionDetails(latest ? await getResumeVersionDetails(latest.resume_version_id) : null);
+    const destination = onboardingDestination(profile, latest);
+    if (destination === 'home') {
+      refreshScore().catch(() => undefined);
+      router.replace('/home');
+    } else setStep(destination);
+  };
+
   if (step === 'splash') {
     return (
       <SplashScreen
@@ -127,31 +182,11 @@ export default function FoundationPreview() {
           const activeSession = session || (await getCurrentSession());
           if (activeSession) {
             try {
-              const versions = await listResumeVersions();
-              const confirmed =
-                versions.find((v) => v.confirmed && !v.superseded) ||
-                versions.find((v) => v.confirmed);
-              if (confirmed) {
-                refreshScore().catch(() => undefined);
-                router.replace('/home');
-                return;
-              }
-              const unconfirmed = versions.find((v) => !v.confirmed && !v.superseded);
-              if (unconfirmed) {
-                const verDetails = await getResumeVersionDetails(unconfirmed.resume_version_id);
-                setResumeVersionId(unconfirmed.resume_version_id);
-                setResumeVersionDetails(verDetails);
-                setStep('review');
-                return;
-              }
-              // Active session without resume -> move to payment / intake
-              setStep('subscribe');
-              return;
+              await restoreOnboarding();
             } catch {
-              refreshScore().catch(() => undefined);
-              router.replace('/home');
-              return;
+              setStep('review');
             }
+            return;
           }
           setStep('intro');
         }}
@@ -173,17 +208,30 @@ export default function FoundationPreview() {
   if (step === 'signup') {
     return (
       <SignUpScreen
+        onResumeSelected={(meta) => {
+          setFileMeta(meta);
+          setIntakePayload({ source: 'upload', fileMeta: meta });
+        }}
         onBack={() => setStep('intro')}
         onNavigateToLogin={() => setStep('login')}
-        onSubmit={(data, isUnconfirmed) => {
+        onSubmit={async (data, isUnconfirmed) => {
+          setCollegeReferralCode(data.referralCode ?? '');
+          setOnboardingDraft(data.details);
+          setOnboardingSection(1);
           setUserEmail(data.email);
           setUserName(data.fullName);
           setUserPassword(data.password);
           if (isUnconfirmed) {
             setStep('verify-email');
           } else {
-            // Account created & authenticated -> move directly to payment!
-            setStep('subscribe');
+            // Account created: parse the selected resume before profile review and payment.
+            await saveCareerProfile(
+              data.details,
+              null,
+              false,
+              fileMeta?.fileName,
+            );
+            setStep(data.referralCode ? 'referral' : intakePayload ? 'parsing' : 'review');
           }
         }}
       />
@@ -212,39 +260,21 @@ export default function FoundationPreview() {
           if (name) {
             setUserName(name);
           }
+          // Recover the pending resume draft after verification required a manual login.
+          if (onboardingDraft && data.session.email.toLowerCase() === userEmail.toLowerCase()) {
+            if (userName) await updateCandidateName(userName);
+            await saveCareerProfile(onboardingDraft, null, false, fileMeta?.fileName);
+            setUserPassword('');
+            setStep(collegeReferralCode ? 'referral' : intakePayload ? 'parsing' : 'review');
+            return;
+          }
           try {
-            const versions = await listResumeVersions();
-            const confirmed =
-              versions.find((v) => v.confirmed && !v.superseded) ||
-              versions.find((v) => v.confirmed);
-
-            // If user resume is already submitted/confirmed:
-            // Move directly to the Home page! Editing is handled in the Profile section.
-            if (confirmed) {
-              const verDetails = await getResumeVersionDetails(confirmed.resume_version_id).catch(() => null);
-              setResumeVersionId(confirmed.resume_version_id);
-              if (verDetails) setResumeVersionDetails(verDetails);
-
-              refreshScore().catch(() => undefined);
-              router.replace('/home');
-              return;
-            }
-
-            // Only if user has never confirmed any resume, check for an unconfirmed draft
-            const unconfirmed = versions.find((v) => !v.confirmed && !v.superseded);
-            if (unconfirmed) {
-              const verDetails = await getResumeVersionDetails(unconfirmed.resume_version_id);
-              setResumeVersionId(unconfirmed.resume_version_id);
-              setResumeVersionDetails(verDetails);
-              setStep('review');
-              return;
-            }
+            await restoreOnboarding();
           } catch (e) {
             console.warn('Could not check existing resume versions:', e);
+            setOnboardingSection(0);
+            setStep('review');
           }
-
-          // If no resume submitted at all, proceed to payment for resume parsing
-          setStep('subscribe');
         }}
       />
     );
@@ -282,9 +312,16 @@ export default function FoundationPreview() {
                 password: userPassword,
               });
               rememberCandidate(session, profile, userName);
+              setUserPassword('');
             } catch (authErr) {
               console.warn('Auto sign-in after verification failed:', authErr);
+              setUserPassword('');
+              setStep('login');
+              return;
             }
+          } else {
+            setStep('login');
+            return;
           }
 
           // 3. Save candidate full name if available
@@ -292,12 +329,21 @@ export default function FoundationPreview() {
             try {
               await updateCandidateName(userName);
             } catch (e) {
-              console.warn('Could not update candidate name after verification:', e);
+              console.warn(
+                'Could not update candidate name after verification:',
+                e,
+              );
             }
           }
 
-          // 4. Move to payment for resume parsing!
-          setStep('subscribe');
+          if (onboardingDraft)
+            await saveCareerProfile(
+              onboardingDraft,
+              null,
+              false,
+              fileMeta?.fileName,
+            );
+          setStep(collegeReferralCode ? 'referral' : intakePayload ? 'parsing' : 'review');
         }}
         onResendCode={async () => {
           await resendConfirmationCode(userEmail);
@@ -307,11 +353,15 @@ export default function FoundationPreview() {
   }
 
   // 5. Onboarding: Language Selection
+  if (step === 'referral') {
+    return <CollegeReferralConsentScreen code={collegeReferralCode} onDone={() => {
+      setCollegeReferralCode('');
+      setStep(intakePayload ? 'parsing' : 'review');
+    }} />;
+  }
   if (step === 'language') {
     return (
-      <LanguageSelectScreen
-        onSelectLanguage={() => setStep('howItWorks')}
-      />
+      <LanguageSelectScreen onSelectLanguage={() => setStep('howItWorks')} />
     );
   }
 
@@ -320,19 +370,39 @@ export default function FoundationPreview() {
     return (
       <HowItWorksScreen
         onBack={() => setStep('language')}
-        onGotIt={() => setStep('subscribe')}
+        onGotIt={() => setStep('intake')}
       />
     );
   }
 
-  // 7. Membership - pay-first, before a CV is taken
+  // 7. Membership follows a saved profile; confirmation starts paid scoring.
   if (step === 'subscribe') {
     return (
       <SubscribeScreen
         candidateName={userName}
-        onSubscribed={() => setStep('intake')}
-        onSkip={() => setStep('intake')}
-        onBack={() => setStep('signup')}
+        onSubscribed={async () => {
+          try {
+            const saved = await getCareerProfile();
+            const id = saved.resume_version_id ?? resumeVersionId;
+            if (!id || !saved.completed) {
+              setStep('review');
+              return;
+            }
+            const confirmed = await confirmResumeVersion(id);
+            setConfirmedAtTimestamp(confirmed.confirmed_at);
+            setStep('scoring');
+          } catch {
+            AppAlert.alert(
+              'Scoring could not start',
+              'Please confirm membership access and try again.',
+            );
+          }
+        }}
+        onSkip={() => router.replace('/you')}
+        onBack={() => {
+          setOnboardingSection(3);
+          setStep('review');
+        }}
       />
     );
   }
@@ -342,7 +412,7 @@ export default function FoundationPreview() {
     return (
       <ResumeIntakeScreen
         userName={userName}
-        onBack={() => setStep('subscribe')}
+        onBack={() => setStep('signup')}
         onSelectOption={(_option, meta, payload) => {
           if (meta) {
             setFileMeta(meta);
@@ -362,7 +432,18 @@ export default function FoundationPreview() {
       <ParsingScreen
         fileMeta={fileMeta}
         payload={intakePayload}
-        onReviewFound={(verId, details) => {
+        onBack={() => {
+          setOnboardingSection(0);
+          setStep('review');
+        }}
+        onReviewFound={async (verId, details) => {
+          if (onboardingDraft)
+            await saveCareerProfile(
+              onboardingDraft,
+              verId,
+              false,
+              fileMeta?.fileName,
+            );
           setResumeVersionId(verId);
           setResumeVersionDetails(details);
           const extracted = extractCandidateResumeInfo(details);
@@ -378,27 +459,17 @@ export default function FoundationPreview() {
   // 10. Onboarding: Review Parsed Details (The confirm gate before scoring)
   if (step === 'review') {
     return (
-      <ReviewDetailsScreen
-        onBack={() => setStep('intake')}
-        candidateName={resumeInfo.name || userName || undefined}
-        candidateEmail={userEmail}
-        manualData={intakePayload?.manualData}
+      <CareerDetailsScreen
+        onboarding
+        initialSection={onboardingSection}
+        resumeFilename={fileMeta?.fileName}
         versionId={resumeVersionId}
-        versionDetails={resumeVersionDetails}
-        onVersionUpdated={(verId, details) => {
-          setResumeVersionId(verId);
-          setResumeVersionDetails(details);
-          const extracted = extractCandidateResumeInfo(details);
-          if (extracted.name && !userName) {
-            setUserName(extracted.name);
-          }
-        }}
-        onRequireSubscription={() => setStep('subscribe')}
-        onConfirm={(verId, confirmedAt) => {
-          if (confirmedAt) {
-            setConfirmedAtTimestamp(confirmedAt);
-          }
-          setStep('scoring');
+        onBack={() => router.replace('/you')}
+        onDone={(profile) => {
+          setResumeVersionId(profile.resume_version_id ?? undefined);
+          setOnboardingSection(3);
+          setOnboardingDraft(null);
+          setStep('subscribe');
         }}
       />
     );
@@ -477,7 +548,9 @@ export default function FoundationPreview() {
   // 18. Authenticated Home Screen
   return (
     <HomeScreen
-      candidateName={resumeInfo.name || candidateFullName || userName || undefined}
+      candidateName={
+        resumeInfo.name || candidateFullName || userName || undefined
+      }
       score={candidateScore?.value ?? undefined}
       maxScore={990}
       bandName={bandLabel(candidateScore?.band) || undefined}
@@ -486,7 +559,12 @@ export default function FoundationPreview() {
       scoreGain={26}
       fixesLeft={2}
       fixesWorth={32}
-      pointsToNextBand={pointsToNextBand(candidateScore?.value ?? null, candidateScore?.band ?? null) ?? 0}
+      pointsToNextBand={
+        pointsToNextBand(
+          candidateScore?.value ?? null,
+          candidateScore?.band ?? null,
+        ) ?? 0
+      }
       nextBandName={nextBandLabel(candidateScore?.band ?? null) || 'Solid'}
       activeTab="home"
       onTabPress={(tab, href) => {

@@ -177,7 +177,7 @@ export default function YouRoute() {
       }
       onAppliedPress={() => router.push('/board' as any)}
       onAddonsPress={() => router.push('/courses' as any)}
-      onResumeDetailsPress={() => router.push('/resume-details' as any)}
+      onResumeDetailsPress={() => router.push('/profile-details' as any)}
       onAttributeReportPress={() => router.push('/attribute-report' as any)}
       onInterviewReportPress={() => router.push('/interview-sessions' as any)}
       onCoursesPress={() => router.push('/courses' as any)}

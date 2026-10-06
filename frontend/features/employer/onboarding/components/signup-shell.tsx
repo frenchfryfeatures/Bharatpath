@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrandIcon } from "@/components/common/brand-icon";
 import { Check, LogOut } from "lucide-react";
 
 export type StepStatus = "complete" | "current" | "upcoming";
@@ -44,9 +45,7 @@ export function SignupShell({
       <header className="sticky top-0 z-30 border-b border-[#e1e6ee] bg-white/90 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-5 sm:px-8">
           <Link href="/login" className="flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#17233a] text-sm font-bold text-white">
-              B
-            </span>
+            <BrandIcon className="h-9 w-9" />
             <span className="leading-tight">
               <span className="block text-sm font-semibold text-[#17233a]">
                 BharatPath
@@ -252,7 +251,7 @@ export function StepCard({
       <div className="px-6 py-6 sm:px-8">{children}</div>
 
       {footer && (
-        <div className="flex flex-col-reverse gap-3 border-t border-[#eef1f5] px-6 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+        <div className="flex items-center justify-between gap-3 border-t border-[#eef1f5] px-6 py-4 sm:px-8">
           {footer}
         </div>
       )}

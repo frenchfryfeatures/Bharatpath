@@ -73,7 +73,12 @@ export function PaymentSheet({ checkout, planLabel, onPaid, onClose }: PaymentSh
   const settledRef = useRef(false);
 
   const grantAccess = useCallback(async () => {
-    const subscription = await getCandidateSubscription();
+    let subscription = await getCandidateSubscription();
+    for (let attempt = 0; !subscription.has_access && attempt < 5; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      subscription = await getCandidateSubscription();
+    }
+    if (!subscription.has_access) throw new Error('Payment was confirmed but membership access could not be refreshed. Please try again.');
     settledRef.current = true;
     setStatus('paid');
     setMessage(null);

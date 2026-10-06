@@ -210,12 +210,6 @@ export default function ResumeDetailsRoute() {
   };
 
   const handleUploadNewPress = async () => {
-    const hasAccess = await verifySubscription();
-    if (!hasAccess) {
-      setPendingPostSubscribeAction('upload');
-      setStep('subscribe');
-      return;
-    }
 
     AppAlert.alert(
       'Upload New Resume',
@@ -279,7 +273,7 @@ export default function ResumeDetailsRoute() {
           setVersionId(newVerId);
           setVersionDetails(newDetails);
           setError(null);
-          setStep('review');
+          router.replace('/profile-details');
         }}
         onBack={() => setStep('review')}
       />

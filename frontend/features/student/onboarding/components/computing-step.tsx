@@ -7,7 +7,7 @@ import { getApiErrorStatus } from "@/lib/api/error-message";
 import { useGetStudentScoreQuery } from "@/store/student";
 
 import { COMPUTE_STATUS, SCORE_CATEGORIES } from "../constants";
-import { Card, DoneDot, LockNote, PillButton, StepHeader } from "./ui";
+import { Card, DoneDot, PillButton, StepHeader } from "./ui";
 
 /** After this long without a score, stop implying it is seconds away. */
 const PATIENCE_SECONDS = 90;
@@ -129,7 +129,7 @@ export function ComputingStep({ confirmedAt, onShowScore, onGoHome }: Readonly<C
 
       {slow && (
         <p className="m-0 rounded-[16px] bg-[#F7F4EC] px-4 py-3 text-[13px] leading-5 text-[#3A4761]">
-          This is taking longer than usual. Your resume is confirmed and saved —
+          This is taking longer than usual. Your resume is confirmed and saved -
           your score will appear on your home screen as soon as it is ready.
         </p>
       )}
@@ -137,7 +137,7 @@ export function ComputingStep({ confirmedAt, onShowScore, onGoHome }: Readonly<C
       {locked && (
         <p className="m-0 rounded-[16px] bg-[#F7EFD6] px-4 py-3 text-[13px] leading-5 text-[#7A5C0E]">
           Your resume is confirmed and saved. Seeing your score needs an active
-          subscription or a college seat — once you have one, it will be on
+          subscription or a college seat - once you have one, it will be on
           your home screen.
         </p>
       )}
@@ -162,9 +162,7 @@ export function ComputingStep({ confirmedAt, onShowScore, onGoHome }: Readonly<C
               </PillButton>
             )}
           </>
-        )}
-        <LockNote>Employers see it only if you apply.</LockNote>
-      </div>
+        )}      </div>
     </div>
   );
 }

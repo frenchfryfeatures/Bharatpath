@@ -9,6 +9,7 @@ no other module may import it (import-linter contract `module-privacy`).
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
@@ -58,4 +59,20 @@ async def set_full_name(
     )
     profile = await get_profile(session, user_id=user_id)
     assert profile is not None  # just written in this transaction
+    return profile
+
+
+async def set_career(
+    session: AsyncSession, *, user_id: uuid.UUID, career: dict[str, Any], city: str | None
+) -> CandidateProfile:
+    await session.execute(
+        insert(CandidateProfile)
+        .values(user_id=user_id, career=career, city=city)
+        .on_conflict_do_update(
+            index_elements=[CandidateProfile.user_id],
+            set_={"career": career, "city": city, "updated_at": func.now()},
+        )
+    )
+    profile = await get_profile(session, user_id=user_id)
+    assert profile is not None
     return profile

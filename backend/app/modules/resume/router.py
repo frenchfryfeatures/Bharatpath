@@ -14,10 +14,17 @@ the build if any route below becomes reachable without a token.
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, File, UploadFile, status
 
-from app.core.deps import CANDIDATE, CurrentUser, DbSession, require_role
+from app.core.deps import (
+    CANDIDATE,
+    CurrentUser,
+    DbSession,
+    require_active_subscription,
+    require_role,
+)
 from app.modules.resume import service
 from app.modules.resume.domain import PARSE_TERMINAL
 from app.modules.resume.schemas import (
@@ -42,6 +49,22 @@ router = APIRouter()
 #: A resume belongs to a candidate. An employer or college user has no resume
 #: of their own, so this is a role check and not merely an authentication one.
 CandidateOnly = Depends(require_role(CANDIDATE))
+
+
+@router.post(
+    "/intake", response_model=ResumeVersionResponse, dependencies=[CandidateOnly], status_code=201
+)
+async def direct_intake(
+    user: CurrentUser, session: DbSession, file: UploadFile = File(...)
+) -> ResumeVersionResponse:
+    from app.modules.resume import onboarding_service
+
+    content = await file.read(get_settings().resume_max_upload_bytes + 1)
+    await file.close()
+    row = await onboarding_service.intake(session, user_id=user.user_id, content=content)
+    return ResumeVersionResponse(
+        resume_version_id=row.id, source="UPLOAD", confirmed=False, created_at=row.created_at
+    )
 
 
 @router.post(
@@ -296,7 +319,7 @@ async def edit_version(
 @router.post(
     "/versions/{resume_version_id}/confirm",
     response_model=ResumeConfirmResponse,
-    dependencies=[CandidateOnly],
+    dependencies=[CandidateOnly, Depends(require_active_subscription)],
     summary="Confirm a reviewed version so it can be scored",
 )
 async def confirm_version(
@@ -315,4 +338,24 @@ async def confirm_version(
         resume_version_id=row.id,
         confirmed_at=row.confirmed_at,
         already_confirmed=already,
+    )
+
+
+@router.get("/versions/{resume_version_id}/document", dependencies=[CandidateOnly])
+async def resume_document(
+    resume_version_id: uuid.UUID, user: CurrentUser, session: DbSession
+) -> dict[str, str | None]:
+    return {
+        "url": await service.profile_resume_url(
+            session, user_id=user.user_id, resume_version_id=resume_version_id
+        )
+    }
+
+
+@router.get("/versions/{resume_version_id}/preview", dependencies=[CandidateOnly])
+async def resume_preview(
+    resume_version_id: uuid.UUID, user: CurrentUser, session: DbSession
+) -> dict[str, Any]:
+    return await service.profile_resume_preview(
+        session, user_id=user.user_id, resume_version_id=resume_version_id
     )

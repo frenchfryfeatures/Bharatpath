@@ -63,6 +63,16 @@ async def set_location(
     profile = await repository.set_location(
         session, user_id=ctx.user_id, city=payload.city, state_code=payload.state_code
     )
+    # Older clients still use this location endpoint. Keep the expanded
+    # profile's city consistent with discovery instead of creating two values.
+    if isinstance(profile.career, dict) and isinstance(profile.career.get("details"), dict):
+        career = {
+            **profile.career,
+            "details": {**profile.career["details"], "current_city": payload.city or ""},
+        }
+        profile = await repository.set_career(
+            session, user_id=ctx.user_id, career=career, city=payload.city
+        )
     return CandidateProfileResponse.model_validate(profile)
 
 

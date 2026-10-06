@@ -89,9 +89,9 @@ export const SCORE_CATEGORIES = [
 /** Steps that carry the "STEP n OF N" header, in order. */
 export const COUNTED_STEPS = [
   "account",
-  "location",
-  "subscription",
-  "intake",
+  "employment",
+  "education",
+  "preferences",
 ] as const;
 
 export type CountedStep = (typeof COUNTED_STEPS)[number];

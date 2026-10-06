@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { OnboardingBackButton } from "@/components/common/onboarding-back-button";
 import Link from "next/link";
 import { ArrowRight, Check, Copy, KeyRound, Lock, Mail } from "lucide-react";
 
@@ -249,9 +250,7 @@ export function AccountStep({
           </div>
 
           <div className="flex gap-2">
-            <Button type="button" variant="outline" size="lg" onClick={flow.back}>
-              Back
-            </Button>
+            <OnboardingBackButton onClick={flow.back} />
             <Button
               type="button"
               variant="outline"

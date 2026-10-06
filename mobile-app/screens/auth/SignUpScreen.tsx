@@ -1,4 +1,9 @@
 import React, { useState, useRef } from 'react';
+import * as DocumentPicker from 'expo-document-picker';
+import type { UploadedFileMeta } from '@/screens/onboarding/ResumeIntakeScreen';
+import { previewSignupResume, type CareerDetails } from '@/services/api/career';
+import { OnboardingProgress } from '@/screens/onboarding/OnboardingProgress';
+import { passwordRequirements } from '@/services/profile/onboarding';
 import {
   View,
   Text,
@@ -21,6 +26,8 @@ import {
   EyeSlash,
   WarningCircle,
   ShieldCheck,
+  Check,
+  X,
 } from 'phosphor-react-native';
 import { Colors, Radii, Spacing } from '@/theme/tokens';
 import { signUpWithEmail } from '@/services/api/auth';
@@ -28,6 +35,8 @@ import { ApiError } from '@/services/api/client';
 import { useAuthContext } from '@/context/AuthContext';
 
 export interface SignUpFormData {
+  referralCode?: string;
+  details: CareerDetails;
   fullName: string;
   email: string;
   password: string;
@@ -35,18 +44,37 @@ export interface SignUpFormData {
 }
 
 export interface SignUpScreenProps {
+  onResumeSelected?: (file: UploadedFileMeta) => void;
   onBack?: () => void;
   onNavigateToLogin?: () => void;
-  onSubmit?: (data: SignUpFormData, isUnconfirmed?: boolean) => void;
+  onSubmit?: (
+    data: SignUpFormData,
+    isUnconfirmed?: boolean,
+  ) => void | Promise<void>;
 }
 
 export function SignUpScreen({
   onBack,
   onNavigateToLogin,
   onSubmit,
+  onResumeSelected,
 }: SignUpScreenProps) {
   const { rememberCandidate } = useAuthContext();
   const [fullName, setFullName] = useState('');
+  const [resumeName, setResumeName] = useState('');
+  const [resumeDetails, setResumeDetails] = useState<CareerDetails>({});
+  const [phone, setPhone] = useState('');
+  const [workStatus, setWorkStatus] = useState('');
+  const [referralCode, setReferralCode] = useState('');
+  const [readingResume, setReadingResume] = useState(false);
+  const careerDetails = (): CareerDetails => ({
+    ...resumeDetails,
+    phone,
+    work_status: workStatus,
+    ...(workStatus === 'FRESHER'
+      ? { experience_years: 0, experience_months: 0, currently_employed: 'NO' }
+      : {}),
+  });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -66,9 +94,18 @@ export function SignUpScreen({
 
   // Validation rules according to backend invariants:
   // - full_name: 1-100 chars, letters, spaces, . ' - only, no digits or @
-  // - password: min 8 chars, letters and numbers
+  // - candidate pool: 12 characters, uppercase, lowercase and a number
   const validate = (): boolean => {
     setErrorMsg(null);
+    if (readingResume) return false;
+    if (!/^\+[1-9]\d{7,14}$/.test(phone) || !workStatus) {
+      setErrorMsg(
+        !workStatus
+          ? 'Choose experienced or fresher.'
+          : 'Enter your mobile number in international format, for example +919876543210.',
+      );
+      return false;
+    }
 
     const trimmedName = fullName.trim();
     if (!trimmedName) {
@@ -81,7 +118,9 @@ export function SignUpScreen({
     }
     const nameRegex = /^[a-zA-Z\s\.\'\-]+$/;
     if (!nameRegex.test(trimmedName)) {
-      setErrorMsg('Full name can only contain letters, spaces, dots, hyphens, and apostrophes (no digits or @).');
+      setErrorMsg(
+        'Full name can only contain letters, spaces, dots, hyphens, and apostrophes (no digits or @).',
+      );
       return false;
     }
 
@@ -103,9 +142,10 @@ export function SignUpScreen({
     const hasUpper = /[A-Z]/.test(password);
     const hasLower = /[a-z]/.test(password);
     const hasNumber = /[0-9]/.test(password);
-    const hasSpecial = /[^A-Za-z0-9]/.test(password);
-    if (!hasUpper || !hasLower || !hasNumber || !hasSpecial) {
-      setErrorMsg('Password must include uppercase, lowercase, numbers, and special characters (!@#$%^&*).');
+    if (!hasUpper || !hasLower || !hasNumber) {
+      setErrorMsg(
+        'Password must include uppercase, lowercase and a number. Symbols are optional.',
+      );
       return false;
     }
 
@@ -117,20 +157,7 @@ export function SignUpScreen({
     return true;
   };
 
-  const getPasswordInlineError = (pass: string) => {
-    if (pass.length === 0) return null;
-    if (pass.length < 12) return 'Password must be at least 12 characters long.';
-    const hasUpper = /[A-Z]/.test(pass);
-    const hasLower = /[a-z]/.test(pass);
-    const hasNumber = /[0-9]/.test(pass);
-    const hasSpecial = /[^A-Za-z0-9]/.test(pass);
-    if (!hasUpper || !hasLower || !hasNumber || !hasSpecial) {
-      return 'Password must include uppercase, lowercase, numbers, and special characters (!@#$%^&*).';
-    }
-    return null;
-  };
-
-  const passwordInlineError = getPasswordInlineError(password);
+  const requirements = passwordRequirements(password);
 
   const handleSubmit = async () => {
     if (!validate()) return;
@@ -147,49 +174,82 @@ export function SignUpScreen({
 
       if ('unconfirmed' in result && result.unconfirmed) {
         if (onSubmit) {
-          onSubmit({
-            fullName: fullName.trim(),
-            email: email.trim().toLowerCase(),
-            password,
-            confirmPassword,
-          }, true);
+          await onSubmit(
+            {
+              fullName: fullName.trim(),
+              email: email.trim().toLowerCase(),
+              password,
+              confirmPassword,
+              details: careerDetails(),
+              referralCode: referralCode.trim().toUpperCase(),
+            },
+            true,
+          );
         }
         return;
       }
 
-      rememberCandidate(result as any, { full_name: fullName.trim(), city: null, state_code: null, updated_at: null }, fullName.trim());
+      rememberCandidate(
+        result as any,
+        {
+          full_name: fullName.trim(),
+          city: null,
+          state_code: null,
+          updated_at: null,
+        },
+        fullName.trim(),
+      );
 
       if (onSubmit) {
-        onSubmit({
-          fullName: fullName.trim(),
-          email: email.trim().toLowerCase(),
-          password,
-          confirmPassword,
-        }, false);
-      }
-    } catch (err: any) {
-      if (err instanceof ApiError && err.code === 'user_not_confirmed') {
-        if (onSubmit) {
-          onSubmit({
+        await onSubmit(
+          {
             fullName: fullName.trim(),
             email: email.trim().toLowerCase(),
             password,
             confirmPassword,
-          }, true);
+            details: careerDetails(),
+            referralCode: referralCode.trim().toUpperCase(),
+          },
+          false,
+        );
+      }
+    } catch (err: any) {
+      if (err instanceof ApiError && err.code === 'user_not_confirmed') {
+        if (onSubmit) {
+          await onSubmit(
+            {
+              fullName: fullName.trim(),
+              email: email.trim().toLowerCase(),
+              password,
+              confirmPassword,
+              details: careerDetails(),
+              referralCode: referralCode.trim().toUpperCase(),
+            },
+            true,
+          );
           return;
         }
       }
       console.error('[SignUp Error]:', err);
       if (err instanceof ApiError) {
         if (err.code === 'account_contact_in_use') {
-          setErrorMsg('An account with this email already exists. Please sign in instead.');
+          setErrorMsg(
+            'An account with this email already exists. Please sign in instead.',
+          );
         } else if (err.code === 'network_error') {
-          setErrorMsg('Cannot reach backend server. Please verify your internet connection.');
+          setErrorMsg(
+            'Cannot reach backend server. Please verify your internet connection.',
+          );
         } else {
-          setErrorMsg(err.problem?.title || err.message || 'Failed to create account.');
+          setErrorMsg(
+            err.problem?.title || err.message || 'Failed to create account.',
+          );
         }
       } else {
-        setErrorMsg(err?.message || 'Failed to create account. Please check your connection.');
+        setErrorMsg(
+          err?.message ||
+            'Failed to create account. Please check your connection.',
+        );
       }
     } finally {
       setIsLoading(false);
@@ -237,16 +297,120 @@ export function SignUpScreen({
             <View style={styles.headerSection}>
               <View style={styles.badgeRow}>
                 <View style={styles.badge}>
-                  <ShieldCheck size={14} color={Colors.brandAccent} weight="bold" />
+                  <ShieldCheck
+                    size={14}
+                    color={Colors.brandAccent}
+                    weight="bold"
+                  />
                   <Text style={styles.badgeText}>CANDIDATE SIGNUP</Text>
                 </View>
               </View>
-              <Text style={styles.title}>Start your career journey</Text>
+              <OnboardingProgress step={0} />
+              <Text style={styles.title}>Basic details</Text>
               <Text style={styles.subtitle}>
-                Create an account to evaluate your resume, discover matching jobs, and get recruited.
+                Create an account to evaluate your resume, discover matching
+                jobs, and get recruited.
               </Text>
             </View>
 
+            {onResumeSelected && (
+              <View style={{ marginBottom: 24, gap: 10 }}>
+                <Text
+                  style={{
+                    fontFamily: 'GeneralSans-Semibold',
+                    fontSize: 16,
+                    color: '#0A1931',
+                  }}
+                >
+                  Start with your resume
+                </Text>
+                <Pressable
+                  style={{
+                    borderRadius: 16,
+                    borderWidth: 1,
+                    borderColor: '#DDD6C7',
+                    padding: 16,
+                    backgroundColor: '#fff',
+                  }}
+                  disabled={readingResume || isLoading}
+                  onPress={async () => {
+                    try {
+                      const result = await DocumentPicker.getDocumentAsync({
+                        type: [
+                          'application/pdf',
+                          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                        ],
+                        copyToCacheDirectory: true,
+                      });
+                      if (result.canceled) return;
+                      const asset = result.assets[0];
+                      if (asset.size && asset.size > 10 * 1024 * 1024) {
+                        setErrorMsg('Choose a PDF or DOCX up to 10 MB.');
+                        return;
+                      }
+                      setResumeName(asset.name);
+                      onResumeSelected({
+                        fileName: asset.name,
+                        fileUri: asset.uri,
+                        fileSizeBytes: asset.size,
+                        fileSize: asset.size
+                          ? `${Math.round(asset.size / 1024)} KB`
+                          : '',
+                        mimeType: asset.mimeType,
+                      });
+                      setReadingResume(true);
+                      const facts = await previewSignupResume({
+                        fileName: asset.name,
+                        fileUri: asset.uri,
+                        mimeType: asset.mimeType,
+                        fileSize: '',
+                      });
+                      setResumeDetails(facts.details);
+                      if (facts.full_name)
+                        setFullName((current) => current || facts.full_name);
+                      if (facts.email)
+                        setEmail((current) => current || facts.email);
+                      if (facts.details.phone)
+                        setPhone(
+                          (current) => current || String(facts.details.phone),
+                        );
+                      if (facts.details.work_status)
+                        setWorkStatus(
+                          (current) =>
+                            current || String(facts.details.work_status),
+                        );
+                    } catch {
+                      setErrorMsg(
+                        'Your resume could not be read. Try again or enter your details.',
+                      );
+                    } finally {
+                      setReadingResume(false);
+                    }
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: 'GeneralSans-Medium',
+                      color: '#5F4DB2',
+                    }}
+                  >
+                    {resumeName || 'Choose PDF or DOCX'}
+                  </Text>
+                </Pressable>
+                <Text
+                  style={{
+                    fontFamily: 'GeneralSans-Regular',
+                    color: '#5F6B80',
+                    fontSize: 13,
+                    lineHeight: 20,
+                  }}
+                >
+                  {readingResume
+                    ? 'Reading your resume and filling your details…'
+                    : 'Your resume fills your details now. Scoring starts after payment.'}
+                </Text>
+              </View>
+            )}
             {/* Error Message Box */}
             {errorMsg ? (
               <View style={styles.errorContainer}>
@@ -268,7 +432,11 @@ export function SignUpScreen({
                 >
                   <User
                     size={20}
-                    color={focusedField === 'fullName' ? Colors.brandAccent : Colors.text.muted}
+                    color={
+                      focusedField === 'fullName'
+                        ? Colors.brandAccent
+                        : Colors.text.muted
+                    }
                   />
                   <TextInput
                     ref={fullNameRef}
@@ -309,7 +477,11 @@ export function SignUpScreen({
                 >
                   <EnvelopeSimple
                     size={20}
-                    color={focusedField === 'email' ? Colors.brandAccent : Colors.text.muted}
+                    color={
+                      focusedField === 'email'
+                        ? Colors.brandAccent
+                        : Colors.text.muted
+                    }
                   />
                   <TextInput
                     ref={emailRef}
@@ -339,6 +511,55 @@ export function SignUpScreen({
                 </Text>
               </View>
 
+              <View style={{ marginBottom: 24, gap: 12 }}>
+                <Text style={styles.inputLabel}>Mobile number *</Text>
+                <TextInput
+                  value={phone}
+                  onChangeText={setPhone}
+                  keyboardType="phone-pad"
+                  placeholder="+919876543210"
+                  accessibilityLabel="Mobile number"
+                  style={{
+                    borderWidth: 1,
+                    borderColor: '#E7E0D4',
+                    borderRadius: 16,
+                    padding: 16,
+                    fontFamily: 'GeneralSans-Medium',
+                    fontSize: 16,
+                  }}
+                />
+                <Text style={styles.inputLabel}>Work status *</Text>
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  {[
+                    { value: 'EXPERIENCED', label: "I'm experienced" },
+                    { value: 'FRESHER', label: "I'm a fresher" },
+                  ].map((item) => (
+                    <Pressable
+                      key={item.value}
+                      onPress={() => setWorkStatus(item.value)}
+                      style={{
+                        flex: 1,
+                        padding: 16,
+                        borderRadius: 16,
+                        borderWidth: 1,
+                        borderColor:
+                          workStatus === item.value ? '#5F4DB2' : '#E7E0D4',
+                        backgroundColor:
+                          workStatus === item.value ? '#F1EAF7' : '#fff',
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontFamily: 'GeneralSans-Medium',
+                          color: '#0A1931',
+                        }}
+                      >
+                        {item.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
               {/* Password */}
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Password</Text>
@@ -350,12 +571,16 @@ export function SignUpScreen({
                 >
                   <Lock
                     size={20}
-                    color={focusedField === 'password' ? Colors.brandAccent : Colors.text.muted}
+                    color={
+                      focusedField === 'password'
+                        ? Colors.brandAccent
+                        : Colors.text.muted
+                    }
                   />
                   <TextInput
                     ref={passwordRef}
                     style={styles.textInput}
-                    placeholder="At least 8 characters"
+                    placeholder="At least 12 characters"
                     placeholderTextColor={Colors.text.muted}
                     value={password}
                     onChangeText={(text) => {
@@ -375,6 +600,7 @@ export function SignUpScreen({
                     autoComplete="new-password"
                   />
                   <Pressable
+                    accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
                     onPress={() => setShowPassword(!showPassword)}
                     hitSlop={8}
                     style={styles.eyeButton}
@@ -386,13 +612,21 @@ export function SignUpScreen({
                     )}
                   </Pressable>
                 </View>
-                {password.length > 0 && passwordInlineError ? (
-                  <Text style={[styles.inputHint, { color: Colors.red.fg }]}>
-                    {passwordInlineError}
-                  </Text>
+                {password.length > 0 ? (
+                  <View style={{ backgroundColor: '#F7F4EC', borderColor: '#E7E0D4', borderWidth: 1, borderRadius: 14, padding: 14, gap: 10 }}>
+                    {requirements.map(({ label, met }) => {
+                      const Icon = met ? Check : X;
+                      const color = met ? '#1F6B45' : '#A33A2B';
+                      return <View key={label} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Icon size={17} color={color} weight="bold" />
+                        <Text accessibilityLabel={`${label}: ${met ? 'met' : 'not met'}`} style={[styles.inputHint, { color, fontFamily: 'GeneralSans-Medium' }]}>{label}</Text>
+                      </View>;
+                    })}
+                  </View>
                 ) : (
                   <Text style={styles.inputHint}>
-                    Must be at least 12 characters with uppercase, lowercase, number & symbol.
+                    Must be at least 12 characters with uppercase, lowercase,
+                    and a number. Symbols are optional.
                   </Text>
                 )}
               </View>
@@ -403,12 +637,17 @@ export function SignUpScreen({
                 <View
                   style={[
                     styles.inputWrapper,
-                    focusedField === 'confirmPassword' && styles.inputWrapperFocused,
+                    focusedField === 'confirmPassword' &&
+                      styles.inputWrapperFocused,
                   ]}
                 >
                   <Lock
                     size={20}
-                    color={focusedField === 'confirmPassword' ? Colors.brandAccent : Colors.text.muted}
+                    color={
+                      focusedField === 'confirmPassword'
+                        ? Colors.brandAccent
+                        : Colors.text.muted
+                    }
                   />
                   <TextInput
                     ref={confirmPasswordRef}
@@ -433,6 +672,7 @@ export function SignUpScreen({
                     autoComplete="new-password"
                   />
                   <Pressable
+                    accessibilityLabel={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
                     onPress={() => setShowConfirmPassword(!showConfirmPassword)}
                     hitSlop={8}
                     style={styles.eyeButton}
@@ -444,15 +684,25 @@ export function SignUpScreen({
                     )}
                   </Pressable>
                 </View>
-                {confirmPassword.length > 0 && confirmPassword !== password && (
-                  <Text style={[styles.inputHint, { color: Colors.red.fg }]}>
-                    Passwords do not match.
-                  </Text>
+                {confirmPassword.length > 0 && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    {confirmPassword === password ? <Check size={17} color="#1F6B45" weight="bold" /> : <X size={17} color="#A33A2B" weight="bold" />}
+                    <Text style={[styles.inputHint, { fontFamily: 'GeneralSans-Medium', color: confirmPassword === password ? '#1F6B45' : '#A33A2B' }]}>
+                      {confirmPassword === password ? 'Passwords match.' : 'Passwords do not match.'}
+                    </Text>
+                  </View>
                 )}
               </View>
             </View>
 
             {/* Submit Button */}
+            <View style={[styles.inputGroup, { marginBottom: 24 }]}>
+              <Text style={styles.inputLabel}>College referral code (optional)</Text>
+              <View style={styles.inputWrapper}>
+                <TextInput style={styles.textInput} accessibilityLabel="College referral code" value={referralCode} onChangeText={setReferralCode} maxLength={32} autoCapitalize="characters" autoCorrect={false} placeholder="Enter your college code" editable={!isLoading} />
+              </View>
+              <Text style={styles.inputHint}>This is separate from a payment discount code. You choose whether to link after verifying your email.</Text>
+            </View>
             <Pressable
               style={({ pressed }) => [
                 styles.primaryButton,
@@ -460,7 +710,7 @@ export function SignUpScreen({
                 pressed && isFormFilled && !isLoading && styles.buttonPressed,
               ]}
               onPress={handleSubmit}
-              disabled={!isFormFilled || isLoading}
+              disabled={!isFormFilled || isLoading || readingResume}
               accessibilityRole="button"
             >
               {isLoading ? (
@@ -473,7 +723,11 @@ export function SignUpScreen({
             {/* Bottom Switch Link */}
             <View style={styles.switchRow}>
               <Text style={styles.switchText}>Already have an account?</Text>
-              <Pressable onPress={onNavigateToLogin} hitSlop={8} disabled={isLoading}>
+              <Pressable
+                onPress={onNavigateToLogin}
+                hitSlop={8}
+                disabled={isLoading}
+              >
                 <Text style={styles.switchLink}>Sign In</Text>
               </Pressable>
             </View>
@@ -481,7 +735,9 @@ export function SignUpScreen({
             {/* Legal / DPDP Notice */}
             <View style={styles.legalSection}>
               <Text style={styles.legalText}>
-                By creating an account, you agree to BharatPath's Terms of Service and Privacy Policy. Your data is protected in accordance with the Digital Personal Data Protection (DPDP) Act.
+                By creating an account, you agree to BharatPath&apos;s Terms of
+                Service and Privacy Policy. Your data is protected in accordance
+                with the Digital Personal Data Protection (DPDP) Act.
               </Text>
             </View>
           </ScrollView>

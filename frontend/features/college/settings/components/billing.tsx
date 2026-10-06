@@ -26,7 +26,7 @@ function formatCurrency(amountMinor: number, currency: string) {
 
 function formatDate(iso: string | null): string {
   if (!iso) {
-    return "—";
+    return "-";
   }
 
   return new Date(iso).toLocaleDateString("en-IN", {
@@ -235,7 +235,7 @@ function SubscriptionBlock({
         <div className="flex items-center justify-between">
           <dt className="text-[#64748b]">Current plan</dt>
           <dd className="font-semibold text-[#131A26]">
-            {subscription?.planCode ?? "—"}
+            {subscription?.planCode ?? "-"}
           </dd>
         </div>
 

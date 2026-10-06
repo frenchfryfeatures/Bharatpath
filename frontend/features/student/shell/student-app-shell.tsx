@@ -50,7 +50,7 @@ export function StudentAppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#FFFCF7]">
-      {/* Desktop sidebar — full height, collapsible to an icon rail */}
+      {/* Desktop sidebar - full height, collapsible to an icon rail */}
       <aside
         className={[
           "hidden shrink-0 border-r border-[#E7E0D4] bg-white transition-[width] duration-200 md:flex",
@@ -100,7 +100,7 @@ export function StudentAppShell({ children }: { children: ReactNode }) {
         </aside>
       </div>
 
-      {/* Content column — header above the page content */}
+      {/* Content column - header above the page content */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <StudentHeader onOpenDrawer={() => setMobileOpen(true)} />
 

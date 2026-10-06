@@ -27,7 +27,7 @@ function formatDate(value: string): string {
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return "—";
+    return "-";
   }
 
   return date.toLocaleDateString("en-IN", {
@@ -117,7 +117,7 @@ function createStudentColumns(
             </button>
           </div>
         ) : (
-          <span className="text-[12px] text-[#a0a6b2]">—</span>
+          <span className="text-[12px] text-[#a0a6b2]">-</span>
         ),
     },
   ];

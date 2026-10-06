@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as DocumentPicker from 'expo-document-picker';
-import { UploadSimple, ArrowRight, ClipboardText, NotePencil, LockSimple } from 'phosphor-react-native';
+import { UploadSimple, ArrowRight, ClipboardText, NotePencil } from 'phosphor-react-native';
 import { Colors, Radii, Spacing } from '@/theme/tokens';
 import { PasteTextModal } from './PasteTextModal';
 import { ManualResumeModal, ManualResumeData } from './ManualResumeModal';
@@ -116,13 +116,7 @@ export function ResumeIntakeScreen({ onSelectOption, onBack, userName }: ResumeI
         >
           {/* Step Progress Header */}
           <View style={styles.headerProgressSection}>
-            <Text style={styles.stepEyebrow}>STEP 4 OF 4</Text>
-            <View style={styles.progressSegmentsRow}>
-              <View style={[styles.progressSegment, styles.segmentActive]} />
-              <View style={[styles.progressSegment, styles.segmentActive]} />
-              <View style={[styles.progressSegment, styles.segmentActive]} />
-              <View style={[styles.progressSegment, styles.segmentActive]} />
-            </View>
+            <Text style={styles.stepEyebrow}>YOUR RESUME</Text>
           </View>
 
           {/* Screen Title & Subtitle */}
@@ -237,10 +231,6 @@ export function ResumeIntakeScreen({ onSelectOption, onBack, userName }: ResumeI
             <Text style={styles.backButtonText}>Back</Text>
           </Pressable>
 
-          <View style={styles.privacyNoteRow}>
-            <LockSimple size={13} color="#5F6B80" weight="regular" />
-            <Text style={styles.privacyNoteText}>Only used to build your profile</Text>
-          </View>
         </View>
       </View>
     </SafeAreaView>

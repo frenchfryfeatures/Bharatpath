@@ -57,7 +57,7 @@ export function KybApprovalTab({
           Controls whether an employer needs an
           operator decision before becoming fully
           active. Employers can always enter the
-          portal after onboarding — this gates
+          portal after onboarding - this gates
           operational functionality.
         </p>
 

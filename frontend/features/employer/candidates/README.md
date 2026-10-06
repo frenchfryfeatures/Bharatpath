@@ -1,4 +1,4 @@
-# BharatPath Employer — Candidates UI
+# BharatPath Employer - Candidates UI
 
 This feature reproduces the Candidates screen shown in the supplied BharatPath employer screenshots:
 

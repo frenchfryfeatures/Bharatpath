@@ -190,7 +190,7 @@ ERASURE_PLAN: Final[Mapping[str, TablePlan]] = {
         "once instead of rewritten across an append-only trail.",
     ),
     # -- the person's own content: erased --------------------------------
-    "candidate_profiles": _erase("user_id", "Their name and the city they declared."),
+    "candidate_profiles": _erase("user_id", "Their name, location and career profile details."),
     "resume_files": _erase("user_id", "The uploaded CV. The S3 object goes with the row."),
     "resume_versions": _erase("user_id", "Parsed CV content, every version in the chain."),
     "scores": _erase(

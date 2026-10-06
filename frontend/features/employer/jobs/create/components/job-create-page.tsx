@@ -480,7 +480,7 @@ export function JobCreatePage({
                 <span className="text-[13px] font-medium leading-[17px] text-[#28578f]">
                   {`${thresholdPreview?.fewer_than_ten
                         ? "Fewer than 10 candidates"
-                        : `${thresholdPreview?.approximate_count ?? "—"} candidates`} in your pool currently meet this bar`}
+                        : `${thresholdPreview?.approximate_count ?? "-"} candidates`} in your pool currently meet this bar`}
                 </span>
               </div>
             ) : null}

@@ -326,7 +326,7 @@ export function displayAnswer(
   }
 
   if (isBlank(value)) {
-    return "—";
+    return "-";
   }
 
   if (field.type === "SELECT" || field.type === "MULTISELECT") {

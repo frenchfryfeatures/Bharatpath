@@ -17,34 +17,37 @@ import { useAppDispatch } from "@/store/hooks";
 import {
   studentApi,
   useCompleteResumeUploadMutation,
-  useCreateResumeUploadMutation,
   useLazyGetResumeVersionsQuery,
   useGetCollegeConsentTermsQuery,
   useLinkStudentCollegeByReferralMutation,
-  useUploadResumeFileMutation,
   type ManualResume,
 } from "@/store/student";
 
 import { parseFailureMessage } from "../constants";
 import { AccountStep, LocationStep } from "./account-steps";
 import { ComputingStep } from "./computing-step";
-import {
-  IntakeStep,
-  ManualStep,
-  PasteStep,
-  resumeFileProblem,
-} from "./intake-steps";
+import { IntakeStep, ManualStep, PasteStep } from "./intake-steps";
 import { ParsingStep, type UploadPhase } from "./parsing-step";
-import { ReviewStep } from "./review-step";
+import { CareerForm } from "@/features/student/profile/career-form";
+import {
+  useGetCareerProfileQuery,
+  useLazyGetCareerProfileQuery,
+  useSaveCareerProfileMutation,
+  useIntakeCareerResumeMutation,
+  type CareerDetails,
+} from "@/features/student/profile/career-api";
+import { PaidScoringStep } from "./paid-scoring-step";
 import { SubscriptionStep } from "./subscription-step";
 import { SignupFrame, TrustAside, type SignupPhase } from "./ui";
 
 type Stage =
   | { name: "booting" }
   | { name: "account" }
+  | { name: "account-details" }
   | { name: "referral"; code: string }
   | { name: "location" }
   | { name: "subscription" }
+  | { name: "paid-scoring"; resumeVersionId: string }
   | { name: "intake"; error?: string }
   | { name: "paste" }
   | { name: "manual"; initial?: ManualResume; editOf?: string }
@@ -58,15 +61,17 @@ type Stage =
       uploadId?: string;
       error?: string;
     }
-  | { name: "review"; resumeVersionId: string }
+  | { name: "review"; resumeVersionId?: string }
   | { name: "computing"; confirmedAt: string | null };
 
 const PHASE_OF: Record<Stage["name"], SignupPhase> = {
   booting: "start",
   account: "start",
+  "account-details": "start",
   referral: "start",
   location: "start",
   subscription: "subscription",
+  "paid-scoring": "score",
   intake: "resume",
   paste: "resume",
   manual: "resume",
@@ -95,13 +100,25 @@ export function StudentSignup() {
   const [signedIn, setSignedIn] = useState(false);
   const [profile, setProfile] = useState<Profile>(EMPTY_PROFILE);
 
+  const [pendingResume, setPendingResume] = useState<File | null>(null);
+  const [reviewedVersionId, setReviewedVersionId] = useState<string | null>(
+    null,
+  );
+  const [resumeFilename, setResumeFilename] = useState<string>();
+  const [initialProfileSection, setInitialProfileSection] = useState(0);
+  const [activeProfileSection, setActiveProfileSection] = useState(0);
+  const [basicDraft, setBasicDraft] = useState<CareerDetails | null>(null);
+  const [saveCareer] = useSaveCareerProfileMutation();
+  const [intakeResume] = useIntakeCareerResumeMutation();
+  const career = useGetCareerProfileQuery(undefined, { skip: !signedIn });
+
   const [loadProfile] = studentApi.endpoints.getStudentProfile.useLazyQuery();
   const [loadVersions] = useLazyGetResumeVersionsQuery();
-  const [createUpload] = useCreateResumeUploadMutation();
-  const [uploadFile] = useUploadResumeFileMutation();
+  const [loadCareer] = useLazyGetCareerProfileQuery();
   const [completeUpload] = useCompleteResumeUploadMutation();
   const [linkCollege] = useLinkStudentCollegeByReferralMutation();
-  const [saveStudentName] = studentApi.endpoints.updateStudentName.useMutation();
+  const [saveStudentName] =
+    studentApi.endpoints.updateStudentName.useMutation();
 
   const go = (next: Stage) => {
     setStage(next);
@@ -137,14 +154,26 @@ export function StudentSignup() {
       stateCode: current.stateCode ?? "",
     };
     setProfile(known);
-
-    if (!known.fullName) return { name: "intake" };
+    if (
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("resume") === "update"
+    )
+      return { name: "intake" };
 
     const versions = await loadVersions(undefined, false).unwrap();
     const latest = versions.find((version) => !version.superseded);
 
-    if (!latest) return { name: "intake" };
-    if (latest.confirmed) return { name: "computing", confirmedAt: latest.confirmedAt };
+    if (!latest) return { name: "account-details" };
+    if (latest.confirmed)
+      return { name: "computing", confirmedAt: latest.confirmedAt };
+    const savedCareer = await loadCareer(undefined, false).unwrap();
+    if (
+      savedCareer.completed &&
+      savedCareer.resume_version_id === latest.resumeVersionId
+    ) {
+      setReviewedVersionId(latest.resumeVersionId);
+      return { name: "subscription" };
+    }
     return { name: "review", resumeVersionId: latest.resumeVersionId };
   };
 
@@ -195,36 +224,44 @@ export function StudentSignup() {
     go({ name: "account" });
   };
 
-  const startUpload = async (file: File) => {
-    go({ name: "parsing", fileName: file.name, fileSize: file.size, phase: "uploading" });
-
-    let uploadId: string;
+  const startUpload = async (file: File, details?: CareerDetails) => {
+    setResumeFilename(file.name);
+    go({
+      name: "parsing",
+      fileName: file.name,
+      fileSize: file.size,
+      phase: "uploading",
+    });
     try {
-      const ticket = await createUpload().unwrap();
-      const problem = resumeFileProblem(file, ticket.maxBytes);
-      if (problem) {
-        go({ name: "intake", error: problem });
-        return;
-      }
-
-      await uploadFile({ ticket, file }).unwrap();
-      uploadId = ticket.uploadId;
+      const result = await intakeResume(file).unwrap();
+      if (details)
+        await saveCareer({
+          details,
+          resume_version_id: result.resume_version_id,
+          resume_filename: file.name,
+          complete: false,
+        }).unwrap();
+      go({ name: "review", resumeVersionId: result.resume_version_id });
     } catch (error) {
       go({
         name: "intake",
-        error: getApiErrorMessage(error, "The upload did not finish. Please try again."),
+        error: getApiErrorMessage(
+          error,
+          "Your resume could not be read. Try again or enter your details.",
+        ),
       });
-      return;
     }
-
-    await finishUpload(uploadId, file.name, file.size);
   };
 
   /**
    * Completing an upload is idempotent, so a failure here is retried on the
    * same upload rather than making the candidate send the file again.
    */
-  const finishUpload = async (uploadId: string, fileName: string, fileSize: number) => {
+  const finishUpload = async (
+    uploadId: string,
+    fileName: string,
+    fileSize: number,
+  ) => {
     setStage({ name: "parsing", fileName, fileSize, phase: "checking" });
 
     try {
@@ -251,12 +288,20 @@ export function StudentSignup() {
         fileSize,
         phase: "checking",
         uploadId,
-        error: getApiErrorMessage(error, "We could not check your file. Please try again."),
+        error: getApiErrorMessage(
+          error,
+          "We could not check your file. Please try again.",
+        ),
       });
     }
   };
 
-  const phase = PHASE_OF[stage.name];
+  const phase =
+    stage.name === "review" || stage.name === "account-details"
+      ? (["start", "employment", "education", "preferences"] as const)[
+          activeProfileSection
+        ]
+      : PHASE_OF[stage.name];
   const frame = (content: React.ReactNode, aside?: React.ReactNode) => (
     <SignupFrame
       phase={phase}
@@ -275,7 +320,14 @@ export function StudentSignup() {
     case "account":
       return frame(
         <AccountStep
-          onSignedUp={async (result, email, referralCode, fullName) => {
+          onResumeSelected={setPendingResume}
+          onSignedUp={async (
+            result,
+            email,
+            referralCode,
+            fullName,
+            details,
+          ) => {
             if (result.token) setStoredToken(result.token);
             // A different person may have been signed in on this browser.
             resetCaches();
@@ -284,11 +336,20 @@ export function StudentSignup() {
             const normalizedName = fullName.split(/\s+/).join(" ").trim();
             setProfile((current) => ({ ...current, fullName: normalizedName }));
             await saveStudentName(normalizedName).unwrap();
+            setBasicDraft(details);
+            setInitialProfileSection(1);
+            setActiveProfileSection(1);
+            await saveCareer({
+              details,
+              complete: false,
+              resume_filename: pendingResume?.name,
+            }).unwrap();
 
             if (referralCode) {
               go({ name: "referral", code: referralCode });
             } else {
-              go({ name: "location" });
+              if (pendingResume) await startUpload(pendingResume, details);
+              else go({ name: "review" });
             }
           }}
         />,
@@ -301,7 +362,25 @@ export function StudentSignup() {
           linkCollege={(code, consentVersion) =>
             linkCollege({ code, consentVersion }).unwrap()
           }
-          onDone={() => go({ name: "location" })}
+          onDone={() => {
+            if (pendingResume)
+              void startUpload(pendingResume, basicDraft ?? undefined);
+            else go({ name: "review" });
+          }}
+        />,
+      );
+
+    case "account-details":
+      return frame(
+        <CareerForm
+          initialSection={0}
+          onSectionChange={setActiveProfileSection}
+          resumeVersionId={career.data?.resume_version_id ?? undefined}
+          onBack={() => go({ name: "intake" })}
+          onDone={(result) => {
+            setReviewedVersionId(result.resume_version_id);
+            go({ name: "subscription" });
+          }}
         />,
       );
 
@@ -309,15 +388,35 @@ export function StudentSignup() {
       return frame(
         <LocationStep
           initial={profile}
-          onDone={() => go({ name: "subscription" })}
+          onBack={(location) => {
+            setProfile((current) => ({ ...current, ...location }));
+            go({ name: "account-details" });
+          }}
+          onDone={(location) => {
+            setProfile((current) => ({ ...current, ...location }));
+            go({ name: "subscription" });
+          }}
         />,
       );
 
     case "subscription":
       return frame(
         <SubscriptionStep
-          onBack={() => go({ name: "location" })}
-          onContinue={() => go({ name: "intake" })}
+          onBack={() =>
+            go(
+              career.data?.resume_version_id
+                ? {
+                    name: "review",
+                    resumeVersionId: career.data.resume_version_id,
+                  }
+                : { name: "intake" },
+            )
+          }
+          onContinue={() => {
+            const id = reviewedVersionId ?? career.data?.resume_version_id;
+            if (id) go({ name: "paid-scoring", resumeVersionId: id });
+            else go({ name: "intake" });
+          }}
         />,
         <TrustAside />,
       );
@@ -326,10 +425,16 @@ export function StudentSignup() {
       return frame(
         <IntakeStep
           error={stage.error}
-          onBack={() => go({ name: "subscription" })}
-          onFile={(file) => void startUpload(file)}
+          onBack={() => go({ name: "account-details" })}
+          onFile={(file) => {
+            setInitialProfileSection(0);
+            void startUpload(file);
+          }}
           onPaste={() => go({ name: "paste" })}
-          onForm={() => go({ name: "manual" })}
+          onForm={() => {
+            setInitialProfileSection(0);
+            go({ name: "review" });
+          }}
         />,
       );
 
@@ -337,7 +442,9 @@ export function StudentSignup() {
       return frame(
         <PasteStep
           onBack={() => go({ name: "intake" })}
-          onCreated={(resumeVersionId) => go({ name: "review", resumeVersionId })}
+          onCreated={(resumeVersionId) =>
+            go({ name: "review", resumeVersionId })
+          }
         />,
       );
 
@@ -354,7 +461,9 @@ export function StudentSignup() {
                 : { name: "intake" },
             )
           }
-          onCreated={(resumeVersionId) => go({ name: "review", resumeVersionId })}
+          onCreated={(resumeVersionId) =>
+            go({ name: "review", resumeVersionId })
+          }
         />,
       );
 
@@ -375,7 +484,9 @@ export function StudentSignup() {
                 }
               : undefined
           }
-          onReview={(resumeVersionId) => go({ name: "review", resumeVersionId })}
+          onReview={(resumeVersionId) =>
+            go({ name: "review", resumeVersionId })
+          }
           onTryAnother={() => go({ name: "intake" })}
           onPaste={() => go({ name: "paste" })}
         />,
@@ -383,12 +494,27 @@ export function StudentSignup() {
 
     case "review":
       return frame(
-        <ReviewStep
+        <CareerForm
+          initialSection={initialProfileSection}
+          onSectionChange={setActiveProfileSection}
+          resumeFilename={resumeFilename}
           key={stage.resumeVersionId}
           resumeVersionId={stage.resumeVersionId}
+          onDone={(result) => {
+            setReviewedVersionId(result.resume_version_id);
+            void career.refetch();
+            go({ name: "subscription" });
+          }}
+          onBack={() => go({ name: "intake" })}
+        />,
+      );
+
+    case "paid-scoring":
+      return frame(
+        <PaidScoringStep
+          versionId={stage.resumeVersionId}
           onConfirmed={(confirmedAt) => go({ name: "computing", confirmedAt })}
-          onEditStructured={(initial, editOf) => go({ name: "manual", initial, editOf })}
-          onStartOver={() => go({ name: "intake" })}
+          onBack={() => go({ name: "subscription" })}
         />,
       );
 
@@ -403,7 +529,11 @@ export function StudentSignup() {
   }
 }
 
-function ReferralConsentStep({ code, linkCollege, onDone }: {
+function ReferralConsentStep({
+  code,
+  linkCollege,
+  onDone,
+}: {
   code: string;
   linkCollege: (code: string, consentVersion: string) => Promise<unknown>;
   onDone: () => void;
@@ -414,20 +544,72 @@ function ReferralConsentStep({ code, linkCollege, onDone }: {
 
   async function accept() {
     if (!terms.data) return;
-    setBusy(true); setError(null);
+    setBusy(true);
+    setError(null);
     try {
       await linkCollege(code, terms.data.consent_version);
       onDone();
     } catch (linkError) {
-      setError(getApiErrorMessage(linkError, "The college referral code could not be applied."));
-      if (getApiErrorCode(linkError) === "consent_version_outdated") void terms.refetch();
-    } finally { setBusy(false); }
+      setError(
+        getApiErrorMessage(
+          linkError,
+          "The college referral code could not be applied.",
+        ),
+      );
+      if (getApiErrorCode(linkError) === "consent_version_outdated")
+        void terms.refetch();
+    } finally {
+      setBusy(false);
+    }
   }
 
-  return <div className="flex flex-col gap-6">
-    <div><p className="text-xs font-bold uppercase tracking-[0.14em] text-[#5F4DB2]">College referral</p><h1 className="mt-2 text-2xl font-bold text-[#0A1931]">Link your college?</h1><p className="mt-2 text-sm leading-6 text-[#5F6B80]">You entered <strong className="font-mono text-[#0A1931]">{code}</strong>. Referral codes link your student account to a college; they do not change payment prices.</p></div>
-    <section className="rounded-2xl border border-[#E7E0D4] bg-[#FFFCF7] p-4 text-sm leading-6 text-[#3A4761]">{terms.isLoading ? "Loading consent terms…" : terms.data?.text ?? "The consent terms could not be loaded."}</section>
-    {(error || terms.error) && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error ?? getApiErrorMessage(terms.error, "The consent terms could not be loaded.")}</div>}
-    <div className="flex gap-3"><button type="button" onClick={onDone} className="flex-1 rounded-full border border-[#E7E0D4] px-4 py-3 text-sm font-semibold text-[#0A1931]">Skip for now</button><button type="button" disabled={!terms.data || busy} onClick={() => void accept()} className="flex-[2] rounded-full bg-[#5F4DB2] px-4 py-3 text-sm font-bold text-white disabled:opacity-50">{busy ? "Linking…" : "Agree and link college"}</button></div>
-  </div>;
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#5F4DB2]">
+          College referral
+        </p>
+        <h1 className="mt-2 text-2xl font-bold text-[#0A1931]">
+          Link your college?
+        </h1>
+        <p className="mt-2 text-sm leading-6 text-[#5F6B80]">
+          You entered{" "}
+          <strong className="font-mono text-[#0A1931]">{code}</strong>. Referral
+          codes link your student account to a college; they do not change
+          payment prices.
+        </p>
+      </div>
+      <section className="rounded-2xl border border-[#E7E0D4] bg-[#FFFCF7] p-4 text-sm leading-6 text-[#3A4761]">
+        {terms.isLoading
+          ? "Loading consent terms…"
+          : (terms.data?.text ?? "The consent terms could not be loaded.")}
+      </section>
+      {(error || terms.error) && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {error ??
+            getApiErrorMessage(
+              terms.error,
+              "The consent terms could not be loaded.",
+            )}
+        </div>
+      )}
+      <div className="flex gap-3">
+        <button
+          type="button"
+          onClick={onDone}
+          className="flex-1 rounded-full border border-[#E7E0D4] px-4 py-3 text-sm font-semibold text-[#0A1931]"
+        >
+          Skip for now
+        </button>
+        <button
+          type="button"
+          disabled={!terms.data || busy}
+          onClick={() => void accept()}
+          className="flex-[2] rounded-full bg-[#5F4DB2] px-4 py-3 text-sm font-bold text-white disabled:opacity-50"
+        >
+          {busy ? "Linking…" : "Agree and link college"}
+        </button>
+      </div>
+    </div>
+  );
 }

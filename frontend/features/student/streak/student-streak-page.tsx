@@ -213,7 +213,7 @@ function WeeklyActivity({ streak }: { streak: StudentStreak }) {
   /*
    * `GET /candidate/streak/me/calendar` decides which days were opened. Until
    * it answers (first paint, or a failed request) we fall back to the current
-   * run, which is exactly derivable from the streak — older activity is never
+   * run, which is exactly derivable from the streak - older activity is never
    * guessed at.
    */
   const active = useMemo(() => {

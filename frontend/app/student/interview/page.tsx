@@ -212,7 +212,7 @@ export default function StudentInterviewPage() {
                     Sessions ready
                   </p>
                   <p className="text-lg font-bold leading-6 text-[#0A1931]">
-                    {offerData?.sessionsAvailable ?? "—"}
+                    {offerData?.sessionsAvailable ?? "-"}
                   </p>
                 </div>
               </div>
@@ -450,7 +450,7 @@ export default function StudentInterviewPage() {
                   Total
                 </span>
                 <span className="text-2xl font-bold tracking-tight text-[#0A1931]">
-                  {price ?? (offerData?.onSale === false ? "Unavailable" : "—")}
+                  {price ?? (offerData?.onSale === false ? "Unavailable" : "-")}
                 </span>
               </div>
               <p className="mt-1 text-right text-[10px] text-[#5F6B80]">

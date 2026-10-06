@@ -41,7 +41,12 @@ async def _check_redis() -> dict[str, str]:
     try:
         from redis.asyncio import from_url
 
-        client = from_url(str(get_settings().redis_url))
+        client = from_url(
+            str(get_settings().redis_url),
+            protocol=2,
+            socket_connect_timeout=1.0,
+            socket_timeout=1.0,
+        )
         try:
             await client.ping()
             return {"status": "up"}

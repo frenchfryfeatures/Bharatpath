@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { OnboardingBackButton } from "@/components/common/onboarding-back-button";
 import Link from "next/link";
 import {
   Check,
@@ -224,9 +225,7 @@ export function LanguageStep({ value, onPick, onBack }: Readonly<LanguageStepPro
 
       {onBack ? (
         <div className="flex gap-2">
-          <PillButton variant="secondary" onClick={onBack} className="flex-1 sm:max-w-[180px]">
-            Back
-          </PillButton>
+          <OnboardingBackButton onClick={onBack} />
         </div>
       ) : null}
     </div>
@@ -304,9 +303,7 @@ export function HowItWorksStep({
       </div>
 
       <div className="flex gap-2">
-        <PillButton variant="secondary" onClick={onBack} className="flex-1">
-          Back
-        </PillButton>
+        <OnboardingBackButton onClick={onBack} />
         <PillButton onClick={onNext} className="flex-[2]">
           Got it
         </PillButton>

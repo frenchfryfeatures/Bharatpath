@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import DateTime, ForeignKey, Index, String, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -46,6 +48,7 @@ class CandidateProfile(Base):
     city: Mapped[str | None] = mapped_column(String(100))
     #: A code from `app.core.reference.INDIAN_STATES`.
     state_code: Mapped[str | None] = mapped_column(String(2))
+    career: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default="{}")
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

@@ -151,6 +151,7 @@ from app.modules.applications.domain import stage_summary
 from app.modules.billing import service as billing_service
 from app.modules.billing.domain import DISCOUNT_POLICY_VERSION
 from app.modules.candidate import service as candidate_service
+from app.modules.candidate.career import CareerResponse
 from app.modules.candidate.schemas import LocationRequest, NameRequest
 from app.modules.college import service as college_service
 from app.modules.college.schemas import CreateCollegeRequest
@@ -1985,6 +1986,19 @@ async def candidate_onboarding(
         if row is None:
             raise CandidateNotFoundError()
         facts = await repository.candidate_facts(reader, user_id=user_id)
+    saved_career = row["career"] or {}
+    career = (
+        CareerResponse.model_validate(
+            {
+                **saved_career,
+                "updated_at": row["profile_updated_at"].isoformat()
+                if row["profile_updated_at"]
+                else None,
+            }
+        )
+        if saved_career
+        else None
+    )
     return CandidateOnboarding(
         id=row["id"],
         status=row["status"],
@@ -1992,9 +2006,10 @@ async def candidate_onboarding(
         created_at=row["created_at"],
         full_name=row["full_name"],
         email=row["email"],
-        phone=row["phone"],
+        phone=career.details.phone or row["phone"] if career else row["phone"],
         city=row["city"],
         state_code=row["state_code"],
+        career=career,
         questionnaire_submitted_at=row["questionnaire_submitted_at"],
         questionnaire=onboarding_answers(row["questionnaire_answers"] or {}),
         college_links=[CollegeLinkSummary.model_validate(dict(r)) for r in facts["colleges"]],

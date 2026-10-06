@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrandIcon } from "@/components/common/brand-icon";
 import {
   ArrowRight,
   CheckCircle2,
@@ -43,12 +44,10 @@ export function AuthPageShell({
         />
 
         <div className="relative flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-lg font-bold text-[#17233a] shadow-lg shadow-black/10">
-            B
-          </div>
+          <BrandIcon className="h-11 w-11" />
           <div>
             <p className="text-lg font-semibold tracking-tight">
-              BharatPath
+              Bharat<span className="text-[#FF8A26]">Path</span>
             </p>
             <p className="text-xs text-white/60">
               Opportunity, made visible
@@ -92,11 +91,9 @@ export function AuthPageShell({
       <section className="flex min-h-screen items-center justify-center px-5 py-10 sm:px-10 lg:px-14">
         <div className="w-full max-w-[470px]">
           <div className="mb-8 flex items-center gap-3 lg:hidden">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#17233a] font-bold text-white">
-              B
-            </div>
+            <BrandIcon className="h-10 w-10" />
             <p className="font-semibold text-[#17233a]">
-              BharatPath
+              Bharat<span className="text-[#FF8A26]">Path</span>
             </p>
           </div>
 

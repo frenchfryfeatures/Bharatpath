@@ -2,9 +2,9 @@ import React from "react";
 
 export interface SkeletonProps
   extends React.HTMLAttributes<HTMLDivElement> {
-  /** Width — number is px, string is passed through (e.g. "40%"). */
+  /** Width - number is px, string is passed through (e.g. "40%"). */
   width?: number | string;
-  /** Height — number is px, string is passed through. */
+  /** Height - number is px, string is passed through. */
   height?: number | string;
   /** Fully rounded (avatars, dots). Overrides radius. */
   circle?: boolean;

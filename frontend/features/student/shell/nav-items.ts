@@ -12,7 +12,7 @@ import {
 
 /*
  * ==========================================================================
- * STUDENT NAVIGATION — shared by the desktop sidebar and the mobile top nav.
+ * STUDENT NAVIGATION - shared by the desktop sidebar and the mobile top nav.
  * ==========================================================================
  */
 

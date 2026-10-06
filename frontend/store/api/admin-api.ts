@@ -1,4 +1,5 @@
 import { baseApi } from "./base-api";
+import type { CareerField, CareerProfile } from "@/features/student/profile/career-api";
 
 export type CursorPage<T> = {
   items: T[];
@@ -117,6 +118,8 @@ export type CandidateDrilldown = {
 export type CandidateOnboarding = {
   id: string; full_name: string | null; email: string | null; phone: string | null;
   city: string | null; state_code: string | null; locale: string;
+  career?: CareerProfile | null;
+  career_fields?: CareerField[];
   questionnaire_submitted_at: string | null;
   questionnaire: Array<{ code: string; question: string; answer: string }>;
   college_links: Array<{ tenant_id: string; college: string; scope: string; granted_at: string }>;
@@ -332,7 +335,7 @@ type SearchFilterListParams = AdminListParams & {
 };
 
 /*
- * GET /api/v1/admin/dashboard — everything the operations dashboard needs in
+ * GET /api/v1/admin/dashboard - everything the operations dashboard needs in
  * one audited request. Field names follow the backend contract; nested shapes
  * the contract does not spell out in full are typed conservatively and the
  * hook maps them defensively.

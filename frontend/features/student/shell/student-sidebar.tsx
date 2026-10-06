@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowLeftToLine, LogOut, X } from "lucide-react";
 
-import logo from "@/assets/Logo.png";
+import logo from "@/assets/bharatpath-icon.png";
 import { useGetStudentProfileQuery } from "@/store/student";
 import { initials } from "@/features/student/formatters";
 import {

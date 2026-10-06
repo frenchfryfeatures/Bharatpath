@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { BrandIcon } from "@/components/common/brand-icon";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
 import { useScrollLock } from "@/hooks/use-scroll-lock";
@@ -23,7 +24,8 @@ export function AdminShell({ children }: { readonly children: ReactNode }) {
   return (
     <div className="min-h-screen bg-[#f7f8fa] text-[#141b2e]">
       <aside className="fixed inset-y-0 left-0 hidden w-60 border-r border-[#e5e8ee] bg-white p-5 lg:block">
-        <Link href="/admin/dashboard" className="text-lg font-bold text-[#385da8]">
+        <Link href="/admin/dashboard" className="flex items-center gap-2 text-base font-bold text-[#385da8]">
+          <BrandIcon className="h-8 w-8" />
           BharatPath Admin
         </Link>
         <nav className="mt-8 space-y-1">

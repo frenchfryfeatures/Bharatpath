@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Image, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { LockSimple, WarningCircle } from 'phosphor-react-native';
+import { WarningCircle } from 'phosphor-react-native';
 import { Colors, Radii, Spacing } from '@/theme/tokens';
 import {
   CandidateScoreResponse,
@@ -258,10 +258,6 @@ export function ScoringScreen({
             </>
           )}
 
-          <View style={styles.privacyNoteRow}>
-            <LockSimple size={16} color="#5F6B80" weight="bold" />
-            <Text style={styles.privacyNoteText}>Employers see it only if you apply.</Text>
-          </View>
         </View>
       </View>
     </SafeAreaView>
