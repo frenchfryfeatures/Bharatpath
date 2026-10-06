@@ -18,8 +18,9 @@ storage format's.
 in any form -- not a range, not a preference, not a "suitable for". Invariant 5
 forbids age-gating outright (PRD section 3 rule 4), and a gender requirement
 on a job is the same discrimination the questionnaire refuses to ask about
-(`blockers.md` C3). `extra="forbid"` turns either into a 422, and
-`test_a_job_cannot_ask_for_age_or_gender` holds it.
+(`blockers.md` C3). `extra="forbid"` turns either into a 422, and a screening question that
+asks about either is refused by its words. `test_a_job_cannot_ask_for_age_or_gender`
+and `test_a_screening_question_cannot_ask_about_age_or_gender` hold both.
 
 **Two audiences, two models.** `JobDetails` is the employer's. A candidate
 reads `CandidateJobDetails`, which drops who the hiring manager is, the
@@ -79,6 +80,33 @@ CHOICE_TYPES = frozenset({"SINGLE_CHOICE", "MULTIPLE_CHOICE"})
 YES_NO = ("Yes", "No")
 
 _EMAIL = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
+
+#: A screening question about age or gender, in English, romanised Hindi or
+#: Devanagari. Whole words for the Latin script; Devanagari is matched as a
+#: substring, because its vowel signs are not word characters to `\b`.
+#: Deliberately narrow (no "man"/"men": "man-hours" is a fair question), so a
+#: refusal is always about the person and never about the work.
+_PERSONAL_LATIN = re.compile(
+    r"\b(age|aged|ages|how\s+old|years?\s+old|birth\w*|born|d\.?o\.?b|"
+    r"gender|sex|male|males|female|females|woman|women|transgender|"
+    r"umar|umr|umra|ladka|ladki)\b",
+    re.IGNORECASE,
+)
+#: Escaped so the source stays ASCII: umra, umar, aayu (age), janm (birth),
+#: ling (gender), mahila (woman), purush (man).
+_PERSONAL_DEVANAGARI = (
+    "\u0909\u092e\u094d\u0930",
+    "\u0909\u092e\u0930",
+    "\u0906\u092f\u0941",
+    "\u091c\u0928\u094d\u092e",
+    "\u0932\u093f\u0902\u0917",
+    "\u092e\u0939\u093f\u0932\u093e",
+    "\u092a\u0941\u0930\u0941\u0937",
+)
+
+
+def _asks_about_age_or_gender(text: str) -> bool:
+    return bool(_PERSONAL_LATIN.search(text)) or any(w in text for w in _PERSONAL_DEVANAGARI)
 
 
 class _Section(ApiSchema):
@@ -164,6 +192,10 @@ class Requirements(_Section):
 
 
 class CandidateApplication(_Section):
+    """How to apply, as a candidate reads it. `external_url` and `email` are
+    empty here unless the candidate may apply (`for_candidate`), so this model
+    does not insist that an EXTERNAL method carries its link."""
+
     deadline: dt.date | None = None
     method: ApplicationMethod = "BHARATPATH"
     email: Annotated[str, Field(max_length=254)] = ""
@@ -172,8 +204,10 @@ class CandidateApplication(_Section):
     cover_letter_required: bool = False
     portfolio_required: bool = False
 
+
+class Application(CandidateApplication):
     @model_validator(mode="after")
-    def _method(self) -> CandidateApplication:
+    def _method(self) -> Application:
         if self.email and not _EMAIL.fullmatch(self.email):
             raise ValueError("application email is not an email address")
         if self.external_url and not self.external_url.startswith("https://"):
@@ -183,10 +217,6 @@ class CandidateApplication(_Section):
         if self.method == "EXTERNAL" and not self.external_url:
             raise ValueError("an external application needs its URL")
         return self
-
-
-class Application(CandidateApplication):
-    pass
 
 
 class ScreeningQuestion(_Section):
@@ -205,6 +235,10 @@ class ScreeningQuestion(_Section):
 
     @model_validator(mode="after")
     def _shape(self) -> ScreeningQuestion:
+        if any(_asks_about_age_or_gender(t) for t in (self.question, *self.options)):
+            # Invariant 5 and C3. A knockout makes it a gate; even without one,
+            # the answer sits beside the application.
+            raise ValueError("a screening question cannot ask about age or gender")
         if self.type in CHOICE_TYPES:
             if len(self.options) < 2:
                 raise ValueError("a choice question needs at least two options")
@@ -293,8 +327,15 @@ def parse_stored(raw: Any) -> JobDetails:
     return JobDetails.model_validate(raw or {})
 
 
-def for_candidate(details: JobDetails) -> CandidateJobDetails:
-    """The candidate's view, built field by field from the narrower models."""
+def for_candidate(details: JobDetails, *, may_apply: bool) -> CandidateJobDetails:
+    """The candidate's view, built field by field from the narrower models.
+
+    **The external link and the application email are routes around the apply
+    endpoint**, so they are sent only when `may_apply`: the candidate meets the
+    threshold and is visible to employers. Otherwise an EXTERNAL job would
+    take applications from someone the score gate or a HIGH integrity signal
+    refuses -- the same rule `apply` enforces with `is_candidate_visible`."""
+    withheld: set[str] = set() if may_apply else {"external_url", "email"}
     return CandidateJobDetails(
         basics=details.basics,
         location=details.location,
@@ -304,7 +345,9 @@ def for_candidate(details: JobDetails) -> CandidateJobDetails:
         education=details.education,
         requirements=details.requirements,
         application=CandidateApplication.model_validate(
-            details.application.model_dump(include=set(CandidateApplication.model_fields))
+            details.application.model_dump(
+                include=set(CandidateApplication.model_fields) - withheld
+            )
         ),
         hiring=CandidateHiring.model_validate(
             details.hiring.model_dump(include=set(CandidateHiring.model_fields))

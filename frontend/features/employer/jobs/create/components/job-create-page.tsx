@@ -19,7 +19,6 @@ import { DatePicker } from "@/components/ui/date-time-picker";
 import { Modal } from "@/components/ui/modal";
 import { useConfirmDialog } from "@/features/employer/components/use-confirm-dialog";
 import {
-  APPLICANT_ACCESS_LABELS,
   EDUCATION_LABELS,
   EMPLOYMENT_TYPE_LABELS,
   JobDescriptionView,
@@ -33,7 +32,6 @@ import {
   VISIBILITY_LABELS,
   WORK_MODE_LABELS,
   type ApplicationMethod,
-  type ApplicantAccess,
   type EmploymentKind,
   type HiringTimeline,
   type JobType,
@@ -565,7 +563,7 @@ export function JobCreatePage({
 
             <CheckboxRow
               label="Show salary to candidates"
-              hint="Off shows “Not disclosed” on the listing."
+              hint="Off shows “Not disclosed” on the listing. The range is still sent to the candidate app and used by the salary filter, so this changes how it is shown, not who can see it."
               checked={details.compensation.disclosed}
               disabled={disabled}
               onChange={(checked) => setDetail("compensation", "disclosed", checked)}
@@ -1073,21 +1071,9 @@ export function JobCreatePage({
                 disabled={disabled}
                 onChange={(checked) => setDetail("settings", "featured", checked)}
               />
-              <CheckboxRow
-                label="Allow employee referrals"
-                checked={details.settings.allow_referrals}
-                disabled={disabled}
-                onChange={(checked) => setDetail("settings", "allow_referrals", checked)}
-              />
-              <Field label="Candidate visibility / application access" wide>
-                <SelectInput<ApplicantAccess>
-                  value={details.settings.applicant_access}
-                  options={optionsOf(APPLICANT_ACCESS_LABELS)}
-                  disabled={disabled}
-                  ariaLabel="Candidate visibility and application access"
-                  onChange={(access) => setDetail("settings", "applicant_access", access)}
-                />
-              </Field>
+              {/* Referrals, applicant access and scheduled publishing are
+                  stored by the backend but change nothing yet, so they are
+                  not offered here. Their values round-trip untouched. */}
             </FieldGrid>
 
             {/* MINIMUM SCORE - unchanged from the original composer */}
@@ -1192,23 +1178,6 @@ export function JobCreatePage({
                 and publish the moment you&apos;re
                 cleared.
               </p>
-            </div>
-          ) : null}
-
-          {canChangeToPublished ? (
-            <div className="mb-5 max-w-[360px]">
-              <Field
-                label="Schedule publication"
-                hint="A planned date your team can see. Publishing itself stays a click, so verification and your plan are checked at that moment."
-              >
-                <DatePicker
-                  value={details.settings.publish_on ?? ""}
-                  disabled={disabled}
-                  ariaLabel="Planned publication date"
-                  className={inputClasses}
-                  onChange={(date) => setDetail("settings", "publish_on", date || null)}
-                />
-              </Field>
             </div>
           ) : null}
 

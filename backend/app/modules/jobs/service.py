@@ -475,10 +475,18 @@ async def get_board_job(
         raise JobNotFoundError()
     score = await current_score(session, user_id=user_id)
     names = await employer_service.public_names(session, tenant_ids=[job.tenant_id])
+    # The two conditions `apply` checks, so the employer's own link is never
+    # a way round them.
+    eligible = eligibility(min_score=job.min_score, score=score) == "ELIGIBLE"
+    may_apply = eligible and await discovery_service.is_candidate_visible(
+        session, candidate_id=user_id
+    )
+    details = for_candidate(parse_stored(job.details), may_apply=may_apply)
     return BoardJobDetail(
         **_summary(job, employer_name=names.get(job.tenant_id), score=score),
         description=job.description,
-        details=for_candidate(parse_stored(job.details)),
+        details=details,
+        can_apply_externally=bool(details.application.external_url or details.application.email),
     )
 
 

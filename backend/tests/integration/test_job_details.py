@@ -14,6 +14,7 @@ import pytest
 
 from tests.integration.test_candidate_marketplace import BOARD, _board_ids, _candidate, _employer
 from tests.integration.test_candidate_marketplace import _job as _board_job
+from tests.integration.test_integrity_pipeline import INJECTED_CV
 
 pytestmark = pytest.mark.integration
 
@@ -251,6 +252,112 @@ async def test_a_candidate_reads_the_posting_without_the_employers_internals(
     assert details["basics"]["openings"] == 3
     assert "Asha Rao" not in response.text
     assert "accepted_answers" not in response.text
+
+
+EXTERNAL = _with(
+    "application",
+    method="EXTERNAL",
+    external_url="https://careers.example.test/apply/backend",
+    email="hiring@example.test",
+)
+
+
+async def test_an_eligible_candidate_gets_the_external_route(client: Any, mint_token: Any) -> None:
+    employer = await _employer(client, mint_token)
+    job = await _board_job(client, employer, **_job_body(details=EXTERNAL))
+    candidate = await _candidate(mint_token)
+
+    response = await client.get(f"{BOARD}/{job['id']}", headers=candidate["headers"])
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["eligibility"] == "ELIGIBLE"
+    assert body["can_apply_externally"] is True
+    assert body["details"]["application"]["external_url"] == EXTERNAL["application"]["external_url"]
+    assert body["details"]["application"]["email"] == "hiring@example.test"
+
+
+@pytest.mark.parametrize("who", ["score_pending", "below_threshold", "unchecked", "suppressed"])
+async def test_the_external_route_is_withheld_from_who_may_not_apply(
+    client: Any, mint_token: Any, who: str
+) -> None:
+    """The employer's own link and email are a way round `apply`, so they
+    follow the same two rules: the threshold and the discovery rule. A
+    candidate the apply button refuses must not be handed the link instead."""
+    if who == "score_pending":
+        candidate = await _candidate(mint_token, scored=False)
+    elif who == "unchecked":
+        candidate = await _candidate(mint_token, checked=False)
+    elif who == "suppressed":
+        candidate = await _candidate(mint_token, cv=INJECTED_CV)
+    else:
+        candidate = await _candidate(mint_token)
+    min_score = None
+    if who == "below_threshold":
+        if candidate["score"] >= 990:
+            pytest.skip("this candidate already holds the top score")
+        min_score = candidate["score"] + 1
+
+    employer = await _employer(client, mint_token)
+    job = await _board_job(client, employer, **_job_body(details=EXTERNAL, min_score=min_score))
+
+    response = await client.get(f"{BOARD}/{job['id']}", headers=candidate["headers"])
+    assert response.status_code == 200, response.text
+    body = response.json()
+    application = body["details"]["application"]
+    assert application["method"] == "EXTERNAL"
+    assert application["external_url"] == ""
+    assert application["email"] == ""
+    assert body["can_apply_externally"] is False
+    assert "careers.example.test" not in response.text
+    assert "hiring@example.test" not in response.text
+
+
+@pytest.mark.parametrize(
+    "question,options",
+    [
+        ("What is your age?", []),
+        ("Are you aged between 21 and 30?", []),
+        ("How old are you?", []),
+        ("Please share your year of birth.", []),
+        ("Share your D.O.B.", []),
+        ("What is your gender?", []),
+        ("Is this role suitable for female candidates?", []),
+        ("Which applies to you?", ["Male", "Other"]),
+        ("Aapki umar kya hai?", []),
+        ("आपकी उम्र क्या है?", []),
+    ],
+)
+async def test_a_screening_question_cannot_ask_about_age_or_gender(
+    client: Any, mint_token: Any, question: str, options: list[str]
+) -> None:
+    """Invariant 5 and C3 by the question's words, not only by field names:
+    a knockout on "are you under 30?" is age-gating whatever the key is."""
+    employer = await _employer(client, mint_token)
+    kind = "SINGLE_CHOICE" if options else "SHORT_ANSWER"
+    details = {
+        **DETAILS,
+        "screening_questions": [{"question": question, "type": kind, "options": options}],
+    }
+    response = await client.post(JOBS, json=_job_body(details=details), headers=employer["headers"])
+    assert response.status_code == 422, response.text
+
+
+async def test_a_question_about_the_work_is_not_mistaken_for_one_about_the_person(
+    client: Any, mint_token: Any
+) -> None:
+    """Narrow on purpose: refusing fair questions teaches employers to
+    reword around the check."""
+    employer = await _employer(client, mint_token)
+    details = {
+        **DETAILS,
+        "screening_questions": [
+            {"question": "How many man-hours did your last project take?", "type": "NUMERIC"},
+            {"question": "Have you managed a stage production?", "type": "YES_NO"},
+            {"question": "Can you work from our Agra office?", "type": "YES_NO"},
+        ],
+    }
+    response = await client.post(JOBS, json=_job_body(details=details), headers=employer["headers"])
+    assert response.status_code == 201, response.text
 
 
 async def test_an_undisclosed_salary_is_flagged_on_the_board(client: Any, mint_token: Any) -> None:

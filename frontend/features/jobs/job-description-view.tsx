@@ -374,6 +374,9 @@ function JobDescriptionCard({ job, t }: { job: JobDescriptionData; t: Tone }) {
                 Apply on the employer&apos;s site
                 <ExternalLink size={14} aria-hidden="true" />
               </a>
+            ) : application.method === "EXTERNAL" ? (
+              // The link is withheld from a candidate who may not apply yet.
+              <span>Applications are taken on the employer&apos;s site.</span>
             ) : (
               <span>Apply on BharatPath</span>
             )}

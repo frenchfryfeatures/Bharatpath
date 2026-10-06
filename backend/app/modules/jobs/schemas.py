@@ -185,6 +185,10 @@ class BoardJobDetail(BoardJobSummary):
     #: The candidate's projection of the posting: no hiring manager, no
     #: screening questions, no internal settings (`jobs/details.py`).
     details: CandidateJobDetails = Field(default_factory=CandidateJobDetails)
+    #: True when `details.application` carries a link or an email this
+    #: candidate may use. False for an ineligible or held-back candidate,
+    #: whose copy of the posting has both withheld.
+    can_apply_externally: bool = False
 
 
 class ThresholdPreviewResponse(_Base):

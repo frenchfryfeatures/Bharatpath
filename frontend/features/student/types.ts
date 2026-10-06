@@ -135,6 +135,11 @@ export interface JobListing {
   salaryMaxMinor: number;
   /** False when the employer hides the range; draw "Not disclosed". */
   salaryDisclosed: boolean;
+  /**
+   * True only when the backend sent this candidate the employer's own link or
+   * email. It withholds both from anyone the apply button would refuse.
+   */
+  canApplyExternally: boolean;
   publishedAt: string;
   eligibility: JobEligibility;
 }

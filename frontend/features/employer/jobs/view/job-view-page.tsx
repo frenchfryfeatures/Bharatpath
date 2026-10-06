@@ -8,7 +8,6 @@ import { usePageHeader } from "@/components/layout/header-context";
 import { StatusBadge, type StatusBadgeTone } from "@/components/ui/status-badge";
 import { EmployerErrorState } from "@/features/employer/components/employer-error-state";
 import {
-  APPLICANT_ACCESS_LABELS,
   formatJobDate,
   JobDescriptionView,
   QUESTION_TYPE_LABELS,
@@ -105,17 +104,6 @@ export function JobViewPage({ jobId }: { jobId: string }) {
               <InternalCard title="Visibility">
                 <Row label="Job visibility">{VISIBILITY_LABELS[details.settings.visibility]}</Row>
                 <Row label="Featured">{details.settings.featured ? "Yes" : "No"}</Row>
-                <Row label="Employee referrals">
-                  {details.settings.allow_referrals ? "Allowed" : "Not allowed"}
-                </Row>
-                <Row label="Applicant access">
-                  {APPLICANT_ACCESS_LABELS[details.settings.applicant_access]}
-                </Row>
-                {details.settings.publish_on ? (
-                  <Row label="Planned publication">
-                    {formatJobDate(details.settings.publish_on)}
-                  </Row>
-                ) : null}
               </InternalCard>
 
               <InternalCard title="Screening questions">

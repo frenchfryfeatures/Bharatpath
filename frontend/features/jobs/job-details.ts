@@ -377,8 +377,8 @@ export const TIMELINE_LABELS: Record<Exclude<HiringTimeline, "">, string> = {
 
 export const VISIBILITY_LABELS: Record<Visibility, string> = {
   PUBLIC: "Public",
-  PRIVATE: "Private",
-  INVITE_ONLY: "Invite only",
+  PRIVATE: "Private (unlisted)",
+  INVITE_ONLY: "Unlisted (link or invitation)",
 };
 
 export const APPLICANT_ACCESS_LABELS: Record<ApplicantAccess, string> = {

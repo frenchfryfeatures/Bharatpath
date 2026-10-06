@@ -63,6 +63,7 @@ export function JobDetail() {
   const details = listing.details ?? candidateDetailsWithDefaults({});
   const eligible = listing.eligibility === "ELIGIBLE";
   const external =
+    listing.canApplyExternally &&
     details.application.method === "EXTERNAL" &&
     details.application.external_url;
 
