@@ -30,13 +30,16 @@ import {
   loginSchema,
 } from "@/features/auth/schemas/login.schema";
 import { authService } from "@/features/auth/services/auth.service";
-import { passwordError } from "@/features/auth/hooks/use-signup-flow";
+import { MIN_PASSWORD_LENGTH, passwordError } from "@/features/auth/hooks/use-signup-flow";
 import {
   CognitoPoolType,
   confirmNewPasswordCognito,
   confirmSignUpCognito,
+  confirmPasswordResetCognito,
   confirmTotpCodeCognito,
   formatCognitoError,
+  formatPasswordError,
+  requestPasswordResetCognito,
   resendSignUpCodeCognito,
   signInWithCognito,
   verifyTotpSetupCognito,
@@ -59,7 +62,10 @@ type AuthStep =
   | "NEW_PASSWORD"
   | "TOTP_CODE"
   | "TOTP_SETUP"
-  | "CONFIRM_SIGN_UP";
+  | "CONFIRM_SIGN_UP"
+  | "FORGOT_REQUEST"
+  | "FORGOT_RESET"
+  | "FORGOT_NEW";
 
 type AccountType = "CANDIDATE" | "EMPLOYER" | "INSTITUTION" | "ADMIN";
 
@@ -84,6 +90,15 @@ export function LoginForm() {
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
   const [codeCopied, setCodeCopied] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
+
+  // Forgot-password states
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [resetCode, setResetCode] = useState("");
+  const [resetPasswordValue, setResetPasswordValue] = useState("");
+  const [resetConfirmValue, setResetConfirmValue] = useState("");
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [resetCodeSent, setResetCodeSent] = useState(false);
+  const [notice, setNotice] = useState("");
 
   const sessionTimedOut = searchParams.get("session") === "timeout";
   const [showSessionExpiredToast, setShowSessionExpiredToast] = useState(false);
@@ -133,6 +148,7 @@ export function LoginForm() {
     setPool(nextPool);
     setValue("pool", nextPool);
     setServerError("");
+    setNotice("");
     setAuthStep("CREDENTIALS");
   };
 
@@ -332,6 +348,97 @@ export function LoginForm() {
     }
   };
 
+  const openForgotPassword = () => {
+    setServerError("");
+    setNotice("");
+    setForgotEmail(enteredEmail ?? "");
+    setAuthStep("FORGOT_REQUEST");
+  };
+
+  const handleRequestReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const address = forgotEmail.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) {
+      setServerError("Enter the email address you signed up with.");
+      return;
+    }
+
+    setSubmittingChallenge(true);
+    setServerError("");
+    try {
+      await requestPasswordResetCognito(address, pool);
+      setForgotEmail(address);
+      setResetCode("");
+      setResetPasswordValue("");
+      setResetCodeSent(false);
+      setAuthStep("FORGOT_RESET");
+    } catch (err) {
+      setServerError(formatPasswordError(err, "reset"));
+    } finally {
+      setSubmittingChallenge(false);
+    }
+  };
+
+  // Cognito checks the code and the new password in one call, so the code is
+  // held here and sent with the password on the next step.
+  const handleVerifyResetCode = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (resetCode.trim().length < 4) {
+      setServerError("Enter the verification code sent to your email.");
+      return;
+    }
+    setServerError("");
+    setResetPasswordValue("");
+    setResetConfirmValue("");
+    setAuthStep("FORGOT_NEW");
+  };
+
+  const handleConfirmReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const validationError = passwordError(resetPasswordValue, pool);
+    if (validationError) {
+      setServerError(validationError);
+      return;
+    }
+    if (resetPasswordValue !== resetConfirmValue) {
+      setServerError("The new passwords do not match.");
+      return;
+    }
+
+    setSubmittingChallenge(true);
+    setServerError("");
+    try {
+      await confirmPasswordResetCognito(forgotEmail, resetCode, resetPasswordValue, pool);
+      setValue("email", forgotEmail);
+      setValue("password", "");
+      setResetCode("");
+      setResetPasswordValue("");
+      setResetConfirmValue("");
+      setNotice("Your password has been reset. Sign in with your new password.");
+      setAuthStep("CREDENTIALS");
+    } catch (err) {
+      const name = (err as { name?: string } | null)?.name;
+      // A wrong or expired code belongs to the previous step.
+      if (name === "CodeMismatchException" || name === "ExpiredCodeException") {
+        setAuthStep("FORGOT_RESET");
+      }
+      setServerError(formatPasswordError(err, "reset"));
+    } finally {
+      setSubmittingChallenge(false);
+    }
+  };
+
+  const handleResendResetCode = async () => {
+    setServerError("");
+    try {
+      await requestPasswordResetCognito(forgotEmail, pool);
+      setResetCodeSent(true);
+      setTimeout(() => setResetCodeSent(false), 4000);
+    } catch (err) {
+      setServerError(formatPasswordError(err, "reset"));
+    }
+  };
+
   const handleCopySecret = async () => {
     if (!totpSecret) return;
     try {
@@ -403,6 +510,16 @@ export function LoginForm() {
 
       {serverError && <ErrorState message={serverError} />}
 
+      {notice && authStep === "CREDENTIALS" && (
+        <div
+          role="status"
+          className="flex items-start gap-2 rounded-lg border border-[#bfe5d3] bg-[#ecf8f2] p-3 text-xs text-[#15704f]"
+        >
+          <CheckCircle2 className="mt-px h-4 w-4 shrink-0" aria-hidden="true" />
+          <span>{notice}</span>
+        </div>
+      )}
+
       {/* Primary Credentials Form */}
       {authStep === "CREDENTIALS" && (
         <form
@@ -448,12 +565,21 @@ export function LoginForm() {
           </div>
 
           <div>
-            <label
-              htmlFor="password"
-              className="mb-1.5 block text-sm font-medium text-[#303747]"
-            >
-              Password
-            </label>
+            <div className="mb-1.5 flex items-center justify-between gap-3">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-[#303747]"
+              >
+                Password
+              </label>
+              <button
+                type="button"
+                onClick={openForgotPassword}
+                className="text-[13px] font-semibold text-[#3566b8] hover:text-[#254f96]"
+              >
+                Forgot password?
+              </button>
+            </div>
             <div className="relative">
               <Lock
                 className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[#9aa2b1]"
@@ -792,6 +918,218 @@ export function LoginForm() {
             >
               {submittingChallenge && <Loader2 className="h-4 w-4 animate-spin" />}
               Confirm Account
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Forgot password, step 1: ask for the email */}
+      {authStep === "FORGOT_REQUEST" && (
+        <form onSubmit={handleRequestReset} noValidate className="space-y-4">
+          <div className="rounded-lg border border-[#e0e7ff] bg-[#eef2ff] p-3 text-sm text-[#3730a3]">
+            <p className="font-semibold">Reset your password</p>
+            <p className="mt-1 text-xs">
+              Enter the email address of your account and we will send you a
+              verification code.
+            </p>
+          </div>
+
+          <div>
+            <label
+              htmlFor="forgotEmail"
+              className="mb-1.5 block text-sm font-medium text-[#303747]"
+            >
+              Email address
+            </label>
+            <div className="relative">
+              <Mail
+                className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[#9aa2b1]"
+                aria-hidden="true"
+              />
+              <input
+                id="forgotEmail"
+                type="email"
+                autoComplete="email"
+                autoFocus
+                value={forgotEmail}
+                onChange={(e) => setForgotEmail(e.target.value)}
+                className="h-11 w-full rounded-lg border border-[#dfe2e8] bg-white pl-10 pr-3 text-sm text-[#17233a] outline-none transition placeholder:text-[#a0a6b1] focus:border-[#3566b8] focus:ring-2 focus:ring-[#3566b8]/10"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setServerError("");
+                setAuthStep("CREDENTIALS");
+              }}
+              className="h-11 flex-1 rounded-lg border border-[#dfe2e8] bg-white text-sm font-semibold text-[#4b5563] hover:bg-[#f9fafb]"
+            >
+              Back to sign in
+            </button>
+            <button
+              type="submit"
+              disabled={submittingChallenge}
+              className="flex h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#17233a] text-sm font-semibold text-white hover:bg-[#223453] disabled:opacity-60"
+            >
+              {submittingChallenge && <Loader2 className="h-4 w-4 animate-spin" />}
+              Send code
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Forgot password, step 2: verify the emailed code */}
+      {authStep === "FORGOT_RESET" && (
+        <form onSubmit={handleVerifyResetCode} noValidate className="space-y-4">
+          <div className="rounded-lg border border-[#e0e7ff] bg-[#eef2ff] p-3 text-sm text-[#3730a3]">
+            <p className="font-semibold">Check your email</p>
+            <p className="mt-1 text-xs">
+              We sent a verification code to {forgotEmail}. Enter it below to
+              continue.
+            </p>
+          </div>
+
+          <div>
+            <label
+              htmlFor="resetCode"
+              className="mb-1.5 block text-sm font-medium text-[#303747]"
+            >
+              Verification code
+            </label>
+            <input
+              id="resetCode"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              autoFocus
+              placeholder="Verification code"
+              value={resetCode}
+              onChange={(e) => setResetCode(e.target.value)}
+              className="h-11 w-full rounded-lg border border-[#dfe2e8] bg-white px-3 font-mono text-sm text-[#17233a] outline-none transition focus:border-[#3566b8] focus:ring-2 focus:ring-[#3566b8]/10"
+            />
+          </div>
+
+          {resetCodeSent && (
+            <p className="text-xs text-green-600">
+              A new verification code was sent to your email.
+            </p>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleResendResetCode}
+              className="h-11 flex-1 rounded-lg border border-[#dfe2e8] bg-white text-xs font-semibold text-[#4b5563] hover:bg-[#f9fafb]"
+            >
+              Resend code
+            </button>
+            <button
+              type="submit"
+              className="flex h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#17233a] text-sm font-semibold text-white hover:bg-[#223453] disabled:opacity-60"
+            >
+              Verify code
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Forgot password, step 3: new password and its confirmation */}
+      {authStep === "FORGOT_NEW" && (
+        <form onSubmit={handleConfirmReset} noValidate className="space-y-4">
+          <div className="rounded-lg border border-[#e0e7ff] bg-[#eef2ff] p-3 text-sm text-[#3730a3]">
+            <p className="font-semibold">Set a new password</p>
+            <p className="mt-1 text-xs">
+              Choose a new password for {forgotEmail} and enter it again to
+              confirm.
+            </p>
+          </div>
+
+          <div>
+            <label
+              htmlFor="resetNewPassword"
+              className="mb-1.5 block text-sm font-medium text-[#303747]"
+            >
+              New password
+            </label>
+            <div className="relative">
+              <KeyRound
+                className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[#9aa2b1]"
+                aria-hidden="true"
+              />
+              <input
+                id="resetNewPassword"
+                type={showResetPassword ? "text" : "password"}
+                autoComplete="new-password"
+                autoFocus
+                placeholder="Choose a strong new password"
+                value={resetPasswordValue}
+                onChange={(e) => setResetPasswordValue(e.target.value)}
+                className="h-11 w-full rounded-lg border border-[#dfe2e8] bg-white pl-10 pr-10 text-sm text-[#17233a] outline-none transition placeholder:text-[#a0a6b1] focus:border-[#3566b8] focus:ring-2 focus:ring-[#3566b8]/10"
+              />
+              <button
+                type="button"
+                aria-label={showResetPassword ? "Hide password" : "Show password"}
+                onClick={() => setShowResetPassword(!showResetPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9aa2b1] hover:text-[#4b5563]"
+              >
+                {showResetPassword ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
+            </div>
+            <p className="mt-1 text-[11px] text-[#6b7280]">
+              Must include at least {MIN_PASSWORD_LENGTH} characters, uppercase, lowercase, number
+              {pool === "BUSINESS" ? " and symbol." : "."}
+            </p>
+          </div>
+
+          <div>
+            <label
+              htmlFor="resetConfirmPassword"
+              className="mb-1.5 block text-sm font-medium text-[#303747]"
+            >
+              Confirm new password
+            </label>
+            <div className="relative">
+              <KeyRound
+                className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[#9aa2b1]"
+                aria-hidden="true"
+              />
+              <input
+                id="resetConfirmPassword"
+                type={showResetPassword ? "text" : "password"}
+                autoComplete="new-password"
+                placeholder="Re-enter your new password"
+                value={resetConfirmValue}
+                onChange={(e) => setResetConfirmValue(e.target.value)}
+                className="h-11 w-full rounded-lg border border-[#dfe2e8] bg-white pl-10 pr-3 text-sm text-[#17233a] outline-none transition placeholder:text-[#a0a6b1] focus:border-[#3566b8] focus:ring-2 focus:ring-[#3566b8]/10"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setServerError("");
+                setAuthStep("FORGOT_RESET");
+              }}
+              className="h-11 flex-1 rounded-lg border border-[#dfe2e8] bg-white text-sm font-semibold text-[#4b5563] hover:bg-[#f9fafb]"
+            >
+              Back
+            </button>
+            <button
+              type="submit"
+              disabled={submittingChallenge}
+              className="flex h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#17233a] text-sm font-semibold text-white hover:bg-[#223453] disabled:opacity-60"
+            >
+              {submittingChallenge && <Loader2 className="h-4 w-4 animate-spin" />}
+              Reset password
             </button>
           </div>
         </form>

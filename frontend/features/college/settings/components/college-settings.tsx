@@ -9,6 +9,7 @@ import { CollegeOnboarding } from "./college-onboarding";
 import { CollegeProfile } from "./college-profile";
 import { seatStat } from "../../seat-stat";
 import { CollegeUsers } from "./college-users";
+import { AccountSecurityCard } from "@/components/auth/account-security-card";
 
 const tabs = [
   {
@@ -82,7 +83,12 @@ export function CollegeSettings() {
       {/* Settings Content */}
       <main className="min-h-[calc(100vh-125px)] pt-5">
         {activeTab === "profile" && (
-          <CollegeProfile />
+          <>
+            <CollegeProfile />
+            <div className="mt-4">
+              <AccountSecurityCard />
+            </div>
+          </>
         )}
 
         {activeTab === "users" && (

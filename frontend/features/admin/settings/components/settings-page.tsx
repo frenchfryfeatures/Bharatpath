@@ -9,6 +9,7 @@ import { ErrorState } from "@/components/ui";
 import { SettingsTabs } from "./settings-tabs";
 import { KybApprovalTab } from "./kyb-approval-tab";
 import { PlatformTab } from "./platform-tab";
+import { AccountSecurityCard } from "@/components/auth/account-security-card";
 
 export function SettingsPage() {
   usePageHeader(
@@ -45,7 +46,12 @@ export function SettingsPage() {
           onModeChange={setKybMode}
         />
       ) : (
-        <PlatformTab />
+        <>
+          <PlatformTab />
+          <div className="mt-4">
+            <AccountSecurityCard />
+          </div>
+        </>
       )}
     </div>
   );

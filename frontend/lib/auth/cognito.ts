@@ -1,12 +1,15 @@
 import { Amplify } from "aws-amplify";
 import {
   confirmSignIn,
+  confirmResetPassword,
   confirmSignUp,
   fetchAuthSession,
   resendSignUpCode,
+  resetPassword,
   signIn,
   signOut,
   signUp,
+  updatePassword,
 } from "aws-amplify/auth";
 
 export type CognitoPoolType = "CANDIDATE" | "BUSINESS";
@@ -300,5 +303,82 @@ export async function signOutCognito(): Promise<void> {
     await signOut();
   } catch {
     // Ignore sign-out failures
+  }
+}
+
+/**
+ * Forgot password, step 1: Cognito emails a reset code. Unauthenticated, so it
+ * only needs the pool the account lives in.
+ */
+export async function requestPasswordResetCognito(
+  email: string,
+  pool: CognitoPoolType,
+): Promise<void> {
+  configureAmplify(pool);
+  await resetPassword({ username: email.trim() });
+}
+
+/** Forgot password, step 2: the emailed code plus the new password. */
+export async function confirmPasswordResetCognito(
+  email: string,
+  confirmationCode: string,
+  newPassword: string,
+  pool: CognitoPoolType,
+): Promise<void> {
+  configureAmplify(pool);
+  await confirmResetPassword({
+    username: email.trim(),
+    confirmationCode: confirmationCode.trim(),
+    newPassword,
+  });
+}
+
+/**
+ * Change password for the signed-in user. The caller names the pool (it is
+ * read from the stored access token), because the Amplify session behind it
+ * is only found when Amplify is configured for that pool.
+ */
+export async function changePasswordCognito(
+  oldPassword: string,
+  newPassword: string,
+  pool: CognitoPoolType,
+): Promise<void> {
+  configureAmplify(pool);
+  await updatePassword({ oldPassword, newPassword });
+}
+
+/** Messages for the forgot- and change-password flows, which differ from sign-in's. */
+export function formatPasswordError(
+  error: unknown,
+  flow: "change" | "reset" = "change",
+): string {
+  const name =
+    error && typeof error === "object" ? ((error as { name?: string }).name ?? "") : "";
+
+  switch (name) {
+    case "NotAuthorizedException":
+      return flow === "change"
+        ? "Your current password is incorrect."
+        : "The password for this account cannot be reset right now. Please contact support.";
+    case "UserNotFoundException":
+      return "No account was found for this email and account type. Please check your selection.";
+    case "InvalidPasswordException":
+      return "The new password does not meet the requirements.";
+    case "CodeMismatchException":
+      return "Invalid verification code. Please check and try again.";
+    case "ExpiredCodeException":
+      return "Verification code has expired. Please request a new code.";
+    case "LimitExceededException":
+    case "TooManyRequestsException":
+    case "TooManyFailedAttemptsException":
+      return "Too many attempts. Please wait a moment and try again.";
+    case "InvalidParameterException":
+      return "A password reset is not available for this account yet. Please contact support.";
+    case "UserNotConfirmedException":
+      return "Your account email is not yet confirmed. Please confirm it first.";
+    case "NetworkError":
+      return "Could not reach the server. Check your connection and try again.";
+    default:
+      return "Something went wrong. Please try again.";
   }
 }

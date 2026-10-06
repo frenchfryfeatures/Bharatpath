@@ -3,8 +3,7 @@ export type SettingsTab =
   | "team"
   | "payment"
   | "subscription"
-  | "invoices"
-  | "account";
+  | "invoices";
 
 export type TeamRole = "Owner" | "Recruiter" | "View only";
 export type TeamStatus = "Active" | "Invited";
