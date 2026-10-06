@@ -44,14 +44,20 @@ export interface CompanyProfile {
   documents: CompanyDocumentItem[];
   undertakings: CompanyUndertakings;
 
-  // Editable directly
+  // Editable directly, saved to PATCH /employer/organisation
   tradeName: string;
   employeeCountBand: string;
   website: string;
   about: string;
-  hasSeparateCorrespondenceAddress: boolean;
-  correspondenceAddress: string;
 }
+
+/** The fields the company tab edits. Everything else is read from KYB. */
+export type EditableCompanyField =
+  | "tradeName"
+  | "industry"
+  | "employeeCountBand"
+  | "website"
+  | "about";
 
 export interface TeamMember {
   id: string;

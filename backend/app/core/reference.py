@@ -2,6 +2,8 @@
 
 In `app.core` because the KYB form and the college form both name
 `reference.INDIAN_STATES`, and `kyb` and `college` may not import each other.
+`EMPLOYEE_COUNT_BANDS` is here for the same reason: the KYB form asks for it
+and the employer's own profile keeps it.
 Until this file existed, that options source resolved to nothing -- so every
 state an employer picked would have been refused as "not an option".
 
@@ -72,3 +74,16 @@ INDIAN_STATES: Final[tuple[Region, ...]] = (
 )
 
 INDIAN_STATE_CODES: Final[frozenset[str]] = frozenset(r.code for r in INDIAN_STATES)
+
+#: Headcount bands, `(code, label)`. The KYB form still names this list
+#: `kyb.EMPLOYEE_COUNT_BANDS` as its options source.
+EMPLOYEE_COUNT_BANDS: Final[tuple[tuple[str, str], ...]] = (
+    ("1_10", "1-10"),
+    ("11_50", "11-50"),
+    ("51_200", "51-200"),
+    ("201_500", "201-500"),
+    ("501_1000", "501-1,000"),
+    ("1001_5000", "1,001-5,000"),
+    ("5000_PLUS", "More than 5,000"),
+)
+EMPLOYEE_COUNT_BAND_CODES: Final[frozenset[str]] = frozenset(c for c, _ in EMPLOYEE_COUNT_BANDS)

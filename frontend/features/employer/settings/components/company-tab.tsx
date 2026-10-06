@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import {
   AlertCircle,
@@ -36,6 +37,7 @@ import {
   useGetEmployerReferenceQuery,
   useUpdateEmployerOrganisationMutation,
   type CompanyProfile,
+  type EditableCompanyField,
 } from "@/store/employer/settings";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 
@@ -71,12 +73,30 @@ const EMPLOYER_TYPE_MAP: Record<string, string> = {
   PROPRIETORSHIP: "Proprietorship or partnership",
 };
 
-// Official statutory identifier regex patterns from backend (app/core/forms.py)
-const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
-const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]Z[0-9A-Z]$/;
-const CIN_REGEX = /^([LUu][0-9]{5}[A-Za-z]{2}[0-9]{4}[A-Za-z]{3}[0-9]{6}|[A-Za-z0-9-]{7,21})$/;
-const TAN_REGEX = /^[A-Z]{4}[0-9]{5}[A-Z]$/;
-const URL_REGEX = /^(https?:\/\/)?([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(\/.*)?$/;
+const URL_REGEX = /^https:\/\/([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(\/\S*)?$/;
+
+/** The fields this tab saves. Statutory details are KYB's and never sent. */
+const EDITABLE_FIELDS: readonly EditableCompanyField[] = [
+  "tradeName",
+  "industry",
+  "employeeCountBand",
+  "website",
+  "about",
+];
+
+/** KYB states in which the owner can still change their answers. */
+const KYB_EDITABLE_STATES = new Set(["DRAFT", "MORE_INFO_REQUIRED", "REJECTED"]);
+
+/** "acme.in" becomes "https://acme.in"; the server accepts https only. */
+function normaliseWebsite(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed || /^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
+function text(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
 
 function getStateName(codeOrName?: string) {
   if (!codeOrName) return "";
@@ -188,7 +208,7 @@ export function CompanyTab() {
 
   const [showUndertakings, setShowUndertakings] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
-  const [initiallyFilledKeys, setInitiallyFilledKeys] = useState<Set<string>>(new Set());
+  const [saveError, setSaveError] = useState<unknown>(null);
 
   // Holds the baseline values when page is loaded or last saved, to calculate isDirty
   const baselineRef = useRef<CompanyProfile | null>(null);
@@ -196,6 +216,18 @@ export function CompanyTab() {
 
   // Link navigation intercept state
   const [pendingNavigationUrl, setPendingNavigationUrl] = useState<string | null>(null);
+
+  // An earlier preview of this page kept the profile, PAN and GSTIN included,
+  // in localStorage under keys shared by every account on the browser. The
+  // server is the record now; remove what that preview left behind.
+  useEffect(() => {
+    try {
+      localStorage.removeItem("bharatpath_employer_custom_profile");
+      localStorage.removeItem("bharatpath_employer_locked_fields");
+    } catch {
+      // Storage unavailable: nothing was kept there either.
+    }
+  }, []);
 
   // Initialize and load baseline data
   useEffect(() => {
@@ -208,83 +240,68 @@ export function CompanyTab() {
       uploadedAt: doc.uploadedAt,
     }));
 
-    // Read stored profile modifications from localStorage if available
-    let savedLocal: Partial<CompanyProfile> = {};
-    let savedLockedKeys: string[] = [];
-    try {
-      const stored = localStorage.getItem("bharatpath_employer_custom_profile");
-      if (stored) savedLocal = JSON.parse(stored);
-      const storedLocked = localStorage.getItem("bharatpath_employer_locked_fields");
-      if (storedLocked) savedLockedKeys = JSON.parse(storedLocked);
-    } catch {
-      // Ignore parse errors
-    }
-
-    // Determine which fields were already filled at onboarding / previously
-    const filled = new Set<string>(savedLockedKeys);
-    if ((organisation?.legalName || kybAnswers.legal_name)?.toString().trim()) filled.add("legalName");
-    if ((organisation?.businessType || kybAnswers.employer_type)?.toString().trim()) filled.add("businessType");
-    if (kybAnswers.pan?.toString().trim()) filled.add("pan");
-    if (kybAnswers.gstin?.toString().trim()) filled.add("gstin");
-    if (kybAnswers.cin?.toString().trim()) filled.add("cin");
-    if (kybAnswers.tan?.toString().trim()) filled.add("tan");
-    if (kybAnswers.signatory_name?.toString().trim()) filled.add("signatoryName");
-    if (kybAnswers.signatory_designation?.toString().trim()) filled.add("signatoryDesignation");
-    if (kybAnswers.work_email?.toString().trim()) filled.add("workEmail");
-    if (kybAnswers.work_phone?.toString().trim()) filled.add("workPhone");
-    if (kybAnswers.address_line1?.toString().trim()) filled.add("address");
-
-    setInitiallyFilledKeys(filled);
-
-    const stateName = getStateName((kybAnswers.state as string) || "");
-    const addressComponents = [
-      (kybAnswers.address_line1 as string) || "",
-      (kybAnswers.address_line2 as string) || "",
-      (kybAnswers.city as string) || "",
+    const stateName = getStateName(text(kybAnswers.state));
+    const formattedAddress = [
+      text(kybAnswers.address_line1),
+      text(kybAnswers.address_line2),
+      text(kybAnswers.city),
       stateName,
-      (kybAnswers.pincode as string) || "",
-    ].filter(Boolean);
-    const formattedAddress = addressComponents.join(", ");
+      text(kybAnswers.pincode),
+    ]
+      .filter(Boolean)
+      .join(", ");
+
+    // An organisation that has never saved its profile starts from what it
+    // told KYB. Once any of the four is saved, the organisation's own values
+    // are the record, so a field cleared on purpose stays cleared.
+    const neverSaved =
+      !organisation?.tradeName &&
+      !organisation?.employeeCountBand &&
+      !organisation?.website &&
+      !organisation?.about;
+    const profile = (saved: string | undefined, answer: unknown) =>
+      saved || (neverSaved ? text(answer) : "");
 
     const initialCompany: CompanyProfile = {
-      legalName: organisation?.legalName || (kybAnswers.legal_name as string) || "",
-      businessType: organisation?.businessType || (kybAnswers.employer_type as string) || "",
-      industry: organisation?.industry || (kybAnswers.industry as string) || "",
+      legalName: organisation?.legalName || text(kybAnswers.legal_name),
+      businessType: organisation?.businessType || text(kybAnswers.employer_type),
+      industry: organisation?.industry || text(kybAnswers.industry),
       kybStatus: organisation?.kybStatus || kyb?.state || "DRAFT",
-      pan: (kybAnswers.pan as string) || savedLocal.pan || "",
-      gstin: (kybAnswers.gstin as string) || savedLocal.gstin || "",
-      cin: (kybAnswers.cin as string) || savedLocal.cin || "",
-      tan: (kybAnswers.tan as string) || savedLocal.tan || "",
-      address: formattedAddress || "",
-      addressLine1: (kybAnswers.address_line1 as string) || "",
-      addressLine2: (kybAnswers.address_line2 as string) || "",
-      city: (kybAnswers.city as string) || "",
+      pan: text(kybAnswers.pan),
+      gstin: text(kybAnswers.gstin),
+      cin: text(kybAnswers.cin),
+      tan: text(kybAnswers.tan),
+      address: formattedAddress,
+      addressLine1: text(kybAnswers.address_line1),
+      addressLine2: text(kybAnswers.address_line2),
+      city: text(kybAnswers.city),
       state: stateName,
-      pincode: (kybAnswers.pincode as string) || "",
-      signatoryName: (kybAnswers.signatory_name as string) || "",
-      signatoryDesignation: (kybAnswers.signatory_designation as string) || "",
-      workEmail: (kybAnswers.work_email as string) || "",
-      workPhone: (kybAnswers.work_phone as string) || "",
+      pincode: text(kybAnswers.pincode),
+      signatoryName: text(kybAnswers.signatory_name),
+      signatoryDesignation: text(kybAnswers.signatory_designation),
+      workEmail: text(kybAnswers.work_email),
+      workPhone: text(kybAnswers.work_phone),
       documents: kybDocs,
+      // What the owner actually ticked. Never defaulted to true: an
+      // undertaking nobody gave must not be drawn as given.
       undertakings: {
-        genuineHiring: Boolean(kybAnswers.undertaking_genuine_hiring ?? true),
-        noRedistribution: Boolean(kybAnswers.undertaking_no_redistribution ?? true),
-        authorised: Boolean(kybAnswers.undertaking_authorised ?? true),
+        genuineHiring: kybAnswers.undertaking_genuine_hiring === true,
+        noRedistribution: kybAnswers.undertaking_no_redistribution === true,
+        authorised: kybAnswers.undertaking_authorised === true,
         submittedAt: kyb?.submittedAt ?? null,
       },
-
-      tradeName: savedLocal.tradeName ?? (kybAnswers.trade_name as string) ?? "",
-      employeeCountBand: savedLocal.employeeCountBand ?? (kybAnswers.employee_count_band as string) ?? "",
-      website: savedLocal.website ?? (kybAnswers.website as string) ?? "",
-      about: savedLocal.about ?? (kybAnswers.about as string) ?? "",
-      hasSeparateCorrespondenceAddress: savedLocal.hasSeparateCorrespondenceAddress ?? false,
-      correspondenceAddress: savedLocal.correspondenceAddress ?? "",
+      tradeName: profile(organisation?.tradeName, kybAnswers.trade_name),
+      employeeCountBand: profile(
+        organisation?.employeeCountBand,
+        kybAnswers.employee_count_band,
+      ),
+      website: profile(organisation?.website, kybAnswers.website),
+      about: profile(organisation?.about, kybAnswers.about),
     };
 
+    // The dirty-state effect below recomputes from the new profile.
     baselineRef.current = initialCompany;
     dispatch(replaceCompanyProfile(initialCompany));
-    setIsDirty(false);
-    dispatch(setHasUnsavedChanges(false));
   }, [dispatch, organisation, kyb]);
 
   // Compute dirty state whenever company values change
@@ -292,18 +309,7 @@ export function CompanyTab() {
     if (!baselineRef.current) return;
     const b = baselineRef.current;
 
-    const changed =
-      company.tradeName !== b.tradeName ||
-      company.industry !== b.industry ||
-      company.employeeCountBand !== b.employeeCountBand ||
-      company.website !== b.website ||
-      company.about !== b.about ||
-      company.hasSeparateCorrespondenceAddress !== b.hasSeparateCorrespondenceAddress ||
-      company.correspondenceAddress !== b.correspondenceAddress ||
-      company.pan !== b.pan ||
-      company.gstin !== b.gstin ||
-      company.cin !== b.cin ||
-      company.tan !== b.tan;
+    const changed = EDITABLE_FIELDS.some((field) => company[field] !== b[field]);
 
     setIsDirty(changed);
     dispatch(setHasUnsavedChanges(changed));
@@ -341,7 +347,7 @@ export function CompanyTab() {
   }
 
   const update =
-    (field: keyof CompanyProfile) =>
+    (field: EditableCompanyField) =>
     (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       const val = event.target.value;
       dispatch(updateCompanyField({ field, value: val }));
@@ -356,117 +362,41 @@ export function CompanyTab() {
       }
     };
 
-  const updateUpper =
-    (field: keyof CompanyProfile) =>
-    (event: ChangeEvent<HTMLInputElement>) => {
-      const upperVal = event.target.value.replace(/\s/g, "").toUpperCase();
-      dispatch(updateCompanyField({ field, value: upperVal }));
-
-      if (validationErrors[field]) {
-        setValidationErrors((prev) => {
-          const next = { ...prev };
-          delete next[field];
-          return next;
-        });
-      }
-    };
-
-  const updateCheckbox =
-    (field: keyof CompanyProfile) =>
-    (event: ChangeEvent<HTMLInputElement>) => {
-      dispatch(updateCompanyField({ field, value: event.target.checked }));
-    };
-
-  const updateValue = (field: keyof CompanyProfile) => (value: string) => {
+  const updateValue = (field: EditableCompanyField) => (value: string) => {
     dispatch(updateCompanyField({ field, value }));
   };
 
   const validateAll = (): boolean => {
     const errors: Record<string, string> = {};
-
-    // Validate newly filled PAN
-    if (!initiallyFilledKeys.has("pan") && company.pan?.trim()) {
-      if (!PAN_REGEX.test(company.pan.trim())) {
-        errors.pan = "PAN must be 10 characters (e.g. ABCDE1234F: 5 letters, 4 digits, 1 letter).";
-      }
+    const website = normaliseWebsite(company.website);
+    if (website && !URL_REGEX.test(website)) {
+      errors.website = "Enter a website starting with https:// (e.g. https://yourcompany.in).";
     }
-
-    // Validate newly filled GSTIN
-    if (!initiallyFilledKeys.has("gstin") && company.gstin?.trim()) {
-      if (!GSTIN_REGEX.test(company.gstin.trim())) {
-        errors.gstin = "GSTIN must be 15 characters (e.g. 29ABCDE1234F1Z5: 2 digit state code, 10 char PAN, 1 entity digit, Z, checksum).";
-      }
-    }
-
-    // Validate newly filled CIN
-    if (!initiallyFilledKeys.has("cin") && company.cin?.trim()) {
-      if (!CIN_REGEX.test(company.cin.trim())) {
-        errors.cin = "Enter a valid 21-character Corporate Identity Number (e.g. U72900KA2020PTC123456) or LLPIN.";
-      }
-    }
-
-    // Validate newly filled TAN
-    if (!initiallyFilledKeys.has("tan") && company.tan?.trim()) {
-      if (!TAN_REGEX.test(company.tan.trim())) {
-        errors.tan = "TAN must be 10 characters (e.g. BLRB12345C: 4 letters, 5 digits, 1 letter).";
-      }
-    }
-
-    // Validate Website if provided
-    if (company.website?.trim() && !URL_REGEX.test(company.website.trim())) {
-      errors.website = "Enter a valid website URL (e.g. https://yourcompany.in).";
-    }
-
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
-  const handleSave = () => {
-    if (!validateAll()) return;
+  const handleSave = async () => {
+    if (!validateAll() || !baselineRef.current) return;
+    const baseline = baselineRef.current;
+    const next: CompanyProfile = { ...company, website: normaliseWebsite(company.website) };
 
-    // 1. Send editable industry to backend
-    if (company.industry) {
-      void updateOrganisation({
-        industry: company.industry,
-      })
-        .unwrap()
-        .catch(() => undefined);
+    // Send only what changed, so a save never clears a field nobody touched.
+    const changes: Partial<Pick<CompanyProfile, EditableCompanyField>> = {};
+    for (const field of EDITABLE_FIELDS) {
+      if (next[field] !== baseline[field]) changes[field] = next[field];
     }
 
-    // 2. Identify newly filled identifier fields to permanently lock them
-    const nextLocked = new Set(initiallyFilledKeys);
-    if (company.pan?.trim()) nextLocked.add("pan");
-    if (company.gstin?.trim()) nextLocked.add("gstin");
-    if (company.cin?.trim()) nextLocked.add("cin");
-    if (company.tan?.trim()) nextLocked.add("tan");
-
-    setInitiallyFilledKeys(nextLocked);
-
-    // 3. Persist to localStorage
+    setSaveError(null);
     try {
-      localStorage.setItem("bharatpath_employer_locked_fields", JSON.stringify(Array.from(nextLocked)));
-      localStorage.setItem(
-        "bharatpath_employer_custom_profile",
-        JSON.stringify({
-          tradeName: company.tradeName,
-          industry: company.industry,
-          employeeCountBand: company.employeeCountBand,
-          website: company.website,
-          about: company.about,
-          hasSeparateCorrespondenceAddress: company.hasSeparateCorrespondenceAddress,
-          correspondenceAddress: company.correspondenceAddress,
-          pan: company.pan,
-          gstin: company.gstin,
-          cin: company.cin,
-          tan: company.tan,
-        }),
-      );
-    } catch {
-      // Ignore quota exceptions
+      await updateOrganisation(changes).unwrap();
+    } catch (error) {
+      setSaveError(error);
+      return;
     }
 
-    // 4. Update baseline and reset dirty
-    baselineRef.current = { ...company };
+    baselineRef.current = next;
+    dispatch(replaceCompanyProfile(next));
     setIsDirty(false);
     dispatch(setHasUnsavedChanges(false));
     dispatch(saveCompanyProfile());
@@ -551,7 +481,8 @@ export function CompanyTab() {
             </span>
           </div>
           <p className="mt-0.5 text-xs text-[#687386]">
-            These details are displayed on your job posts and candidate-facing pages.
+            How candidates will recognise your organisation. You can change these at any
+            time without re-verification.
           </p>
         </div>
 
@@ -564,6 +495,7 @@ export function CompanyTab() {
               <input
                 id="trade-name"
                 type="text"
+                maxLength={255}
                 value={company.tradeName}
                 onChange={update("tradeName")}
                 placeholder="e.g. Acme Tech (leave blank if same as legal name)"
@@ -640,6 +572,7 @@ export function CompanyTab() {
             <textarea
               id="company-about"
               rows={3}
+              maxLength={1000}
               value={company.about}
               onChange={update("about")}
               placeholder="What does your organisation do? Share a brief description for candidates..."
@@ -650,36 +583,6 @@ export function CompanyTab() {
             </p>
           </div>
 
-          <div className="rounded-lg border border-[#eef2f6] bg-[#f8fafc] p-3.5">
-            <label className="flex cursor-pointer items-start gap-2.5">
-              <input
-                type="checkbox"
-                checked={company.hasSeparateCorrespondenceAddress}
-                onChange={updateCheckbox("hasSeparateCorrespondenceAddress")}
-                className="mt-0.5 h-4 w-4 rounded border-[#ccd3df] text-[#3566b8] focus:ring-[#3566b8]"
-              />
-              <div className="text-[12px]">
-                <span className="font-semibold text-[#172033]">
-                  Provide a separate public office / correspondence address
-                </span>
-                <p className="mt-0.5 text-[#687386]">
-                  Check this if your candidate-facing office is different from your KYB registered address.
-                </p>
-              </div>
-            </label>
-
-            {company.hasSeparateCorrespondenceAddress && (
-              <div className="mt-3">
-                <textarea
-                  rows={2}
-                  value={company.correspondenceAddress}
-                  onChange={update("correspondenceAddress")}
-                  placeholder="Enter street, building, city, state and PIN code for correspondence"
-                  className="w-full rounded-[8px] border border-[#dfe4ea] bg-white p-2.5 text-[12px] text-[#111827] outline-none focus:border-[#3566b8]"
-                />
-              </div>
-            )}
-          </div>
         </div>
       </section>
 
@@ -696,7 +599,15 @@ export function CompanyTab() {
             </span>
           </div>
           <p className="mt-0.5 text-xs text-[#687386]">
-            Credentials collected during business verification. Once recorded, these fields are permanently locked.
+            From your business verification, as submitted for review. They change only
+            through verification, never from this page.{" "}
+            {KYB_EDITABLE_STATES.has(company.kybStatus.toUpperCase()) ? (
+              <Link href="/signup/employer" className="font-semibold text-[#3566b8] hover:underline">
+                Update your verification details
+              </Link>
+            ) : (
+              "Contact support to correct them."
+            )}
           </p>
         </div>
 
@@ -736,141 +647,31 @@ export function CompanyTab() {
             />
           </div>
 
-          {/* PAN - Locked if filled; fillable if missing */}
-          <div>
-            <div className="mb-1 flex items-center justify-between">
-              <label className="text-[12px] font-semibold text-[#475467]">PAN</label>
-              {initiallyFilledKeys.has("pan") ? (
+          {(
+            [
+              ["PAN", company.pan],
+              ["GSTIN", company.gstin],
+              ["CIN / LLPIN", company.cin],
+              ["TAN", company.tan],
+            ] as const
+          ).map(([label, value]) => (
+            <div key={label}>
+              <div className="mb-1 flex items-center justify-between">
+                <label className="text-[12px] font-semibold text-[#475467]">{label}</label>
                 <span className="inline-flex items-center gap-1 text-[11px] text-[#8592a6]">
-                  <Lock className="h-3 w-3" /> Locked
+                  <Lock className="h-3 w-3" /> From KYB
                 </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 rounded bg-[#fff7ed] px-2 py-0.5 text-[10px] font-semibold text-[#c2410c]">
-                  Fillable once
-                </span>
-              )}
-            </div>
-            {initiallyFilledKeys.has("pan") ? (
-              <input type="text" readOnly disabled value={company.pan} className={lockedInputClass} />
-            ) : (
-              <div>
-                <input
-                  type="text"
-                  maxLength={10}
-                  value={company.pan}
-                  onChange={updateUpper("pan")}
-                  placeholder="ABCDE1234F"
-                  className={`${inputClass} ${validationErrors.pan ? "border-[#e5484d] ring-1 ring-[#e5484d]" : ""}`}
-                />
-                {validationErrors.pan && (
-                  <p className="mt-1 text-xs text-[#b42318]">{validationErrors.pan}</p>
-                )}
-                <p className="mt-1 text-[11px] text-[#718096]">Permanent Account Number (10 alphanumeric characters).</p>
               </div>
-            )}
-          </div>
-
-          {/* GSTIN - Locked if filled; fillable if optional & not provided */}
-          <div>
-            <div className="mb-1 flex items-center justify-between">
-              <label className="text-[12px] font-semibold text-[#475467]">GSTIN</label>
-              {initiallyFilledKeys.has("gstin") ? (
-                <span className="inline-flex items-center gap-1 text-[11px] text-[#8592a6]">
-                  <Lock className="h-3 w-3" /> Locked
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 rounded bg-[#fff7ed] px-2 py-0.5 text-[10px] font-semibold text-[#c2410c]">
-                  Fillable once
-                </span>
-              )}
+              <input
+                type="text"
+                readOnly
+                disabled
+                aria-label={label}
+                value={value || "Not provided"}
+                className={lockedInputClass}
+              />
             </div>
-            {initiallyFilledKeys.has("gstin") ? (
-              <input type="text" readOnly disabled value={company.gstin || "Not registered"} className={lockedInputClass} />
-            ) : (
-              <div>
-                <input
-                  type="text"
-                  maxLength={15}
-                  value={company.gstin}
-                  onChange={updateUpper("gstin")}
-                  placeholder="29ABCDE1234F1Z5"
-                  className={`${inputClass} ${validationErrors.gstin ? "border-[#e5484d] ring-1 ring-[#e5484d]" : ""}`}
-                />
-                {validationErrors.gstin && (
-                  <p className="mt-1 text-xs text-[#b42318]">{validationErrors.gstin}</p>
-                )}
-                <p className="mt-1 text-[11px] text-[#718096]">15 characters statutory format. Once saved, this cannot be altered.</p>
-              </div>
-            )}
-          </div>
-
-          {/* CIN / LLPIN - Locked if filled; fillable if optional & not provided */}
-          <div>
-            <div className="mb-1 flex items-center justify-between">
-              <label className="text-[12px] font-semibold text-[#475467]">CIN / LLPIN</label>
-              {initiallyFilledKeys.has("cin") ? (
-                <span className="inline-flex items-center gap-1 text-[11px] text-[#8592a6]">
-                  <Lock className="h-3 w-3" /> Locked
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 rounded bg-[#fff7ed] px-2 py-0.5 text-[10px] font-semibold text-[#c2410c]">
-                  Fillable once
-                </span>
-              )}
-            </div>
-            {initiallyFilledKeys.has("cin") ? (
-              <input type="text" readOnly disabled value={company.cin || "Not applicable"} className={lockedInputClass} />
-            ) : (
-              <div>
-                <input
-                  type="text"
-                  maxLength={21}
-                  value={company.cin}
-                  onChange={updateUpper("cin")}
-                  placeholder="U72900KA2020PTC123456"
-                  className={`${inputClass} ${validationErrors.cin ? "border-[#e5484d] ring-1 ring-[#e5484d]" : ""}`}
-                />
-                {validationErrors.cin && (
-                  <p className="mt-1 text-xs text-[#b42318]">{validationErrors.cin}</p>
-                )}
-                <p className="mt-1 text-[11px] text-[#718096]">21 characters for companies or valid LLPIN. Once saved, cannot be altered.</p>
-              </div>
-            )}
-          </div>
-
-          {/* TAN - Locked if filled; fillable if optional & not provided */}
-          <div>
-            <div className="mb-1 flex items-center justify-between">
-              <label className="text-[12px] font-semibold text-[#475467]">TAN</label>
-              {initiallyFilledKeys.has("tan") ? (
-                <span className="inline-flex items-center gap-1 text-[11px] text-[#8592a6]">
-                  <Lock className="h-3 w-3" /> Locked
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 rounded bg-[#fff7ed] px-2 py-0.5 text-[10px] font-semibold text-[#c2410c]">
-                  Fillable once
-                </span>
-              )}
-            </div>
-            {initiallyFilledKeys.has("tan") ? (
-              <input type="text" readOnly disabled value={company.tan || "Not provided"} className={lockedInputClass} />
-            ) : (
-              <div>
-                <input
-                  type="text"
-                  maxLength={10}
-                  value={company.tan}
-                  onChange={updateUpper("tan")}
-                  placeholder="BLRB12345C"
-                  className={`${inputClass} ${validationErrors.tan ? "border-[#e5484d] ring-1 ring-[#e5484d]" : ""}`}
-                />
-                {validationErrors.tan && (
-                  <p className="mt-1 text-xs text-[#b42318]">{validationErrors.tan}</p>
-                )}
-                <p className="mt-1 text-[11px] text-[#718096]">10-character Tax Deduction Account Number.</p>
-              </div>
-            )}
-          </div>
+          ))}
         </div>
 
         {/* KYB Registered Address - Always locked */}
@@ -1042,7 +843,7 @@ export function CompanyTab() {
                 Legal &amp; Compliance Undertakings
               </span>
               <p className="text-[11px] text-[#64748b]">
-                Platform terms accepted during onboarding
+                Platform terms, as given in your business verification
               </p>
             </div>
           </div>
@@ -1055,24 +856,39 @@ export function CompanyTab() {
 
         {showUndertakings && (
           <div className="border-t border-[#f1f4f8] bg-[#fbfcfd] p-5 space-y-3">
-            <div className="flex items-start gap-3 text-xs text-[#334155]">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#027a48]" />
-              <span>
-                <strong>Genuine hiring:</strong> We will use candidate details only to contact people about genuine jobs.
-              </span>
-            </div>
-            <div className="flex items-start gap-3 text-xs text-[#334155]">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#027a48]" />
-              <span>
-                <strong>No data redistribution:</strong> We will not sell, share or publish candidate details.
-              </span>
-            </div>
-            <div className="flex items-start gap-3 text-xs text-[#334155]">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#027a48]" />
-              <span>
-                <strong>Authorised representation:</strong> I am authorised to accept these terms for this organisation.
-              </span>
-            </div>
+            {(
+              [
+                [
+                  company.undertakings.genuineHiring,
+                  "Genuine hiring",
+                  "We will use candidate details only to contact people about genuine jobs.",
+                ],
+                [
+                  company.undertakings.noRedistribution,
+                  "No data redistribution",
+                  "We will not sell, share or publish candidate details.",
+                ],
+                [
+                  company.undertakings.authorised,
+                  "Authorised representation",
+                  "I am authorised to accept these terms for this organisation.",
+                ],
+              ] as const
+            ).map(([accepted, title, words]) => (
+              <div key={title} className="flex items-start gap-3 text-xs text-[#334155]">
+                {accepted ? (
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#027a48]" aria-label="Accepted" />
+                ) : (
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-[#94a3b8]" aria-label="Not yet accepted" />
+                )}
+                <span>
+                  <strong>{title}:</strong> {words}
+                  {accepted ? null : (
+                    <span className="ml-1 text-[#64748b]">(not yet accepted)</span>
+                  )}
+                </span>
+              </div>
+            ))}
             {company.undertakings?.submittedAt && (
               <p className="mt-2 text-[11px] text-[#64748b] border-t border-[#f1f4f8] pt-2">
                 Agreed on:{" "}
@@ -1098,7 +914,7 @@ export function CompanyTab() {
               </span>
               <div>
                 <p className="text-[13px] font-semibold text-[#111827]">You have unsaved changes</p>
-                <p className="text-[11px] text-[#687386]">Please save to persist updates and lock any newly filled identifiers.</p>
+                <p className="text-[11px] text-[#687386]">Save to keep your changes.</p>
               </div>
             </div>
           ) : (
@@ -1110,10 +926,17 @@ export function CompanyTab() {
         </div>
 
         <div className="flex items-center justify-end gap-3">
+          {saveError ? (
+            <EmployerErrorState
+              variant="inline"
+              error={saveError}
+              fallback="Your changes were not saved. Please try again."
+            />
+          ) : null}
           <button
             type="button"
             disabled={!isDirty || isSaving}
-            onClick={handleSave}
+            onClick={() => void handleSave()}
             className={`inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-lg px-5 text-xs font-semibold shadow-sm transition ${
               isDirty && !isSaving
                 ? "bg-[#3566b8] text-white hover:bg-[#285299] ring-2 ring-[#3566b8]/20"

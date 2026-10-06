@@ -60,15 +60,18 @@ function ResumeFields({ value }: { value: unknown }) {
 export function ResumeShowcase({
   resume,
   candidateName = "Candidate",
-  currentTime = Date.now(),
+  currentTime,
   onRefresh,
   isExpanded = false,
   onToggleExpand,
 }: ResumeShowcaseProps) {
+  // Read the clock once, at mount: calling it on every render is impure.
+  const [mountedAt] = useState(() => Date.now());
+  const now = currentTime ?? mountedAt;
   const hasFile = Boolean(resume?.file_url);
   const isExpired = Boolean(
     resume?.file_url_expires_at &&
-      Date.parse(resume.file_url_expires_at) <= currentTime,
+      Date.parse(resume.file_url_expires_at) <= now,
   );
 
   const hasParsed = Boolean(

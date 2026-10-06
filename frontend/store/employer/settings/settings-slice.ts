@@ -1,5 +1,6 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import type {
+  EditableCompanyField,
   EmployerSettingsState,
   SettingsTab,
   TeamMember,
@@ -30,17 +31,15 @@ const initialState: EmployerSettingsState = {
     workPhone: "",
     documents: [],
     undertakings: {
-      genuineHiring: true,
-      noRedistribution: true,
-      authorised: true,
+      genuineHiring: false,
+      noRedistribution: false,
+      authorised: false,
       submittedAt: null,
     },
     tradeName: "",
     employeeCountBand: "",
     website: "",
     about: "",
-    hasSeparateCorrespondenceAddress: false,
-    correspondenceAddress: "",
   },
 
   // Team membership is loaded from GET /employer/team when the Team tab opens.
@@ -119,12 +118,11 @@ const settingsSlice = createSlice({
     updateCompanyField(
       state,
       action: PayloadAction<{
-        field: keyof EmployerSettingsState["company"];
-        value: any;
+        field: EditableCompanyField;
+        value: string;
       }>,
     ) {
-      (state.company as Record<string, any>)[action.payload.field] =
-        action.payload.value;
+      state.company[action.payload.field] = action.payload.value;
     },
 
     saveCompanyProfile(state) {

@@ -7,6 +7,10 @@ interface EmployerOrganisationResponse {
   legal_name: string;
   employer_type: string | null;
   industry: string | null;
+  trade_name?: string | null;
+  employee_count_band?: string | null;
+  website?: string | null;
+  about?: string | null;
   kyb_status: string;
 }
 
@@ -38,18 +42,17 @@ export function mapEmployerOrganisation(
     workEmail: "",
     workPhone: "",
     documents: [],
+    // Undertakings come from the KYB submission; this endpoint has none.
     undertakings: {
-      genuineHiring: true,
-      noRedistribution: true,
-      authorised: true,
+      genuineHiring: false,
+      noRedistribution: false,
+      authorised: false,
       submittedAt: null,
     },
-    tradeName: "",
-    employeeCountBand: "",
-    website: "",
-    about: "",
-    hasSeparateCorrespondenceAddress: false,
-    correspondenceAddress: "",
+    tradeName: organisation.trade_name ?? "",
+    employeeCountBand: organisation.employee_count_band ?? "",
+    website: organisation.website ?? "",
+    about: organisation.about ?? "",
   };
 }
 
@@ -168,8 +171,21 @@ export const employerSettingsApi = baseApi.injectEndpoints({
 
     updateEmployerOrganisation: builder.mutation<
       CompanyProfile,
-      Partial<Pick<CompanyProfile, "legalName" | "businessType" | "industry">>
+      Partial<
+        Pick<
+          CompanyProfile,
+          | "legalName"
+          | "businessType"
+          | "industry"
+          | "tradeName"
+          | "employeeCountBand"
+          | "website"
+          | "about"
+        >
+      >
     >({
+      // Only the fields passed are sent; a blank one is sent as null, which
+      // clears it on the server.
       query: (company) => ({
         url: "/employer/organisation",
         method: "PATCH",
@@ -177,6 +193,12 @@ export const employerSettingsApi = baseApi.injectEndpoints({
           ...(company.legalName !== undefined ? { legal_name: company.legalName } : {}),
           ...(company.businessType !== undefined ? { employer_type: company.businessType || null } : {}),
           ...(company.industry !== undefined ? { industry: company.industry || null } : {}),
+          ...(company.tradeName !== undefined ? { trade_name: company.tradeName || null } : {}),
+          ...(company.employeeCountBand !== undefined
+            ? { employee_count_band: company.employeeCountBand || null }
+            : {}),
+          ...(company.website !== undefined ? { website: company.website || null } : {}),
+          ...(company.about !== undefined ? { about: company.about || null } : {}),
         },
       }),
       transformResponse: (response: EmployerOrganisationResponse) =>

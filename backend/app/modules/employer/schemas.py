@@ -21,6 +21,7 @@ from typing import Annotated, Final, Literal
 
 from pydantic import Field, field_validator, model_validator
 
+from app.core.reference import EMPLOYEE_COUNT_BAND_CODES
 from app.core.schemas import ApiSchema
 from app.modules.employer.reference import active_employer_types, active_industries
 
@@ -55,6 +56,40 @@ def _industry(value: str | None) -> str | None:
     return value
 
 
+def _optional_text(value: str | None) -> str | None:
+    """Whitespace collapsed; blank is a clear, stored as null."""
+    if value is None:
+        return None
+    cleaned = " ".join(value.split())
+    return cleaned or None
+
+
+def _employee_count_band(value: str | None) -> str | None:
+    if value is not None and value not in EMPLOYEE_COUNT_BAND_CODES:
+        raise ValueError("not a headcount band")
+    return value
+
+
+def _website(value: str | None) -> str | None:
+    if value is None:
+        return None
+    cleaned = value.strip()
+    if not cleaned:
+        return None
+    # It will be shown to candidates as a link: https only, so it can never
+    # be `javascript:` or a downgrade. The same rule as a job's external URL.
+    if not cleaned.startswith("https://") or len(cleaned) <= len("https://") or " " in cleaned:
+        raise ValueError("a website must be an https:// address")
+    return cleaned
+
+
+def _about(value: str | None) -> str | None:
+    if value is None:
+        return None
+    # Paragraphs are kept; only the ends are trimmed.
+    return value.strip() or None
+
+
 def _legal_name(value: str | None) -> str | None:
     if value is None:
         return None
@@ -82,15 +117,24 @@ class CreateOrganisationRequest(_Base):
 
 
 class UpdateOrganisationRequest(_Base):
-    """A partial update. A field left out is unchanged; `employer_type` or
-    `industry` sent as null clears it. `legal_name` cannot be cleared."""
+    """A partial update. A field left out is unchanged; any field but
+    `legal_name` sent as null (or blank) clears it. `legal_name` cannot be
+    cleared."""
 
     legal_name: Annotated[str | None, Field(default=None, max_length=255)] = None
     employer_type: str | None = None
     industry: str | None = None
+    trade_name: Annotated[str | None, Field(default=None, max_length=255)] = None
+    employee_count_band: str | None = None
+    website: Annotated[str | None, Field(default=None, max_length=255)] = None
+    about: Annotated[str | None, Field(default=None, max_length=1000)] = None
 
     _type = field_validator("employer_type")(_employer_type)
     _ind = field_validator("industry")(_industry)
+    _trade = field_validator("trade_name")(_optional_text)
+    _band = field_validator("employee_count_band")(_employee_count_band)
+    _site = field_validator("website")(_website)
+    _about = field_validator("about")(_about)
 
     @field_validator("legal_name")
     @classmethod
@@ -111,6 +155,10 @@ class OrganisationResponse(_Base):
     legal_name: str
     employer_type: str | None = None
     industry: str | None = None
+    trade_name: str | None = None
+    employee_count_band: str | None = None
+    website: str | None = None
+    about: str | None = None
     kyb_status: str = Field(
         description="DRAFT until KYB is submitted (Day 10). An organisation "
         "exists before it is verified; publishing a job does not."
