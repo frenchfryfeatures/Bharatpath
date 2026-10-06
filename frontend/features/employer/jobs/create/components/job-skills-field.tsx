@@ -126,6 +126,7 @@ export function JobSkillsField({
     onChange([...value, skill]);
     setQuery("");
     inputRef.current?.focus();
+    setOpen(false);
   }
 
   function removeSkill(skill: string) {
@@ -142,7 +143,8 @@ export function JobSkillsField({
         {required ? <span className="text-[#b42318]"> *</span> : null}
       </span>
 
-      <div ref={containerRef} className="relative">
+      <div ref={containerRef}>
+        <div className="relative">
         <Search
           aria-hidden="true"
           size={15}
@@ -227,6 +229,7 @@ export function JobSkillsField({
             )}
         </div>
       ) : null}
+        </div>
 
       {value.length > 0 ? (
         <div className="mt-2 flex flex-wrap gap-2">

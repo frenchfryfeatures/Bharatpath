@@ -1,4 +1,5 @@
 import type { CreateJobFormValues } from "../types";
+import type { ScreeningQuestion } from "@/features/jobs/job-details";
 import { passingAnswers } from "../job-form-values";
 import { THRESHOLD_MAX, THRESHOLD_MIN } from "../threshold";
 
@@ -10,6 +11,30 @@ export type JobValidationErrors = Partial<Record<string, string>>;
 
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const CHOICE = new Set(["SINGLE_CHOICE", "MULTIPLE_CHOICE"]);
+
+export function screeningQuestionError(question: ScreeningQuestion): string | null {
+  if (question.question.trim().length < 3) {
+    return "Write the question (at least 3 characters).";
+  }
+  const options = question.options.map((option) => option.trim()).filter(Boolean);
+  if (CHOICE.has(question.type)) {
+    if (options.length < 2) {
+      return "A choice question needs at least two options.";
+    }
+    if (new Set(options.map((option) => option.toLocaleLowerCase())).size !== options.length) {
+      return "Options must be different from each other.";
+    }
+  }
+  if (question.knockout) {
+    if (!CHOICE.has(question.type) && question.type !== "YES_NO") {
+      return "Only yes/no and choice questions can be knockout questions.";
+    }
+    if (!passingAnswers(question.type, options, question.accepted_answers).length) {
+      return "Pick the answers that pass this knockout question.";
+    }
+  }
+  return null;
+}
 
 /**
  * The composer's required fields (the asterisks) and the cross-field rules.
@@ -124,31 +149,8 @@ export function validateJob(values: CreateJobFormValues): JobValidationErrors {
 
   // 9. Screening questions
   details.screening_questions.forEach((question, index) => {
-    const key = `screening.${index}`;
-    if (question.question.trim().length < 3) {
-      errors[key] = "Write the question (at least 3 characters).";
-      return;
-    }
-    const options = question.options.map((o) => o.trim()).filter(Boolean);
-    if (CHOICE.has(question.type)) {
-      if (options.length < 2) {
-        errors[key] = "A choice question needs at least two options.";
-        return;
-      }
-      if (new Set(options.map((o) => o.toLocaleLowerCase())).size !== options.length) {
-        errors[key] = "Options must be different from each other.";
-        return;
-      }
-    }
-    if (question.knockout) {
-      if (!CHOICE.has(question.type) && question.type !== "YES_NO") {
-        errors[key] = "Only yes/no and choice questions can be knockout questions.";
-      } else if (
-        !passingAnswers(question.type, options, question.accepted_answers).length
-      ) {
-        errors[key] = "Pick the answers that pass this knockout question.";
-      }
-    }
+    const error = screeningQuestionError(question);
+    if (error) errors[`screening.${index}`] = error;
   });
 
   // 10. Hiring process

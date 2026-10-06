@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { Plus, Trash2 } from "lucide-react";
 
 import {
@@ -17,6 +19,7 @@ import {
   SelectInput,
   TextInput,
 } from "./job-form-fields";
+import { screeningQuestionError } from "../schemas/job.schema";
 
 const MAX_QUESTIONS = 10;
 const CHOICE = new Set<QuestionType>(["SINGLE_CHOICE", "MULTIPLE_CHOICE"]);
@@ -49,6 +52,9 @@ export function ScreeningQuestionsField({
         at === index ? { ...question, ...patch } : question,
       ),
     );
+  const questionErrors = value.map(screeningQuestionError);
+  const firstIncompleteIndex = questionErrors.findIndex(Boolean);
+  const [addAttempted, setAddAttempted] = useState(false);
 
   return (
     <div className="flex flex-col gap-4">
@@ -206,14 +212,29 @@ export function ScreeningQuestionsField({
       })}
 
       {!disabled && value.length < MAX_QUESTIONS ? (
-        <button
-          type="button"
-          onClick={() => onChange([...value, newQuestion()])}
-          className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-[8px] border border-[#e1e5ea] bg-white px-4 py-2.5 text-[13px] font-semibold text-[#151b2b] transition hover:bg-[#f7f8fa]"
-        >
-          <Plus size={15} aria-hidden="true" />
-          Add screening question
-        </button>
+        <div className="flex flex-col items-start gap-1.5">
+          <button
+            type="button"
+            aria-describedby={addAttempted && firstIncompleteIndex !== -1 ? "screening-add-requirement" : undefined}
+            onClick={() => {
+              if (firstIncompleteIndex !== -1) {
+                setAddAttempted(true);
+              } else {
+                setAddAttempted(false);
+                onChange([...value, newQuestion()]);
+              }
+            }}
+            className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-[8px] border border-[#e1e5ea] bg-white px-4 py-2.5 text-[13px] font-semibold text-[#151b2b] transition hover:bg-[#f7f8fa]"
+          >
+            <Plus size={15} aria-hidden="true" />
+            Add screening question
+          </button>
+          {addAttempted && firstIncompleteIndex !== -1 ? (
+            <p id="screening-add-requirement" className="text-xs leading-[17px] text-[#b42318]">
+              Complete question {firstIncompleteIndex + 1} before adding another: {questionErrors[firstIncompleteIndex]}
+            </p>
+          ) : null}
+        </div>
       ) : null}
 
       <p className="text-xs leading-[17px] text-[#7b8493]">

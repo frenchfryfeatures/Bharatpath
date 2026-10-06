@@ -60,6 +60,7 @@ export function Field({
   label,
   required = false,
   hint,
+  reserveHintSpace = false,
   error,
   trailing,
   wide = false,
@@ -68,6 +69,7 @@ export function Field({
   label: string;
   required?: boolean;
   hint?: string;
+  reserveHintSpace?: boolean;
   error?: string;
   trailing?: ReactNode;
   wide?: boolean;
@@ -84,6 +86,8 @@ export function Field({
       </span>
       {hint ? (
         <span className="mb-2 block text-xs text-[#7b8493]">{hint}</span>
+      ) : reserveHintSpace ? (
+        <span aria-hidden="true" className="mb-2 hidden text-xs sm:block">&nbsp;</span>
       ) : null}
       {children}
       {error ? (

@@ -15,6 +15,7 @@ import {
 } from "react";
 
 import { usePageHeader } from "@/components/layout/header-context";
+import { DatePicker } from "@/components/ui/date-time-picker";
 import { Modal } from "@/components/ui/modal";
 import { useConfirmDialog } from "@/features/employer/components/use-confirm-dialog";
 import {
@@ -63,6 +64,7 @@ import {
   ChoiceGroup,
   Field,
   FieldGrid,
+  inputClasses,
   LinesInput,
   NumberInput,
   SectionCard,
@@ -446,7 +448,7 @@ export function JobCreatePage({
               />
             </Field>
 
-            <Field label="Job location" required error={errors.location}>
+            <Field label="Job location" required reserveHintSpace error={errors.location}>
               <TextInput
                 value={values.location}
                 maxLength={255}
@@ -674,7 +676,7 @@ export function JobCreatePage({
                 />
               </Field>
 
-              <Field label="Technologies / tools">
+              <Field label="Technologies / tools" reserveHintSpace>
                 <TagInput
                   value={details.skills.tools}
                   disabled={disabled}
@@ -711,7 +713,13 @@ export function JobCreatePage({
                     <div className="flex-1">
                       <SelectInput<string>
                         value={row.skill}
-                        options={values.skills.map((skill) => ({ value: skill, label: skill }))}
+                        options={values.skills
+                          .filter(
+                            (skill) =>
+                              skill === row.skill ||
+                              !skillYears.some((item, at) => at !== index && item.skill === skill),
+                          )
+                          .map((skill) => ({ value: skill, label: skill }))}
                         disabled={disabled}
                         ariaLabel={`Skill ${index + 1}`}
                         onChange={(skill) =>
@@ -755,26 +763,22 @@ export function JobCreatePage({
                     ) : null}
                   </div>
                 ))}
-                {!disabled && values.skills.length > 0 && skillYears.length < MAX_SKILL_YEARS_ROWS ? (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSkillYears([
-                        ...skillYears,
-                        {
-                          skill:
-                            values.skills.find(
-                              (skill) => !skillYears.some((row) => row.skill === skill),
-                            ) ?? values.skills[0],
-                          years: 1,
-                        },
-                      ])
-                    }
-                    className="w-fit cursor-pointer rounded-[8px] border border-[#e1e5ea] bg-white px-4 py-2.5 text-[13px] font-semibold text-[#151b2b] transition hover:bg-[#f7f8fa]"
-                  >
-                    Add years for a skill
-                  </button>
-                ) : null}
+                {(() => {
+                  const firstUnused = values.skills.find(
+                    (skill) => !skillYears.some((row) => row.skill === skill),
+                  );
+                  return !disabled && firstUnused !== undefined && skillYears.length < MAX_SKILL_YEARS_ROWS ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSkillYears([...skillYears, { skill: firstUnused, years: 1 }])
+                      }
+                      className="w-fit cursor-pointer rounded-[8px] border border-[#e1e5ea] bg-white px-4 py-2.5 text-[13px] font-semibold text-[#151b2b] transition hover:bg-[#f7f8fa]"
+                    >
+                      Add years for a skill
+                    </button>
+                  ) : null;
+                })()}
               </div>
             </Field>
           </div>
@@ -922,11 +926,11 @@ export function JobCreatePage({
               </Field>
             ) : null}
             <Field label="Application deadline">
-              <TextInput
-                type="date"
+              <DatePicker
                 value={details.application.deadline ?? ""}
                 disabled={disabled}
                 ariaLabel="Application deadline"
+                className={inputClasses}
                 onChange={(date) => setDetail("application", "deadline", date || null)}
               />
             </Field>
@@ -995,7 +999,7 @@ export function JobCreatePage({
                 onChange={(name) => setDetail("hiring", "hiring_manager", name)}
               />
             </Field>
-            <Field label="Priority">
+            <Field label="Priority" reserveHintSpace>
               <ChoiceGroup<Priority>
                 value={details.hiring.priority}
                 options={[
@@ -1027,11 +1031,11 @@ export function JobCreatePage({
               />
             </Field>
             <Field label="Expected joining date">
-              <TextInput
-                type="date"
+              <DatePicker
                 value={details.hiring.expected_joining_date ?? ""}
                 disabled={disabled}
                 ariaLabel="Expected joining date"
+                className={inputClasses}
                 onChange={(date) =>
                   setDetail("hiring", "expected_joining_date", date || null)
                 }
@@ -1197,11 +1201,11 @@ export function JobCreatePage({
                 label="Schedule publication"
                 hint="A planned date your team can see. Publishing itself stays a click, so verification and your plan are checked at that moment."
               >
-                <TextInput
-                  type="date"
+                <DatePicker
                   value={details.settings.publish_on ?? ""}
                   disabled={disabled}
                   ariaLabel="Planned publication date"
+                  className={inputClasses}
                   onChange={(date) => setDetail("settings", "publish_on", date || null)}
                 />
               </Field>
