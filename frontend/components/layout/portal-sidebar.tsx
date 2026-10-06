@@ -41,6 +41,8 @@ import { useGetCollegeOrganisationQuery } from "@/store/college/settings/setting
 import { useGetEmployerDashboardQuery } from "@/store/employer/dashboard";
 import { useGetEmployerOrganisationQuery } from "@/store/employer/settings";
 import logo from "@/assets/bharatpath-icon.png";
+import { baseApi } from "@/store/api/base-api";
+import { notificationApi } from "@/store/api/notification-api";
 
 interface PortalSidebarProps {
   collapsed: boolean;
@@ -175,12 +177,14 @@ export function PortalSidebar({
    * ============================================================
    */
 
-  const handleLogout = () => {
-    void authService.logout();
+  const handleLogout = async () => {
+    await authService.logout();
     dispatch(clearUser());
     dispatch(clearTenant());
+    dispatch(baseApi.util.resetApiState());
+    dispatch(notificationApi.util.resetApiState());
 
-    router.push("/login");
+    router.replace("/login");
   };
 
   return (

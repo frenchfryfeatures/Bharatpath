@@ -102,7 +102,7 @@ export function SessionGuard() {
   }, [dispatch, pathname, router]);
 
   return (
-    <Modal open={expired} title="Your session has expired" description="Please sign in again to continue." onClose={() => {}} closeDisabled panelClassName="max-w-[420px] rounded-[20px]">
+    <Modal open={expired} title="Your session has expired" description="Please sign in again to continue." onClose={() => {}} closeDisabled variant={pathname.startsWith("/student") ? "student" : "default"} panelClassName="max-w-[420px] rounded-[20px]">
       <button type="button" disabled={redirecting} onClick={() => {
         setRedirecting(true);
         dispatch(clearUser());

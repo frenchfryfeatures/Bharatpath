@@ -123,7 +123,7 @@ const JOURNEY: ReadonlyArray<{
   {
     phase: "employment",
     title: "Employment details",
-    body: "Review your experience, current role and key skills. Freshers can skip employment history.",
+    body: "Review your experience and current role. Freshers can skip employment history.",
     icon: <BriefcaseBusiness className="h-4 w-4" aria-hidden="true" />,
   },
   {

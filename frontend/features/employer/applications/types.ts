@@ -1,4 +1,5 @@
 import type { RevealedCandidateResponse } from "@/store/employer/candidates/candidates.api";
+import type { CandidateBand } from "@/features/employer/candidates/types";
 
 export type ApplicationStage =
   | 0
@@ -19,6 +20,7 @@ export interface ApplicationCandidate {
   name: string;
   initials: string;
   exactScore: number | null;
+  band?: CandidateBand | null;
   location: string;
   jobTitle: string;
   unlocked: boolean;

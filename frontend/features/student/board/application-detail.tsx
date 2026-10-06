@@ -67,52 +67,37 @@ export function ApplicationDetail() {
   return (
     <StudentPage>
       <StudentTopBar title={item.jobTitle ?? "Application"} />
-      <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-3">
-            <MonogramTile tint="indigo" size={48}>
-              {employerMonogram(item.employerName)}
-            </MonogramTile>
-            <div className="flex flex-1 flex-col gap-1">
-              <span className="text-[15px] font-bold text-[#0A1931]">
-                {item.employerName ?? "Employer"}
-              </span>
-              <span className="text-[12px] text-[#5F6B80]">
-                Applied {formatDate(item.createdAt)}
-              </span>
+      <div className="mx-auto grid w-full max-w-6xl gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.8fr)] lg:items-start">
+        <div className="flex min-w-0 flex-col gap-5">
+          <section className="rounded-2xl border border-[#E9E3D9] bg-gradient-to-br from-white to-[#FFFCF7] p-5 shadow-[0_2px_10px_rgba(32,40,56,0.035)] sm:p-6">
+            <div className="flex flex-wrap items-center gap-4">
+              <MonogramTile tint="indigo" size={52}>
+                {employerMonogram(item.employerName)}
+              </MonogramTile>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.09em] text-[#778197]">Employer</p>
+                <h2 className="mt-1 truncate text-[17px] font-bold text-[#0A1931]">{item.employerName ?? "Employer"}</h2>
+                <p className="mt-1 text-[12px] text-[#5F6B80]">Applied {formatDate(item.createdAt)}</p>
+              </div>
+              <StatusChip tone={closed ? "neutral" : "advanced"}>{stageLabel(item.stage)}</StatusChip>
             </div>
-            <StatusChip
-              tone={closed ? "neutral" : "advanced"}
-            >
-              {stageLabel(item.stage)}
-            </StatusChip>
-          </div>
+          </section>
 
           <StudentCard>
-            <span className="text-[15px] font-semibold text-[#0A1931]">
-              Where things stand
-            </span>
-            <ol className="mt-4 flex flex-col">
+            <div className="flex flex-wrap items-end justify-between gap-2">
+              <div><span className="text-[15px] font-semibold text-[#0A1931]">Where things stand</span><p className="mt-1 text-[12px] text-[#778197]">Follow your application through each stage.</p></div>
+              <span className="rounded-full bg-[#F3F0FB] px-2.5 py-1 text-[11px] font-semibold text-[#5F4DB2]">{timeline.filter((step) => step.reached).length} of {timeline.length} stages</span>
+            </div>
+            <ol className="mt-5 flex flex-col">
               {timeline.map((step, index) => (
                 <li key={step.label} className="flex gap-3">
                   <div className="flex flex-col items-center">
-                    <span
-                      className={[
-                        "grid h-6 w-6 shrink-0 place-items-center rounded-full",
-                        step.reached
-                          ? "bg-[#5F4DB2] text-white"
-                          : "border border-[#E7E0D4] bg-white text-[#B5AC96]",
-                      ].join(" ")}
-                    >
-                      {step.reached ? <Check size={12} /> : null}
+                    <span className={["grid h-7 w-7 shrink-0 place-items-center rounded-full", step.reached ? "bg-[#5F4DB2] text-white shadow-[0_2px_6px_rgba(95,77,178,0.22)]" : "border border-[#E7E0D4] bg-white text-[#B5AC96]"].join(" ")}>
+                      {step.reached ? <Check size={13} /> : null}
                     </span>
-                    {index < timeline.length - 1 ? (
-                      <span className="min-h-6 w-px flex-1 bg-[#E7E0D4]" />
-                    ) : null}
+                    {index < timeline.length - 1 ? <span className="min-h-6 w-px flex-1 bg-[#E7E0D4]" /> : null}
                   </div>
-                  <span className="pb-5 text-[14px] text-[#3A4761]">
-                    {step.label}
-                  </span>
+                  <span className={`pb-5 pt-1 text-[14px] ${step.reached ? "font-medium text-[#25334D]" : "text-[#8490A3]"}`}>{step.label}</span>
                 </li>
               ))}
             </ol>
@@ -142,7 +127,24 @@ export function ApplicationDetail() {
           ) : null}
         </div>
 
-        <div className="flex flex-col gap-3">
+        <div className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-4">
+          {!closed ? (
+            <StudentCard className="!border-[#E9E3D9] !bg-[#FFFCF7]">
+              <div className="flex items-start gap-3">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-[#5F4DB2] ring-1 ring-[#EEE9F3]"><Undo2 size={17} /></span>
+                <div><p className="text-[14px] font-semibold text-[#0A1931]">Need to step back?</p><p className="mt-1 text-[12px] leading-5 text-[#68758A]">You can withdraw this application. The employer will be notified.</p></div>
+              </div>
+              <PillButton
+                variant="secondary"
+                className="mt-4 w-full !text-[#3A4761]"
+                disabled={withdrawState.isLoading}
+                onClick={() => void withdraw(item.id)}
+              >
+                {withdrawState.isLoading ? "Withdrawing…" : "Withdraw application"}
+              </PillButton>
+            </StudentCard>
+          ) : null}
+
           {messages.data && messages.data.length > 0 ? (
             <StudentCard>
               <div className="flex items-center gap-3">
@@ -238,18 +240,6 @@ export function ApplicationDetail() {
                 Dispute hire
               </PillButton>
             </>
-          ) : null}
-
-          {!closed ? (
-            <PillButton
-              variant="secondary"
-              className="w-full !text-[#3A4761]"
-              icon={<Undo2 size={16} />}
-              disabled={withdrawState.isLoading}
-              onClick={() => void withdraw(item.id)}
-            >
-              Withdraw application
-            </PillButton>
           ) : null}
 
           {actionError ? (

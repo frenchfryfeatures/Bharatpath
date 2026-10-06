@@ -233,10 +233,10 @@ function JobFiltersDrawer({ onClose, onApply, ...initial }: JobFilterValues & {
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-[#0A1931]/35" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <aside role="dialog" aria-modal="true" aria-label="Job filters" className="flex h-full w-full max-w-[460px] flex-col bg-[#FFFCF7] shadow-[-16px_0_48px_rgba(10,25,49,0.18)]">
+      <aside role="dialog" aria-modal="true" aria-label="Job filters" className="flex h-full w-full max-w-[460px] flex-col bg-[#FFFCF7] font-sans text-[13px] leading-5 shadow-[-16px_0_48px_rgba(10,25,49,0.18)] lg:text-[14px]">
         <header className="flex shrink-0 items-center justify-between border-b border-[#E7E0D4] px-5 py-4 sm:px-6">
           <div className="flex items-center gap-2.5"><span className="grid h-9 w-9 place-items-center rounded-xl bg-[#F1EAF7] text-[#5F4DB2]"><Funnel size={17} /></span><h2 className="text-[18px] font-bold text-[#0A1931]">Filters</h2></div>
-          <div className="flex items-center gap-2"><button type="button" onClick={reset} className="cursor-pointer px-2 py-2 text-[12px] font-semibold text-[#5F6B80] hover:text-[#0A1931]">Reset</button><button type="button" onClick={onClose} aria-label="Close filters" className="grid h-9 w-9 cursor-pointer place-items-center rounded-full border border-[#E7E0D4] bg-white"><X size={16} /></button></div>
+          <div className="flex items-center gap-2"><button type="button" onClick={reset} className="cursor-pointer px-2 py-2 text-[12px] font-semibold text-[#5F6B80] hover:text-[#0A1931] lg:text-[13px]">Reset</button><button type="button" onClick={onClose} aria-label="Close filters" className="grid h-9 w-9 cursor-pointer place-items-center rounded-full border border-[#E7E0D4] bg-white"><X size={16} /></button></div>
         </header>
 
         <div className="bp-scrollbar flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
@@ -248,7 +248,7 @@ function JobFiltersDrawer({ onClose, onApply, ...initial }: JobFilterValues & {
           </FilterGroup>
 
           <FilterGroup icon={<MapPin size={16} />} label="Location">
-            <input value={draft.location} maxLength={100} onChange={(event) => update("location", event.target.value)} placeholder="City or area" className="w-full rounded-xl border border-[#E7E0D4] bg-white px-3.5 py-3 text-[13px] text-[#0A1931] outline-none placeholder:text-[#8891A0] focus:border-[#5F4DB2]" />
+            <input value={draft.location} maxLength={100} onChange={(event) => update("location", event.target.value)} placeholder="City or area" className="w-full rounded-xl border border-[#E7E0D4] bg-white px-3.5 py-3 text-[13px] text-[#0A1931] outline-none placeholder:text-[#8891A0] focus:border-[#5F4DB2] lg:text-[14px]" />
           </FilterGroup>
 
           <FilterGroup icon={<BriefcaseBusiness size={16} />} label="Work mode">
@@ -257,16 +257,16 @@ function JobFiltersDrawer({ onClose, onApply, ...initial }: JobFilterValues & {
 
           <FilterGroup icon={<IndianRupee size={16} />} label="Minimum salary">
             <div className="flex flex-wrap gap-2">{SALARIES.map((salary) => <Choice key={salary.value} active={draft.minSalaryMinor === salary.value} onClick={() => update("minSalaryMinor", draft.minSalaryMinor === salary.value ? null : salary.value)}>{salary.label}</Choice>)}</div>
-            <p className="text-[10px] text-[#7B8495]">Salary amounts are sent to the jobs API in paise.</p>
+            <p className="text-[10px] text-[#7B8495] lg:text-[11px]">Salary amounts are sent to the jobs API in paise.</p>
           </FilterGroup>
 
           <FilterGroup icon={<Sparkles size={16} />} label="Skill">
-            <input value={draft.skill} maxLength={80} onChange={(event) => update("skill", event.target.value)} placeholder="e.g. React, Nursing, Tally" className="w-full rounded-xl border border-[#E7E0D4] bg-white px-3.5 py-3 text-[13px] text-[#0A1931] outline-none placeholder:text-[#8891A0] focus:border-[#5F4DB2]" />
+            <input value={draft.skill} maxLength={80} onChange={(event) => update("skill", event.target.value)} placeholder="e.g. React, Nursing, Tally" className="w-full rounded-xl border border-[#E7E0D4] bg-white px-3.5 py-3 text-[13px] text-[#0A1931] outline-none placeholder:text-[#8891A0] focus:border-[#5F4DB2] lg:text-[14px]" />
           </FilterGroup>
         </div>
 
         <footer className="shrink-0 border-t border-[#E7E0D4] bg-white p-4 sm:px-6">
-          <button type="button" onClick={() => onApply(draft)} className="w-full cursor-pointer rounded-full bg-[#5F4DB2] px-5 py-3.5 text-[13px] font-bold text-white shadow-[0_8px_20px_rgba(95,77,178,0.22)] transition hover:bg-[#4A3E8F]">Show jobs</button>
+          <button type="button" onClick={() => onApply(draft)} className="w-full cursor-pointer rounded-full bg-[#5F4DB2] px-5 py-3.5 text-[13px] font-bold text-white shadow-[0_8px_20px_rgba(95,77,178,0.22)] transition hover:bg-[#4A3E8F] lg:text-[14px]">Show jobs</button>
         </footer>
       </aside>
     </div>
@@ -274,12 +274,12 @@ function JobFiltersDrawer({ onClose, onApply, ...initial }: JobFilterValues & {
 }
 
 function FilterGroup({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
-  return <section className="flex flex-col gap-2.5"><div className="flex items-center gap-2 text-[#A77B0D]">{icon}<h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#5F6B80]">{label}</h3></div>{children}</section>;
+  return <section className="flex flex-col gap-2.5"><div className="flex items-center gap-2 text-[#A77B0D]">{icon}<h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#5F6B80] lg:text-[12px]">{label}</h3></div>{children}</section>;
 }
 
 function Choice({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button type="button" onClick={onClick} className={`cursor-pointer rounded-xl border px-3.5 py-2.5 text-[12px] font-semibold transition ${active ? "border-[#C9BEEB] bg-[#F1EAF7] text-[#4A3E8F]" : "border-transparent bg-[#F7EFD6] text-[#3A4761] hover:border-[#E0D5B5]"}`}>
+    <button type="button" onClick={onClick} className={`cursor-pointer rounded-xl border px-3.5 py-2.5 text-[12px] font-semibold transition lg:text-[13px] ${active ? "border-[#C9BEEB] bg-[#F1EAF7] text-[#4A3E8F]" : "border-transparent bg-[#F7EFD6] text-[#3A4761] hover:border-[#E0D5B5]"}`}>
       {children}
     </button>
   );

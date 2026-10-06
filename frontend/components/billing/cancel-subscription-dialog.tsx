@@ -5,12 +5,13 @@ import { CircleAlert } from "lucide-react";
 import { ConfirmModal } from "@/components/ui";
 import { getApiErrorMessage } from "@/lib/api/error-message";
 
-export function CancelSubscriptionDialog({ open, planCode, periodEnd, onCancel, onClose }: {
+export function CancelSubscriptionDialog({ open, planCode, periodEnd, onCancel, onClose, student = false }: {
   open: boolean;
   planCode?: string | null;
   periodEnd?: string | null;
   onCancel: () => Promise<unknown>;
   onClose: () => void;
+  student?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +42,7 @@ export function CancelSubscriptionDialog({ open, planCode, periodEnd, onCancel, 
 
   return <ConfirmModal
     open={open}
+    variant={student ? "student" : "default"}
     title="Cancel subscription?"
     description={`Cancel renewal${planCode ? ` for ${planCode}` : ""}? Your paid access continues ${endDate ? `until ${endDate}` : "until the end of the current billing period"}. Your subscription will not renew automatically. This does not issue a refund.`}
     confirmLabel="Cancel subscription"

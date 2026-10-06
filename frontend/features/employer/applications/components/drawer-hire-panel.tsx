@@ -3,6 +3,8 @@ interface HirePanelProps {
   candidateConfirmed: boolean;
   canConfirmHire: boolean;
   onConfirmHire: () => void;
+  canReject: boolean;
+  onReject: () => void;
 }
 
 export function HirePanel({
@@ -10,6 +12,8 @@ export function HirePanel({
   candidateConfirmed,
   canConfirmHire,
   onConfirmHire,
+  canReject,
+  onReject,
 }: HirePanelProps) {
   const description =
     employerConfirmed && candidateConfirmed
@@ -35,6 +39,15 @@ export function HirePanel({
           className="mt-1 flex h-10 w-full cursor-pointer items-center justify-center rounded-lg border-0 bg-[#16845d] px-4 text-[13px] font-semibold text-white transition hover:bg-[#11734f]"
         >
           Mark as hired
+        </button>
+      )}
+      {canReject && (
+        <button
+          type="button"
+          onClick={onReject}
+          className="mt-1 flex h-10 w-full cursor-pointer items-center justify-center rounded-lg border border-[#d7dbe3] bg-white px-4 text-[13px] font-semibold text-[#a12835] transition hover:bg-[#fff1f2]"
+        >
+          Reject application
         </button>
       )}
     </div>

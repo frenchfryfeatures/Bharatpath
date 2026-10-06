@@ -19,6 +19,7 @@ interface ApplicationDrawerProps {
   onMoveStage: (stage: ApplicationStage) => void;
   onMeetingLinkChange: (value: string) => void;
   onConfirmHire: () => void;
+  onReject: () => void;
 }
 
 export function ApplicationDrawer({
@@ -27,6 +28,7 @@ export function ApplicationDrawer({
   onMoveStage,
   onMeetingLinkChange,
   onConfirmHire,
+  onReject,
 }: ApplicationDrawerProps) {
   useScrollLock(application !== null);
   const detail = useGetEmployerApplicationQuery(application?.id ?? "", { skip: !application });
@@ -43,7 +45,14 @@ export function ApplicationDrawer({
 
   const candidate = application.candidate;
   const resume = detail.currentData ? detail.currentData.resume : application.resume;
-  const band = getScoreBand(application.candidate.exactScore);
+  const band = getScoreBand(
+    application.candidate.exactScore ??
+      (application.candidate.band === "STRONG" ? 850
+        : application.candidate.band === "SOLID" ? 750
+          : application.candidate.band === "DEVELOPING" ? 600
+            : application.candidate.band === "ENTRY" ? 400
+              : null),
+  );
 
   const currentStage = Number(application.stage);
   const currentStageLabel =
@@ -117,8 +126,9 @@ export function ApplicationDrawer({
               currentStageLabel={currentStageLabel}
             />
 
-            <section className="space-y-3 rounded-lg border border-[#e7e9ee] p-4">
-              <h3 className="text-sm font-semibold text-[#151b2b]">Resume</h3>
+            <section className="flex max-h-[min(42vh,360px)] min-h-0 flex-col overflow-hidden rounded-lg border border-[#e7e9ee]">
+              <h3 className="shrink-0 border-b border-[#e7e9ee] px-4 py-3 text-sm font-semibold text-[#151b2b]">Resume</h3>
+              <div className="min-h-0 space-y-3 overflow-y-auto overscroll-contain p-4">
               {detail.isFetching ? <p role="status" className="text-xs text-[#777f90]">Loading resume...</p> : detail.isError ? (
                 <div className="text-xs"><p>Unable to load resume.</p><button type="button" onClick={() => void detail.refetch()} className="mt-2 font-semibold text-[#51449a]">Retry</button></div>
               ) : resume ? (
@@ -128,12 +138,13 @@ export function ApplicationDrawer({
                   ) : <a href={resume.file_url} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-[#51449a] hover:underline">Download original resume</a>)}
                   {resume.sections.length > 0 ? resume.sections.map((section, index) => (
                     <div key={`${section.kind}-${index}`}>
-                      <h4 className="text-xs font-semibold text-[#273142]">{section.heading || section.kind.replaceAll("_", " ")}</h4>
+                      <h4 className="text-xs font-semibold capitalize text-[#273142]">{section.heading || section.kind.replaceAll("_", " ")}</h4>
                       <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-5 text-[#43516a]">{section.body}</p>
                     </div>
                   )) : <p className="whitespace-pre-wrap break-words text-xs leading-5 text-[#43516a]">{resume.text || "No resume content is available."}</p>}
                 </>
               ) : <p className="text-xs text-[#777f90]">No confirmed resume is available.</p>}
+              </div>
             </section>
 
             {application.outcome === null && (
@@ -158,6 +169,8 @@ export function ApplicationDrawer({
                 candidateConfirmed={Boolean(application.hireCandidateConfirmed)}
                 canConfirmHire={canConfirmHire}
                 onConfirmHire={onConfirmHire}
+                canReject={currentStage === 4 && application.outcome === null}
+                onReject={onReject}
               />
             )}
             {!application.outcome && <ApplicationMessages applicationId={application.id} />}
