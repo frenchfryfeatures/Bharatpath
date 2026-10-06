@@ -9,6 +9,29 @@ states. Newest entries first.
 
 ---
 
+## 2026-10-06 — review fixes on the job posting (PR #54)
+
+From the backend review of PR #54. Decisions by the backend lead.
+
+- **The external apply route is withheld from anyone `apply` would refuse.**
+  The student page drew "Apply on company site" with no eligibility check
+  and the API sent `external_url` to every candidate, so an EXTERNAL job with
+  `min_score` took anyone and a HIGH integrity signal stopped nothing. Now
+  `for_candidate(..., may_apply=)` drops the link and the email unless the
+  candidate is ELIGIBLE and visible; `BoardJobDetail.can_apply_externally`
+  tells the client. The method/URL validator moved to the employer's
+  `Application` so the candidate's copy may hold EXTERNAL without its link.
+- **Screening questions may not ask about age or gender** -- English,
+  romanised Hindi and Devanagari, question and options. Deliberately narrow
+  ("man-hours" and "stage" pass) so it refuses the person, never the work.
+- **Salary "not disclosed" stays display-only** (option a). The range is still
+  sent, as PRD 5.2 requires; the composer now says so. Hiding it from the API
+  is the client's call and would make the salary fields nullable for mobile.
+- **"Invite only" relabelled "Unlisted (link or invitation)"**: nothing
+  enforces an invitation. Referrals, applicant access and scheduled
+  publication are hidden from the composer and the job view; their stored
+  values round-trip untouched.
+
 ## 2026-10-06 — the frontend builds again (7 type errors)
 
 `cd frontend && npm run build` failed on the branch `Rishabh/CreateJobUpdate`.
