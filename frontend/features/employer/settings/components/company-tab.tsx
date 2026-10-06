@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, type ChangeEvent } from "react";
+import { useEffect, useState, type ChangeEvent } from "react";
 import { Loader2 } from "lucide-react";
+import { ChangePasswordModal } from "@/components/auth/change-password-modal";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { Skeleton } from "@/components/common/loading";
 import { EmployerErrorState } from "@/features/employer/components/employer-error-state";
@@ -84,6 +85,7 @@ export function CompanyTab() {
   const [updateOrganisation, { isLoading: isSaving }] =
     useUpdateEmployerOrganisationMutation();
   const { data: reference } = useGetEmployerReferenceQuery();
+  const [passwordOpen, setPasswordOpen] = useState(false);
 
   useEffect(() => {
     if (organisation) {
@@ -232,6 +234,27 @@ export function CompanyTab() {
         )}
         {isSaving ? "Saving…" : "Save changes"}
       </button>
+
+      <div className="mt-5 border-t border-[#eef0f3] pt-4">
+        <h2 className="m-0 text-[13px] font-bold leading-[18px]">Password</h2>
+        <p className="mt-0.5 mb-3 text-xs leading-4 text-[#718096]">
+          Change the password you use to sign in
+        </p>
+        <button
+          type="button"
+          onClick={() => setPasswordOpen(true)}
+          className="min-h-9 cursor-pointer rounded-lg border border-[#d6dbe2] bg-white px-3.5 text-xs font-bold text-[#172033]"
+        >
+          Change password
+        </button>
+      </div>
+
+      <ChangePasswordModal
+        open={passwordOpen}
+        onClose={() => setPasswordOpen(false)}
+        theme="employer"
+        pool="BUSINESS"
+      />
     </section>
   );
 }

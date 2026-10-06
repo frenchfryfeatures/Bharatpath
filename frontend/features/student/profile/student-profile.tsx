@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { ChangePasswordModal } from "@/components/auth/change-password-modal";
 import { CareerOverview } from "./career-overview";
 import { useAppSelector } from "@/store/hooks";
 import {
@@ -10,6 +12,7 @@ import {
   ClipboardCheck,
   Eye,
   FileText,
+  KeyRound,
   Languages,
   MapPin,
   Mic2,
@@ -36,6 +39,7 @@ import { StudentPage } from "@/features/student/shell";
 
 export function StudentProfile() {
   const router = useRouter();
+  const [passwordOpen, setPasswordOpen] = useState(false);
   const accountEmail = useAppSelector((state) => state.auth.user?.email ?? "");
   const profile = useGetStudentProfileQuery();
   const score = useGetStudentScoreQuery();
@@ -163,6 +167,26 @@ export function StudentProfile() {
                   aria-hidden="true"
                 />
               </button>
+              <button
+                type="button"
+                onClick={() => setPasswordOpen(true)}
+                className={`flex items-center gap-3 rounded-2xl border border-[#E7E0D4] bg-white p-4 text-left ${interactiveCardClass}`}
+              >
+                <KeyRound size={20} className="text-[#5F4DB2]" />
+                <span className="flex flex-1 flex-col">
+                  <span className="text-[15px] font-medium text-[#0A1931]">
+                    Change password
+                  </span>
+                  <span className="text-[12px] text-[#5F6B80]">
+                    Update the password you use to sign in
+                  </span>
+                </span>
+                <ChevronRight
+                  size={17}
+                  className="shrink-0 text-[#7B8495]"
+                  aria-hidden="true"
+                />
+              </button>
               <NoteStrip icon={<MapPin size={16} />}>
                 Only your city and state are used for job discovery. Do not
                 enter a street address.
@@ -171,6 +195,12 @@ export function StudentProfile() {
           </div>
         </CareerOverview>
       </div>
+      <ChangePasswordModal
+        open={passwordOpen}
+        onClose={() => setPasswordOpen(false)}
+        theme="student"
+        pool="CANDIDATE"
+      />
     </StudentPage>
   );
 }
