@@ -1,6 +1,6 @@
 /**
  * Font configuration for BharatPath.
- * Loads clean, balanced Inter typeface (used in UI design) alongside Space Mono
+ * Loads the same General Sans typeface as web alongside Inter, Space Mono
  * and Noto Sans Devanagari from local assets via expo-font.
  */
 
@@ -9,11 +9,11 @@ import { useEffect } from 'react';
 import { SplashScreen } from 'expo-router';
 
 export const customFonts = {
-  // Primary App Sans Typeface (Inter matching the UI Design)
-  'GeneralSans-Regular': require('../assets/fonts/Inter-Regular.ttf'),
-  'GeneralSans-Medium': require('../assets/fonts/Inter-Medium.ttf'),
-  'GeneralSans-Semibold': require('../assets/fonts/Inter-SemiBold.ttf'),
-  'GeneralSans-Bold': require('../assets/fonts/Inter-Bold.ttf'),
+  // Converted from the web portal's existing WOFF2 assets to native OTF.
+  'GeneralSans-Regular': require('../assets/fonts/GeneralSans-Regular.otf'),
+  'GeneralSans-Medium': require('../assets/fonts/GeneralSans-Medium.otf'),
+  'GeneralSans-Semibold': require('../assets/fonts/GeneralSans-Semibold.otf'),
+  'GeneralSans-Bold': require('../assets/fonts/GeneralSans-Bold.otf'),
 
   // Direct Inter Family
   'Inter-Regular': require('../assets/fonts/Inter-Regular.ttf'),
@@ -31,7 +31,7 @@ export const customFonts = {
   'NotoSansDevanagari-Medium': require('../assets/fonts/NotoSansDevanagari-Medium.ttf'),
 
   // Aliases for cross-component compatibility
-  'GeneralSans': require('../assets/fonts/Inter-Regular.ttf'),
+  'GeneralSans': require('../assets/fonts/GeneralSans-Regular.otf'),
   'Inter': require('../assets/fonts/Inter-Regular.ttf'),
   'SpaceMono': require('../assets/fonts/SpaceMono-Regular.ttf'),
 };

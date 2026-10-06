@@ -28,10 +28,10 @@ export function IntroScreen({ onGetStarted, onAlreadyHaveAccount }: IntroScreenP
           {/* Text Section */}
           <View style={styles.textContainer}>
             <Text style={styles.title}>
-              Find out how strong your resume is!
+              Build your career profile
             </Text>
             <Text style={styles.subtitle}>
-              Get a score that shows how your resume stands out to recruiters and where you can improve.
+              Start with your resume, review your details, and discover opportunities. Resume scoring starts after membership payment.
             </Text>
           </View>
         </View>

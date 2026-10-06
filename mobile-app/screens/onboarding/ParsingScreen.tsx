@@ -46,11 +46,11 @@ interface StepItem {
 }
 
 const DEFAULT_STEPS: StepItem[] = [
-  { id: '1', title: 'Contact & Personal Details', countText: '1 found' },
-  { id: '2', title: 'Education & Qualifications', countText: '2 found' },
-  { id: '3', title: 'Work Experience & History', countText: '1 found' },
-  { id: '4', title: 'Skills & Proficiencies', countText: 'Extracted' },
-  { id: '5', title: 'Scoring Readiness & Verification', countText: 'Ready' },
+  { id: '1', title: 'Contact & Personal Details', countText: 'Review next' },
+  { id: '2', title: 'Education & Qualifications', countText: 'Review next' },
+  { id: '3', title: 'Work Experience & History', countText: 'Review next' },
+  { id: '4', title: 'Skills & Proficiencies', countText: 'Review next' },
+  { id: '5', title: 'Profile Draft', countText: 'Not scored' },
 ];
 
 export function ParsingScreen({
@@ -62,7 +62,7 @@ export function ParsingScreen({
   const fileName = fileMeta?.fileName || 'Candidate_Resume.pdf';
   const fileSizeText = fileMeta?.fileSize
     ? `${fileMeta.fileSize} · uploaded`
-    : '412 KB · uploaded';
+    : 'Uploaded file';
 
   const isPasted =
     payload?.source === 'paste' ||
@@ -80,7 +80,7 @@ export function ParsingScreen({
     ? 'Extracting your work history, skills, and education from your text.'
     : isManual
       ? 'Formatting your experience and skills according to BharatPath standards.'
-      : 'This takes about ten seconds. Nothing is saved until you confirm it.';
+      : 'Your resume is saved to your profile. Review the extracted details next. Scoring starts after payment.';
 
   // State
   const [currentStepIndex, setCurrentStepIndex] = useState(0);

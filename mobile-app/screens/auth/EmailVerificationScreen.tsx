@@ -19,6 +19,7 @@ import {
   CheckCircle,
 } from 'phosphor-react-native';
 import { Colors, Radii, Spacing } from '@/theme/tokens';
+import { OnboardingProgress } from '@/screens/onboarding/OnboardingProgress';
 
 export interface EmailVerificationScreenProps {
   email: string;
@@ -121,6 +122,7 @@ export function EmailVerificationScreen({
           </View>
 
           <View style={styles.content}>
+            <OnboardingProgress step={0} />
             {/* Header / Icon */}
             <View style={styles.headerSection}>
               <View style={styles.iconCircle}>
@@ -211,7 +213,7 @@ export function EmailVerificationScreen({
 
             {/* Resend Row */}
             <View style={styles.resendRow}>
-              <Text style={styles.resendText}>Didn't receive the email?</Text>
+              <Text style={styles.resendText}>Didn&apos;t receive the email?</Text>
               {isResending ? (
                 <ActivityIndicator size="small" color={Colors.brandAccent} style={{ marginLeft: 6 }} />
               ) : resendCooldown > 0 ? (

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import * as DocumentPicker from 'expo-document-picker';
 import {
   View,
   Text,
@@ -19,6 +20,7 @@ import { updateCandidateName } from '@/services/api/auth';
 import {
   getCareerFields,
   getCareerProfile,
+  intakeCareerResume,
   prefillCareerProfile,
   saveCareerProfile,
   getResumePreview,
@@ -75,6 +77,43 @@ export function CareerDetailsScreen({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [lists, setLists] = useState<Record<string, string>>({});
   const [documentHtml, setDocumentHtml] = useState<string | null>(null);
+  const [selectedFilename, setSelectedFilename] = useState(resumeFilename);
+
+  const goBack = () => {
+    if (editing && step > 0) setStep(step - 1);
+    else if (onboarding || !editing) onBack();
+    else setEditing(false);
+  };
+
+  const uploadResume = async () => {
+    const picked = await DocumentPicker.getDocumentAsync({
+      type: ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+      copyToCacheDirectory: true,
+    });
+    if (picked.canceled) return;
+    const file = picked.assets[0];
+    if (file.size && file.size > 10 * 1024 * 1024) {
+      setError('Choose a PDF or DOCX up to 10 MB.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      // Preserve candidate-entered facts before applying resume suggestions.
+      await saveCareerProfile(draft, activeVersionId, false, selectedFilename);
+      const uploaded = await intakeCareerResume({ fileName: file.name, fileUri: file.uri, mimeType: file.mimeType, fileSize: '' });
+      const saved = await prefillCareerProfile(uploaded.resume_version_id);
+      setProfile(saved);
+      setDraft(saved.details);
+      setLists({});
+      setActiveVersionId(saved.resume_version_id);
+      setSelectedFilename(file.name);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : 'Your resume could not be read. Try again or enter your details.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   useEffect(() => {
     let alive = true;
@@ -176,7 +215,7 @@ export function CareerDetailsScreen({
         draft,
         activeVersionId,
         step === groups.length - 1,
-        resumeFilename,
+        selectedFilename,
       );
       setProfile(saved);
       setActiveVersionId(saved.resume_version_id);
@@ -219,7 +258,8 @@ export function CareerDetailsScreen({
       <View style={styles.header}>
         <Pressable
           accessibilityLabel="Back"
-          onPress={onBack}
+          disabled={busy}
+          onPress={goBack}
           style={styles.back}
         >
           <ArrowLeft size={22} color="#0A1931" />
@@ -292,6 +332,16 @@ export function CareerDetailsScreen({
             </Text>
             {step === 0 && (
               <>
+                {onboarding && (
+                  <View style={styles.field}>
+                    <Text style={styles.label}>Start with your resume</Text>
+                    <Pressable disabled={busy} onPress={() => void uploadResume().catch(() => setError('The file picker could not open. Please try again.'))} style={styles.back}>
+                      <FileText size={20} color="#5F4DB2" />
+                      <Text style={styles.label}>{selectedFilename || profile?.resume_filename || 'Choose PDF or DOCX'}</Text>
+                    </Pressable>
+                    <Text style={styles.help}>We fill your details from your resume. Review them below. Scoring starts after payment.</Text>
+                  </View>
+                )}
                 <View style={styles.field}>
                   <Text style={styles.label}>Full name *</Text>
                   <TextInput
@@ -423,11 +473,7 @@ export function CareerDetailsScreen({
             <View style={styles.row}>
               <Pressable
                 disabled={busy}
-                onPress={() => {
-                  if (step) setStep(step - 1);
-                  else if (onboarding) onBack();
-                  else setEditing(false);
-                }}
+                onPress={goBack}
                 style={styles.back}
               >
                 <ArrowLeft size={18} color="#0A1931" />

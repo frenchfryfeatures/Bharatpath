@@ -7,6 +7,7 @@ import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 
 import { SplashScreen } from '@/screens/splash/SplashScreen';
 import { IntroScreen } from '@/screens/onboarding/IntroScreen';
+import { CollegeReferralConsentScreen } from '@/screens/onboarding/CollegeReferralConsentScreen';
 import {
   SignUpScreen,
   LoginScreen,
@@ -23,6 +24,7 @@ import {
 } from '@/screens/onboarding/ResumeIntakeScreen';
 import { ParsingScreen } from '@/screens/onboarding/ParsingScreen';
 import { CareerDetailsScreen } from '@/screens/profile/CareerDetailsScreen';
+import { onboardingDestination } from '@/services/profile/onboarding';
 import {
   getCareerProfile,
   saveCareerProfile,
@@ -65,6 +67,7 @@ type AppStep =
   | 'login'
   | 'forgot-password'
   | 'verify-email'
+  | 'referral'
   | 'language'
   | 'howItWorks'
   | 'subscribe'
@@ -100,6 +103,7 @@ export default function FoundationPreview() {
   const [userEmail, setUserEmail] = useState<string>('');
   const [userName, setUserName] = useState<string>('');
   const [userPassword, setUserPassword] = useState<string>('');
+  const [collegeReferralCode, setCollegeReferralCode] = useState('');
   const [onboardingDraft, setOnboardingDraft] = useState<CareerDetails | null>(
     null,
   );
@@ -155,6 +159,22 @@ export default function FoundationPreview() {
     }
   };
 
+  const restoreOnboarding = async () => {
+    const [versions, profile] = await Promise.all([listResumeVersions(), getCareerProfile()]);
+    const latest = versions.find((version) => !version.superseded);
+    setOnboardingSection(0);
+    setOnboardingDraft(null);
+    setIntakePayload(undefined);
+    setFileMeta(undefined);
+    setResumeVersionId(latest?.resume_version_id);
+    setResumeVersionDetails(latest ? await getResumeVersionDetails(latest.resume_version_id) : null);
+    const destination = onboardingDestination(profile, latest);
+    if (destination === 'home') {
+      refreshScore().catch(() => undefined);
+      router.replace('/home');
+    } else setStep(destination);
+  };
+
   if (step === 'splash') {
     return (
       <SplashScreen
@@ -162,35 +182,11 @@ export default function FoundationPreview() {
           const activeSession = session || (await getCurrentSession());
           if (activeSession) {
             try {
-              const versions = await listResumeVersions();
-              const confirmed =
-                versions.find((v) => v.confirmed && !v.superseded) ||
-                versions.find((v) => v.confirmed);
-              if (confirmed) {
-                refreshScore().catch(() => undefined);
-                router.replace('/home');
-                return;
-              }
-              const unconfirmed = versions.find(
-                (v) => !v.confirmed && !v.superseded,
-              );
-              if (unconfirmed) {
-                const verDetails = await getResumeVersionDetails(
-                  unconfirmed.resume_version_id,
-                );
-                setResumeVersionId(unconfirmed.resume_version_id);
-                setResumeVersionDetails(verDetails);
-                setStep('review');
-                return;
-              }
-              // Active session without resume -> move to payment / intake
-              setStep('intake');
-              return;
+              await restoreOnboarding();
             } catch {
-              refreshScore().catch(() => undefined);
-              router.replace('/home');
-              return;
+              setStep('review');
             }
+            return;
           }
           setStep('intro');
         }}
@@ -219,6 +215,7 @@ export default function FoundationPreview() {
         onBack={() => setStep('intro')}
         onNavigateToLogin={() => setStep('login')}
         onSubmit={async (data, isUnconfirmed) => {
+          setCollegeReferralCode(data.referralCode ?? '');
           setOnboardingDraft(data.details);
           setOnboardingSection(1);
           setUserEmail(data.email);
@@ -234,7 +231,7 @@ export default function FoundationPreview() {
               false,
               fileMeta?.fileName,
             );
-            setStep(intakePayload ? 'parsing' : 'review');
+            setStep(data.referralCode ? 'referral' : intakePayload ? 'parsing' : 'review');
           }
         }}
       />
@@ -263,45 +260,21 @@ export default function FoundationPreview() {
           if (name) {
             setUserName(name);
           }
+          // Recover the pending resume draft after verification required a manual login.
+          if (onboardingDraft && data.session.email.toLowerCase() === userEmail.toLowerCase()) {
+            if (userName) await updateCandidateName(userName);
+            await saveCareerProfile(onboardingDraft, null, false, fileMeta?.fileName);
+            setUserPassword('');
+            setStep(collegeReferralCode ? 'referral' : intakePayload ? 'parsing' : 'review');
+            return;
+          }
           try {
-            const versions = await listResumeVersions();
-            const confirmed =
-              versions.find((v) => v.confirmed && !v.superseded) ||
-              versions.find((v) => v.confirmed);
-
-            // If user resume is already submitted/confirmed:
-            // Move directly to the Home page! Editing is handled in the Profile section.
-            if (confirmed) {
-              const verDetails = await getResumeVersionDetails(
-                confirmed.resume_version_id,
-              ).catch(() => null);
-              setResumeVersionId(confirmed.resume_version_id);
-              if (verDetails) setResumeVersionDetails(verDetails);
-
-              refreshScore().catch(() => undefined);
-              router.replace('/home');
-              return;
-            }
-
-            // Only if user has never confirmed any resume, check for an unconfirmed draft
-            const unconfirmed = versions.find(
-              (v) => !v.confirmed && !v.superseded,
-            );
-            if (unconfirmed) {
-              const verDetails = await getResumeVersionDetails(
-                unconfirmed.resume_version_id,
-              );
-              setResumeVersionId(unconfirmed.resume_version_id);
-              setResumeVersionDetails(verDetails);
-              setStep('review');
-              return;
-            }
+            await restoreOnboarding();
           } catch (e) {
             console.warn('Could not check existing resume versions:', e);
+            setOnboardingSection(0);
+            setStep('review');
           }
-
-          // Without a resume, collect it before profile review and payment.
-          setStep('intake');
         }}
       />
     );
@@ -339,9 +312,16 @@ export default function FoundationPreview() {
                 password: userPassword,
               });
               rememberCandidate(session, profile, userName);
+              setUserPassword('');
             } catch (authErr) {
               console.warn('Auto sign-in after verification failed:', authErr);
+              setUserPassword('');
+              setStep('login');
+              return;
             }
+          } else {
+            setStep('login');
+            return;
           }
 
           // 3. Save candidate full name if available
@@ -363,7 +343,7 @@ export default function FoundationPreview() {
               false,
               fileMeta?.fileName,
             );
-          setStep(intakePayload ? 'parsing' : 'review');
+          setStep(collegeReferralCode ? 'referral' : intakePayload ? 'parsing' : 'review');
         }}
         onResendCode={async () => {
           await resendConfirmationCode(userEmail);
@@ -373,6 +353,12 @@ export default function FoundationPreview() {
   }
 
   // 5. Onboarding: Language Selection
+  if (step === 'referral') {
+    return <CollegeReferralConsentScreen code={collegeReferralCode} onDone={() => {
+      setCollegeReferralCode('');
+      setStep(intakePayload ? 'parsing' : 'review');
+    }} />;
+  }
   if (step === 'language') {
     return (
       <LanguageSelectScreen onSelectLanguage={() => setStep('howItWorks')} />
@@ -413,7 +399,10 @@ export default function FoundationPreview() {
           }
         }}
         onSkip={() => router.replace('/you')}
-        onBack={() => setStep('review')}
+        onBack={() => {
+          setOnboardingSection(3);
+          setStep('review');
+        }}
       />
     );
   }
@@ -443,6 +432,10 @@ export default function FoundationPreview() {
       <ParsingScreen
         fileMeta={fileMeta}
         payload={intakePayload}
+        onBack={() => {
+          setOnboardingSection(0);
+          setStep('review');
+        }}
         onReviewFound={async (verId, details) => {
           if (onboardingDraft)
             await saveCareerProfile(
@@ -471,9 +464,11 @@ export default function FoundationPreview() {
         initialSection={onboardingSection}
         resumeFilename={fileMeta?.fileName}
         versionId={resumeVersionId}
-        onBack={() => setStep('intake')}
+        onBack={() => router.replace('/you')}
         onDone={(profile) => {
           setResumeVersionId(profile.resume_version_id ?? undefined);
+          setOnboardingSection(3);
+          setOnboardingDraft(null);
           setStep('subscribe');
         }}
       />

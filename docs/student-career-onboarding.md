@@ -79,6 +79,24 @@ The declared career phone takes precedence over an older account phone. Older
 accounts without career data retain their contact details and show empty career
 fields. Passwords are never returned. This addition needs no further migration.
 
+Mobile parity checks also cover returning candidates: a completed current
+profile resumes at membership, a newer draft resumes profile review, and an
+account without a resume begins Basic details with an optional file picker.
+Membership is outside the four profile steps, its back action returns to
+preferences, and both header/footer back controls move through the same steps.
+Password requirements and matching feedback use native red/green icons and
+General Sans, with the same 12-character candidate pool policy as web.
+Mobile font assets are native OTF conversions of the existing web WOFF2 files;
+the former General Sans aliases to Inter and their Expo-web overrides are removed.
+The optional college referral code is also collected in Basic details, followed
+by the backend's current roster-consent terms after email verification. Linking
+requires an explicit choice, and this optional consent stays within step 1.
+The mobile payment sheet verifies active access before confirming completion;
+empty catalogues display a retry state instead of a zero-price checkout.
+Mobile uses the transparent BharatPath asset and no longer shows the removed
+profile-only privacy copy. `npm run test:onboarding` checks routing/policy rules;
+native bundle compilation is checked separately from a physical-device run.
+
 ## Rollout
 
 Deploy the backend first, then the clients. The currently hosted backend does not

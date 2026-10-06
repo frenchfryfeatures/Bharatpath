@@ -3,6 +3,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import type { UploadedFileMeta } from '@/screens/onboarding/ResumeIntakeScreen';
 import { previewSignupResume, type CareerDetails } from '@/services/api/career';
 import { OnboardingProgress } from '@/screens/onboarding/OnboardingProgress';
+import { passwordRequirements } from '@/services/profile/onboarding';
 import {
   View,
   Text,
@@ -25,6 +26,8 @@ import {
   EyeSlash,
   WarningCircle,
   ShieldCheck,
+  Check,
+  X,
 } from 'phosphor-react-native';
 import { Colors, Radii, Spacing } from '@/theme/tokens';
 import { signUpWithEmail } from '@/services/api/auth';
@@ -32,6 +35,7 @@ import { ApiError } from '@/services/api/client';
 import { useAuthContext } from '@/context/AuthContext';
 
 export interface SignUpFormData {
+  referralCode?: string;
   details: CareerDetails;
   fullName: string;
   email: string;
@@ -61,6 +65,7 @@ export function SignUpScreen({
   const [resumeDetails, setResumeDetails] = useState<CareerDetails>({});
   const [phone, setPhone] = useState('');
   const [workStatus, setWorkStatus] = useState('');
+  const [referralCode, setReferralCode] = useState('');
   const [readingResume, setReadingResume] = useState(false);
   const careerDetails = (): CareerDetails => ({
     ...resumeDetails,
@@ -152,20 +157,7 @@ export function SignUpScreen({
     return true;
   };
 
-  const getPasswordInlineError = (pass: string) => {
-    if (pass.length === 0) return null;
-    if (pass.length < 12)
-      return 'Password must be at least 12 characters long.';
-    const hasUpper = /[A-Z]/.test(pass);
-    const hasLower = /[a-z]/.test(pass);
-    const hasNumber = /[0-9]/.test(pass);
-    if (!hasUpper || !hasLower || !hasNumber) {
-      return 'Password must include uppercase, lowercase and a number. Symbols are optional.';
-    }
-    return null;
-  };
-
-  const passwordInlineError = getPasswordInlineError(password);
+  const requirements = passwordRequirements(password);
 
   const handleSubmit = async () => {
     if (!validate()) return;
@@ -189,6 +181,7 @@ export function SignUpScreen({
               password,
               confirmPassword,
               details: careerDetails(),
+              referralCode: referralCode.trim().toUpperCase(),
             },
             true,
           );
@@ -215,6 +208,7 @@ export function SignUpScreen({
             password,
             confirmPassword,
             details: careerDetails(),
+            referralCode: referralCode.trim().toUpperCase(),
           },
           false,
         );
@@ -229,6 +223,7 @@ export function SignUpScreen({
               password,
               confirmPassword,
               details: careerDetails(),
+              referralCode: referralCode.trim().toUpperCase(),
             },
             true,
           );
@@ -337,6 +332,7 @@ export function SignUpScreen({
                     padding: 16,
                     backgroundColor: '#fff',
                   }}
+                  disabled={readingResume || isLoading}
                   onPress={async () => {
                     try {
                       const result = await DocumentPicker.getDocumentAsync({
@@ -348,6 +344,10 @@ export function SignUpScreen({
                       });
                       if (result.canceled) return;
                       const asset = result.assets[0];
+                      if (asset.size && asset.size > 10 * 1024 * 1024) {
+                        setErrorMsg('Choose a PDF or DOCX up to 10 MB.');
+                        return;
+                      }
                       setResumeName(asset.name);
                       onResumeSelected({
                         fileName: asset.name,
@@ -580,7 +580,7 @@ export function SignUpScreen({
                   <TextInput
                     ref={passwordRef}
                     style={styles.textInput}
-                    placeholder="At least 8 characters"
+                    placeholder="At least 12 characters"
                     placeholderTextColor={Colors.text.muted}
                     value={password}
                     onChangeText={(text) => {
@@ -600,6 +600,7 @@ export function SignUpScreen({
                     autoComplete="new-password"
                   />
                   <Pressable
+                    accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
                     onPress={() => setShowPassword(!showPassword)}
                     hitSlop={8}
                     style={styles.eyeButton}
@@ -611,14 +612,21 @@ export function SignUpScreen({
                     )}
                   </Pressable>
                 </View>
-                {password.length > 0 && passwordInlineError ? (
-                  <Text style={[styles.inputHint, { color: Colors.red.fg }]}>
-                    {passwordInlineError}
-                  </Text>
+                {password.length > 0 ? (
+                  <View style={{ backgroundColor: '#F7F4EC', borderColor: '#E7E0D4', borderWidth: 1, borderRadius: 14, padding: 14, gap: 10 }}>
+                    {requirements.map(({ label, met }) => {
+                      const Icon = met ? Check : X;
+                      const color = met ? '#1F6B45' : '#A33A2B';
+                      return <View key={label} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Icon size={17} color={color} weight="bold" />
+                        <Text accessibilityLabel={`${label}: ${met ? 'met' : 'not met'}`} style={[styles.inputHint, { color, fontFamily: 'GeneralSans-Medium' }]}>{label}</Text>
+                      </View>;
+                    })}
+                  </View>
                 ) : (
                   <Text style={styles.inputHint}>
                     Must be at least 12 characters with uppercase, lowercase,
-                    number & symbol.
+                    and a number. Symbols are optional.
                   </Text>
                 )}
               </View>
@@ -664,6 +672,7 @@ export function SignUpScreen({
                     autoComplete="new-password"
                   />
                   <Pressable
+                    accessibilityLabel={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
                     onPress={() => setShowConfirmPassword(!showConfirmPassword)}
                     hitSlop={8}
                     style={styles.eyeButton}
@@ -675,15 +684,25 @@ export function SignUpScreen({
                     )}
                   </Pressable>
                 </View>
-                {confirmPassword.length > 0 && confirmPassword !== password && (
-                  <Text style={[styles.inputHint, { color: Colors.red.fg }]}>
-                    Passwords do not match.
-                  </Text>
+                {confirmPassword.length > 0 && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    {confirmPassword === password ? <Check size={17} color="#1F6B45" weight="bold" /> : <X size={17} color="#A33A2B" weight="bold" />}
+                    <Text style={[styles.inputHint, { fontFamily: 'GeneralSans-Medium', color: confirmPassword === password ? '#1F6B45' : '#A33A2B' }]}>
+                      {confirmPassword === password ? 'Passwords match.' : 'Passwords do not match.'}
+                    </Text>
+                  </View>
                 )}
               </View>
             </View>
 
             {/* Submit Button */}
+            <View style={[styles.inputGroup, { marginBottom: 24 }]}>
+              <Text style={styles.inputLabel}>College referral code (optional)</Text>
+              <View style={styles.inputWrapper}>
+                <TextInput style={styles.textInput} accessibilityLabel="College referral code" value={referralCode} onChangeText={setReferralCode} maxLength={32} autoCapitalize="characters" autoCorrect={false} placeholder="Enter your college code" editable={!isLoading} />
+              </View>
+              <Text style={styles.inputHint}>This is separate from a payment discount code. You choose whether to link after verifying your email.</Text>
+            </View>
             <Pressable
               style={({ pressed }) => [
                 styles.primaryButton,
@@ -691,7 +710,7 @@ export function SignUpScreen({
                 pressed && isFormFilled && !isLoading && styles.buttonPressed,
               ]}
               onPress={handleSubmit}
-              disabled={!isFormFilled || isLoading}
+              disabled={!isFormFilled || isLoading || readingResume}
               accessibilityRole="button"
             >
               {isLoading ? (
