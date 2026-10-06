@@ -13,7 +13,6 @@ const tabs: Array<{ id: SettingsTab; label: string }> = [
   { id: "payment", label: "Payment methods" },
   { id: "subscription", label: "Subscription" },
   { id: "invoices", label: "Invoices" },
-  { id: "account", label: "Account & security" },
 ];
 
 export function SettingsTabs() {
