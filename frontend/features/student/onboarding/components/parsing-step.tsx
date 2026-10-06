@@ -25,7 +25,11 @@ interface ParsingStepProps {
   onReview: (resumeVersionId: string) => void;
   onTryAnother: () => void;
   onPaste: () => void;
-  onCancel: () => void;
+  /**
+   * Leave for an earlier resume. Only the profile's update flow has one, so
+   * the sign-up flow passes nothing and no button is shown there.
+   */
+  onCancel?: () => void;
 }
 
 const LONG_WAIT_SECONDS = 45;
@@ -276,13 +280,15 @@ export function ParsingStep({
             {readable ? "Review what we found" : "Reading…"}
           </PillButton>
         )}
-        <button
-          type="button"
-          onClick={onCancel}
-          className="cursor-pointer self-center px-3 py-1 text-[12px] font-semibold text-[#5F6B80] hover:text-[#0A1931]"
-        >
-          Cancel and return to previous resume
-        </button>
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="cursor-pointer self-center px-3 py-1 text-[12px] font-semibold text-[#5F6B80] hover:text-[#0A1931]"
+          >
+            Cancel and return to previous resume
+          </button>
+        )}
       </div>
     </div>
   );
