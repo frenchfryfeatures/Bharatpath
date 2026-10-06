@@ -24,7 +24,8 @@ Two surfaces, one module:
 from __future__ import annotations
 
 import uuid
-from typing import Annotated
+from datetime import date
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 
@@ -192,20 +193,48 @@ async def dispute_hire(
     "",
     response_model=Page[EmployerApplicationListItem],
     dependencies=[Readers, PayingEmployer],
-    summary="The organisation's applications, oldest first, for one job or all of them",
+    summary="The organisation's applications, filtered, for one job or all of them",
 )
 async def list_applications(
     request: Request,
     user: CurrentUser,
     session: DbSession,
     job_id: Annotated[uuid.UUID | None, Query()] = None,
-    stage: Annotated[ApplicationStage | None, Query()] = None,
+    stage: Annotated[
+        list[ApplicationStage] | None,
+        Query(description="Repeat for several: `?stage=VIEWED&stage=SHORTLISTED`"),
+    ] = None,
+    status_: Annotated[
+        ApplicationStatus | None,
+        Query(
+            alias="status",
+            description="ACTIVE: still in the pipeline (SUBMITTED to DECISION). "
+            "CLOSED: hired, rejected, withdrawn or expired.",
+        ),
+    ] = None,
+    q: Annotated[
+        str | None, Query(max_length=100, description="Part of the applicant's name")
+    ] = None,
+    applied_from: Annotated[
+        date | None, Query(description="Applied on or after this IST day")
+    ] = None,
+    applied_to: Annotated[
+        date | None, Query(description="Applied on or before this IST day")
+    ] = None,
+    order: Annotated[
+        Literal["oldest", "newest"], Query(description="By when they applied")
+    ] = "oldest",
     cursor: Annotated[str | None, Query(max_length=512)] = None,
     limit: Annotated[int | None, Query(ge=1, le=MAX_PAGE_SIZE)] = None,
 ) -> Page[EmployerApplicationListItem]:
     """Leave out `job_id` for every job's applications in one list -- the
     pipeline board fills from this one request. Each row carries `job_title`
     and `job_location`. Another organisation's `job_id` is `job_not_found`.
+
+    Filters combine (AND). `q` matches the applicant's profile name and never
+    finds one an integrity review is hiding. A range that ends before it
+    starts is 422 `invalid_date_range`. A cursor belongs to the filters and
+    `order` it was issued under; keep them the same while paging.
 
     Each row's `candidate` names who applied (name, band, experience,
     skills, city), or is null while an integrity review hides them. No
@@ -219,7 +248,12 @@ async def list_applications(
         session,
         ctx=user,
         job_id=job_id,
-        stage=stage,
+        stages=list(stage) if stage else None,
+        status=status_,
+        name=q,
+        applied_from=applied_from,
+        applied_to=applied_to,
+        newest_first=order == "newest",
         cursor=cursor,
         limit=limit,
         request_id=get_request_id(request),
@@ -464,8 +498,9 @@ async def shortlist_candidate(
     `candidate_not_found` (not visible, or never opened by your
     organisation), 404 `job_not_found`, 409 `shortlist_job_not_open` (not
     PUBLISHED), 409 `already_applied` (`params.application_id`), 409
-    `shortlist_declined` / `shortlist_already_accepted`, 403 `kyb_required`,
-    429 `rate_limited` (60 invitations an hour per organisation).
+    `already_hired` (`params.application_id`), 409 `shortlist_declined` /
+    `shortlist_already_accepted`, 403 `kyb_required`, 429 `rate_limited`
+    (60 invitations an hour per organisation).
     """
     entry, created = await service.shortlist_candidate(
         session,

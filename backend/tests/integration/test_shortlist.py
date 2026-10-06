@@ -27,7 +27,7 @@ from tests.integration.test_candidate_marketplace import (
     _subscribe,
 )
 from tests.integration.test_masked_search import SEARCH, _candidate, _token
-from tests.integration.test_pipeline import PIPELINE, _events
+from tests.integration.test_pipeline import PIPELINE, _events, _walk
 
 pytestmark = pytest.mark.integration
 
@@ -153,6 +153,30 @@ async def test_accepting_files_an_application_already_shortlisted(
     assert in_pipeline.status_code == 409
     assert in_pipeline.json()["code"] == "already_applied"
     assert in_pipeline.json()["params"]["application_id"] == application_id
+
+
+async def test_a_candidate_already_hired_for_the_job_is_not_invited(
+    client: Any, mint_token: Any
+) -> None:
+    employer, candidate = await _opened(client, mint_token)
+    job = await _job(client, employer)
+    await _subscribe(candidate["id"])
+    applied = await _apply(client, candidate, job)
+    assert applied.status_code == 201, applied.text
+    a = {"employer": employer, "candidate": candidate, "job": job, "id": applied.json()["id"]}
+    await _walk(client, a, "SHORTLISTED", "INTERVIEW", "DECISION")
+    proposed = await client.post(f"{PIPELINE}/{a['id']}/hire", headers=employer["headers"])
+    assert proposed.status_code == 200, proposed.text
+    confirmed = await client.post(
+        f"{APPLICATIONS}/{a['id']}/hire/confirm", headers=candidate["headers"]
+    )
+    assert confirmed.json()["stage"] == "HIRED"
+
+    invited = await _shortlist(client, employer, candidate, job)
+    assert invited.status_code == 409
+    assert invited.json()["code"] == "already_hired"
+    assert invited.json()["params"]["application_id"] == a["id"]
+    assert (await client.get(INVITATIONS, headers=candidate["headers"])).json()["items"] == []
 
 
 async def test_accepting_moves_an_application_they_already_made(

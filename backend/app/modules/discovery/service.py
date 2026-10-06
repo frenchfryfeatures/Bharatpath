@@ -535,6 +535,17 @@ async def applicant_cards(
     return cards
 
 
+async def applicants_named(
+    session: AsyncSession, *, ctx: TenantContext, name: str
+) -> list[uuid.UUID]:
+    """Candidate ids of this organisation's visible applicants whose name
+    contains `name` -- the pipeline's search box. Ids only, and not audited:
+    the page the caller then draws goes through `applicant_cards`, which is."""
+    if ctx.tenant_id is None:
+        return []
+    return await repository.applicants_named(session, tenant_id=ctx.tenant_id, name=name)
+
+
 async def open_applicant(
     session: AsyncSession,
     *,
