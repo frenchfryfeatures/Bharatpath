@@ -424,10 +424,15 @@ is where a third one would have to be argued for.
 
 ## Masked search — Day 13
 
-- **`MaskedCandidate` has no field for a name, contact or the score**, and
+- **`MaskedCandidate` has no field for contact or the score**, and
   `tests/invariants/test_masked_candidate.py` holds its exact field list.
   Widening the card is a product decision, not a refactor. Employers get the
   **band**, never the number.
+- **The card names the candidate since 2026-10-06** (product decision):
+  `full_name` from `candidate_profiles` only, never the CV's, so it is null
+  until the person gives one. It is the one identifying field allowed
+  (`ALLOWED_IDENTIFYING` in that test). Contact, the CV and the score still
+  cost a reveal, its caps and its audit row.
 - **`candidate_search_documents` is written by a trigger on `scores` and
   nothing else** (`project_candidate_search_document`); the app role has no
   INSERT/UPDATE/DELETE on it. Bands, badges and the contact filter in that
@@ -475,8 +480,10 @@ is where a third one would have to be argued for.
   candidate's transaction move no stage. **Never let a candidate UPDATE a row
   to ACCEPTED**; the guard refuses it. A DECLINED row is final for that job.
 - **Shortlisting needs a prior reveal by the same organisation**
-  (`discovery.require_shortlistable`). Drop that and the shortlist list
-  becomes a way to read names off masked cards without spending a cap.
+  (`discovery.require_shortlistable`). It was written so the shortlist
+  could not leak names off masked cards; cards carry the name since
+  2026-10-06, and what it still stops is inviting someone the organisation
+  never spent a reveal on.
 - **A candidate's `FOR UPDATE` on `employer_shortlists` sees only INVITED
   rows** (the UPDATE policy). Read unlocked first, lock only to answer, or an
   idempotent repeat reads as a 404.
@@ -558,7 +565,7 @@ SUPPORT_AGENT).
 - **`RevealedCandidate` has `score` (display) and no raw field**, and
   `full_name` from `candidate_profiles` (asked at sign-up, `PUT
 /candidate/profile/name`), else the structured form's; never guessed from a
-  CV and never on a masked card. Its field list, "no employer schema has a raw field" and "export
+  CV. The masked card carries the profile name only (2026-10-06). Its field list, "no employer schema has a raw field" and "export
   is not a feature" are invariant tests. No list endpoint may return it.
 - Discovery repository functions that do not use the CTE must be named in
   `READS_NO_CANDIDATE` (`test_discovery_suppression.py`) and may not mention a

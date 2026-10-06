@@ -396,9 +396,11 @@ async def test_the_partition_function_refuses_a_silly_range() -> None:
 
 
 # --- the name given at sign-up (blockers E13) ------------------------------------
-async def test_the_name_given_at_sign_up_is_shown_on_the_reveal_and_never_on_a_card(
+async def test_the_name_given_at_sign_up_is_shown_on_the_card_and_the_reveal(
     client: Any, mint_token: Any
 ) -> None:
+    """The card names the candidate since 2026-10-06 (product decision). Their
+    contact still leaves only through the reveal."""
     skill = _token()
     candidate = await _candidate(mint_token, skill)
     saved = await client.put(
@@ -412,10 +414,13 @@ async def test_the_name_given_at_sign_up_is_shown_on_the_reveal_and_never_on_a_c
     employer = await _employer(client, mint_token)
     cards = await client.get(SEARCH, params={"skill": skill}, headers=employer["headers"])
     assert cards.status_code == 200, cards.text
-    assert "Meera" not in cards.text
+    [card] = cards.json()["items"]
+    assert card["full_name"] == "Meera Nair"
+    assert candidate["phone"] not in cards.text
 
     revealed = await _reveal(client, employer, candidate["id"])
     assert revealed.json()["full_name"] == "Meera Nair"
+    assert revealed.json()["phone"] == candidate["phone"]
 
 
 async def test_the_sign_up_name_wins_over_the_form(client: Any, mint_token: Any) -> None:

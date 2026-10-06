@@ -170,10 +170,10 @@ async def search_candidates(
 ) -> list[Any]:
     """A page of masked search rows: stronger bands first, then by id.
 
-    **Selects nothing a card may not show.** No score, no name, no contact --
-    the search document does not hold them, and the profile is read for its
-    location only. The row is not a `MaskedCandidate` yet; the service makes it
-    one, and the schema drops whatever it cannot show.
+    **Selects nothing a card may not show.** No score and no contact -- the
+    search document does not hold them, and the profile is read for the name
+    and location only. The row is not a `MaskedCandidate` yet; the service
+    makes it one, and the schema drops whatever it cannot show.
 
     **Only the filters asked for are in the SQL.** `(:x IS NULL OR ...)` would
     be one statement for every search, and a generic plan for it can use none
@@ -227,7 +227,7 @@ async def search_candidates(
         + VISIBLE_CANDIDATES_CTE
         + """
         SELECT d.user_id, d.band, d.band_rank, d.experience_months, d.skills, d.badges,
-               p.city, p.state_code
+               p.full_name, p.city, p.state_code
           FROM visible_candidates vc
           JOIN candidate_search_documents d
             ON d.user_id = vc.user_id

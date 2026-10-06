@@ -8,8 +8,9 @@ this is the layer the invariant property tests exercise directly.
 
 **What a masked card may say** (plan.md Day 13, SRS 1.14.1, 2.9.6): a band,
 roughly how much experience, which skills, where, and which add-ons were
-completed. Never a name, a phone number, an email or the score itself. Most of
-that is kept out by the card having nowhere to put it (`schemas.MaskedCandidate`);
+completed, and since 2026-10-06 the name the candidate gave. Never a phone
+number, an email or the score itself. Most of that is kept out by the card
+having nowhere to put it (`schemas.MaskedCandidate`);
 the rules below cover the one gap a schema cannot close on its own -- free
 text that came from a CV.
 """
