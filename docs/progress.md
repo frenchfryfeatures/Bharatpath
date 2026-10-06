@@ -9,6 +9,33 @@ states. Newest entries first.
 
 ---
 
+## 2026-10-06 — the frontend builds again (7 type errors)
+
+`cd frontend && npm run build` failed on this branch. `tsc --noEmit` named
+exactly seven errors, both from commits that changed one side of a shared
+component and not the other.
+
+- **`store/shortlist/shortlist.api.ts`** typed `EmployerInvitation.candidate`
+  as `{ full_name, city, band }` while the invitation drawer also read
+  `state_code`, `experience_years` and `skills`. That block is the backend's
+  `ApplicantCard` (`applications/schemas.py`), which returns all of those plus
+  `badges`, so the type was stale rather than the UI wrong. It now mirrors
+  `ApplicantCard` exactly (`ShortlistedCandidate`, reusing `CandidateBand` /
+  `CandidateBadge`). **No contact and no score** — widening it to
+  `ApplicantProfile` would put a reveal's fields on a list row.
+- **`ParsingStep` gained a required `onCancel`** (commit `9f6a4c1`, "Update the
+  student flow") with the button *Cancel and return to previous resume*.
+  `resume-details.tsx` was wired; the sign-up flow's call site was not, so it
+  failed to compile. The prop is optional now and the button renders only when
+  a caller passes one: sign-up has no previous resume, so the label would be a
+  lie there.
+- `tsc --noEmit` and `npm run build` both exit 0 afterwards. A
+  `.next/types/validator.ts` error for `app/employer/jobs/[id]/page.js` was a
+  stale artefact of an earlier build, cleared by the rebuild; the four
+  remaining `npm run lint` errors are pre-existing, in files not touched.
+
+---
+
 ## 2026-10-06 — the CV as structured JSON, for review and preview
 
 Backend only, asked for by the backend owner: give the apps the CV as fields
