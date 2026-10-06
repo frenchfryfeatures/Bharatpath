@@ -58,9 +58,17 @@ export function ApplicationCard({
   } = application;
 
   const band =
-    candidate.exactScore === null
-      ? null
-      : getBand(candidate.exactScore);
+    candidate.band
+      ? candidate.band === "STRONG"
+        ? { label: "Strong", background: "#16845d", avatarBackground: "#eaf7f1", avatarColor: "#16845d" }
+        : candidate.band === "SOLID"
+          ? { label: "Solid", background: "#28578f", avatarBackground: "#edf3fb", avatarColor: "#28578f" }
+          : candidate.band === "DEVELOPING"
+            ? { label: "Developing", background: "#646e7c", avatarBackground: "#f0f2f5", avatarColor: "#687384" }
+            : { label: "Entry", background: "#8b6b25", avatarBackground: "#f5f1e8", avatarColor: "#8b6b25" }
+      : candidate.exactScore === null
+        ? null
+        : getBand(candidate.exactScore);
 
   return (
     <button

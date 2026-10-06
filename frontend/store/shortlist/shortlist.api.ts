@@ -23,6 +23,15 @@ export const shortlistApi = baseApi.injectEndpoints({
       query: (params) => ({ url: "/employer/shortlist", params }),
       providesTags: [{ type: "Candidate", id: "INVITATIONS" }],
     }),
+    cancelEmployerInvitation: builder.mutation<Invitation, string>({
+      query: (id) => ({ url: `/employer/shortlist/${id}/cancel`, method: "POST" }),
+      invalidatesTags: (result, error) => error ? [] : [
+        { type: "Candidate", id: "INVITATIONS" },
+        { type: "Application", id: "LIST" },
+        ...(result?.application_id ? [{ type: "Application" as const, id: result.application_id }] : []),
+        ...(result ? [{ type: "Job" as const, id: result.job_id }] : []),
+      ],
+    }),
     getStudentInvitations: builder.query<Page<Invitation>, Omit<Query, "job_id">>({
       query: (params) => ({ url: "/candidate/shortlist-invitations", params }),
       providesTags: [{ type: "Student", id: "INVITATIONS" }],
@@ -40,4 +49,4 @@ export const shortlistApi = baseApi.injectEndpoints({
     }),
   }),
 });
-export const { useLazyGetEmployerInvitationsQuery, useLazyGetStudentInvitationsQuery, useAnswerStudentInvitationMutation } = shortlistApi;
+export const { useLazyGetEmployerInvitationsQuery, useCancelEmployerInvitationMutation, useLazyGetStudentInvitationsQuery, useAnswerStudentInvitationMutation } = shortlistApi;

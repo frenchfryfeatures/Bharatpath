@@ -215,16 +215,12 @@ export function CandidateCard({
         {/* -------------------------------------------------
             CONTACT (shown once revealed)
             ------------------------------------------------- */}
-        <span className="flex flex-wrap items-center gap-x-[12px] gap-y-[2px] text-[12px] leading-[17px] text-[#4a5568]">
-          {candidate.phone || candidate.email ? (
-            <>
+        {(candidate.phone || candidate.email) && (
+          <span className="flex flex-wrap items-center gap-x-[12px] gap-y-[2px] text-[12px] leading-[17px] text-[#4a5568]">
             {candidate.phone && <span>{candidate.phone}</span>}
             {candidate.email && <span>{candidate.email}</span>}
-            </>
-          ) : (
-            <span className="text-[#8a92a0]">Contact details not provided</span>
-          )}
-        </span>
+          </span>
+        )}
 
         {/* -------------------------------------------------
             LOCATION / EXPERIENCE / SALARY

@@ -3,6 +3,7 @@
 import {
   ArrowLeft,
   Copy,
+  Loader2,
   LockKeyhole,
   UsersRound,
 } from "lucide-react";
@@ -119,6 +120,10 @@ export function JobCreatePage({
     hasHydrated && values.minScore === debouncedMinScore
       ? thresholdPreviewData
       : undefined;
+  const isThresholdPreviewLoading =
+    !thresholdPreview &&
+    isFormEditable &&
+    hasThreshold(values.minScore);
   const thresholdSet = hasThreshold(values.minScore);
   const [createJob, { isLoading: isCreating }] = useCreateEmployerJobMutation();
   const [updateJob, { isLoading: isUpdating }] = useUpdateEmployerJobMutation();
@@ -470,18 +475,25 @@ export function JobCreatePage({
             </FieldShell>
 
             {isFormEditable && thresholdSet ? (
-              <div className="flex items-center gap-2.5 rounded-[10px] bg-[#edf2fa] px-3.5 py-3">
+              <div className="flex min-h-12 items-center gap-2.5 rounded-[10px] bg-[#edf2fa] px-3.5 py-3" role="status" aria-live="polite">
                 <UsersRound
                   size={17}
                   strokeWidth={2}
                   className="shrink-0 text-[#28578f]"
                 />
 
-                <span className="text-[13px] font-medium leading-[17px] text-[#28578f]">
-                  {`${thresholdPreview?.fewer_than_ten
-                        ? "Fewer than 10 candidates"
-                        : `${thresholdPreview?.approximate_count ?? "-"} candidates`} in your pool currently meet this bar`}
-                </span>
+                {isThresholdPreviewLoading ? (
+                  <span className="flex items-center gap-2 text-[13px] font-medium leading-[17px] text-[#28578f]">
+                    <Loader2 size={15} className="shrink-0 animate-spin" aria-hidden="true" />
+                    Fetching candidates that meet this score…
+                  </span>
+                ) : (
+                  <span className="text-[13px] font-medium leading-[17px] text-[#28578f]">
+                    {`${thresholdPreview?.fewer_than_ten
+                          ? "Fewer than 10 candidates"
+                          : `${thresholdPreview?.approximate_count ?? 0} candidates`} in your pool currently meet this bar`}
+                  </span>
+                )}
               </div>
             ) : null}
           </div>

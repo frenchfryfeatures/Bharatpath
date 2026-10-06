@@ -5,6 +5,7 @@ import { CancelSubscriptionDialog } from "@/components/billing/cancel-subscripti
 
 import { DiscountCodeField } from "@/components/billing/discount-code-field";
 import { SimulatedPaymentDialog } from "@/components/billing/simulated-payment-dialog";
+import { Skeleton } from "@/components/common/loading";
 import { StudentPage } from "@/features/student/shell";
 import { getApiErrorMessage } from "@/lib/api/error-message";
 import { isStubPaymentUrl } from "@/store/api/payment.api";
@@ -40,7 +41,7 @@ export default function CandidateSubscriptionPage() {
   return <StudentPage><div className="flex flex-col gap-5">
     <section className="rounded-[20px] border border-[#E7E0D4] bg-white p-4 sm:p-5">
       <h2 className="text-[16px] font-bold text-[#0A1931]">Current subscription</h2>
-      {subscriptionLoading ? <p className="mt-3 text-sm text-[#5F6B80]">Loading…</p> : <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+      {subscriptionLoading ? <div role="status" aria-label="Loading subscription" className="mt-4 flex flex-wrap items-center gap-3"><Skeleton width={86} height={18} radius={6} /><Skeleton width={102} height={16} radius={6} /><Skeleton width={120} height={16} radius={6} /></div> : <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
         <strong className="text-[#0A1931]">{subscription?.state ?? "NONE"}</strong>
         <span className={subscription?.has_access ? "font-semibold text-[#23805d]" : "text-[#5F6B80]"}>{subscription?.has_access ? "Access active" : "No active paid access"}</span>
         {subscription?.current_period_end ? <span className="text-[#5F6B80]">Until {new Date(subscription.current_period_end).toLocaleDateString("en-IN")}</span> : null}
@@ -52,7 +53,7 @@ export default function CandidateSubscriptionPage() {
 
     {error ? <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
 
-    {plansLoading ? <p className="text-sm text-[#5F6B80]">Loading plans…</p> : <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    {plansLoading ? <div role="status" aria-label="Loading subscription plans" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 4 }).map((_, index) => <section key={index} className="rounded-[20px] border border-[#E7E0D4] bg-white p-4 sm:p-5"><Skeleton width={92} height={14} radius={6} /><Skeleton className="mt-4" width={130} height={34} radius={8} /><Skeleton className="mt-2" width={76} height={16} radius={6} /><Skeleton className="mt-5" width="100%" height={42} radius={9} /></section>)}</div> : <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {plans.map((plan) => <section key={plan.code} className="rounded-[20px] border border-[#E7E0D4] bg-white p-4 sm:p-5">
         <p className="text-xs font-semibold uppercase text-[#5F6B80]">{plan.period}</p>
         <p className="mt-2 text-3xl font-bold text-[#0A1931]">{money(plan.price_minor)}</p>

@@ -21,7 +21,6 @@ import { useApplicationsPage } from "../hooks/use-applications-page";
 export function ApplicationsPageContent() {
   const {
     refreshVersion,
-    handleRefresh,
     stageErrorToast,
     dismissStageError,
     applications,
@@ -52,6 +51,7 @@ export function ApplicationsPageContent() {
     handleMoveToColumn,
     handleMeetingLinkChange,
     handleConfirmHire,
+    handleRejectApplication,
   } = useApplicationsPage();
   const { confirm, dialog } = useConfirmDialog();
 
@@ -83,6 +83,16 @@ export function ApplicationsPageContent() {
         "This confirms the hire from your side. The candidate then confirms separately before it counts as a billable hire.",
       confirmLabel: "Mark as hired",
       onConfirm: handleConfirmHire,
+    });
+
+  const askReject = () =>
+    confirm({
+      title: "Reject this application?",
+      description:
+        "The candidate will be told their application was not taken forward. This cannot be undone.",
+      confirmLabel: "Reject application",
+      tone: "danger",
+      onConfirm: handleRejectApplication,
     });
 
   // When a specific job is in focus (a stage number was clicked on the jobs
@@ -129,7 +139,6 @@ export function ApplicationsPageContent() {
           pb-4
         "
       >
-        <button type="button" onClick={handleRefresh} disabled={isLoading} className="mb-3 rounded-lg border border-[#d9dee7] bg-white px-3 py-2 text-xs font-semibold text-[#51449a]">Refresh applications & invitations</button>
         <ApplicationFilter
           value={jobFilter}
           total={applications.length}
@@ -201,6 +210,7 @@ export function ApplicationsPageContent() {
           handleMeetingLinkChange
         }
         onConfirmHire={askConfirmHire}
+        onReject={askReject}
       />
 
       {dialog}
