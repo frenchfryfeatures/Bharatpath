@@ -127,6 +127,7 @@ export function InvitesPage() {
         {!pages.isLoading && pages.hasMore ? <div className="flex justify-center"><PillButton variant="secondary" disabled={pages.isLoadingMore} onClick={pages.loadMore} className="px-5 py-2.5 text-[13px]">{pages.isLoadingMore ? "Loading..." : "Load more invites"}</PillButton></div> : null}
         <Modal
           open={pendingAction !== null}
+          variant="student"
           title={pendingAction?.action === "accept" ? "Accept this invitation?" : "Decline this invitation?"}
           description={pendingAction?.action === "accept"
             ? "This will add the application to your Shortlisted board."
@@ -136,11 +137,11 @@ export function InvitesPage() {
           panelClassName="max-w-[420px]"
         >
           <div className="flex justify-end gap-2">
-            <PillButton variant="secondary" disabled={actionState.isLoading} onClick={() => setPendingAction(null)} className="!px-3.5 !py-2 !text-[12px]">Cancel</PillButton>
+            <PillButton variant="secondary" disabled={actionState.isLoading} onClick={() => setPendingAction(null)} className="!px-3.5 !py-2 !text-[12px] lg:!text-[13px]">Cancel</PillButton>
             <PillButton
               disabled={actionState.isLoading || (pendingAction?.action === "accept" && pages.items.find((item) => item.id === pendingAction.id)?.job_title === null)}
               onClick={() => { if (pendingAction) void respond(pendingAction.id, pendingAction.action); }}
-              className={`!px-3.5 !py-2 !text-[12px] ${pendingAction?.action === "decline" ? "!bg-[#993A22] enabled:hover:!bg-[#7F2F1D]" : ""}`}
+              className={`!px-3.5 !py-2 !text-[12px] lg:!text-[13px] ${pendingAction?.action === "decline" ? "!bg-[#993A22] enabled:hover:!bg-[#7F2F1D]" : ""}`}
             >
               {actionState.isLoading ? (pendingAction?.action === "accept" ? "Accepting..." : "Declining...") : (pendingAction?.action === "accept" ? "Accept invitation" : "Confirm decline")}
             </PillButton>

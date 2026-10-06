@@ -200,6 +200,7 @@ export function DataRights() {
       </div>
       <Modal
         open={deletionOpen}
+        variant="student"
         title="Request account deletion?"
         description="This requests deletion of your account and personal data. You can withdraw your request before the listed erasure time."
         onClose={() => setDeletionOpen(false)}

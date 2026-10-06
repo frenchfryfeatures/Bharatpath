@@ -1,6 +1,5 @@
-﻿"use client";
+"use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CareerOverview } from "./career-overview";
 import { useAppSelector } from "@/store/hooks";
@@ -14,7 +13,6 @@ import {
   Languages,
   MapPin,
   Mic2,
-  Pencil,
   type LucideIcon,
 } from "lucide-react";
 
@@ -24,23 +22,17 @@ import {
   useGetStudentProfileQuery,
   useGetStudentProfileViewsQuery,
   useGetStudentScoreQuery,
-  useUpdateStudentLocationMutation,
-  useUpdateStudentNameMutation,
 } from "@/store/student";
-import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
 import { formatDateTime } from "@/features/student/formatters";
-import type { StudentProfile as StudentProfileData } from "@/features/student/types";
 import {
   interactiveCardClass,
   NoteStrip,
-  PillButton,
   StudentCard,
   StudentErrorState,
 } from "@/features/student/components";
 import { Skeleton } from "@/components/common/loading";
 import { StudentProfileSkeleton } from "@/features/student/loading";
 import { StudentPage } from "@/features/student/shell";
-import { Modal } from "@/components/ui/modal";
 
 export function StudentProfile() {
   const router = useRouter();
@@ -91,11 +83,6 @@ export function StudentProfile() {
                 onClick={() => router.push("/student/courses")}
               />
             </div>
-          }
-          identityDetails={
-            profile.data ? (
-              <ProfileForm profile={profile.data} embedded />
-            ) : undefined
           }
         >
           <div className="flex flex-col gap-4">
@@ -317,179 +304,6 @@ function ProfileViewsCard() {
         </p>
       )}
     </StudentCard>
-  );
-}
-
-function ProfileForm({
-  profile,
-  embedded = false,
-}: {
-  profile: StudentProfileData;
-  embedded?: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const [updateName, nameState] = useUpdateStudentNameMutation();
-  const [updateLocation, locationState] = useUpdateStudentLocationMutation();
-  const [fullName, setFullName] = useState(profile.fullName ?? "");
-  const [city, setCity] = useState(profile.city ?? "");
-  const [stateCode, setStateCode] = useState(profile.stateCode ?? "");
-  const profileError = nameState.error ?? locationState.error;
-  const Surface = embedded ? "div" : StudentCard;
-
-  const saveProfile = async () => {
-    try {
-      let saved = false;
-      if (fullName.trim() !== (profile.fullName ?? "")) {
-        await updateName(fullName.trim()).unwrap();
-        saved = true;
-      }
-      if (
-        city.trim() !== (profile.city ?? "") ||
-        stateCode.trim().toUpperCase() !== (profile.stateCode ?? "")
-      ) {
-        await updateLocation({
-          city: city.trim() || null,
-          stateCode: stateCode.trim().toUpperCase() || null,
-        }).unwrap();
-        saved = true;
-      }
-      if (saved) {
-        showSuccessFeedback("Profile updated.");
-      }
-      setOpen(false);
-    } catch {
-      // The mutation error is rendered below the form.
-    }
-  };
-
-  return (
-    <>
-      <Surface className="flex flex-col gap-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-[15px] font-semibold text-[#0A1931]">
-              {embedded ? "Name and location" : "Personal details"}
-            </h2>
-            <p className="mt-0.5 text-[12px] text-[#5F6B80]">
-              Your name and location used for job discovery
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            aria-label="Edit personal details"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-[#E7E0D4] text-[#5F4DB2] transition-colors hover:bg-[#F5F1FA] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30"
-          >
-            <Pencil size={16} aria-hidden="true" />
-          </button>
-        </div>
-        <dl className="grid gap-3 border-t border-[#F0EBDF] pt-3 sm:grid-cols-2">
-          <div>
-            <dt className="text-[11px] font-medium text-[#7B8495]">
-              Full name
-            </dt>
-            <dd className="mt-1 truncate text-[14px] font-medium text-[#0A1931]">
-              {profile.fullName || "Add your name"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-[11px] font-medium text-[#7B8495]">Location</dt>
-            <dd className="mt-1 truncate text-[14px] font-medium text-[#0A1931]">
-              {[profile.city, profile.stateCode].filter(Boolean).join(", ") ||
-                "Add your city and state"}
-            </dd>
-          </div>
-        </dl>
-      </Surface>
-      <Modal
-        open={open}
-        title="Edit personal details"
-        description="Keep your profile details up to date. Only your city and state are used for job discovery."
-        onClose={() => setOpen(false)}
-        closeDisabled={nameState.isLoading || locationState.isLoading}
-      >
-        <div className="flex flex-col gap-4">
-          <Field
-            label="Full name"
-            value={fullName}
-            onChange={setFullName}
-            placeholder="Your full name"
-          />
-          <div className="grid grid-cols-[1fr_7rem] gap-3">
-            <Field
-              label="City"
-              value={city}
-              onChange={setCity}
-              placeholder="City"
-            />
-            <Field
-              label="State"
-              value={stateCode}
-              onChange={setStateCode}
-              placeholder="MH"
-              maxLength={2}
-            />
-          </div>
-          {profileError ? (
-            <StudentErrorState
-              variant="inline"
-              error={profileError}
-              fallback="Could not save your profile."
-            />
-          ) : null}
-          <div className="flex gap-2 pt-1">
-            <PillButton
-              variant="secondary"
-              className="flex-1"
-              disabled={nameState.isLoading || locationState.isLoading}
-              onClick={() => setOpen(false)}
-            >
-              Cancel
-            </PillButton>
-            <PillButton
-              className="flex-1"
-              disabled={
-                nameState.isLoading ||
-                locationState.isLoading ||
-                !fullName.trim()
-              }
-              onClick={() => void saveProfile()}
-            >
-              {nameState.isLoading || locationState.isLoading
-                ? "Saving…"
-                : "Save changes"}
-            </PillButton>
-          </div>
-        </div>
-      </Modal>
-    </>
-  );
-}
-
-function Field({
-  label,
-  value,
-  onChange,
-  placeholder,
-  maxLength,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-  maxLength?: number;
-}) {
-  return (
-    <label className="flex flex-col gap-1.5 text-[12px] font-semibold text-[#3A4761]">
-      {label}
-      <input
-        value={value}
-        maxLength={maxLength}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        className="rounded-xl border border-[#E7E0D4] bg-white px-3 py-2.5 text-[14px] font-normal text-[#0A1931] outline-none focus:border-[#5F4DB2]"
-      />
-    </label>
   );
 }
 

@@ -44,19 +44,55 @@ def context(role="CANDIDATE", tenant_id=None):
 
 def test_fresher_does_not_need_employment_salary_preferences_or_gender():
     assert missing_required(fresher()) == []
+    assert missing_required(fresher().model_copy(update={"key_skills": []})) == []
 
 
-def test_experienced_candidate_needs_dates_and_nonzero_experience():
+def test_experienced_candidate_without_current_job_needs_only_experience_and_skills():
     details = fresher().model_copy(
-        update={"work_status": "EXPERIENCED", "currently_employed": "NO"}
+        update={"work_status": "EXPERIENCED", "currently_employed": "NO", "key_skills": []}
     )
-    assert {
-        "company_name",
-        "job_title",
-        "employment_start",
-        "employment_end",
-        "experience_years",
-    } <= set(missing_required(details))
+    assert missing_required(details) == ["experience_years"]
+    assert missing_required(details.model_copy(update={"experience_months": 1})) == []
+
+
+def test_current_job_requires_company_title_and_start_but_not_end():
+    details = fresher().model_copy(
+        update={
+            "work_status": "EXPERIENCED",
+            "currently_employed": "YES",
+            "experience_years": 2,
+            "key_skills": [],
+        }
+    )
+    assert set(missing_required(details)) == {"company_name", "job_title", "employment_start"}
+
+
+def test_inapplicable_employment_values_are_discarded_before_validation():
+    details = CareerDetails.model_validate(
+        {
+            "work_status": "EXPERIENCED",
+            "currently_employed": "NO",
+            "experience_years": 2,
+            "experience_months": 6,
+            "key_skills": ["Python", "SQL"],
+            "company_name": "Old employer",
+            "job_title": "Old title",
+            "employment_start": "not a month",
+            "employment_end": "not a month",
+            "annual_salary": -1,
+            "notice_period": "invalid",
+            "job_role": "Old role",
+        }
+    )
+    assert all(getattr(details, key) == value for key, value in {
+        "company_name": "", "job_title": "", "employment_start": "",
+        "employment_end": "", "annual_salary": None, "notice_period": "", "job_role": "",
+    }.items())
+
+
+def test_current_job_discards_employment_end():
+    details = CareerDetails(currently_employed="YES", employment_end="invalid")
+    assert details.employment_end == ""
 
 
 @pytest.mark.parametrize(
@@ -64,6 +100,10 @@ def test_experienced_candidate_needs_dates_and_nonzero_experience():
     [
         {"phone": "9876543210"},
         {"experience_months": 12},
+        {"experience_years": 61},
+        {"experience_years": -1},
+        {"experience_months": 1.5},
+        {"key_skills": ["Python"] * 101},
         {"annual_salary": -1},
         {"employment_start": "2025-13"},
         {"employment_start": "2025-01", "employment_end": "2024-12"},
@@ -89,6 +129,7 @@ def test_both_clients_receive_all_fields_once():
     assert {field["key"] for field in fields} == CareerDetails.model_fields.keys()
     assert len(fields) == len(CareerDetails.model_fields)
     assert not next(field for field in fields if field["key"] == "gender")["required"]
+    assert not next(field for field in fields if field["key"] == "key_skills")["required"]
 
 
 def test_existing_location_is_used_before_resume_prefill():
@@ -120,6 +161,50 @@ async def test_incomplete_completion_is_rejected_before_writing(monkeypatch):
     assert "phone" in failure.value.params["fields"]
     assert "full_name" in failure.value.params["fields"]
     write.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_unemployed_experienced_candidate_completes_without_job_dates(monkeypatch):
+    ctx = context()
+    row = SimpleNamespace(
+        career={}, full_name="Kavya Iyer", city=None, updated_at=datetime.now(UTC)
+    )
+    monkeypatch.setattr(career_service.repository, "get_profile", AsyncMock(return_value=row))
+    version_id = uuid.uuid4()
+    create_version = AsyncMock(return_value=SimpleNamespace(id=version_id))
+    monkeypatch.setattr(career_service.resume_service, "create_manual_version", create_version)
+    monkeypatch.setattr(
+        career_service.resume_service,
+        "get_version_for_profile",
+        AsyncMock(return_value=SimpleNamespace(resume_file_id=None, parsed={})),
+    )
+    monkeypatch.setattr(
+        career_service.resume_service,
+        "edit_version",
+        AsyncMock(return_value=SimpleNamespace(id=uuid.uuid4())),
+    )
+
+    async def write(session, *, user_id, career, city):
+        row.career = career
+        return row
+
+    monkeypatch.setattr(career_service.repository, "set_career", write)
+    details = CareerDetails.model_validate({
+        **fresher().model_dump(),
+        "work_status": "EXPERIENCED",
+        "currently_employed": "NO",
+        "experience_years": 2,
+        "experience_months": 6,
+        "key_skills": [],
+    })
+    result = await career_service.save_details(
+        AsyncMock(), ctx=ctx, payload=CareerSaveRequest(details=details, complete=True)
+    )
+    assert result.completed
+    assert create_version.call_args.kwargs["payload"].experience == []
+    assert create_version.call_args.kwargs["payload"].skills == []
+    assert row.career["details"]["company_name"] == ""
+    assert row.career["details"]["employment_start"] == ""
 
 
 @pytest.mark.asyncio

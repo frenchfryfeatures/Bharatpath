@@ -49,7 +49,7 @@ export default function CandidateSubscriptionPage() {
       </div>}
       {subscription?.cancel_at ? <p role="status" className="mt-3 text-sm text-[#5F6B80]">Renewal cancelled. Access continues until {new Date(subscription.cancel_at).toLocaleDateString("en-IN")}.</p> : null}
     </section>
-    <CancelSubscriptionDialog open={cancelOpen} planCode={subscription?.plan_code} periodEnd={subscription?.current_period_end} onCancel={() => cancel().unwrap()} onClose={() => setCancelOpen(false)} />
+    <CancelSubscriptionDialog open={cancelOpen} student planCode={subscription?.plan_code} periodEnd={subscription?.current_period_end} onCancel={() => cancel().unwrap()} onClose={() => setCancelOpen(false)} />
 
     {error ? <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
 

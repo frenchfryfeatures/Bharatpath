@@ -364,7 +364,7 @@ export function AppSelect({
                   ref={menuRef}
                   role="listbox"
                   style={{ ...menuPosition, position: "fixed" }}
-                  className={`z-[80] min-w-[140px] overflow-hidden rounded-[10px] border border-[#e1e5ea] bg-white p-1 shadow-[0_8px_24px_rgba(19,26,38,0.10)] ${menuClassName}`}
+                  className={`z-[120] min-w-[140px] overflow-hidden rounded-[10px] border border-[#e1e5ea] bg-white p-1 shadow-[0_8px_24px_rgba(19,26,38,0.10)] ${menuClassName}`}
                 >
                   {menuContents}
                 </div>,
@@ -375,7 +375,7 @@ export function AppSelect({
               <div
                 ref={menuRef}
                 role="listbox"
-                className={`absolute right-0 ${inlinePlacement === "top" ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+6px)]"} z-[80] w-full min-w-[140px] overflow-hidden rounded-[10px] border border-[#e1e5ea] bg-white p-1 shadow-[0_8px_24px_rgba(19,26,38,0.10)] ${menuClassName}`}
+                className={`absolute right-0 ${inlinePlacement === "top" ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+6px)]"} z-[120] w-full min-w-[140px] overflow-hidden rounded-[10px] border border-[#e1e5ea] bg-white p-1 shadow-[0_8px_24px_rgba(19,26,38,0.10)] ${menuClassName}`}
               >
                 {menuContents}
               </div>

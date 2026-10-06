@@ -12,6 +12,7 @@ export interface ModalProps {
   onClose: () => void;
   closeDisabled?: boolean;
   panelClassName?: string;
+  variant?: "default" | "student";
 }
 
 export function Modal({
@@ -22,6 +23,7 @@ export function Modal({
   onClose,
   closeDisabled = false,
   panelClassName = "",
+  variant = "default",
 }: Readonly<ModalProps>) {
   const titleId = useId();
   const descriptionId = useId();
@@ -63,20 +65,20 @@ export function Modal({
       className="fixed inset-0 z-100 m-0 flex h-screen w-screen max-w-none items-center justify-center bg-[#151b2b]/45 p-4"
     >
       <section
-        className={`max-h-[90vh] w-full overflow-y-auto overscroll-contain rounded-[14px] border border-[#e7e9ee] bg-white p-5 shadow-[0_20px_60px_rgba(15,23,42,0.18)] ${panelClassName || "max-w-[560px]"}`}
+        className={`max-h-[90vh] w-full overflow-y-auto overscroll-contain rounded-[14px] border border-[#e7e9ee] bg-white p-5 shadow-[0_20px_60px_rgba(15,23,42,0.18)] ${variant === "student" ? "font-sans text-[13px] leading-5 lg:text-[14px]" : ""} ${panelClassName || "max-w-[560px]"}`}
       >
         <header className="flex items-start justify-between gap-4">
           <div>
             <h2
               id={titleId}
-              className="text-[16px] font-semibold leading-5 text-[#151b2b]"
+              className={`${variant === "student" ? "text-[16px] leading-6 lg:text-[18px]" : "text-[16px] leading-5"} font-semibold text-[#151b2b]`}
             >
               {title}
             </h2>
             {description ? (
               <p
                 id={descriptionId}
-                className="mt-1.5 text-[12px] leading-[17px] text-[#687182]"
+                className={`mt-1.5 text-[#687182] ${variant === "student" ? "text-[13px] leading-5 lg:text-[14px]" : "text-[12px] leading-[17px]"}`}
               >
                 {description}
               </p>
