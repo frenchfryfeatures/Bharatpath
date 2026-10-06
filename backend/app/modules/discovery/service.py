@@ -238,6 +238,7 @@ def _after(cursor: str | None) -> tuple[int, uuid.UUID] | None:
 def _card(row: Any) -> MaskedCandidate:
     return MaskedCandidate(
         candidate_id=row.user_id,
+        full_name=row.full_name,
         band=row.band,
         experience_years=experience_years(int(row.experience_months)),
         skills=list(row.skills),

@@ -274,7 +274,7 @@ Masked search. The reveal route is mounted here too but lives in the
 
 | Method | Path | Auth | Body/Params | Response | Notes |
 |---|---|---|---|---|
-| GET | `/employer/discovery/candidates` | OWNER/RECRUITER + active subscription | `band[], skill[] (all must match), badge[], min_experience_years, state, city, q, cursor, limit` | `Page[MaskedCandidate]` | No name/phone/email/score on the card, ever — only band. Built entirely on `VISIBLE_CANDIDATES_CTE`, so a suppressed candidate never appears even though their search document still exists |
+| GET | `/employer/discovery/candidates` | OWNER/RECRUITER + active subscription | `band[], skill[] (all must match), badge[], min_experience_years, state, city, q, cursor, limit` | `Page[MaskedCandidate]` | `full_name` (since 2026-10-06; the name the candidate gave, else null, never from the CV). No phone/email/score on the card, ever — only band. Built entirely on `VISIBLE_CANDIDATES_CTE`, so a suppressed candidate never appears even though their search document still exists |
 
 ## billing — `/billing`
 
@@ -565,7 +565,7 @@ POST /employer/jobs/{id}/publish             (needs approved KYB — 403 kyb_req
 ### 4. Employer discovery → reveal
 
 ```
-GET /employer/discovery/candidates                       (masked search, band only)
+GET /employer/discovery/candidates                       (masked search: name, band, no contact)
 GET /employer/discovery/candidates/{candidate_id}         (= candidate module's reveal route)
 ```
 The reveal needs `require_active_access_window` (a live subscription check,

@@ -1,4 +1,8 @@
-"""plan.md Day 13: the masked card cannot hold a name, a phone, an email or the score.
+"""plan.md Day 13: the masked card cannot hold a phone, an email or the score.
+
+It held no name either until 2026-10-06, when the product decision was to
+show the candidate's name on search cards (`full_name`). That one field is
+named below, and nothing else that identifies may join it.
 
 "Structurally incapable", not "not populated". A card that merely leaves a
 field empty is one careless line away from filling it; a card with no field is
@@ -32,8 +36,21 @@ MIGRATION = ROOT / "alembic" / "versions" / "0001_baseline_schema.py"
 #: Widening this is a product decision about what every paying employer sees
 #: of every candidate before a reveal. It belongs in review, not in a refactor.
 CARD_FIELDS = frozenset(
-    {"candidate_id", "band", "experience_years", "skills", "badges", "city", "state_code"}
+    {
+        "candidate_id",
+        "full_name",
+        "band",
+        "experience_years",
+        "skills",
+        "badges",
+        "city",
+        "state_code",
+    }
 )
+
+#: The one identifying field a card may carry (2026-10-06). A second one is
+#: a product decision too, made here and not by a refactor.
+ALLOWED_IDENTIFYING = frozenset({"full_name"})
 
 #: Fragments no card field may be named with.
 IDENTIFYING = (
@@ -67,11 +84,13 @@ def test_the_card_carries_exactly_the_agreed_fields() -> None:
 
 
 def test_no_card_field_is_named_for_identity_or_the_score() -> None:
-    for name in MaskedCandidate.model_fields:
+    for name in set(MaskedCandidate.model_fields) - ALLOWED_IDENTIFYING:
         assert not [f for f in IDENTIFYING if f in name], name
 
 
-@pytest.mark.parametrize("smuggled", ["full_name", "phone", "email", "score", "raw_value"])
+@pytest.mark.parametrize(
+    "smuggled", ["phone", "email", "contact", "score", "raw_value", "display_name"]
+)
 def test_the_card_refuses_a_field_it_does_not_declare(smuggled: str) -> None:
     with pytest.raises(ValidationError):
         _card(**{smuggled: "x"})

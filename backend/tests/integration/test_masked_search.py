@@ -42,7 +42,16 @@ pytestmark = pytest.mark.integration
 SEARCH = f"{API}/employer/discovery/candidates"
 PROFILE = f"{API}/candidate/profile"
 APP_URL = os.getenv("DATABASE_URL", "")
-CARD_FIELDS = {"candidate_id", "band", "experience_years", "skills", "badges", "city", "state_code"}
+CARD_FIELDS = {
+    "candidate_id",
+    "full_name",
+    "band",
+    "experience_years",
+    "skills",
+    "badges",
+    "city",
+    "state_code",
+}
 ROLE = EXTRACTED["roles"][0]
 PHONE_IN_CV = "+91 98765 43210"
 
@@ -190,10 +199,30 @@ async def test_a_visible_candidate_comes_back_as_a_masked_card(
     assert {"SAP", token} <= set(card["skills"])
     assert card["badges"] == []
 
-    # Nothing about who they are, and not the number.
+    # No contact and not the number. No name either: this candidate gave
+    # none, and the one in their CV is never used.
+    assert card["full_name"] is None
     assert candidate["phone"] not in response.text
     assert "Kavya" not in response.text
     assert candidate["raw"] not in card.values()
+
+
+async def test_the_card_names_the_candidate_by_the_name_they_gave(
+    client: Any, mint_token: Any
+) -> None:
+    token = _token()
+    candidate = await _candidate(mint_token, token)
+    employer = await _employer(client, mint_token)
+    named = await client.put(
+        f"{PROFILE}/name", headers=candidate["headers"], json={"full_name": " Meera  Nair "}
+    )
+    assert named.status_code == 200, named.text
+
+    response = await _search(client, employer, skill=token)
+    assert response.status_code == 200, response.text
+    [card] = response.json()["items"]
+    assert card["full_name"] == "Meera Nair"
+    assert candidate["phone"] not in response.text
 
 
 async def test_suppressed_and_unchecked_candidates_are_never_searched(
