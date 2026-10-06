@@ -24,6 +24,7 @@ interface ParsingStepProps {
   onRetry?: () => void;
   onReview: (resumeVersionId: string) => void;
   onTryAnother: () => void;
+  onPaste: () => void;
   /**
    * Leave for an earlier resume. Only the profile's update flow has one, so
    * the sign-up flow passes nothing and no button is shown there.

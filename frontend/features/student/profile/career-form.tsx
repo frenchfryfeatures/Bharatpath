@@ -3,6 +3,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, Mail, Phone, Plus, User, X } from "lucide-react";
 import { StudentBackButton } from "@/features/student/components/student-back-button";
 import { AppSelect } from "@/components/ui/app-select";
+import { Spinner } from "@/components/common/loading";
 import {
   useGetStudentProfileQuery,
   useUpdateStudentNameMutation,

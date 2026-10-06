@@ -84,13 +84,6 @@ const initialState: EmployerSettingsState = {
     },
   ],
 
-  account: {
-    fullName: "Sterling Diagnostics Owner",
-    phone: "+91 98765 43210",
-    workEmail: "",
-    twoFactorEnabled: true,
-  },
-
   inviteModalOpen: false,
   paymentModalOpen: false,
   checkoutModalOpen: false,
@@ -136,21 +129,6 @@ const settingsSlice = createSlice({
 
     saveCompanyProfile(state) {
       state.toast = "Company profile saved.";
-    },
-
-    updateAccountField(
-      state,
-      action: PayloadAction<{
-        field: keyof EmployerSettingsState["account"];
-        value: string | boolean;
-      }>,
-    ) {
-      const { field, value } = action.payload;
-      if (field === "twoFactorEnabled") {
-        state.account.twoFactorEnabled = Boolean(value);
-      } else if (typeof value === "string") {
-        state.account[field] = value;
-      }
     },
 
     openInviteModal(state) {
@@ -311,7 +289,6 @@ export const {
   setActiveTab,
   updateCompanyField,
   saveCompanyProfile,
-  updateAccountField,
   openInviteModal,
   closeInviteModal,
   inviteMember,

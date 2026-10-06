@@ -19,7 +19,6 @@ import { TeamTab } from "./team-tab";
 import { PaymentTab } from "./payment-tab";
 import { SubscriptionTab } from "./subscription-tab";
 import { InvoicesTab } from "./invoices-tab";
-import { AccountTab } from "./account-tab";
 import { InviteMemberModal } from "./invite-member-modal";
 import { AddPaymentMethodModal } from "./add-payment-method-modal";
 import { BuyCreditsModal } from "./buy-credits-modal";
@@ -53,8 +52,6 @@ export function EmployerSettingsPage() {
         return <SubscriptionTab />;
       case "invoices":
         return <InvoicesTab />;
-      case "account":
-        return <AccountTab />;
       default:
         return <CompanyTab />;
     }

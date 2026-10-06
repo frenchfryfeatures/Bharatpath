@@ -29,8 +29,6 @@ export const selectSelectedCreditPack = (state: RootState) =>
 export const selectInvoices = (state: RootState) =>
   state.employerSettings.invoices;
 
-export const selectAccountProfile = (state: RootState) =>
-  state.employerSettings.account;
 
 export const selectTotalSpent = (state: RootState) =>
   state.employerSettings.invoices.reduce(

@@ -3,8 +3,7 @@ export type SettingsTab =
   | "team"
   | "payment"
   | "subscription"
-  | "invoices"
-  | "account";
+  | "invoices";
 
 export type TeamRole = "Owner" | "Recruiter" | "View only";
 export type TeamStatus = "Active" | "Invited";
@@ -88,13 +87,6 @@ export interface Invoice {
   status: "Paid" | "Pending" | "Failed";
 }
 
-export interface AccountProfile {
-  fullName: string;
-  phone: string;
-  workEmail: string;
-  twoFactorEnabled: boolean;
-}
-
 export interface EmployerSettingsState {
   activeTab: SettingsTab;
   company: CompanyProfile;
@@ -104,7 +96,6 @@ export interface EmployerSettingsState {
   creditPacks: CreditPack[];
   selectedCreditPackId: string | null;
   invoices: Invoice[];
-  account: AccountProfile;
   inviteModalOpen: boolean;
   paymentModalOpen: boolean;
   checkoutModalOpen: boolean;
