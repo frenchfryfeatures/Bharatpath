@@ -298,7 +298,7 @@ export function PortalHeader({
         </div>
 
         {/* ==========================================
-            DEMO STATE — temporarily disabled (kept for later)
+            DEMO STATE - temporarily disabled (kept for later)
             ========================================== */}
 
         {/* {!isAdmin && <button
@@ -390,12 +390,12 @@ export function PortalHeader({
           <button
             type="button"
             aria-label={
-              stat.warning ? `${stat.label} — open billing` : "Seats used — open billing"
+              stat.warning ? `${stat.label} - open billing` : "Seats used - open billing"
             }
             title={
               stat.warning
-                ? `${stat.label} — open Seats & payment to buy a plan`
-                : `${stat.label} — open Seats & payment to add more before you run out`
+                ? `${stat.label} - open Seats & payment to buy a plan`
+                : `${stat.label} - open Seats & payment to add more before you run out`
             }
             onClick={() => {
               if (stat.href) router.push(stat.href);

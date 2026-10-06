@@ -15,7 +15,8 @@ from app.settings import Settings
 
 def test_otp_and_the_threshold_preview_are_the_tightest_limits() -> None:
     table = policies(Settings())
-    guarded = {"otp.phone", "otp.ip", "jobs.threshold_preview"}
+    # Anonymous model calls intentionally share the strict cost-control tier.
+    guarded = {"otp.phone", "otp.ip", "jobs.threshold_preview", "resume.preview"}
     loosest_guarded = max(table[name].per_hour for name in guarded)
     tighter = sorted(
         name

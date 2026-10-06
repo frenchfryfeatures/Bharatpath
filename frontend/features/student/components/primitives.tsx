@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 /*
  * ==========================================================================
- * STUDENT PORTAL — SHARED PRIMITIVES
+ * STUDENT PORTAL - SHARED PRIMITIVES
  *
  * The mobile candidate app has its own visual language (pill buttons, tinted
  * status chips, note strips, meters) that the desktop portal components cannot
@@ -11,7 +11,7 @@ import type { ReactNode } from "react";
  */
 
 /* -------------------------------------------------------------------------
- * Interactive card — the hover/press/focus treatment for any clickable
+ * Interactive card - the hover/press/focus treatment for any clickable
  * surface (job, application and add-on cards, stat tiles, settings rows).
  * Pair it with a surface's own border and background.
  * ---------------------------------------------------------------------- */
@@ -19,7 +19,7 @@ export const interactiveCardClass =
   "cursor-pointer transition-all duration-150 hover:-translate-y-0.5 hover:border-[#CFC6B4] hover:shadow-[0_10px_24px_rgba(10,25,49,0.07)] active:translate-y-0 active:scale-[.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30";
 
 /* -------------------------------------------------------------------------
- * Card — the workhorse white surface.
+ * Card - the workhorse white surface.
  * ---------------------------------------------------------------------- */
 export function StudentCard({
   children,
@@ -44,7 +44,7 @@ export function StudentCard({
 }
 
 /* -------------------------------------------------------------------------
- * Section eyebrow — mono uppercase label that opens a section.
+ * Section eyebrow - mono uppercase label that opens a section.
  * ---------------------------------------------------------------------- */
 export function SectionEyebrow({
   children,
@@ -67,7 +67,7 @@ export function SectionEyebrow({
 }
 
 /* -------------------------------------------------------------------------
- * Status chip — one taxonomy, tint bg + same-hue ink.
+ * Status chip - one taxonomy, tint bg + same-hue ink.
  * ---------------------------------------------------------------------- */
 export type ChipTone =
   | "match"
@@ -113,7 +113,7 @@ export function StatusChip({
 }
 
 /* -------------------------------------------------------------------------
- * Commerce badge — gold-border pill for FREE / prices only.
+ * Commerce badge - gold-border pill for FREE / prices only.
  * ---------------------------------------------------------------------- */
 export function CommerceBadge({
   children,
@@ -131,7 +131,7 @@ export function CommerceBadge({
 }
 
 /* -------------------------------------------------------------------------
- * Pill button — the app's primary action shape.
+ * Pill button - the app's primary action shape.
  * ---------------------------------------------------------------------- */
 export type PillVariant =
   | "primary"
@@ -192,7 +192,7 @@ export function PillButton({
 }
 
 /* -------------------------------------------------------------------------
- * Icon circle button — 40px round action.
+ * Icon circle button - 40px round action.
  * ---------------------------------------------------------------------- */
 export function IconCircleButton({
   children,
@@ -229,7 +229,7 @@ export function IconCircleButton({
 }
 
 /* -------------------------------------------------------------------------
- * Note strip — reassurance / state line with an icon.
+ * Note strip - reassurance / state line with an icon.
  * ---------------------------------------------------------------------- */
 export function NoteStrip({
   children,
@@ -260,7 +260,7 @@ export function NoteStrip({
 }
 
 /* -------------------------------------------------------------------------
- * Skill chip — on-resume / missing / addable.
+ * Skill chip - on-resume / missing / addable.
  * ---------------------------------------------------------------------- */
 export function SkillChip({
   children,
@@ -291,7 +291,7 @@ export function SkillChip({
 }
 
 /* -------------------------------------------------------------------------
- * Meter bar — 5px indigo fill on a hairline track.
+ * Meter bar - 5px indigo fill on a hairline track.
  * ---------------------------------------------------------------------- */
 export function MeterBar({
   value,
@@ -317,7 +317,7 @@ export function MeterBar({
 }
 
 /* -------------------------------------------------------------------------
- * Monogram tile — company / add-on initials in a navy or tinted square.
+ * Monogram tile - company / add-on initials in a navy or tinted square.
  * ---------------------------------------------------------------------- */
 export function MonogramTile({
   children,
@@ -348,7 +348,7 @@ export function MonogramTile({
 }
 
 /* -------------------------------------------------------------------------
- * Empty state — neutral placeholder, no fabricated data.
+ * Empty state - neutral placeholder, no fabricated data.
  * ---------------------------------------------------------------------- */
 export function EmptyState({
   icon,
@@ -377,7 +377,7 @@ export function EmptyState({
 }
 
 /* -------------------------------------------------------------------------
- * Sticky CTA band — the action bar that ends a scrolling screen.
+ * Sticky CTA band - the action bar that ends a scrolling screen.
  * ---------------------------------------------------------------------- */
 export function CtaBand({ children }: { children: ReactNode }) {
   return (

@@ -111,7 +111,7 @@ export function InviteStudentModal({
               Code ready to share
             </h4>
             <p className="mt-1 text-[13px] text-[#777f90]">
-              Treat it like a password — anyone with it can link to your college.
+              Treat it like a password - anyone with it can link to your college.
             </p>
 
             <div className="mt-5 flex w-full items-center justify-between gap-3 rounded-xl border border-[#dfe2e8] bg-[#f8f9fb] px-4 py-3">

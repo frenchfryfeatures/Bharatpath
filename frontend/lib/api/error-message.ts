@@ -5,8 +5,8 @@ import { ApiError } from "./errors";
 /**
  * The backend answers with RFC 9457 problem+json: a stable machine-readable
  * `code` plus params, never a user-facing sentence (see backend
- * `app/core/errors.py`). The client owns the copy, so we map `code` — and, as
- * a fallback, the HTTP status — to a friendly English message here.
+ * `app/core/errors.py`). The client owns the copy, so we map `code` - and, as
+ * a fallback, the HTTP status - to a friendly English message here.
  */
 export interface ProblemDetail {
   type?: string;
@@ -179,8 +179,8 @@ function messageFromFetchError(
 }
 
 /**
- * Turn any thrown/returned error — RTK Query's `FetchBaseQueryError`, a
- * `SerializedError`, the legacy `ApiError`, or an unknown value — into a
+ * Turn any thrown/returned error - RTK Query's `FetchBaseQueryError`, a
+ * `SerializedError`, the legacy `ApiError`, or an unknown value - into a
  * consistent, user-facing message.
  */
 export function getApiErrorMessage(

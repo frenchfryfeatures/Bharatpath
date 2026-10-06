@@ -27,7 +27,7 @@ export interface OldestDashboardItem {
   meta: string;
   initials: string;
   type: "KYB" | "Integrity" | "Dispute";
-  risk: "High" | "Medium" | "Low" | "—";
+  risk: "High" | "Medium" | "Low" | "-";
   waiting: string;
 }
 

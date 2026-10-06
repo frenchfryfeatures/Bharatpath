@@ -95,7 +95,7 @@ export function KybStatus({ submission, onRestart }: Readonly<KybStatusProps>) {
       <p className="text-sm leading-6 text-[#4f5666]">
         {submission.state === "UNDER_REVIEW"
           ? "A reviewer is looking at your details now."
-          : "Thanks — your details are with our review team."}{" "}
+          : "Thanks - your details are with our review team."}{" "}
         This usually takes 1 to 2 business days. You can draft jobs and browse
         candidates while you wait; publishing opens once you are verified.
       </p>

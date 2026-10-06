@@ -542,7 +542,7 @@ function CollegeDetails({
             value={
               college.suspension
                 ? formatDate(college.suspension.suspended_at)
-                : "—"
+                : "-"
             }
           />
         </div>
@@ -608,7 +608,7 @@ function Metric({
     <div className="rounded-lg bg-[#f7f8fa] p-3">
       <p className="text-[11px] font-medium text-[#7b8494]">{label}</p>
       <p className="mt-1 text-[20px] font-bold text-[#172033]">
-        {value === null ? "—" : formatCount(value)}
+        {value === null ? "-" : formatCount(value)}
       </p>
       <p className="mt-0.5 text-[10px] leading-4 text-[#7b8494]">
         {description}

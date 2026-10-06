@@ -19,7 +19,7 @@ export default function CollegeLayout({
 
   const isPending = collegeState === "pending";
 
-  // Banner temporarily hidden — kept for later use.
+  // Banner temporarily hidden - kept for later use.
   // const [bannerDismissed, setBannerDismissed] = useState(false);
   //
   // let banner = {
@@ -50,7 +50,7 @@ export default function CollegeLayout({
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
-      {/* Temporarily hidden — kept for later use.
+      {/* Temporarily hidden - kept for later use.
       {!bannerDismissed && (
         <QueueStatusBanner
           variant={isPending ? "pending" : "progress"}

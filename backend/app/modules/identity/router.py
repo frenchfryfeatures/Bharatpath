@@ -20,7 +20,9 @@ tables, what the holder may do.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request, status
+from typing import Any
+
+from fastapi import APIRouter, File, Request, UploadFile, status
 
 from app.core.deps import CurrentUser, DbSession
 from app.modules.candidate import service as candidate_service
@@ -35,6 +37,20 @@ from app.modules.identity.schemas import (
 from app.settings import get_settings
 
 router = APIRouter()
+
+
+@router.post("/resume-preview", summary="Read a resume into a transient signup draft")
+async def resume_preview(request: Request, file: UploadFile = File(...)) -> dict[str, Any]:
+    from app.core import ratelimit
+    from app.modules.resume import onboarding_service
+    from app.modules.resume.service import UploadRejectedError
+
+    await ratelimit.enforce("resume.preview", subject=_client_ip(request) or "unknown")
+    content = await file.read(get_settings().resume_max_upload_bytes + 1)
+    await file.close()
+    if len(content) > get_settings().resume_max_upload_bytes:
+        raise UploadRejectedError(code="upload_too_large")
+    return await onboarding_service.preview(content)
 
 
 async def otp_start(payload: OtpStartRequest, request: Request) -> OtpStartResponse:

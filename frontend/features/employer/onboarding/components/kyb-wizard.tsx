@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, Info, ShieldCheck } from "lucide-react";
+import { OnboardingBackButton } from "@/components/common/onboarding-back-button";
+import { ArrowRight, Info, ShieldCheck } from "lucide-react";
 
 import { FormSkeleton } from "@/components/common/loading";
 import { Button, ErrorState } from "@/components/ui";
@@ -413,16 +414,10 @@ function KybFlow({
         }
         footer={
           <>
-            <Button
-              type="button"
-              variant="secondary"
-              size="lg"
-              icon={<ArrowLeft className="h-4 w-4" aria-hidden="true" />}
+            <OnboardingBackButton
               disabled={stepIndex === 0 || busy}
               onClick={() => goTo(stepIndex - 1)}
-            >
-              Back
-            </Button>
+             />
 
             <div className="flex flex-col-reverse items-stretch gap-2 sm:flex-row sm:items-center sm:gap-4">
               {!onReview && (

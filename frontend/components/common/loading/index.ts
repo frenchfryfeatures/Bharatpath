@@ -1,5 +1,5 @@
 /**
- * Centralised loading system — the single source of loaders and skeletons
+ * Centralised loading system - the single source of loaders and skeletons
  * shared by every BharatPath portal (admin / employer / college).
  */
 export { Skeleton, SkeletonText } from "./skeleton";

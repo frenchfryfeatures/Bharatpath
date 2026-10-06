@@ -14,8 +14,8 @@ export interface StudentErrorStateProps {
   /** Heading for the `block` variant, e.g. "Jobs unavailable". */
   title?: string;
   /**
-   * `block`  — a page or section that failed to load (default).
-   * `inline` — a failed action, shown under the button that caused it.
+   * `block`  - a page or section that failed to load (default).
+   * `inline` - a failed action, shown under the button that caused it.
    */
   variant?: "block" | "inline";
   icon?: ReactNode;

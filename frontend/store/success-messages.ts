@@ -48,7 +48,7 @@ function notificationPreferenceMessage(args: unknown): string {
 }
 
 export const SUCCESS_MESSAGES: Record<string, SuccessMessage> = {
-  /* Admin — each page reports the decision it made. */
+  /* Admin - each page reports the decision it made. */
   createAdminSearchFilter: null,
   importAdminSearchFilters: null,
   updateAdminSearchFilter: null,
@@ -64,7 +64,7 @@ export const SUCCESS_MESSAGES: Record<string, SuccessMessage> = {
   provisionAdminEmployer: "Employer invitation sent.",
   provisionAdminCollege: "Institution invitation sent.",
 
-  /* Notifications — reading is not an action worth announcing. */
+  /* Notifications - reading is not an action worth announcing. */
   markNotificationRead: null,
   updateNotificationPreferences: notificationPreferenceMessage,
 
@@ -107,7 +107,7 @@ export const SUCCESS_MESSAGES: Record<string, SuccessMessage> = {
     "Renewal cancelled. Access continues until the period ends.",
   createEmployerMandate: "Redirecting you to set up UPI AutoPay…",
 
-  /* Employer jobs — the job form announces draft and publish itself. */
+  /* Employer jobs - the job form announces draft and publish itself. */
   createEmployerJob: null,
   updateEmployerJob: null,
   publishEmployerJob: null,
@@ -121,7 +121,7 @@ export const SUCCESS_MESSAGES: Record<string, SuccessMessage> = {
   completeEmployerKybDocument: "Document uploaded.",
   submitEmployerKyb: "Business verification submitted for review.",
 
-  /* Employer settings — company save and member removal toast from the slice. */
+  /* Employer settings - company save and member removal toast from the slice. */
   createEmployerOrganisation: "Organisation created.",
   createCollegeOrganisation: "Institution created.",
   addEmployerTeamMember: "Invite sent.",
@@ -134,7 +134,7 @@ export const SUCCESS_MESSAGES: Record<string, SuccessMessage> = {
   removeEmployerTeamMember: null,
   updateEmployerOrganisation: null,
 
-  /* Candidate resume — ticket and byte upload are steps of one upload. */
+  /* Candidate resume - ticket and byte upload are steps of one upload. */
   createResumeUpload: null,
   uploadResumeFile: null,
   completeResumeUpload: "Resume uploaded. We're reading it now.",
@@ -143,7 +143,7 @@ export const SUCCESS_MESSAGES: Record<string, SuccessMessage> = {
   editResumeVersion: "Resume changes saved.",
   confirmResumeVersion: "Resume confirmed.",
 
-  /* Candidate — name and location are saved together; callers announce them. */
+  /* Candidate - name and location are saved together; callers announce them. */
   updateStudentName: null,
   updateStudentLocation: null,
   checkInStudentStreak: null,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { OnboardingBackButton } from "@/components/common/onboarding-back-button";
 import {
   ArrowRight,
   BriefcaseBusiness,
@@ -34,7 +35,6 @@ import {
   Field,
   fieldBorder,
   fieldClass,
-  LockNote,
   PillButton,
   StepHeader,
 } from "./ui";
@@ -161,7 +161,7 @@ export function IntakeStep({ onFile, onPaste, onForm, onBack, error }: Readonly<
         </span>
         <span className="flex w-full items-center gap-2.5 border-t border-[rgba(255,252,247,0.28)] pt-3.5">
           <span className="flex-1 text-[11px] font-bold tracking-[0.1em] text-[#E0DBF4]">
-            PDF Â· DOCX Â· UP TO {Math.round(RESUME_MAX_BYTES / (1024 * 1024))} MB
+            PDF · DOCX · UP TO {Math.round(RESUME_MAX_BYTES / (1024 * 1024))} MB
           </span>
           <ArrowRight className="h-4 w-4 text-[#FFFCF7]" aria-hidden="true" />
         </span>
@@ -184,12 +184,8 @@ export function IntakeStep({ onFile, onPaste, onForm, onBack, error }: Readonly<
 
       <div className="mt-2 flex flex-col gap-3">
         {onBack && (
-          <PillButton variant="secondary" onClick={onBack} className="w-full">
-            Back
-          </PillButton>
-        )}
-        <LockNote>Only used to build your profile</LockNote>
-      </div>
+          <OnboardingBackButton onClick={onBack} />
+        )}      </div>
     </div>
   );
 }
@@ -293,7 +289,7 @@ export function PasteStep({
 
       <footer className="sticky bottom-0 z-20 border-t border-[#E7E0D4] bg-[#FFFCF7]/95 py-3 backdrop-blur">
         <div className="flex gap-3">
-          <button type="button" onClick={onBack} className="rounded-[16px] bg-[#F2EFE7] px-5 py-3.5 text-[14px] font-semibold text-[#0A1931] transition hover:bg-[#E8E3D8]">Cancel</button>
+          <OnboardingBackButton onClick={onBack} />
           <PillButton type="submit" form="paste-resume-form" isLoading={isLoading} disabled={characterCount < MIN_PASTE_CHARS} className="flex-1 rounded-[16px] py-3.5">Continue &amp; Parse</PillButton>
         </div>
       </footer>
@@ -542,7 +538,7 @@ export function ManualStep({
                   id={`exp-${index}-title`}
                   value={row.title}
                   maxLength={200}
-                  placeholder="e.g. Intern â€” Quality lab"
+                  placeholder="e.g. Intern - Quality lab"
                   onChange={(event) =>
                     setExperience((rows) => rows.map((item, i) => (i === index ? { ...item, title: event.target.value } : item)))
                   }
@@ -707,7 +703,7 @@ export function ManualStep({
     </form>
       <footer className="sticky bottom-0 z-20 border-t border-[#E7E0D4] bg-[#FFFCF7]/95 py-3 backdrop-blur">
         <div className="flex gap-3">
-          <button type="button" onClick={onBack} className="rounded-[16px] bg-[#F2EFE7] px-5 py-3.5 text-[14px] font-semibold text-[#0A1931] transition hover:bg-[#E8E3D8]">Cancel</button>
+          <OnboardingBackButton onClick={onBack} />
           <PillButton type="submit" form="manual-resume-form" isLoading={saving} className="flex-1 rounded-[16px] py-3.5">{editOf ? "Save changes" : "Save & Review"}</PillButton>
         </div>
       </footer>

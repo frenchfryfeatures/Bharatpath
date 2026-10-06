@@ -72,7 +72,7 @@ export function RosterPreview({ importId }: Readonly<RosterPreviewProps>) {
       header: "Name",
       cell: (row) => (
         <span className="text-[13px] font-medium text-[#151b2b]">
-          {row.fullName ?? "—"}
+          {row.fullName ?? "-"}
         </span>
       ),
     },
@@ -81,7 +81,7 @@ export function RosterPreview({ importId }: Readonly<RosterPreviewProps>) {
       header: "Phone / email",
       cell: (row) => (
         <span className="text-[12px] text-[#5d6673]">
-          {row.phone ?? row.email ?? "—"}
+          {row.phone ?? row.email ?? "-"}
         </span>
       ),
     },
@@ -91,7 +91,7 @@ export function RosterPreview({ importId }: Readonly<RosterPreviewProps>) {
       cellClassName: "whitespace-nowrap",
       cell: (row) => (
         <span className="text-[12px] text-[#777f90]">
-          {row.studentRef ?? "—"}
+          {row.studentRef ?? "-"}
         </span>
       ),
     },

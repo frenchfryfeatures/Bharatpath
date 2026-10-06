@@ -224,7 +224,7 @@ export function CsvImportPanel({
                       </td>
                     ) : null}
                     <td className="px-3 py-2 text-[#566176]">
-                      {item.aliases?.length ? item.aliases.join(", ") : "—"}
+                      {item.aliases?.length ? item.aliases.join(", ") : "-"}
                     </td>
                     <td className="px-3 py-2 text-[#566176]">
                       {item.featured ? "Yes" : "No"}

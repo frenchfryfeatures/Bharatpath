@@ -27,6 +27,8 @@ dependencies = [
     # python-docx is MIT. PyMuPDF is deliberately NOT used -- it is AGPL-3.0,
     # which would reach the whole product.
     "pypdf>=5.1",
+    "pypdfium2>=4.30",
+    "Pillow>=10.4",
     "python-docx>=1.1",
     # auth
     "pyjwt[crypto]>=2.10",
@@ -117,6 +119,11 @@ strict = true
 
 [[tool.mypy.overrides]]
 module = ["celery.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# PDFium provides no typing marker; confine its untyped API to private rendering.
+module = ["pypdfium2.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

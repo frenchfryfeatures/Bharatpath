@@ -868,7 +868,7 @@ async def candidate_onboarding(reader: AsyncSession, *, user_id: uuid.UUID) -> R
         reader,
         """
         SELECT u.id, u.status, u.locale, u.email, u.phone, u.created_at,
-               p.full_name, p.city, p.state_code,
+               p.full_name, p.city, p.state_code, p.career, p.updated_at AS profile_updated_at,
                q.answers AS questionnaire_answers, q.submitted_at AS questionnaire_submitted_at
           FROM users u
           LEFT JOIN candidate_profiles p ON p.user_id = u.id

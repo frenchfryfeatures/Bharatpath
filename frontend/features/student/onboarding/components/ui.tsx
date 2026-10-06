@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { BrandIcon } from "@/components/common/brand-icon";
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import {
   AlertCircle,
+  BriefcaseBusiness,
   CheckCircle2,
-  ClipboardCheck,
   FileUp,
+  GraduationCap,
   Loader2,
   Lock,
   Sparkles,
@@ -17,13 +19,21 @@ import { COUNTED_STEPS, type CountedStep } from "../constants";
 /*
  * The candidate sign-up visual language, lifted from the mobile design
  * (cream page, navy ink, violet pill buttons, 20px cards) and laid out for a
- * laptop: the step on the left, a sticky context panel on the right.
+ * laptop: a static context panel on the left and a scrolling step on the right.
  */
 
 /* -------------------------------------------------------------------------
  * Page frame
  * ---------------------------------------------------------------------- */
-export type SignupPhase = "start" | "subscription" | "resume" | "review" | "score";
+export type SignupPhase =
+  | "start"
+  | "subscription"
+  | "resume"
+  | "review"
+  | "score"
+  | "employment"
+  | "education"
+  | "preferences";
 
 interface SignupFrameProps {
   children: ReactNode;
@@ -44,7 +54,7 @@ export function SignupFrame({
 }: Readonly<SignupFrameProps>) {
   return (
     <div className="min-h-screen bg-[#FFFCF7] text-[#0A1931]">
-      <header className="sticky top-0 z-30 border-b border-[#F0EBDF] bg-[#FFFCF7]/90 backdrop-blur">
+      <header className="sticky top-0 z-30 shrink-0 border-b border-[#F0EBDF] bg-[#FFFCF7]/90 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:px-8">
           <Wordmark />
           {signedIn ? (
@@ -60,7 +70,10 @@ export function SignupFrame({
           ) : (
             <p className="text-[13px] text-[#5F6B80]">
               Have an account?{" "}
-              <Link href="/login" className="font-semibold text-[#5F4DB2] hover:text-[#4A3E8F]">
+              <Link
+                href="/login"
+                className="font-semibold text-[#5F4DB2] hover:text-[#4A3E8F]"
+              >
                 Sign in
               </Link>
             </p>
@@ -68,11 +81,13 @@ export function SignupFrame({
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-6xl gap-10 px-5 py-8 sm:px-8 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-14 lg:py-14">
-        <div className="mx-auto w-full max-w-[600px] lg:mx-0">{children}</div>
-        <aside className="hidden lg:block">
-          <div className="sticky top-28">{aside ?? <JourneyAside phase={phase} />}</div>
+      <main className="mx-auto grid w-full max-w-6xl gap-10 px-5 sm:px-8 lg:grid-cols-[380px_minmax(0,1fr)] lg:gap-14">
+        <aside className="sticky top-16 hidden self-start py-8 lg:block">
+          {aside ?? <JourneyAside phase={phase} />}
         </aside>
+        <section aria-label="Student signup form" className="min-w-0 py-8">
+          <div className="mx-auto w-full max-w-[600px] lg:mx-0">{children}</div>
+        </section>
       </main>
     </div>
   );
@@ -80,12 +95,14 @@ export function SignupFrame({
 
 export function Wordmark() {
   return (
-    <Link href="/signup/student" className="flex items-center gap-2" aria-label="BharatPath">
-      <span className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[#5F4DB2] text-[15px] font-extrabold text-white">
-        B
-      </span>
+    <Link
+      href="/signup/student"
+      className="flex items-center gap-2"
+      aria-label="BharatPath"
+    >
+      <BrandIcon className="h-8 w-8" />
       <span className="text-[20px] font-extrabold tracking-[-0.03em] text-[#05255C]">
-        Bharat<span className="text-[#B9891A]">Path</span>
+        Bharat<span className="text-[#FF8A26]">Path</span>
       </span>
     </Link>
   );
@@ -98,35 +115,44 @@ const JOURNEY: ReadonlyArray<{
   icon: ReactNode;
 }> = [
   {
-    phase: "subscription",
-    title: "Unlock your membership",
-    body: "Choose a plan to access your score, job matches and member pricing.",
-    icon: <Lock className="h-4 w-4" aria-hidden="true" />,
-  },
-  {
-    phase: "resume",
-    title: "Give us your resume",
-    body: "A file, pasted text, or a short form if you don't have one yet.",
+    phase: "start",
+    title: "Basic details",
+    body: "Start with your resume. Review your contact details and verify your account.",
     icon: <FileUp className="h-4 w-4" aria-hidden="true" />,
   },
   {
-    phase: "review",
-    title: "Check what we read",
-    body: "You correct anything wrong before it counts. Nothing is scored behind your back.",
-    icon: <ClipboardCheck className="h-4 w-4" aria-hidden="true" />,
+    phase: "employment",
+    title: "Employment details",
+    body: "Review your experience, current role and key skills. Freshers can skip employment history.",
+    icon: <BriefcaseBusiness className="h-4 w-4" aria-hidden="true" />,
   },
   {
-    phase: "score",
-    title: "Get your score and gaps",
-    body: "Five categories, each explained, with the fixes worth the most points.",
+    phase: "education",
+    title: "Education details",
+    body: "Confirm your qualification, course, institution and study years.",
+    icon: <GraduationCap className="h-4 w-4" aria-hidden="true" />,
+  },
+  {
+    phase: "preferences",
+    title: "Headline and preferences",
+    body: "Add your career headline, preferred locations and salary. Gender is optional.",
     icon: <Sparkles className="h-4 w-4" aria-hidden="true" />,
   },
 ];
 
-const PHASE_ORDER: SignupPhase[] = ["start", "subscription", "resume", "review", "score"];
+const PHASE_ORDER: SignupPhase[] = [
+  "start",
+  "employment",
+  "education",
+  "preferences",
+  "subscription",
+  "score",
+];
 
 function JourneyAside({ phase }: { phase: SignupPhase }) {
-  const current = PHASE_ORDER.indexOf(phase);
+  const current = PHASE_ORDER.indexOf(
+    phase === "resume" || phase === "review" ? "start" : phase,
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -135,7 +161,7 @@ function JourneyAside({ phase }: { phase: SignupPhase }) {
           Your path
         </p>
         <p className="mt-2 text-[22px] font-bold leading-[28px] tracking-[-0.02em]">
-          Three steps from resume to score.
+          From your resume to your career profile.
         </p>
         <ol className="mt-5 flex flex-col gap-3">
           {JOURNEY.map((item) => {
@@ -159,18 +185,25 @@ function JourneyAside({ phase }: { phase: SignupPhase }) {
                         : "bg-white/15 text-[#E0DBF4]"
                   }`}
                 >
-                  {done ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : item.icon}
+                  {done ? (
+                    <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                  ) : (
+                    item.icon
+                  )}
                 </span>
                 <span className="flex flex-col gap-0.5">
-                  <span className="text-[15px] font-semibold leading-5">{item.title}</span>
-                  <span className="text-[13px] leading-[18px] text-[#E0DBF4]">{item.body}</span>
+                  <span className="text-[15px] font-semibold leading-5">
+                    {item.title}
+                  </span>
+                  <span className="text-[13px] leading-[18px] text-[#E0DBF4]">
+                    {item.body}
+                  </span>
                 </span>
               </li>
             );
           })}
         </ol>
       </div>
-      <LockNote>Only used to build your profile. Employers see it only if you apply.</LockNote>
     </div>
   );
 }
@@ -196,7 +229,10 @@ export function TrustAside() {
       </p>
       <ul className="m-0 flex list-none flex-col gap-3 p-0">
         {PROMISES.map((promise) => (
-          <li key={promise} className="flex items-start gap-2.5 text-[14px] leading-5 text-[#3A4761]">
+          <li
+            key={promise}
+            className="flex items-start gap-2.5 text-[14px] leading-5 text-[#3A4761]"
+          >
             <span className="mt-0.5">
               <DoneDot />
             </span>
@@ -212,14 +248,25 @@ export function TrustAside() {
  * Step header - "STEP n OF N", segmented bar, title
  * ---------------------------------------------------------------------- */
 interface StepHeaderProps {
-  step?: CountedStep;
+  step?: CountedStep | "location" | "subscription" | "intake";
   title: ReactNode;
   subtitle?: ReactNode;
   badge?: ReactNode;
 }
 
-export function StepHeader({ step, title, subtitle, badge }: Readonly<StepHeaderProps>) {
-  const index = step ? COUNTED_STEPS.indexOf(step) : -1;
+export function StepHeader({
+  step,
+  title,
+  subtitle,
+  badge,
+}: Readonly<StepHeaderProps>) {
+  const countedStep =
+    step === "intake" || step === "location"
+      ? "account"
+      : step === "subscription"
+        ? undefined
+        : step;
+  const index = countedStep ? COUNTED_STEPS.indexOf(countedStep) : -1;
 
   return (
     <div className="flex flex-col gap-2">
@@ -248,7 +295,9 @@ export function StepHeader({ step, title, subtitle, badge }: Readonly<StepHeader
           {badge}
         </div>
         {subtitle && (
-          <p className="m-0 mt-1 text-[15px] leading-[22px] text-[#3A4761]">{subtitle}</p>
+          <p className="m-0 mt-1 text-[15px] leading-[22px] text-[#3A4761]">
+            {subtitle}
+          </p>
         )}
       </div>
     </div>
@@ -267,13 +316,22 @@ interface PillButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const PILL_VARIANTS: Record<PillVariant, string> = {
   primary: "border-0 bg-[#5F4DB2] text-white hover:bg-[#4A3E8F]",
-  secondary: "border border-[#DDD6C7] bg-white text-[#0A1931] hover:bg-[#F7F4EC]",
+  secondary:
+    "border border-[#DDD6C7] bg-white text-[#0A1931] hover:bg-[#F7F4EC]",
   ghost: "border-0 bg-transparent text-[#3A4761] hover:text-[#0A1931]",
 };
 
 export const PillButton = forwardRef<HTMLButtonElement, PillButtonProps>(
   (
-    { variant = "primary", isLoading = false, disabled, className = "", children, type = "button", ...props },
+    {
+      variant = "primary",
+      isLoading = false,
+      disabled,
+      className = "",
+      children,
+      type = "button",
+      ...props
+    },
     ref,
   ) => (
     <button
@@ -286,7 +344,9 @@ export const PillButton = forwardRef<HTMLButtonElement, PillButtonProps>(
       } ${PILL_VARIANTS[variant]} ${className}`}
       {...props}
     >
-      {isLoading && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+      {isLoading && (
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+      )}
       {children}
     </button>
   ),
@@ -313,16 +373,28 @@ interface FieldProps {
   children: ReactNode;
 }
 
-export function Field({ id, label, hint, error, optional, children }: Readonly<FieldProps>) {
+export function Field({
+  id,
+  label,
+  hint,
+  error,
+  optional,
+  children,
+}: Readonly<FieldProps>) {
   return (
     <div className="flex flex-col gap-1.5">
       <label htmlFor={id} className="text-[13px] font-semibold text-[#0A1931]">
         {label}
-        {optional && <span className="ml-1.5 font-normal text-[#5F6B80]">Optional</span>}
+        {optional && (
+          <span className="ml-1.5 font-normal text-[#5F6B80]">Optional</span>
+        )}
       </label>
       {children}
       {error ? (
-        <p id={`${id}-error`} className="m-0 text-[12px] font-medium text-[#993A22]">
+        <p
+          id={`${id}-error`}
+          className="m-0 text-[12px] font-medium text-[#993A22]"
+        >
           {error}
         </p>
       ) : hint ? (
@@ -346,7 +418,13 @@ export function LockNote({ children }: { children: ReactNode }) {
   );
 }
 
-export function ErrorNote({ children, action }: { children: ReactNode; action?: ReactNode }) {
+export function ErrorNote({
+  children,
+  action,
+}: {
+  children: ReactNode;
+  action?: ReactNode;
+}) {
   return (
     <div
       role="alert"
@@ -369,13 +447,21 @@ export function Card({
   className?: string;
 }) {
   return (
-    <div className={`rounded-[20px] border border-[#E7E0D4] bg-white ${className}`}>
+    <div
+      className={`rounded-[20px] border border-[#E7E0D4] bg-white ${className}`}
+    >
       {children}
     </div>
   );
 }
 
-export function Eyebrow({ children, icon }: { children: ReactNode; icon?: ReactNode }) {
+export function Eyebrow({
+  children,
+  icon,
+}: {
+  children: ReactNode;
+  icon?: ReactNode;
+}) {
   return (
     <span className="flex items-center gap-2 text-[11px] font-bold uppercase leading-3 tracking-[0.1em] text-[#5F6B80]">
       {icon}
@@ -389,7 +475,14 @@ export function DoneDot() {
   return (
     <span className="inline-grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full bg-[#1F6B45]">
       <svg viewBox="0 0 12 12" className="h-2 w-2" aria-hidden="true">
-        <path d="M2.5 6.2 5 8.5l4.5-5" fill="none" stroke="#E6F1EA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        <path
+          d="M2.5 6.2 5 8.5l4.5-5"
+          fill="none"
+          stroke="#E6F1EA"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </svg>
     </span>
   );

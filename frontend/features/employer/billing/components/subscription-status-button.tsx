@@ -123,7 +123,7 @@ export function SubscriptionStatusButton({
       type="button"
       onClick={onClick}
       aria-label={`Subscription: ${view.label}. ${view.detail}. Open billing`}
-      title={`${view.label} — ${view.detail}`}
+      title={`${view.label} - ${view.detail}`}
       className={`${SHELL} cursor-pointer transition-colors hover:border-[#cfd3dc] hover:bg-[#f7f9fc]`}
     >
       <span

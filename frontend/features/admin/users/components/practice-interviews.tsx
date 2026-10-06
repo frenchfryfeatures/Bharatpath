@@ -11,7 +11,7 @@ import {
 
 const dateTime = (value: string | null) => value
   ? new Date(value).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })
-  : "—";
+  : "-";
 
 const label = (value: string) => value.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
 

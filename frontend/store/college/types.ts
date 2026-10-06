@@ -221,8 +221,8 @@ export interface PlacementReport {
 
 /**
  * `GET /college/analytics/applications`: where the cohort's applications
- * stand, and how many ever reached each milestone. Aggregate only — no
- * student is named — and a `null` figure is withheld by the privacy floors,
+ * stand, and how many ever reached each milestone. Aggregate only - no
+ * student is named - and a `null` figure is withheld by the privacy floors,
  * never a zero.
  */
 export interface ApplicationFunnel {

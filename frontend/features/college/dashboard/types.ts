@@ -1,7 +1,7 @@
 /*
  * Dashboard view model.
  *
- * Every field here is derived from a real backend response — the cohort
+ * Every field here is derived from a real backend response - the cohort
  * analytics overview, seat usage and the college's referral codes. Nothing on
  * this screen is fabricated: where the API withholds a number (a cohort below
  * the privacy floor, or a metric the college has not earned yet) the value is

@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { OnboardingBackButton } from "@/components/common/onboarding-back-button";
 import { useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, CheckCircle2 } from "lucide-react";
+import { ArrowRight, CheckCircle2 } from "lucide-react";
 
 import { FormSkeleton } from "@/components/common/loading";
 import { Button } from "@/components/ui";
@@ -244,19 +245,13 @@ export function CollegeDetailsWizard({
         footer={
           <>
             {stepIndex > 0 ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="lg"
+              <OnboardingBackButton
                 disabled={busy}
                 onClick={() => {
                   setStepIndex(stepIndex - 1);
                   scrollToTop();
                 }}
-                icon={<ArrowLeft className="h-4 w-4" aria-hidden="true" />}
-              >
-                Back
-              </Button>
+               />
             ) : (
               <span />
             )}

@@ -1,7 +1,7 @@
 export interface BarChartItem {
   label: string;
   value: number;
-  /** Shown above the bar instead of `value`, e.g. "—" for a withheld count. */
+  /** Shown above the bar instead of `value`, e.g. "-" for a withheld count. */
   display?: string;
 }
 

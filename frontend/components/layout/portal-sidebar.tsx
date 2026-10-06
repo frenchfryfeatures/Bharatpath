@@ -40,7 +40,7 @@ import { Skeleton } from "@/components/common/loading";
 import { useGetCollegeOrganisationQuery } from "@/store/college/settings/settings.api";
 import { useGetEmployerDashboardQuery } from "@/store/employer/dashboard";
 import { useGetEmployerOrganisationQuery } from "@/store/employer/settings";
-import logo from "@/assets/Logo.png";
+import logo from "@/assets/bharatpath-icon.png";
 
 interface PortalSidebarProps {
   collapsed: boolean;
@@ -697,7 +697,7 @@ export function PortalSidebar({
           )}
 
           {/* =================================================
-              LOGOUT — available collapsed too
+              LOGOUT - available collapsed too
           ================================================== */}
 
           <button

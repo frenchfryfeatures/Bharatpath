@@ -30,7 +30,7 @@ export interface StudentProfile {
 
 /**
  * One organisation that opened this profile (`GET /candidate/profile/views`).
- * The organisation, never the recruiter in it, and no count of opens —
+ * The organisation, never the recruiter in it, and no count of opens -
  * the API holds the field list to those two values, so neither belongs here.
  */
 export interface ProfileView {
@@ -80,7 +80,7 @@ export interface StudentStreakCheckIn {
 
 /**
  * `GET /candidate/streak/me/calendar`: which days the app was opened. Opened
- * or not — the API never returns a count of opens per day, so neither does
+ * or not - the API never returns a count of opens per day, so neither does
  * this.
  */
 export type StreakCalendarDayStatus =

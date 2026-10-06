@@ -22,7 +22,7 @@ import type { UserRow, UserSegment, UserState } from "../types";
 
 function initialsOf(name: string | null): string {
   if (!name) {
-    return "—";
+    return "-";
   }
   return (
     name
@@ -31,7 +31,7 @@ function initialsOf(name: string | null): string {
       .slice(0, 2)
       .map((part) => part[0])
       .join("")
-      .toUpperCase() || "—"
+      .toUpperCase() || "-"
   );
 }
 
@@ -105,7 +105,7 @@ export function useUsers() {
           .toUpperCase(),
         // The tenant list does not include GSTIN or another public
         // organisation identifier. Never present its internal ID as one.
-        identifier: "—",
+        identifier: "-",
         meta:
           tenant.type === "EMPLOYER"
             ? "Employer organisation"

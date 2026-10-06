@@ -311,7 +311,7 @@ export function SearchFiltersPage() {
       headerClassName: "min-w-[280px]",
       cellClassName: "min-w-[280px] max-w-[360px] text-[#687182]",
       cell: (option) =>
-        option.aliases.length ? option.aliases.join(", ") : "—",
+        option.aliases.length ? option.aliases.join(", ") : "-",
     },
     ...(kind === "CITY"
       ? [
@@ -320,7 +320,7 @@ export function SearchFiltersPage() {
             header: "State",
             headerClassName: "min-w-[90px]",
             cellClassName: "min-w-[90px]",
-            cell: (option: SearchFilterOption) => option.state_code ?? "—",
+            cell: (option: SearchFilterOption) => option.state_code ?? "-",
           },
         ]
       : []),

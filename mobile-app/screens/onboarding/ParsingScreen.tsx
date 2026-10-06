@@ -1,3 +1,4 @@
+import { intakeCareerResume } from '@/services/api/career';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -23,10 +24,6 @@ import { UploadedFileMeta, ResumeIntakePayload } from './ResumeIntakeScreen';
 import {
   submitPastedText,
   submitManualResume,
-  createUploadTicket,
-  uploadFileToPresignedUrl,
-  completeUpload,
-  getFileStatus,
   getResumeVersionDetails,
   ResumeVersionDetailResponse,
 } from '@/services/api/resume';
@@ -35,7 +32,10 @@ import { ApiError } from '@/services/api/client';
 interface ParsingScreenProps {
   fileMeta?: UploadedFileMeta;
   payload?: ResumeIntakePayload;
-  onReviewFound?: (versionId: string, versionDetails: ResumeVersionDetailResponse) => void;
+  onReviewFound?: (
+    versionId: string,
+    versionDetails: ResumeVersionDetailResponse,
+  ) => void;
   onBack?: () => void;
 }
 
@@ -60,22 +60,27 @@ export function ParsingScreen({
   onBack,
 }: ParsingScreenProps) {
   const fileName = fileMeta?.fileName || 'Candidate_Resume.pdf';
-  const fileSizeText = fileMeta?.fileSize ? `${fileMeta.fileSize} · uploaded` : '412 KB · uploaded';
+  const fileSizeText = fileMeta?.fileSize
+    ? `${fileMeta.fileSize} · uploaded`
+    : '412 KB · uploaded';
 
-  const isPasted = payload?.source === 'paste' || fileName.includes('Pasted') || fileName.endsWith('.txt');
+  const isPasted =
+    payload?.source === 'paste' ||
+    fileName.includes('Pasted') ||
+    fileName.endsWith('.txt');
   const isManual = payload?.source === 'form' || fileName.includes('Profile');
 
   const screenTitle = isPasted
     ? 'Analyzing pasted text'
     : isManual
-    ? 'Structuring your profile'
-    : 'Reading your resume';
+      ? 'Structuring your profile'
+      : 'Reading your resume';
 
   const screenSubtitle = isPasted
     ? 'Extracting your work history, skills, and education from your text.'
     : isManual
-    ? 'Formatting your experience and skills according to BharatPath standards.'
-    : 'This takes about ten seconds. Nothing is saved until you confirm it.';
+      ? 'Formatting your experience and skills according to BharatPath standards.'
+      : 'This takes about ten seconds. Nothing is saved until you confirm it.';
 
   // State
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
@@ -83,7 +88,8 @@ export function ParsingScreen({
   const [isCompleted, setIsCompleted] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [versionId, setVersionId] = useState<string | null>(null);
-  const [versionDetails, setVersionDetails] = useState<ResumeVersionDetailResponse | null>(null);
+  const [versionDetails, setVersionDetails] =
+    useState<ResumeVersionDetailResponse | null>(null);
 
   const hasStartedRef = useRef(false);
 
@@ -141,68 +147,11 @@ export function ParsingScreen({
         setProgressPercent(20);
 
         try {
-          const ticket = await createUploadTicket();
-          setCurrentStepIndex(1);
-          setProgressPercent(40);
-
-          const selectedFile = payload?.fileMeta;
-          if (!selectedFile?.fileUri) {
-            throw new Error('The selected file is no longer available. Please choose it again.');
-          }
-          if (
-            selectedFile.fileSizeBytes &&
-            selectedFile.fileSizeBytes > ticket.max_bytes
-          ) {
-            throw new Error(
-              `This file is too large. Choose a file under ${Math.floor(
-                ticket.max_bytes / (1024 * 1024)
-              )} MB.`
-            );
-          }
-          if (
-            selectedFile.mimeType &&
-            !ticket.accepted_types.includes(selectedFile.mimeType)
-          ) {
-            throw new Error('This file type is not supported. Choose a PDF or DOCX file.');
-          }
-
-          await uploadFileToPresignedUrl(
-            ticket.url,
-            selectedFile.fileUri,
-            selectedFile.mimeType || 'application/pdf'
-          );
-
-          // Upload and complete
-          const complete = await completeUpload(ticket.upload_id);
-          setCurrentStepIndex(2);
-          setProgressPercent(60);
-
-          // Poll until the backend says the parse can no longer change.
-          let attempts = 0;
-          let settled = false;
-          while (attempts < 30) {
-            await new Promise((r) => setTimeout(r, 2000));
-            attempts++;
-            const statusRes = await getFileStatus(complete.resume_file_id);
-            if (statusRes.terminal) {
-              settled = true;
-              if (statusRes.parse_status === 'FAILED' || statusRes.parse_status === 'BLOCKED') {
-                throw new Error(`Parsing ${statusRes.parse_status.toLowerCase()}: ${statusRes.parse_error_code || 'Unknown error'}`);
-              }
-              if (statusRes.parse_status === 'DONE' && statusRes.resume_version_id) {
-                createdVersionId = statusRes.resume_version_id;
-              }
-              break;
-            }
-          }
-
-          if (!createdVersionId) {
-            throw new Error(
-              settled
-                ? 'Parsing finished without producing a resume to review.'
-                : 'Your file was uploaded, but parsing has not started. The resume parser worker may not be running.'
-            );
-          }
+          const selectedFile = payload?.fileMeta ?? fileMeta;
+          if (!selectedFile?.fileUri)
+            throw new Error('Choose your resume file again.');
+          const created = await intakeCareerResume(selectedFile);
+          createdVersionId = created.resume_version_id;
         } catch (uploadErr) {
           console.warn('Upload/complete failed:', uploadErr);
           throw uploadErr;
@@ -226,9 +175,14 @@ export function ParsingScreen({
     } catch (err: any) {
       console.error('[Parsing Error]:', err);
       if (err instanceof ApiError) {
-        setErrorMsg(err.problem?.title || err.message || 'Failed to parse resume.');
+        setErrorMsg(
+          err.problem?.title || err.message || 'Failed to parse resume.',
+        );
       } else {
-        setErrorMsg(err?.message || 'Network error while parsing resume. Please try again.');
+        setErrorMsg(
+          err?.message ||
+            'Network error while parsing resume. Please try again.',
+        );
       }
     }
   };
@@ -269,7 +223,10 @@ export function ParsingScreen({
                 <Text style={styles.errorText}>{errorMsg}</Text>
               </View>
               <Pressable
-                style={({ pressed }) => [styles.retryButton, pressed && styles.pressed]}
+                style={({ pressed }) => [
+                  styles.retryButton,
+                  pressed && styles.pressed,
+                ]}
                 onPress={executeParsing}
               >
                 <ArrowClockwise size={14} color="#8F3B3B" weight="bold" />
@@ -304,7 +261,9 @@ export function ParsingScreen({
 
             {/* Progress Track Line */}
             <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
+              <View
+                style={[styles.progressFill, { width: `${progressPercent}%` }]}
+              />
             </View>
 
             {/* Step Items List */}
@@ -317,7 +276,10 @@ export function ParsingScreen({
                   return (
                     <View
                       key={step.id}
-                      style={[styles.itemRow, index > 0 && styles.itemBorderTop]}
+                      style={[
+                        styles.itemRow,
+                        index > 0 && styles.itemBorderTop,
+                      ]}
                     >
                       <CheckCircle size={20} color="#1F6B45" weight="fill" />
                       <Text style={styles.itemTitle}>{step.title}</Text>
@@ -330,9 +292,17 @@ export function ParsingScreen({
                   return (
                     <View
                       key={step.id}
-                      style={[styles.itemRow, styles.itemActiveReading, index > 0 && styles.itemBorderTop]}
+                      style={[
+                        styles.itemRow,
+                        styles.itemActiveReading,
+                        index > 0 && styles.itemBorderTop,
+                      ]}
                     >
-                      <ActivityIndicator size="small" color="#5E4DB2" style={styles.spinner} />
+                      <ActivityIndicator
+                        size="small"
+                        color="#5E4DB2"
+                        style={styles.spinner}
+                      />
                       <Text style={styles.itemTitle}>{step.title}</Text>
                       <Text style={styles.itemMetaReading}>reading</Text>
                     </View>
@@ -342,7 +312,11 @@ export function ParsingScreen({
                 return (
                   <View
                     key={step.id}
-                    style={[styles.itemRow, styles.itemBorderTop, styles.itemDimmed]}
+                    style={[
+                      styles.itemRow,
+                      styles.itemBorderTop,
+                      styles.itemDimmed,
+                    ]}
                   >
                     <View style={styles.emptyCircleIcon} />
                     <Text style={styles.itemTitle}>{step.title}</Text>

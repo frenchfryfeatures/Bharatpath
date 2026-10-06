@@ -9,6 +9,7 @@ transaction closes.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -525,6 +526,70 @@ async def shared_resume(
         file_mime=file.mime if file is not None else None,
         file_url_expires_at=datetime.now(UTC) + timedelta(seconds=ttl) if url else None,
     )
+
+
+async def get_version_for_profile(
+    session: AsyncSession,
+    *,
+    user_id: uuid.UUID,
+    resume_version_id: uuid.UUID,
+    current_only: bool = False,
+) -> Any:
+    """Owner-scoped reading before payment, independent of the confirm gate."""
+    row = await repository.get_version(
+        session, resume_version_id=resume_version_id, user_id=user_id
+    )
+    if row is None:
+        raise VersionNotFoundError()
+    if current_only and await repository.successor_of(session, resume_version_id=row.id):
+        raise VersionSupersededError()
+    return row
+
+
+async def profile_resume_url(
+    session: AsyncSession, *, user_id: uuid.UUID, resume_version_id: uuid.UUID
+) -> str | None:
+    version = await get_version_for_profile(
+        session, user_id=user_id, resume_version_id=resume_version_id
+    )
+    if version.resume_file_id is None:
+        return None
+    row = await repository.get_resume_file(
+        session, resume_file_id=version.resume_file_id, user_id=user_id
+    )
+    if row is None:
+        raise UploadNotFoundError()
+    settings = get_settings()
+    return await storage.presign_get(
+        bucket=settings.s3_bucket_resumes,
+        key=row.s3_key,
+        expires_in=settings.presigned_url_ttl_seconds,
+    )
+
+
+async def profile_resume_preview(
+    session: AsyncSession, *, user_id: uuid.UUID, resume_version_id: uuid.UUID
+) -> dict[str, Any]:
+    from app.modules.resume.preview import render_pdf
+
+    version = await get_version_for_profile(
+        session, user_id=user_id, resume_version_id=resume_version_id
+    )
+    text = (version.parsed or {}).get("raw_text", "")
+    if version.resume_file_id is None:
+        return {"pages": [], "text": text or str(version.parsed), "truncated": False}
+    row = await repository.get_resume_file(
+        session, resume_file_id=version.resume_file_id, user_id=user_id
+    )
+    if row is None:
+        raise UploadNotFoundError()
+    if row.mime != "application/pdf":
+        return {"pages": [], "text": text, "truncated": False}
+    content = await storage.read_whole_object(
+        bucket=get_settings().s3_bucket_resumes, key=row.s3_key
+    )
+    pages, truncated = await asyncio.to_thread(render_pdf, content)
+    return {"pages": pages, "text": "", "truncated": truncated}
 
 
 async def users_with_any_resume(

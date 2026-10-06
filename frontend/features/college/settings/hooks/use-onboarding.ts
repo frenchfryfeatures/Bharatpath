@@ -19,7 +19,7 @@ interface OnboardingIssue {
  * The server owns validation: `PUT .../answers` and `POST .../submit` both
  * return a 422 whose `params.issues` names every malformed or missing field by
  * a machine code. We surface those against the fields rather than guessing the
- * rules on the client, which is only ever a hint (SRS — the browser is not
+ * rules on the client, which is only ever a hint (SRS - the browser is not
  * ours).
  */
 function extractIssues(error: unknown): OnboardingIssue[] {

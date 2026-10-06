@@ -19,8 +19,8 @@ export interface ErrorStateProps {
   /** Heading shown above the message in the `block` variant. */
   title?: string;
   /**
-   * `inline` — a compact banner for in-context failures (default).
-   * `block`  — a compact card with a heading for section load failures.
+   * `inline` - a compact banner for in-context failures (default).
+   * `block`  - a compact card with a heading for section load failures.
    */
   variant?: "inline" | "block";
   /** When provided, a "Try again" button is shown. */

@@ -37,7 +37,7 @@ const STATE_STYLES: Record<ReferralCodeState, string> = {
 
 function formatDate(value: string): string {
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
+  if (Number.isNaN(date.getTime())) return "-";
   return date.toLocaleDateString("en-IN", {
     day: "numeric",
     month: "short",

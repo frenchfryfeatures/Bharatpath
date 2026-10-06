@@ -35,6 +35,13 @@ import pytest
 #: Adding to this set is a deliberate act that shows up in review -- which is
 #: the point of keeping it here rather than inferring it from a path prefix.
 PUBLIC: dict[tuple[str, str], str] = {
+    (
+        "POST",
+        "/api/v1/auth/resume-preview",
+    ): (
+        "Rate-limited transient resume reading before signup; "
+        "no storage, identity creation, or scoring."
+    ),
     ("GET", "/api/v1/health"): "Liveness probe. Touches no data.",
     ("GET", "/api/v1/health/ready"): "Readiness probe. Touches no data.",
     ("POST", "/api/v1/billing/callbacks/{provider}"): (
@@ -132,5 +139,9 @@ def test_no_candidate_or_resume_route_is_public(method: str, path: str) -> None:
     sign-up and the client reversed it. Asserted structurally so it cannot
     drift back one convenient endpoint at a time.
     """
+    # The October onboarding revision permits transient reading before signup,
+    # never original-file storage, account lookup, or scoring before identity.
+    if (method, path) == ("POST", "/api/v1/auth/resume-preview"):
+        return
     assert "/candidate" not in path, f"{method} {path} cannot be public"
     assert "/resume" not in path, f"{method} {path} cannot be public"

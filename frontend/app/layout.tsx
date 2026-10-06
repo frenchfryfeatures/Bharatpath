@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import logo from "@/assets/Logo.png";
+import logo from "@/assets/bharatpath-icon.png";
 import { SessionGuard } from "@/components/auth/session-guard";
 import { SuccessFeedback } from "@/components/common/success-feedback";
 import { ReduxProvider } from "@/store/provider";
@@ -10,6 +10,7 @@ export const metadata: Metadata = {
   description: "BharatPath career and placement platform",
   icons: {
     icon: logo.src,
+    apple: logo.src,
   },
 };
 

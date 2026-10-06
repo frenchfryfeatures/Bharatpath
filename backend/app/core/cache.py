@@ -21,6 +21,8 @@ def get_redis() -> Redis:
         _redis = from_url(
             str(get_settings().redis_url),
             decode_responses=True,
+            # RESP2 works with both portable Windows Redis and Redis 7+.
+            protocol=2,
             # A cache must never be the reason a request hangs. If Redis is
             # slow, the membership lookup falls through to Postgres and the
             # throttle fails open on read but closed on write -- both better

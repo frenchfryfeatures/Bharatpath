@@ -12,7 +12,7 @@
  * computing" and is the honest state while the scoring worker runs.
  *
  * Sections:
- * - MY INFORMATION (Resume details, Attribute report, Interview report, Language)
+ * - MY INFORMATION (Profile details, Attribute report, Interview report, Language)
  * - PRIVACY AND DATA (Who has seen me, Download my data, Delete my account)
  * - Sticky bottom tab bar with "You" tab active
  */
@@ -201,7 +201,7 @@ export function ProfileScreen({
               <Text style={styles.sectionEyebrowText}>MY INFORMATION</Text>
             </View>
 
-            {/* Resume details */}
+            {/* Profile details */}
             <Pressable
               style={({ pressed }) => [
                 styles.menuItem,
@@ -211,7 +211,7 @@ export function ProfileScreen({
               accessibilityRole="button"
             >
               <FileText size={20} color={Colors.navy} weight="duotone" />
-              <Text style={styles.menuItemTitle}>Resume details</Text>
+              <Text style={styles.menuItemTitle}>Profile details</Text>
               <CaretRight size={16} color="#5F6B80" weight="bold" />
             </Pressable>
 

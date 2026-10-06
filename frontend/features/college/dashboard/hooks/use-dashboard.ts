@@ -76,7 +76,7 @@ function toView(
 
 /*
  * Single source of truth for the college dashboard. Everything is served from
- * the backend through RTK Query — cohort analytics, seat usage and the live
+ * the backend through RTK Query - cohort analytics, seat usage and the live
  * referral codes.
  */
 export function useDashboard() {
