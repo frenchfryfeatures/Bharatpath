@@ -4,12 +4,12 @@ import { useGetResumeVersionsQuery } from "@/store/student";
 import {
   BriefcaseBusiness,
   FileText,
+  Mail,
   MapPin,
   Pencil,
   Phone,
   Wallet,
   CalendarDays,
-  ArrowUpRight,
 } from "lucide-react";
 import {
   useGetCareerIdentityQuery,
@@ -24,14 +24,13 @@ import { Modal } from "@/components/ui/modal";
 import { PillButton } from "@/features/student/components";
 
 const groups = [
-  { id: "resume", title: "Resume" },
   { id: "headline", title: "Profile headline" },
-  { id: "key_skills", title: "Key skills" },
   { id: "employment", title: "Employment" },
   { id: "education", title: "Education" },
   { id: "preferences", title: "Career preferences" },
   { id: "basic", title: "Basic details" },
 ];
+const editableSections = ["basic", "employment", "education", "preferences"] as const;
 const quickLinks = [
   ...groups,
   { id: "reports", title: "Reports and learning" },
@@ -65,8 +64,7 @@ export function CareerOverview({
   const [prefill, prefillState] = usePrefillCareerProfileMutation();
   const attemptedPrefill = useRef<string | null>(null);
   const fields = useGetCareerFieldsQuery();
-  const [getDocument] = useLazyGetProfileResumeDocumentQuery();
-  const [editing, setEditing] = useState(false);
+  const [editingSection, setEditingSection] = useState<number | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
     const latest = versions.data?.find((version) => !version.superseded);
@@ -100,27 +98,6 @@ export function CareerOverview({
   const completion = fields.data?.length
     ? Math.round((added / fields.data.length) * 100)
     : 0;
-
-  const openResume = async () => {
-    if (!profile.data?.resume_version_id) return;
-    const preview = window.open("about:blank", "_blank");
-    if (preview) preview.opener = null;
-    try {
-      const result = await getDocument(profile.data.resume_version_id).unwrap();
-      if (result.url) {
-        if (preview) preview.location.href = result.url;
-        else window.location.assign(result.url);
-      } else {
-        preview?.close();
-        setError(
-          "This profile was created from pasted text or a form. There is no uploaded document.",
-        );
-      }
-    } catch (failure) {
-      preview?.close();
-      setError(getApiErrorMessage(failure, "Your resume could not be opened."));
-    }
-  };
 
   return (
     <div className="flex flex-col gap-5 font-sans text-[13px] leading-5 text-[#0A1931]">
@@ -170,7 +147,10 @@ export function CareerOverview({
                   ? `${details.experience_years ?? 0} years ${details.experience_months ?? 0} months`
                   : "Experience not added"}
             </p>
-            <p className="truncate">{email || account.data?.email}</p>
+            <p className="flex min-w-0 items-center gap-2">
+              <Mail size={17} className="shrink-0" />
+              <span className="truncate">{email || account.data?.email}</span>
+            </p>
             <p className="flex gap-2">
               <Wallet size={17} />
               {money(details.annual_salary)}
@@ -202,7 +182,7 @@ export function CareerOverview({
             Review the details extracted from your resume and add anything
             missing.
           </p>
-          <PillButton onClick={() => setEditing(true)} className="w-full">
+          <PillButton onClick={() => setEditingSection(0)} className="w-full">
             Edit profile details
           </PillButton>
         </div>
@@ -267,7 +247,12 @@ export function CareerOverview({
                 </h2>
                 <button
                   type="button"
-                  onClick={() => setEditing(true)}
+                  onClick={() => {
+                    if (group.id === "basic") return;
+                    const sectionId = group.id === "headline" ? "preferences" : group.id;
+                    const sectionIndex = editableSections.indexOf(sectionId as (typeof editableSections)[number]);
+                    if (sectionIndex >= 0) setEditingSection(sectionIndex);
+                  }}
                   aria-label={`Edit ${group.title}`}
                   className="grid h-9 w-9 place-items-center rounded-xl border border-[#E7E0D4] text-[#5F4DB2] transition hover:bg-[#F1EAF7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30"
                 >
@@ -279,41 +264,7 @@ export function CareerOverview({
                   {identityDetails}
                 </div>
               )}
-              {group.id === "resume" ? (
-                <div className="flex flex-col gap-4">
-                  <p className="flex items-center gap-2 text-[13px] leading-5">
-                    <FileText size={18} />
-                    {profile.data?.resume_file_id
-                      ? profile.data.resume_filename || "Your uploaded resume"
-                      : profile.data?.resume_version_id
-                        ? "Profile created from text or manual details"
-                        : profile.isError
-                          ? versions.data?.some(
-                              (version) => !version.superseded,
-                            )
-                            ? "Your saved resume is available in Resume review below."
-                            : "Resume details unavailable"
-                          : "No resume added"}
-                  </p>
-                  <div className="flex flex-wrap gap-3">
-                    {profile.data?.resume_file_id && (
-                      <PillButton
-                        variant="secondary"
-                        onClick={() => void openResume()}
-                        icon={<ArrowUpRight size={16} />}
-                      >
-                        Open resume
-                      </PillButton>
-                    )}
-                    <a
-                      href="/signup/student?resume=update"
-                      className="inline-flex min-h-[52px] items-center justify-center rounded-full border border-[#DDD6C7] bg-white px-4 py-4 text-[15px] font-semibold leading-5 transition hover:border-[#CFC6B4] hover:bg-[#F7F4EC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30"
-                    >
-                      Update resume
-                    </a>
-                  </div>
-                </div>
-              ) : group.id === "headline" ? (
+              {group.id === "headline" ? (
                 <p className="text-[13px] leading-5 text-[#3A4761]">
                   {String(
                     details.headline ||
@@ -322,26 +273,6 @@ export function CareerOverview({
                         : "Add a headline that describes your skills and career goals."),
                   )}
                 </p>
-              ) : group.id === "key_skills" ? (
-                <div className="flex flex-wrap gap-2">
-                  {Array.isArray(details.key_skills) &&
-                  details.key_skills.length ? (
-                    details.key_skills.map((skill) => (
-                      <span
-                        key={skill}
-                        className="rounded-full bg-[#F1EAF7] px-3 py-1.5 text-[14px] font-medium leading-5 text-[#5F4DB2]"
-                      >
-                        {skill}
-                      </span>
-                    ))
-                  ) : (
-                    <p className="text-[13px] leading-5 text-[#5F6B80]">
-                      {profile.isError
-                        ? "Skills unavailable"
-                        : "No skills added"}
-                    </p>
-                  )}
-                </div>
               ) : (
                 <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
                   {fields.data
@@ -380,20 +311,24 @@ export function CareerOverview({
           {children}
         </div>
       </div>
-      <Modal
-        open={editing}
-        onClose={() => setEditing(false)}
-        title="Edit profile details"
-        panelClassName="max-w-3xl"
-      >
-        <div className="max-h-[75vh] overflow-y-auto p-1">
-          <CareerForm
-            editing
-            onDone={() => setEditing(false)}
-            onBack={() => setEditing(false)}
-          />
-        </div>
-      </Modal>
+      {editingSection !== null && (
+        <Modal
+          open
+          onClose={() => setEditingSection(null)}
+          title={`Edit ${editableSections[editingSection] === "basic" ? "basic details" : editableSections[editingSection] === "employment" ? "employment details" : editableSections[editingSection] === "education" ? "education details" : "career preferences"}`}
+          panelClassName="max-w-3xl"
+        >
+          <div className="max-h-[75vh] overflow-y-auto p-1">
+            <CareerForm
+              key={editingSection}
+              editing
+              initialSection={editingSection}
+              onDone={() => setEditingSection(null)}
+              onBack={() => setEditingSection(null)}
+            />
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

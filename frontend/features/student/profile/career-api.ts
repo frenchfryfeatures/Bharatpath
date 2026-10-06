@@ -98,6 +98,11 @@ export function careerFieldRequired(
   field: CareerField,
   details: CareerDetails,
 ) {
+  if (
+    field.key === "company_name" &&
+    details.work_status === "EXPERIENCED" &&
+    details.currently_employed === "NO"
+  ) return false;
   if (field.required) return true;
   if (details.work_status !== "EXPERIENCED") return false;
   return (
@@ -130,6 +135,7 @@ export function visibleCareerField(field: CareerField, details: CareerDetails) {
     !(
       details.work_status === "FRESHER" && experiencedOnly.includes(field.key)
     ) &&
+    !(field.key === "company_name" && details.currently_employed === "NO") &&
     !(field.key === "employment_end" && details.currently_employed === "YES")
   );
 }

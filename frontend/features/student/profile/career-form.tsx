@@ -151,6 +151,7 @@ export function CareerForm({
   const section = sections[step];
   const activeFields = fields.data.filter(
     (field) =>
+      field.key !== "job_role" &&
       field.section === section.key && visibleCareerField(field, draft),
   );
   const busy =
@@ -174,6 +175,14 @@ export function CareerForm({
         });
       if (key === "currently_employed" && value === "YES")
         next.employment_end = "";
+      if (key === "currently_employed" && value === "NO")
+        next.company_name = "NA";
+      if (
+        key === "currently_employed" &&
+        value === "YES" &&
+        next.company_name === "NA"
+      )
+        next.company_name = "";
       return next;
     });
     setErrors((current) => ({ ...current, [key]: "" }));
@@ -215,8 +224,13 @@ export function CareerForm({
         setError("");
         try {
           if (section.key === "basic") await saveName(fullName.trim()).unwrap();
+          const detailsToSave =
+            draft.work_status === "EXPERIENCED" &&
+            draft.currently_employed === "NO"
+              ? { ...draft, company_name: "NA" }
+              : draft;
           const result = await save({
-            details: draft,
+            details: detailsToSave,
             resume_filename: selectedFilename ?? resumeFilename,
             resume_version_id:
               selectedVersionId ??
@@ -224,7 +238,7 @@ export function CareerForm({
               saved.data?.resume_version_id,
             complete: step === sections.length - 1,
           }).unwrap();
-          if (step === sections.length - 1) onDone(result);
+          if (editing || step === sections.length - 1) onDone(result);
           else {
             setStep(step + 1);
             window.scrollTo({ top: 0, behavior: "smooth" });
@@ -387,6 +401,8 @@ export function CareerForm({
                   onChange={(v) => update(field.key, v)}
                   options={[{ value: "", label: "Select" }, ...field.options]}
                   ariaLabel={field.label}
+                  menuPlacement="auto"
+                  portal
                   className="[&>button]:h-[54px] [&>button]:rounded-[16px] [&>button]:border-[1.5px] [&>button]:border-[#E7E0D4] [&>button]:bg-white [&>button]:px-4 [&>button]:text-[16px] [&>button>span]:text-[16px] [&>button>span]:font-medium [&>button]:font-medium [&>button]:text-[#0A1931]"
                 />
               ) : (
@@ -465,7 +481,7 @@ export function CareerForm({
           }}
         />
         <PillButton type="submit" isLoading={busy} className="flex-1">
-          {step === sections.length - 1
+          {editing || step === sections.length - 1
             ? editing
               ? "Save profile"
               : "Save and continue to membership"

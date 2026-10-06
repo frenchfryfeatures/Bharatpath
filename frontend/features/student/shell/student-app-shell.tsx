@@ -9,6 +9,8 @@ import { clearTenant } from "@/store/common/slices/tenant.slice";
 import { authService } from "@/features/auth/services/auth.service";
 import { ConfirmModal } from "@/components/ui";
 import { useScrollLock } from "@/hooks/use-scroll-lock";
+import { baseApi } from "@/store/api/base-api";
+import { notificationApi } from "@/store/api/notification-api";
 
 import { StudentHeader } from "./student-header";
 import { StudentSidebarContent } from "./student-sidebar";
@@ -40,12 +42,14 @@ export function StudentAppShell({ children }: { children: ReactNode }) {
     setMobileOpen(false);
   }, [pathname]);
 
-  const handleLogout = () => {
-    void authService.logout();
+  const handleLogout = async () => {
+    await authService.logout();
     dispatch(clearUser());
     dispatch(clearTenant());
+    dispatch(baseApi.util.resetApiState());
+    dispatch(notificationApi.util.resetApiState());
     setLogoutOpen(false);
-    router.push("/login");
+    router.replace("/login");
   };
 
   return (

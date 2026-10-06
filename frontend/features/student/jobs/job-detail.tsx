@@ -2,18 +2,12 @@
 
 import { useParams, useRouter } from "next/navigation";
 import {
-  Bookmark,
   BriefcaseBusiness,
   CheckCircle2,
   MapPin,
-  Share2,
 } from "lucide-react";
 
-import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
 import {
-  selectIsJobSaved,
-  toggleSavedJob,
   useApplyToStudentJobMutation,
   useGetStudentApplicationsQuery,
   useGetStudentJobQuery,
@@ -25,7 +19,6 @@ import {
   workModeLabel,
 } from "@/features/student/formatters";
 import {
-  IconCircleButton,
   PillButton,
   SkillChip,
   StatusChip,
@@ -38,11 +31,9 @@ import { StudentPage, StudentTopBar } from "@/features/student/shell";
 export function JobDetail() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const dispatch = useAppDispatch();
   const job = useGetStudentJobQuery(params.id);
   const applications = useGetStudentApplicationsQuery({ limit: 100 });
   const [apply, applyState] = useApplyToStudentJobMutation();
-  const saved = useAppSelector(selectIsJobSaved(params.id));
   const applied = applications.data?.items.some(
     (application) =>
       application.jobId === params.id &&
@@ -85,33 +76,7 @@ export function JobDetail() {
 
   return (
     <StudentPage>
-      <StudentTopBar
-        title={listing.title}
-        right={
-          <div className="flex items-center gap-2">
-            <IconCircleButton
-              aria-label={saved ? "Remove saved job" : "Save job"}
-              onClick={() => {
-                dispatch(toggleSavedJob(listing.id));
-                showSuccessFeedback(
-                  saved
-                    ? "Job removed from saved jobs."
-                    : "Job saved successfully.",
-                );
-              }}
-            >
-              <Bookmark
-                size={16}
-                fill={saved ? "#5F4DB2" : "none"}
-                className={saved ? "text-[#5F4DB2]" : ""}
-              />
-            </IconCircleButton>
-            <IconCircleButton aria-label="Share">
-              <Share2 size={16} />
-            </IconCircleButton>
-          </div>
-        }
-      />
+      <StudentTopBar title={listing.title} />
 
       <div className="flex flex-col gap-4 rounded-[24px] bg-[#5F4DB2] p-5 sm:p-6">
         <div className="flex items-start gap-3.5">
@@ -142,10 +107,10 @@ export function JobDetail() {
       <div className="mt-4 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
         <div className="flex flex-col gap-3.5">
           <div className="flex flex-wrap gap-2">
-            <Meta icon={<MapPin size={13} />}>
+            <Meta label="Location" icon={<MapPin size={13} />}>
               {listing.location ?? "Location not specified"}
             </Meta>
-            <Meta icon={<BriefcaseBusiness size={13} />}>
+            <Meta label="Work mode" icon={<BriefcaseBusiness size={13} />}>
               {workModeLabel(listing.workMode)}
             </Meta>
           </div>
@@ -169,11 +134,14 @@ export function JobDetail() {
 
         <div className="flex flex-col gap-3">
           <StudentCard>
-            <span className="text-[18px] font-bold text-[#0A1931]">
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#7A8496]">Salary range</span>
+              <span className="text-[18px] font-bold leading-6 text-[#0A1931]">
               {formatSalary(listing)}
-            </span>
-            <span className="mt-1 block text-[12px] text-[#5F6B80]">
-              Published {formatDate(listing.publishedAt)}
+              </span>
+            </div>
+            <span className="mt-3 block border-t border-[#EEE9F3] pt-3 text-[12px] text-[#5F6B80]">
+              <span className="font-semibold text-[#3A4761]">Published</span> · {formatDate(listing.publishedAt)}
             </span>
           </StudentCard>
           {applied ? (
@@ -213,16 +181,18 @@ export function JobDetail() {
 }
 
 function Meta({
+  label,
   icon,
   children,
 }: {
+  label: string;
   icon: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E7E0D4] bg-white px-3 py-2 text-[12px] text-[#3A4761]">
-      {icon}
-      {children}
+    <span className="inline-flex items-center gap-2 rounded-xl border border-[#E7E0D4] bg-white px-3 py-2 text-[12px] text-[#3A4761]">
+      <span className="text-[#778197]">{icon}</span>
+      <span><span className="mr-1 font-semibold text-[#68758A]">{label}:</span>{children}</span>
     </span>
   );
 }

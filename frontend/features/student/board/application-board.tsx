@@ -22,7 +22,7 @@ export function ApplicationBoard() {
         fetchApplications({
           cursor,
           limit: APPLICATIONS_PAGE_SIZE,
-          filter: filter === "all" ? undefined : filter,
+          status: filter === "all" ? undefined : filter.toUpperCase() as "ACTIVE" | "CLOSED",
         }).unwrap(),
       [fetchApplications, filter],
     ),

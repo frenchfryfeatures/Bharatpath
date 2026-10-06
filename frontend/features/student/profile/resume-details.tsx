@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, CheckCircle2, FileText, History, ShieldCheck, Upload } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, CheckCircle2, FileText, History, ShieldCheck, Upload } from "lucide-react";
 
 import { FormSkeleton } from "@/components/common/loading";
 import { StudentErrorState } from "@/features/student/components";
@@ -15,6 +15,7 @@ import { StudentPage } from "@/features/student/shell";
 import { getApiErrorCode, getApiErrorMessage } from "@/lib/api/error-message";
 import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
 import { useCompleteResumeUploadMutation, useCreateResumeUploadMutation, useGetResumeVersionsQuery, useUploadResumeFileMutation, type ManualResume } from "@/store/student";
+import { useGetCareerProfileQuery, useLazyGetProfileResumeDocumentQuery } from "./career-api";
 
 type View =
   | { name: "review"; versionId: string }
@@ -26,6 +27,8 @@ export function ResumeDetails() {
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
   const versions = useGetResumeVersionsQuery();
+  const profile = useGetCareerProfileQuery();
+  const [getDocument, documentState] = useLazyGetProfileResumeDocumentQuery();
   const [createUpload] = useCreateResumeUploadMutation();
   const [uploadFile] = useUploadResumeFileMutation();
   const [completeUpload] = useCompleteResumeUploadMutation();
@@ -36,6 +39,24 @@ export function ResumeDetails() {
   const [view, setView] = useState<View | null>(null);
   const activeView: View | null =
     view ?? (current ? { name: "review", versionId: current.resumeVersionId } : null);
+
+  const openResume = async () => {
+    const versionId = profile.data?.resume_version_id ?? current?.resumeVersionId;
+    if (!versionId) return;
+    const preview = window.open("about:blank", "_blank");
+    if (preview) preview.opener = null;
+    try {
+      const result = await getDocument(versionId).unwrap();
+      if (result.url) {
+        if (preview) preview.location.href = result.url;
+        else window.location.assign(result.url);
+      } else {
+        preview?.close();
+      }
+    } catch {
+      preview?.close();
+    }
+  };
 
   const finishUpload = async (uploadId: string, fileName: string, fileSize: number) => {
     setView({ name: "parsing", fileName, fileSize, phase: "checking" });
@@ -120,11 +141,20 @@ export function ResumeDetails() {
               />
             ) : (
               <div className="flex flex-col gap-5">
-                <button type="button" onClick={() => fileInput.current?.click()} className="group flex w-full cursor-pointer items-center gap-4 rounded-[20px] border border-[#CFC4F4] bg-white p-4 text-left shadow-sm transition hover:border-[#5F4DB2] sm:p-5">
-                  <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#F1EAF7] text-[#5F4DB2]"><Upload className="h-5 w-5" aria-hidden="true" /></span>
-                  <span className="min-w-0 flex-1"><span className="block text-[16px] font-bold text-[#0A1931]">Upload new resume</span><span className="mt-0.5 block text-[13px] leading-5 text-[#5F6B80]">Upload a PDF or DOCX file to replace the current resume</span></span>
-                  <ArrowRight className="h-5 w-5 shrink-0 text-[#5F4DB2] transition group-hover:translate-x-0.5" aria-hidden="true" />
-                </button>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <button type="button" onClick={() => fileInput.current?.click()} className="group relative flex min-h-[104px] min-w-0 cursor-pointer items-center gap-4 overflow-hidden rounded-[22px] border border-[#D9D0F5] bg-gradient-to-br from-white via-white to-[#F7F3FF] px-5 py-4 text-left shadow-[0_4px_16px_rgba(58,43,112,0.07)] transition duration-200 hover:-translate-y-0.5 hover:border-[#8D79D8] hover:shadow-[0_10px_24px_rgba(58,43,112,0.13)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/40 focus-visible:ring-offset-2 sm:px-6">
+                    <span className="grid h-14 w-14 shrink-0 place-items-center rounded-[18px] bg-[#EEE8FA] text-[#5F4DB2] ring-1 ring-inset ring-[#DED5F4] transition group-hover:bg-[#E7DFFA]"><Upload className="h-6 w-6" aria-hidden="true" /></span>
+                    <span className="min-w-0 flex-1"><span className="block text-[16px] font-bold tracking-[-0.01em] text-[#0A1931]">Upload new resume</span><span className="mt-1 block text-[13px] leading-5 text-[#5F6B80]">Choose a PDF or DOCX file to update your profile</span></span>
+                    <span className="grid h-14 w-14 shrink-0 place-items-center rounded-[18px] bg-[#5F4DB2] text-white shadow-sm transition group-hover:bg-[#4A3E8F]"><ArrowUpRight className="h-5 w-5" aria-hidden="true" /></span>
+                  </button>
+                  {current && (
+                    <button type="button" onClick={() => void openResume()} disabled={documentState.isLoading} className="group flex min-h-[104px] min-w-0 items-center gap-4 rounded-[22px] border border-[#E5DFD4] bg-white px-5 py-4 text-left shadow-[0_3px_12px_rgba(10,25,49,0.045)] transition duration-200 hover:-translate-y-0.5 hover:border-[#C7BCEB] hover:bg-[#FCFAFF] hover:shadow-[0_9px_20px_rgba(58,43,112,0.09)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30 focus-visible:ring-offset-2 disabled:opacity-60 sm:px-6">
+                      <span className="grid h-14 w-14 shrink-0 place-items-center rounded-[18px] bg-[#F1EAF7] text-[#5F4DB2] transition group-hover:bg-[#E9E0F5]"><FileText className="h-5 w-5" aria-hidden="true" /></span>
+                      <span className="min-w-0 flex-1"><span className="block text-[16px] font-bold tracking-[-0.01em] text-[#0A1931]">{documentState.isLoading ? "Opening resume…" : "Open resume"}</span><span className="mt-1 block text-[13px] leading-5 text-[#5F6B80]">View your current resume file</span></span>
+                      <ArrowUpRight className="h-5 w-5 shrink-0 text-[#5F4DB2] transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
                 <ReviewStep key={activeView.versionId} resumeVersionId={activeView.versionId} title="Resume details" subtitle="Review and edit the details extracted from your resume. Changes are saved as a new version." confirmLabel="Save & update score" startOverLabel="Back to profile" onStartOver={() => router.push("/student/profile")} onEditStructured={(resume, versionId) => setView({ name: "edit", versionId, resume })} onConfirmed={() => { showSuccessFeedback("Resume saved and score update started."); void versions.refetch(); }} />
               </div>
             )}
