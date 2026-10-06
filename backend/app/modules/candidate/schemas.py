@@ -16,6 +16,7 @@ from typing import Annotated
 from pydantic import Field, field_validator
 
 from app.core.schemas import ApiSchema
+from app.modules.applications.schemas import CandidateShortlistState
 from app.modules.candidate.domain import (
     MAX_CITY_LENGTH,
     MAX_NAME_LENGTH,
@@ -25,6 +26,7 @@ from app.modules.candidate.domain import (
 )
 from app.modules.discovery.domain import MAX_CARD_SKILLS, MAX_EXPERIENCE_YEARS, displayable_skills
 from app.modules.discovery.schemas import Badge, ScoreBand
+from app.modules.resume.schemas import SharedResumeView
 
 
 class _Base(ApiSchema):
@@ -86,6 +88,11 @@ class RevealedCandidate(_Base):
 
     `full_name` is the name the candidate gave at sign-up, else the one typed
     on the structured form, else null; a name is never guessed from a CV.
+
+    `resume` (2026-10-05) is the confirmed CV the score was built from --
+    the same version the band came from -- with a presigned link to the
+    uploaded file. It rides on the audited open; there is no other route to it.
+    `shortlist` is the organisation's own record of this candidate.
     """
 
     candidate_id: uuid.UUID
@@ -99,6 +106,14 @@ class RevealedCandidate(_Base):
     badges: list[Badge]
     city: Annotated[str | None, Field(default=None, max_length=100)] = None
     state_code: Annotated[str | None, Field(default=None, min_length=2, max_length=2)] = None
+    resume: SharedResumeView | None = Field(
+        default=None, description="Null only if the confirmed CV cannot be read."
+    )
+    shortlist: CandidateShortlistState = Field(
+        default_factory=CandidateShortlistState,
+        description="What the Shortlist button shows: saved or not, and each invitation "
+        "your organisation sent this candidate. Act on it at `POST /employer/shortlist`.",
+    )
 
     @field_validator("skills", mode="before")
     @classmethod

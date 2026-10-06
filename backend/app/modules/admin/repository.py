@@ -171,6 +171,26 @@ async def kyb_submission_tenant(
     return row["tenant_id"] if row else None
 
 
+#: Who a signal is about and who resolved it, beside the signal. The queue and
+#: the detail read the same columns, so a row and its detail cannot disagree.
+_SIGNAL_COLUMNS = """
+        s.id, s.candidate_id, s.resume_version_id, s.rule_id, s.rule_version,
+        s.thresholds_version, s.severity, s.state, s.created_at, s.resolved_at,
+        s.resolved_by, s.resolution_note,
+        u.status AS candidate_status, u.phone AS candidate_phone,
+        u.email AS candidate_email, p.full_name AS candidate_full_name,
+        r.email AS resolved_by_email,
+        (SELECT count(*) FROM integrity_signals o
+          WHERE o.candidate_id = s.candidate_id AND o.state = 'OPEN' AND o.id <> s.id)
+          AS other_open_signals
+"""
+_SIGNAL_JOINS = """
+          JOIN users u ON u.id = s.candidate_id
+          LEFT JOIN candidate_profiles p ON p.user_id = s.candidate_id
+          LEFT JOIN users r ON r.id = s.resolved_by
+"""
+
+
 async def integrity_signals(
     reader: AsyncSession,
     *,
@@ -181,20 +201,23 @@ async def integrity_signals(
 ) -> list[RowMapping]:
     """Oldest first, whatever the severity: first in, first out is the order
     nobody has to justify. `severity` filters for a reviewer who wants the
-    HIGH signals -- the ones already hiding someone from employers -- first."""
+    HIGH signals -- the ones already hiding someone from employers -- first.
+
+    Never the evidence: it can quote the CV, and only opening one signal
+    (audited by its id) shows it."""
     return await _rows(
         reader,
-        """
-        SELECT id, candidate_id, resume_version_id, rule_id, rule_version, severity, state,
-               created_at, resolved_at
-          FROM integrity_signals
-         WHERE state = CAST(:state AS text)
-           AND (CAST(:severity AS text) IS NULL OR severity = CAST(:severity AS text))
+        f"""
+        SELECT {_SIGNAL_COLUMNS}
+          FROM integrity_signals s
+          {_SIGNAL_JOINS}
+         WHERE s.state = CAST(:state AS text)
+           AND (CAST(:severity AS text) IS NULL OR s.severity = CAST(:severity AS text))
            AND (CAST(:after_at AS timestamptz) IS NULL
-                OR (created_at, id) > (CAST(:after_at AS timestamptz), CAST(:after_id AS uuid)))
-         ORDER BY created_at, id
+                OR (s.created_at, s.id) > (CAST(:after_at AS timestamptz), CAST(:after_id AS uuid)))
+         ORDER BY s.created_at, s.id
          LIMIT :limit
-        """,
+        """,  # noqa: S608 - module constants, not values
         state=state,
         severity=severity,
         after_at=after[0] if after else None,
@@ -206,13 +229,58 @@ async def integrity_signals(
 async def integrity_signal(reader: AsyncSession, *, signal_id: uuid.UUID) -> RowMapping | None:
     return await _one(
         reader,
-        """
-        SELECT id, candidate_id, resume_version_id, rule_id, rule_version, thresholds_version,
-               severity, state, evidence, created_at, resolved_by, resolved_at, resolution_note
-          FROM integrity_signals WHERE id = :s
-        """,
+        f"""
+        SELECT {_SIGNAL_COLUMNS}, s.evidence
+          FROM integrity_signals s
+          {_SIGNAL_JOINS}
+         WHERE s.id = :s
+        """,  # noqa: S608 - module constants, not values
         s=signal_id,
     )
+
+
+async def signal_context(
+    reader: AsyncSession,
+    *,
+    candidate_id: uuid.UUID,
+    signal_id: uuid.UUID,
+    resume_version_id: uuid.UUID | None,
+) -> dict[str, Any]:
+    """What a reviewer weighs a signal against: the version it was raised on
+    (dates only -- the text is the CV endpoint's), the candidate's current
+    score, and every other signal they carry."""
+    version = None
+    if resume_version_id is not None:
+        version = await _one(
+            reader,
+            """
+            SELECT v.id, v.source, v.created_at, v.confirmed_at,
+                   NOT EXISTS (SELECT 1 FROM resume_versions n
+                                WHERE n.user_id = v.user_id AND n.created_at > v.created_at)
+                     AS is_latest
+              FROM resume_versions v WHERE v.id = :v
+            """,
+            v=resume_version_id,
+        )
+    score = await _one(
+        reader,
+        """
+        SELECT raw_value AS stored_value, computed_at FROM scores WHERE user_id = :u
+         ORDER BY computed_at DESC, id DESC LIMIT 1
+        """,
+        u=candidate_id,
+    )
+    others = await _rows(
+        reader,
+        """
+        SELECT id, rule_id, severity, state, created_at FROM integrity_signals
+         WHERE candidate_id = :u AND id <> :s
+         ORDER BY created_at DESC, id DESC
+        """,
+        u=candidate_id,
+        s=signal_id,
+    )
+    return {"resume_version": version, "score": score, "others": others}
 
 
 async def candidates(

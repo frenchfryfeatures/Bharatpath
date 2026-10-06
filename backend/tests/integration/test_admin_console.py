@@ -9,6 +9,7 @@ the migrator, and then act only through the API with a real token.
 
 from __future__ import annotations
 
+import json
 import os
 import uuid
 from typing import Any
@@ -371,11 +372,26 @@ async def test_a_reviewer_opens_and_clears_a_high_signal(client: Any, mint_token
         client, f"{ADMIN}/integrity/signals", reviewer["headers"], signal_id, severity="HIGH"
     )
     assert queued is not None and "evidence" not in queued
+    phone = await _scalar("SELECT phone FROM users WHERE id = :u", u=candidate_id)
+    assert queued["rule_title"] == "Instructions aimed at the scorer"
+    assert queued["rule_description"]
+    assert queued["hides_candidate"] is True
+    assert queued["candidate"]["id"] == str(candidate_id)
+    assert queued["candidate"]["phone_masked"].endswith(phone[-4:])
+    assert phone not in json.dumps(queued)
+    assert isinstance(queued["other_open_signals"], int)
 
     opened = await client.get(f"{ADMIN}/integrity/signals/{signal_id}", headers=reviewer["headers"])
     assert opened.status_code == 200, opened.text
-    assert opened.json()["candidate_id"] == str(candidate_id)
-    assert "evidence" in opened.json()
+    detail = opened.json()
+    assert detail["candidate_id"] == str(candidate_id)
+    assert "evidence" in detail
+    assert detail["visible_to_employers"] is False
+    assert detail["resume_version"]["id"] == str(version_id)
+    assert detail["resume_version"]["is_latest"] is True
+    assert detail["score"]["band"] and "raw_value" not in json.dumps(detail)
+    assert "text" not in detail["resume_version"], "the CV text is the CV endpoint's"
+    assert all(o["id"] != signal_id for o in detail["other_signals"])
     assert await _audit_rows("admin_integrity_signal_opened", reviewer["user_id"], signal_id) == 1
 
     cleared = await client.post(
@@ -385,7 +401,18 @@ async def test_a_reviewer_opens_and_clears_a_high_signal(client: Any, mint_token
     )
     assert cleared.status_code == 200, cleared.text
     assert cleared.json()["state"] == "CLEARED"
+    assert cleared.json()["hides_candidate"] is False
+    assert cleared.json()["resolved_by"] == str(reviewer["user_id"])
     assert await _visible(candidate_id)
+
+    resolved = await _find(
+        client, f"{ADMIN}/integrity/signals", reviewer["headers"], signal_id, state="CLEARED"
+    )
+    assert resolved is not None
+    assert resolved["resolution_note"] == "A quoted example, not an instruction."
+    assert resolved["resolved_by_email"] == await _scalar(
+        "SELECT email FROM users WHERE id = :u", u=reviewer["user_id"]
+    )
 
     twice = await client.post(
         f"{ADMIN}/integrity/signals/{signal_id}/resolve",

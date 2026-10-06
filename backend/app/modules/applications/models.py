@@ -34,7 +34,13 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
 from app.core.mixins import TenantScoped, Timestamps, UUIDPrimaryKey
-from app.modules.applications.domain import ACTOR_TYPES, EVENT_KINDS, STAGES, TERMINAL_STAGES
+from app.modules.applications.domain import (
+    ACTOR_TYPES,
+    EVENT_KINDS,
+    SHORTLIST_STATUSES,
+    STAGES,
+    TERMINAL_STAGES,
+)
 
 
 def _in(values: tuple[str, ...]) -> str:
@@ -234,4 +240,68 @@ class ApplicationMessage(Base, UUIDPrimaryKey):
         ),
         Index("ix_application_messages_application", "application_id", "created_at"),
         Index("ix_application_messages_sender", "sender_id"),
+    )
+
+
+class EmployerShortlist(Base, UUIDPrimaryKey, TenantScoped, Timestamps):
+    """A candidate an organisation kept from search, or invited to one job
+    (2026-10-05). `applications.domain` has the states; the guard in migration
+    0010 holds them for every writer, and RLS shows a row to its tenant and,
+    once it is an invitation, to its candidate -- never a private SAVED row.
+    """
+
+    __tablename__ = "employer_shortlists"
+
+    candidate_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    # With `tenant_id`, a key to the organisation's own job; see
+    # `fk_shortlists_job_tenant`. NULL for a SAVED row.
+    job_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    application_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("applications.id", ondelete="SET NULL")
+    )
+    answered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        CheckConstraint(f"status IN ({_in(SHORTLIST_STATUSES)})", name="ck_shortlists_status"),
+        # A SAVED row names no job; every invitation names one.
+        CheckConstraint("(job_id IS NULL) = (status = 'SAVED')", name="ck_shortlists_job"),
+        CheckConstraint(
+            "(answered_at IS NOT NULL) = (status IN ('ACCEPTED', 'DECLINED'))",
+            name="ck_shortlists_answered",
+        ),
+        CheckConstraint(
+            "application_id IS NULL OR status = 'ACCEPTED'", name="ck_shortlists_application"
+        ),
+        # The organisation's own job, and no other: referential checks ignore
+        # RLS, so this holds for every writer (as `fk_applications_job_tenant`).
+        ForeignKeyConstraint(
+            ["job_id", "tenant_id"],
+            ["jobs.id", "jobs.tenant_id"],
+            name="fk_shortlists_job_tenant",
+            ondelete="CASCADE",
+        ),
+        # One row per organisation, candidate and job -- and one SAVED row,
+        # the NULL job counted as a value.
+        Index(
+            "uq_shortlists_entry",
+            "tenant_id",
+            "candidate_id",
+            "job_id",
+            unique=True,
+            postgresql_nulls_not_distinct=True,
+        ),
+        Index("ix_shortlists_tenant_created", "tenant_id", "created_at", "id"),
+        Index("ix_shortlists_candidate", "candidate_id", "created_at"),
+        Index("ix_shortlists_job", "job_id", "tenant_id"),
+        Index(
+            "ix_shortlists_application",
+            "application_id",
+            postgresql_where=text("application_id IS NOT NULL"),
+        ),
     )

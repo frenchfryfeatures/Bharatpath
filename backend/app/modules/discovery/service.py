@@ -446,6 +446,196 @@ async def open_candidate(
     )
 
 
+# ---------------------------------------------------------------------------
+# Applicants (2026-10-05)
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True, slots=True)
+class ApplicantCard:
+    """An applicant on the employer's pipeline: who they are, not how to reach
+    them. No contact and no score -- the band is what a list shows."""
+
+    #: None when the card is for a shortlist entry rather than an application.
+    application_id: uuid.UUID | None
+    candidate_id: uuid.UUID
+    resume_version_id: uuid.UUID
+    full_name: str | None
+    band: str
+    experience_years: int
+    skills: list[str]
+    badges: list[str]
+    city: str | None
+    state_code: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class OpenedApplicant:
+    card: ApplicantCard
+    score_id: uuid.UUID
+    phone: str | None
+    email: str | None
+
+
+def _applicant_card(row: Any) -> ApplicantCard:
+    return ApplicantCard(
+        application_id=row.application_id,
+        candidate_id=row.user_id,
+        resume_version_id=row.resume_version_id,
+        full_name=row.full_name,
+        band=row.band,
+        experience_years=experience_years(int(row.experience_months)),
+        skills=list(row.skills),
+        badges=sorted(row.badges),
+        city=row.city,
+        state_code=row.state_code,
+    )
+
+
+async def applicant_cards(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    applications: list[tuple[uuid.UUID, uuid.UUID]],
+    request_id: str | None = None,
+) -> dict[uuid.UUID, ApplicantCard]:
+    """Who is behind each of a page of this organisation's applications, by
+    application id. **The page is audited** (ids only), as a college's
+    student list is: a list that names people is a reveal of their names.
+
+    The caller loaded `applications` (application id, candidate id) under
+    the tenant's policy; the query joins them to the tenant again and to the
+    visibility rule, so a candidate a HIGH signal is hiding is simply absent
+    and their application is shown without them. No view caps: these people
+    applied to this organisation, and the caps exist to stop trawling search.
+    """
+    if not applications or ctx.tenant_id is None:
+        return {}
+    rows = await repository.applicant_cards(
+        session,
+        tenant_id=ctx.tenant_id,
+        application_ids=[a for a, _ in applications],
+        candidate_ids=sorted({c for _, c in applications}),
+    )
+    cards = {row.application_id: _applicant_card(row) for row in rows}
+    if cards:
+        await audit_event(
+            session,
+            action=AuditAction.APPLICANTS_LISTED,
+            actor_id=ctx.user_id,
+            actor_role=ctx.role,
+            target_type="tenant",
+            target_id=ctx.tenant_id,
+            tenant_id=ctx.tenant_id,
+            request_id=request_id,
+            metadata={
+                "application_ids": [str(a) for a in cards],
+                "candidate_ids": sorted({str(c.candidate_id) for c in cards.values()}),
+            },
+        )
+    return cards
+
+
+async def open_applicant(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    application_id: uuid.UUID,
+    candidate_id: uuid.UUID,
+    request_id: str | None = None,
+) -> OpenedApplicant | None:
+    """One applicant with contact details, **audited**, or None when the
+    visibility rule hides them now. Every open is a row, re-opens included,
+    as on the reveal. Not a view event: the candidate already sees VIEWED on
+    their board, and a view event would spend the organisation's search caps
+    on people who came to it."""
+    if ctx.tenant_id is None:
+        return None
+    row = await repository.applicant_profile(
+        session, tenant_id=ctx.tenant_id, application_id=application_id, candidate_id=candidate_id
+    )
+    if row is None:
+        return None
+    await audit_event(
+        session,
+        action=AuditAction.APPLICANT_PROFILE_VIEWED,
+        actor_id=ctx.user_id,
+        actor_role=ctx.role,
+        target_type="candidate",
+        target_id=candidate_id,
+        tenant_id=ctx.tenant_id,
+        request_id=request_id,
+        metadata={
+            "application_id": str(application_id),
+            "score_id": str(row.score_id),
+            "resume_version_id": str(row.resume_version_id),
+        },
+    )
+    return OpenedApplicant(
+        card=_applicant_card(row), score_id=row.score_id, phone=row.phone, email=row.email
+    )
+
+
+# ---------------------------------------------------------------------------
+# The shortlist's checks (2026-10-05)
+# ---------------------------------------------------------------------------
+async def require_shortlistable(
+    session: AsyncSession, *, ctx: TenantContext, candidate_id: uuid.UUID
+) -> uuid.UUID:
+    """The reveal's gate, for keeping or inviting a candidate: approved KYB
+    (403 `kyb_required`), and a candidate visible now **whom this
+    organisation has opened** (else 404 `candidate_not_found`, which says
+    nothing about whether the id exists). Binds and returns the tenant."""
+    tenant_id = await _verified_employer(session, ctx)
+    if not await repository.opened_and_visible(
+        session, tenant_id=tenant_id, candidate_id=candidate_id
+    ):
+        raise CandidateNotFoundError()
+    return tenant_id
+
+
+async def shortlisted_cards(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    candidate_ids: list[uuid.UUID],
+    request_id: str | None = None,
+) -> dict[uuid.UUID, ApplicantCard]:
+    """Who is behind a page of the organisation's shortlist, by candidate id,
+    audited as one row (ids only). A hidden candidate is absent."""
+    if not candidate_ids or ctx.tenant_id is None:
+        return {}
+    rows = await repository.shortlisted_cards(
+        session, tenant_id=ctx.tenant_id, candidate_ids=sorted(set(candidate_ids))
+    )
+    cards = {
+        row.user_id: ApplicantCard(
+            application_id=None,
+            candidate_id=row.user_id,
+            resume_version_id=row.resume_version_id,
+            full_name=row.full_name,
+            band=row.band,
+            experience_years=experience_years(int(row.experience_months)),
+            skills=list(row.skills),
+            badges=sorted(row.badges),
+            city=row.city,
+            state_code=row.state_code,
+        )
+        for row in rows
+    }
+    if cards:
+        await audit_event(
+            session,
+            action=AuditAction.SHORTLIST_LISTED,
+            actor_id=ctx.user_id,
+            actor_role=ctx.role,
+            target_type="tenant",
+            target_id=ctx.tenant_id,
+            tenant_id=ctx.tenant_id,
+            request_id=request_id,
+            metadata={"candidate_ids": sorted(str(c) for c in cards)},
+        )
+    return cards
+
+
 async def _flag_anomaly(
     session: AsyncSession,
     *,

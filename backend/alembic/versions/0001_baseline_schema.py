@@ -54,6 +54,9 @@ TENANT_SCOPED_TABLES = (
     # Day 19. NULL for a candidate's dispute, which the policy then never
     # matches; the candidate and staff policies are added beside it.
     "disputes",
+    # 2026-10-05. The candidate's policies, the guard and the accept function
+    # are migration 0010's, which runs on every database, fresh or not.
+    "employer_shortlists",
 )
 
 # Tables that carry a tenant_id but must NOT get the policy. Each exemption is
@@ -279,6 +282,8 @@ def _create_employer_tables() -> None:
         # 2026-09-29, also created by 0005 on a database built before it.
         "application_messages",
         "candidate_view_events",
+        # 2026-10-05, also created by 0010 on a database built before it.
+        "employer_shortlists",
     )
 
 

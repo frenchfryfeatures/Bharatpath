@@ -106,6 +106,12 @@ STATIC_POLICIES: Final[Mapping[str, Policy]] = {
     # candidate's inbox. One candidate is protected separately, by a daily
     # cap per application (`applications.domain`).
     "applications.message": Policy("applications:message", Scope.TENANT, 300, 3600),
+    # An employer inviting candidates from search to a job (2026-10-05). Per
+    # organisation, a spam control: each invitation is an email to a person
+    # who never applied. The number is ours, not the client's.
+    "applications.shortlist_invite": Policy(
+        "applications:shortlist_invite", Scope.TENANT, 60, 3600
+    ),
 }
 
 

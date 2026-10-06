@@ -45,10 +45,12 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, Final
 
 from fastapi import status
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import AuditAction, audit_event
 from app.core.db import set_transaction_tenant
+from app.core.deps import EMPLOYER_OWNER, EMPLOYER_RECRUITER
 from app.core.errors import (
     AppError,
     ConflictError,
@@ -70,6 +72,7 @@ from app.modules.applications.domain import (
     IST_ZONE_NAME,
     MAX_MESSAGES_PER_APPLICATION_PER_DAY,
     MESSAGEABLE_STAGES,
+    STATUS_STAGES,
     UPCOMING_INTERVIEWS,
     ExpiryRules,
     ExpiryRulesError,
@@ -85,6 +88,7 @@ from app.modules.applications.domain import (
     hire_state,
     refuse_meeting,
     refuse_message,
+    shortlist_invite_refusal,
     trend_start,
     withdrawal,
 )
@@ -98,14 +102,19 @@ from app.modules.applications.events import (
     HIRE_PROPOSED,
     INTERVIEW_SCHEDULED,
     MESSAGE_SENT,
+    SHORTLIST_ANSWERED,
+    SHORTLIST_INVITED,
 )
 from app.modules.applications.models import ApplicationMessage
 from app.modules.applications.schemas import (
     ActivityItem,
+    ApplicantCard,
+    ApplicantProfile,
     ApplicationCounts,
     ApplicationDetailResponse,
     ApplicationResponse,
     CandidateHistoryItem,
+    CandidateShortlistState,
     DailyApplications,
     EmployerApplicationDetail,
     EmployerApplicationListItem,
@@ -116,12 +125,18 @@ from app.modules.applications.schemas import (
     JobCounts,
     NeedsAttention,
     RevealCounts,
+    ShortlistEntry,
+    ShortlistInvitation,
+    ShortlistInvitationState,
     TopJob,
     UpcomingInterview,
 )
 from app.modules.discovery import service as discovery_service
 from app.modules.jobs import service as jobs_service
 from app.modules.jobs.domain import eligibility
+from app.modules.resume import service as resume_service
+from app.modules.scoring import service as scoring_service
+from app.modules.scoring.domain import display_value
 
 logger = get_logger(__name__)
 
@@ -383,12 +398,22 @@ async def apply(
 
 
 async def list_mine(
-    session: AsyncSession, *, ctx: TenantContext, cursor: str | None, limit: int | None
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    cursor: str | None,
+    limit: int | None,
+    status: str | None = None,
 ) -> Page[ApplicationResponse]:
+    """`status` is a tab of the board (`domain.STATUS_STAGES`); None is all."""
     candidate_id = await jobs_service.bind_candidate(session, ctx)
     page_size = clamp_limit(limit)
     rows = await repository.list_for_candidate(
-        session, candidate_id=candidate_id, after=_after(cursor), limit=page_size + 1
+        session,
+        candidate_id=candidate_id,
+        after=_after(cursor),
+        limit=page_size + 1,
+        stages=STATUS_STAGES[status] if status is not None else None,
     )
     page, more = rows[:page_size], len(rows) > page_size
     return Page[ApplicationResponse](
@@ -534,6 +559,10 @@ async def dispute_hire(
 # ---------------------------------------------------------------------------
 # The employer's pipeline
 # ---------------------------------------------------------------------------
+#: Who sees an applicant's phone, email and CV: the roles the reveal admits.
+CONTACT_ROLES: Final = frozenset({EMPLOYER_OWNER, EMPLOYER_RECRUITER})
+
+
 async def _bind_tenant(session: AsyncSession, ctx: TenantContext) -> uuid.UUID:
     if ctx.tenant_id is None:
         raise PermissionDeniedError()
@@ -566,7 +595,13 @@ def _summary(row: Any) -> EmployerApplicationSummary:
     )
 
 
-async def _detail(session: AsyncSession, row: Any) -> EmployerApplicationDetail:
+async def _detail(
+    session: AsyncSession, row: Any, ctx: TenantContext, request_id: str | None = None
+) -> EmployerApplicationDetail:
+    """The application, its history and the applicant in full. Every
+    response carrying the applicant writes its audit row (in
+    `discovery.open_applicant`), the moves included: each shows the person
+    again."""
     events = await repository.events_for(session, application_id=row.id)
     return EmployerApplicationDetail(
         **_summary(row).model_dump(),
@@ -582,6 +617,66 @@ async def _detail(session: AsyncSession, row: Any) -> EmployerApplicationDetail:
             )
             for e in events
         ],
+        candidate=await _applicant_profile(session, row, ctx, request_id),
+    )
+
+
+async def _name(session: AsyncSession, card: discovery_service.ApplicantCard) -> str | None:
+    """The name given at sign-up, else the structured form's -- as on the
+    reveal. Never guessed from a CV."""
+    return card.full_name or await resume_service.declared_name(
+        session, user_id=card.candidate_id, resume_version_id=card.resume_version_id
+    )
+
+
+async def _card(session: AsyncSession, card: discovery_service.ApplicantCard) -> dict[str, Any]:
+    return {
+        "full_name": await _name(session, card),
+        "band": card.band,
+        "experience_years": card.experience_years,
+        "skills": card.skills,
+        "badges": card.badges,
+        "city": card.city,
+        "state_code": card.state_code,
+    }
+
+
+async def _applicant_profile(
+    session: AsyncSession, row: Any, ctx: TenantContext, request_id: str | None
+) -> ApplicantProfile | None:
+    """Null when the visibility rule hides the candidate now. The score shown
+    is `display_value` of the score the search document names, applied here.
+
+    **Contact and the CV are for owners and recruiters**, the roles that may
+    open a profile from search; a viewer sees who it is and the score, as a
+    viewer is refused the reveal."""
+    opened = await discovery_service.open_applicant(
+        session,
+        ctx=ctx,
+        application_id=row.id,
+        candidate_id=row.candidate_id,
+        request_id=request_id,
+    )
+    if opened is None:
+        return None
+    score = await scoring_service.get_score(session, score_id=opened.score_id)
+    if score is None:  # the search document's foreign key makes this unreachable
+        return None
+    full = ctx.role in CONTACT_ROLES
+    return ApplicantProfile(
+        **await _card(session, opened.card),
+        phone=opened.phone if full else None,
+        email=opened.email if full else None,
+        score=display_value(int(score.raw_value)),
+        resume=(
+            await resume_service.shared_resume(
+                session,
+                user_id=opened.card.candidate_id,
+                resume_version_id=opened.card.resume_version_id,
+            )
+            if full
+            else None
+        ),
     )
 
 
@@ -593,6 +688,7 @@ async def list_for_employer(
     stage: str | None,
     cursor: str | None,
     limit: int | None,
+    request_id: str | None = None,
 ) -> Page[EmployerApplicationListItem]:
     """The organisation's applications, oldest first, optionally for one job
     and optionally at one stage. Each row names its job.
@@ -616,12 +712,22 @@ async def list_for_employer(
     )
     page, more = rows[:page_size], len(rows) > page_size
     labels = await jobs_service.labels(session, ctx=ctx, job_ids=list({r.job_id for r in page}))
+    cards = await discovery_service.applicant_cards(
+        session,
+        ctx=ctx,
+        applications=[(r.id, r.candidate_id) for r in page],
+        request_id=request_id,
+    )
     items = []
     for row in page:
         title, location = labels.get(row.job_id, (None, None))
+        card = cards.get(row.id)
         items.append(
             EmployerApplicationListItem(
-                **_summary(row).model_dump(), job_title=title, job_location=location
+                **_summary(row).model_dump(),
+                job_title=title,
+                job_location=location,
+                candidate=ApplicantCard(**await _card(session, card)) if card else None,
             )
         )
     return Page[EmployerApplicationListItem](items=items, next_cursor=_cursor(page, more))
@@ -633,6 +739,7 @@ async def open_application(
     ctx: TenantContext,
     application_id: uuid.UUID,
     now: datetime | None = None,
+    request_id: str | None = None,
 ) -> EmployerApplicationDetail:
     """An application, with its history. **Opening a submitted one records VIEWED.**
 
@@ -655,7 +762,7 @@ async def open_application(
                 event_type=APPLICATION_STAGE_CHANGED,
                 now=now or datetime.now(UTC),
             )
-    return await _detail(session, row)
+    return await _detail(session, row, ctx, request_id)
 
 
 async def move_stage(
@@ -666,6 +773,7 @@ async def move_stage(
     target: str,
     note: str | None = None,
     now: datetime | None = None,
+    request_id: str | None = None,
 ) -> EmployerApplicationDetail:
     """Move an application one stage forward, or reject it (`domain.employer_move`).
 
@@ -688,7 +796,7 @@ async def move_stage(
             now=now,
             note=note if i == len(steps) - 1 else None,
         )
-    return await _detail(session, row)
+    return await _detail(session, row, ctx, request_id)
 
 
 async def schedule_interview(
@@ -699,6 +807,7 @@ async def schedule_interview(
     interview_at: datetime,
     meeting_url: str,
     now: datetime | None = None,
+    request_id: str | None = None,
 ) -> EmployerApplicationDetail:
     """Book or rebook the interview (SRS 1.13.2). The link is the employer's own.
 
@@ -715,7 +824,7 @@ async def schedule_interview(
     if row.stage != INTERVIEW_STAGE:
         raise InterviewNotAtStageError(params={"stage": row.stage})
     if row.meeting_url == meeting_url and row.interview_at == interview_at:
-        return await _detail(session, row)
+        return await _detail(session, row, ctx, request_id)
 
     row = await repository.save(
         session,
@@ -743,7 +852,7 @@ async def schedule_interview(
         payload=_payload(row, interview_at=interview_at.isoformat()),
     )
     logger.info("interview_scheduled", application_id=str(row.id))
-    return await _detail(session, row)
+    return await _detail(session, row, ctx, request_id)
 
 
 async def propose_hire(
@@ -752,6 +861,7 @@ async def propose_hire(
     ctx: TenantContext,
     application_id: uuid.UUID,
     now: datetime | None = None,
+    request_id: str | None = None,
 ) -> EmployerApplicationDetail:
     """Mark as hired: the first of two confirmations. Idempotent.
 
@@ -786,7 +896,7 @@ async def propose_hire(
             payload=_payload(row),
         )
         logger.info("hire_proposed", application_id=str(row.id))
-    return await _detail(session, row)
+    return await _detail(session, row, ctx, request_id)
 
 
 # ---------------------------------------------------------------------------
@@ -1152,3 +1262,404 @@ async def message_for_delivery(
     if message is None:
         return None
     return MessageForDelivery(message.kind, message.body, message.scheduled_at, message.link)
+
+
+# ---------------------------------------------------------------------------
+# The shortlist (2026-10-05)
+# ---------------------------------------------------------------------------
+class ShortlistNotFoundError(NotFoundError):
+    code = "shortlist_not_found"
+    title = "Shortlist entry not found"
+
+
+class ShortlistJobNotOpenError(ConflictError):
+    """An invitation is to a PUBLISHED job, and is accepted only while it is."""
+
+    code = "shortlist_job_not_open"
+    title = "This job is not open for applications"
+
+
+class AlreadyAppliedError(ConflictError):
+    """The candidate is already in the pipeline for this job. `params`
+    carries the application's id, for the employer to open it there."""
+
+    code = "already_applied"
+    title = "This candidate has already applied to this job"
+
+
+class ShortlistRefusedError(ConflictError):
+    """`code` is the domain's: `shortlist_declined` (the candidate said no to
+    this job; their answer stands) or `shortlist_already_accepted`."""
+
+    code = "shortlist_refused"
+    title = "This candidate cannot be invited to this job again"
+
+
+class ShortlistNotPendingError(ConflictError):
+    code = "shortlist_not_pending"
+    title = "This invitation is no longer open"
+
+
+def _shortlist_entry(
+    row: Any, *, job_title: str | None = None, candidate: ApplicantCard | None = None
+) -> ShortlistEntry:
+    return ShortlistEntry(
+        id=row.id,
+        candidate_id=row.candidate_id,
+        job_id=row.job_id,
+        job_title=job_title,
+        status=row.status,
+        application_id=row.application_id,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+        answered_at=row.answered_at,
+        candidate=candidate,
+    )
+
+
+async def shortlist_candidate(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    candidate_id: uuid.UUID,
+    job_id: uuid.UUID | None,
+    request_id: str | None = None,
+) -> tuple[ShortlistEntry, bool]:
+    """Save a candidate the organisation has opened, or invite them to one of
+    its PUBLISHED jobs. Returns the entry and whether anything changed.
+
+    Repeating either is a retry and returns the same row. A CANCELLED
+    invitation is re-opened; a DECLINED one is refused, because the
+    candidate's answer to this job stands. A candidate already in the
+    pipeline for the job is 409 `already_applied`, naming the application.
+    """
+    tenant_id = await discovery_service.require_shortlistable(
+        session, ctx=ctx, candidate_id=candidate_id
+    )
+    title: str | None = None
+    if job_id is not None:
+        job = await jobs_service.get_job(session, ctx=ctx, job_id=job_id)
+        if job.status != "PUBLISHED":
+            raise ShortlistJobNotOpenError()
+        title = job.title
+        active = await repository.active_for(session, job_id=job_id, candidate_id=candidate_id)
+        if active is not None:
+            raise AlreadyAppliedError(params={"application_id": str(active.id)})
+
+    existing = await repository.shortlist_entry(
+        session, tenant_id=tenant_id, candidate_id=candidate_id, job_id=job_id, for_update=True
+    )
+    if existing is not None and existing.status in ("SAVED", "INVITED"):
+        return _shortlist_entry(existing, job_title=title), False
+    refused = shortlist_invite_refusal(existing.status if existing else None)
+    if refused is not None:
+        raise ShortlistRefusedError(code=refused)
+
+    if job_id is not None:
+        await enforce("applications.shortlist_invite", subject=str(tenant_id))
+    if existing is not None:  # CANCELLED: invite again
+        row = await repository.set_shortlist_status(session, entry=existing, status="INVITED")
+    else:
+        inserted = await repository.insert_shortlist(
+            session,
+            tenant_id=tenant_id,
+            candidate_id=candidate_id,
+            job_id=job_id,
+            status="SAVED" if job_id is None else "INVITED",
+            created_by=ctx.user_id,
+        )
+        if inserted is None:  # a simultaneous request made it first
+            winner = await repository.shortlist_entry(
+                session, tenant_id=tenant_id, candidate_id=candidate_id, job_id=job_id
+            )
+            if winner is None:  # pragma: no cover - only if it was removed in between
+                raise ShortlistNotFoundError()
+            return _shortlist_entry(winner, job_title=title), False
+        row = inserted
+
+    await audit_event(
+        session,
+        action=AuditAction.CANDIDATE_SHORTLISTED,
+        actor_id=ctx.user_id,
+        actor_role=ctx.role,
+        target_type="candidate",
+        target_id=candidate_id,
+        tenant_id=tenant_id,
+        request_id=request_id,
+        metadata={"shortlist_id": str(row.id), "job_id": str(job_id) if job_id else None},
+    )
+    if row.status == "INVITED":
+        await emit(
+            session,
+            event_type=SHORTLIST_INVITED,
+            aggregate_type="shortlist",
+            aggregate_id=row.id,
+            payload={
+                "tenant_id": str(tenant_id),
+                "job_id": str(job_id),
+                "candidate_id": str(candidate_id),
+            },
+        )
+    logger.info("candidate_shortlisted", shortlist_id=str(row.id), status=row.status)
+    return _shortlist_entry(row, job_title=title), True
+
+
+async def _tenant_entry(
+    session: AsyncSession, ctx: TenantContext, shortlist_id: uuid.UUID
+) -> tuple[uuid.UUID, Any]:
+    tenant_id = await _bind_tenant(session, ctx)
+    row = await repository.shortlist_for_tenant(
+        session, tenant_id=tenant_id, shortlist_id=shortlist_id, for_update=True
+    )
+    if row is None:
+        raise ShortlistNotFoundError()
+    return tenant_id, row
+
+
+async def cancel_invitation(
+    session: AsyncSession, *, ctx: TenantContext, shortlist_id: uuid.UUID
+) -> ShortlistEntry:
+    """Withdraw an invitation the candidate has not answered. Repeating it
+    returns the cancelled row; an answered one is 409 `shortlist_not_pending`."""
+    _, row = await _tenant_entry(session, ctx, shortlist_id)
+    if row.status == "CANCELLED":
+        return _shortlist_entry(row)
+    if row.status != "INVITED":
+        raise ShortlistNotPendingError(params={"status": row.status})
+    row = await repository.set_shortlist_status(session, entry=row, status="CANCELLED")
+    return _shortlist_entry(row)
+
+
+async def remove_saved(
+    session: AsyncSession, *, ctx: TenantContext, shortlist_id: uuid.UUID
+) -> None:
+    """Forget a saved candidate. An invitation is cancelled, never removed:
+    the candidate has seen it, and their answer is part of the record."""
+    _, row = await _tenant_entry(session, ctx, shortlist_id)
+    if row.status != "SAVED":
+        raise ShortlistNotPendingError(params={"status": row.status})
+    await repository.delete_saved(session, entry=row)
+
+
+async def list_shortlist(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    job_id: uuid.UUID | None,
+    status: str | None,
+    cursor: str | None,
+    limit: int | None,
+    request_id: str | None = None,
+) -> Page[ShortlistEntry]:
+    """The organisation's shortlist, newest first, each row naming who it is
+    (audited, one row per page) and the job."""
+    tenant_id = await _bind_tenant(session, ctx)
+    page_size = clamp_limit(limit)
+    rows = await repository.shortlists_for_tenant(
+        session,
+        tenant_id=tenant_id,
+        job_id=job_id,
+        status=status,
+        after=_after(cursor),
+        limit=page_size + 1,
+    )
+    page, more = rows[:page_size], len(rows) > page_size
+    job_ids = list({r.job_id for r in page if r.job_id is not None})
+    labels = await jobs_service.labels(session, ctx=ctx, job_ids=job_ids) if job_ids else {}
+    cards = await discovery_service.shortlisted_cards(
+        session, ctx=ctx, candidate_ids=[r.candidate_id for r in page], request_id=request_id
+    )
+    items = []
+    for row in page:
+        card = cards.get(row.candidate_id)
+        title = labels.get(row.job_id, (None, None))[0] if row.job_id is not None else None
+        items.append(
+            _shortlist_entry(
+                row,
+                job_title=title,
+                candidate=ApplicantCard(**await _card(session, card)) if card else None,
+            )
+        )
+    return Page[ShortlistEntry](items=items, next_cursor=_cursor(page, more))
+
+
+async def shortlist_state(
+    session: AsyncSession, *, ctx: TenantContext, candidate_id: uuid.UUID
+) -> CandidateShortlistState:
+    """The opened profile's Shortlist button: saved or not, and each invitation."""
+    tenant_id = await _bind_tenant(session, ctx)
+    rows = await repository.shortlists_of_candidate_in_tenant(
+        session, tenant_id=tenant_id, candidate_id=candidate_id
+    )
+    return CandidateShortlistState(
+        saved_id=next((r.id for r in rows if r.status == "SAVED"), None),
+        invitations=[
+            ShortlistInvitationState(
+                id=r.id, job_id=r.job_id, status=r.status, application_id=r.application_id
+            )
+            for r in rows
+            if r.job_id is not None
+        ],
+    )
+
+
+# --- the candidate's side -------------------------------------------------------
+async def _invitations(
+    session: AsyncSession, ctx: TenantContext, rows: list[Any]
+) -> list[ShortlistInvitation]:
+    jobs = await jobs_service.jobs_for_candidate(
+        session, ctx=ctx, job_ids=list({r.job_id for r in rows})
+    )
+    out = []
+    for row in rows:
+        title, employer = jobs.get(row.job_id, (None, None))
+        out.append(
+            ShortlistInvitation(
+                id=row.id,
+                job_id=row.job_id,
+                job_title=title,
+                employer_name=employer,
+                status=row.status,
+                application_id=row.application_id,
+                created_at=row.created_at,
+                answered_at=row.answered_at,
+            )
+        )
+    return out
+
+
+async def my_invitations(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    status: str | None,
+    cursor: str | None,
+    limit: int | None,
+) -> Page[ShortlistInvitation]:
+    """Invitations addressed to the candidate, newest first. Not paywalled:
+    being asked is not something a candidate pays to see."""
+    candidate_id = await jobs_service.bind_candidate(session, ctx)
+    page_size = clamp_limit(limit)
+    rows = await repository.invitations_for_candidate(
+        session,
+        candidate_id=candidate_id,
+        status=status,
+        after=_after(cursor),
+        limit=page_size + 1,
+    )
+    page, more = rows[:page_size], len(rows) > page_size
+    return Page[ShortlistInvitation](
+        items=await _invitations(session, ctx, page), next_cursor=_cursor(page, more)
+    )
+
+
+async def _my_invitation(
+    session: AsyncSession, ctx: TenantContext, shortlist_id: uuid.UUID, *, for_update: bool
+) -> tuple[uuid.UUID, Any]:
+    candidate_id = await jobs_service.bind_candidate(session, ctx)
+    row = await repository.invitation_for_candidate(
+        session, candidate_id=candidate_id, shortlist_id=shortlist_id, for_update=for_update
+    )
+    if row is None:
+        raise ShortlistNotFoundError()
+    return candidate_id, row
+
+
+async def _answered(session: AsyncSession, ctx: TenantContext, row: Any, *, answer: str) -> None:
+    await audit_event(
+        session,
+        action=AuditAction.SHORTLIST_ANSWERED,
+        actor_id=ctx.user_id,
+        actor_role=ctx.role,
+        target_type="shortlist",
+        target_id=row.id,
+        tenant_id=row.tenant_id,
+        metadata={"answer": answer, "job_id": str(row.job_id)},
+    )
+    await emit(
+        session,
+        event_type=SHORTLIST_ANSWERED,
+        aggregate_type="shortlist",
+        aggregate_id=row.id,
+        payload={
+            "tenant_id": str(row.tenant_id),
+            "job_id": str(row.job_id),
+            "candidate_id": str(row.candidate_id),
+            "answer": answer,
+            "application_id": str(row.application_id) if row.application_id else None,
+        },
+    )
+
+
+async def accept_invitation(
+    session: AsyncSession, *, ctx: TenantContext, shortlist_id: uuid.UUID
+) -> ShortlistInvitation:
+    """Say yes: the application is filed and lands at SHORTLISTED, the
+    employer's choice already made. Repeating it returns the accepted
+    invitation.
+
+    Not behind the candidate's subscription, and the job's minimum score is
+    not applied: the employer chose this person. The discovery rule is
+    applied, as on applying (409 `application_unavailable`), and the job must
+    still be on the board (409 `shortlist_job_not_open`). An application the
+    candidate already had for the job is used and moved up to SHORTLISTED.
+    """
+    candidate_id, row = await _my_invitation(session, ctx, shortlist_id, for_update=False)
+    if row.status == "ACCEPTED":
+        return (await _invitations(session, ctx, [row]))[0]
+    if row.status != "INVITED":
+        raise ShortlistNotPendingError(params={"status": row.status})
+    if not await discovery_service.is_candidate_visible(session, candidate_id=candidate_id):
+        raise ApplicationUnavailableError()
+    had = await repository.active_for(session, job_id=row.job_id, candidate_id=candidate_id)
+
+    try:
+        async with session.begin_nested():
+            application_id = await repository.accept_invitation(session, shortlist_id=row.id)
+    except DBAPIError as exc:
+        if "SHORTLIST_JOB_CLOSED" in str(exc.orig):
+            raise ShortlistJobNotOpenError() from exc
+        if "SHORTLIST_NOT_PENDING" in str(exc.orig):
+            raise ShortlistNotPendingError() from exc
+        raise
+    if application_id is None:  # pragma: no cover - the read above found it
+        raise ShortlistNotFoundError()
+
+    _, row = await _my_invitation(session, ctx, shortlist_id, for_update=False)
+    if had is None:
+        await emit(
+            session,
+            event_type=APPLICATION_SUBMITTED,
+            aggregate_type="application",
+            aggregate_id=application_id,
+            payload={
+                "tenant_id": str(row.tenant_id),
+                "job_id": str(row.job_id),
+                "candidate_id": str(candidate_id),
+            },
+        )
+    await _answered(session, ctx, row, answer="ACCEPTED")
+    logger.info("shortlist_accepted", shortlist_id=str(row.id), application_id=str(application_id))
+    return (await _invitations(session, ctx, [row]))[0]
+
+
+async def decline_invitation(
+    session: AsyncSession, *, ctx: TenantContext, shortlist_id: uuid.UUID
+) -> ShortlistInvitation:
+    """Say no. Final for this job: the employer cannot ask again. Repeating
+    it returns the declined invitation."""
+    candidate_id, row = await _my_invitation(session, ctx, shortlist_id, for_update=False)
+    if row.status == "DECLINED":
+        return (await _invitations(session, ctx, [row]))[0]
+    if row.status != "INVITED":
+        raise ShortlistNotPendingError(params={"status": row.status})
+    row = await repository.invitation_for_candidate(
+        session, candidate_id=candidate_id, shortlist_id=shortlist_id, for_update=True
+    )
+    if row is None:  # answered or cancelled a moment ago
+        raise ShortlistNotPendingError()
+    row = await repository.set_shortlist_status(
+        session, entry=row, status="DECLINED", answered=True
+    )
+    await _answered(session, ctx, row, answer="DECLINED")
+    return (await _invitations(session, ctx, [row]))[0]

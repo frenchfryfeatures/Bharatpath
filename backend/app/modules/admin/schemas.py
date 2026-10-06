@@ -71,16 +71,45 @@ class KybDecisionRequest(_Base):
 # ---------------------------------------------------------------------------
 # Integrity
 # ---------------------------------------------------------------------------
+class SignalCandidate(_Base):
+    """Who a signal is about, enough to tell two people apart -- the same as a
+    row of the candidate list. The full contact stays behind `/onboarding`."""
+
+    id: uuid.UUID
+    status: str
+    full_name: str | None
+    phone_masked: str | None
+    email_masked: str | None
+
+
 class IntegritySignalRow(_Base):
     id: uuid.UUID
     candidate_id: uuid.UUID
     resume_version_id: uuid.UUID | None
     rule_id: str
+    rule_title: str = Field(description="The rule in plain English, for the queue.")
+    rule_description: str = Field(description="One sentence on what the rule looks for.")
     rule_version: str
+    thresholds_version: str
     severity: str
     state: str
+    hides_candidate: bool = Field(
+        description="True while this signal keeps the candidate out of employer search "
+        "(HIGH, and OPEN or CONFIRMED). Only CLEARED restores them."
+    )
     created_at: datetime
     resolved_at: datetime | None
+    resolved_by: uuid.UUID | None = None
+    resolved_by_email: str | None = Field(
+        default=None, description="The staff member who resolved it."
+    )
+    resolution_note: str | None = None
+    candidate: SignalCandidate | None = Field(
+        default=None, description="Absent only on the resolve response; re-open the signal."
+    )
+    other_open_signals: int | None = Field(
+        default=None, description="Other OPEN signals on the same candidate."
+    )
 
 
 class IntegritySignalsPage(_Base):
@@ -88,13 +117,48 @@ class IntegritySignalsPage(_Base):
     next_cursor: str | None
 
 
+class SignalResumeVersion(_Base):
+    """The CV version the signal was raised on. Its text is at
+    `/admin/candidates/{id}/resume`, behind its own capability and audit row."""
+
+    id: uuid.UUID
+    source: str
+    created_at: datetime
+    confirmed_at: datetime | None
+    is_latest: bool = Field(description="False once the candidate has edited or re-uploaded.")
+
+
+class SignalScore(_Base):
+    """The candidate's current score as they see it. A signal never moves it."""
+
+    display_value: int
+    band: str
+    computed_at: datetime
+
+
+class RelatedSignal(_Base):
+    id: uuid.UUID
+    rule_id: str
+    rule_title: str
+    severity: str
+    state: str
+    hides_candidate: bool
+    created_at: datetime
+
+
 class IntegritySignalDetail(IntegritySignalRow):
-    thresholds_version: str
     #: What the rule saw. Can quote the CV, which is why opening a signal is
     #: audited and the queue above never carries it.
     evidence: dict[str, Any]
-    resolved_by: uuid.UUID | None
-    resolution_note: str | None
+    resume_version: SignalResumeVersion | None = None
+    score: SignalScore | None = None
+    visible_to_employers: bool | None = Field(
+        default=None,
+        description="Whether employers can find this candidate now, all signals considered.",
+    )
+    other_signals: list[RelatedSignal] = Field(
+        default_factory=list, description="Every other signal on this candidate, newest first."
+    )
 
 
 class ResolveSignalRequest(_Base):

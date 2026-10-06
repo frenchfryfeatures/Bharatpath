@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import PermissionDeniedError
 from app.core.pagination import Page
 from app.core.tenant import TenantContext
+from app.modules.applications import service as applications_service
 from app.modules.candidate import repository
 from app.modules.candidate.schemas import (
     CandidateProfileResponse,
@@ -151,4 +152,10 @@ async def reveal_to_employer(
         badges=opened.badges,
         city=opened.city,
         state_code=opened.state_code,
+        resume=await resume_service.shared_resume(
+            session, user_id=opened.candidate_id, resume_version_id=opened.resume_version_id
+        ),
+        shortlist=await applications_service.shortlist_state(
+            session, ctx=ctx, candidate_id=opened.candidate_id
+        ),
     )

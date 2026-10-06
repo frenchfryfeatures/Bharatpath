@@ -48,6 +48,13 @@ TERMINAL_STAGES: Final = ("HIRED", "REJECTED", "WITHDRAWN", "EXPIRED")
 #: The open stages, in pipeline order.
 PIPELINE: Final = ("SUBMITTED", "VIEWED", "SHORTLISTED", "INTERVIEW", "DECISION")
 
+#: The candidate board's two tabs (2026-10-05). ACTIVE is still in the
+#: pipeline; CLOSED has an outcome. Together they are every stage, once.
+STATUS_STAGES: Final[dict[str, tuple[str, ...]]] = {
+    "ACTIVE": PIPELINE,
+    "CLOSED": TERMINAL_STAGES,
+}
+
 #: Where an employer may send an application. HIRED is absent -- it needs the
 #: candidate -- and so are WITHDRAWN (the candidate's) and EXPIRED (the clock's).
 EMPLOYER_TARGETS: Final = ("VIEWED", "SHORTLISTED", "INTERVIEW", "DECISION", "REJECTED")
@@ -450,3 +457,48 @@ def refuse_message(
     if link is not None and _refuse_link(link):
         return "message_link_invalid"
     return None
+
+
+# ---------------------------------------------------------------------------
+# The shortlist (2026-10-05)
+# ---------------------------------------------------------------------------
+# An employer who has opened a candidate from search can keep them, or invite
+# them to one job. **An invitation is not an application**: the pipeline is
+# made of applications and an application is the candidate's act, so the
+# employer's "shortlist" asks, and only the candidate's yes files one -- which
+# then starts at SHORTLISTED, the employer's choice already made.
+#
+#   SAVED      -- kept by the organisation, no job. The candidate never sees it.
+#   INVITED    -- asked to one job; the candidate sees it and is told.
+#   ACCEPTED   -- the candidate said yes; `application_id` is the application.
+#   DECLINED   -- the candidate said no. Final for that job: asking again is
+#                 not respecting the answer.
+#   CANCELLED  -- the employer withdrew the invitation before an answer. They
+#                 may invite again.
+SHORTLIST_STATUSES: Final = ("SAVED", "INVITED", "ACCEPTED", "DECLINED", "CANCELLED")
+
+#: Each move, and the party whose move it is. ACCEPTED is the candidate's, but
+#: never by a plain UPDATE: it files an application in the same breath, so it
+#: goes only through `accept_shortlist_invitation` (migration 0010). The guard
+#: on the table is generated from this.
+SHORTLIST_MOVES: Final[dict[tuple[str, str], str]] = {
+    ("INVITED", "ACCEPTED"): "CANDIDATE",
+    ("INVITED", "DECLINED"): "CANDIDATE",
+    ("INVITED", "CANCELLED"): "EMPLOYER",
+    ("CANCELLED", "INVITED"): "EMPLOYER",
+}
+
+#: The stages an accepted invitation walks an application through, after
+#: SUBMITTED: the employer's shortlisting, recorded as theirs.
+SHORTLIST_ACCEPT_STAGES: Final = ("VIEWED", "SHORTLISTED")
+
+
+def shortlist_invite_refusal(existing: str | None) -> str | None:
+    """Why inviting a candidate to a job they already have a row for is refused,
+    or None when it goes ahead (no row, or a CANCELLED one to re-open).
+    INVITED is a retry and answers with the same invitation."""
+    if existing is None or existing in ("CANCELLED", "INVITED"):
+        return None
+    if existing == "DECLINED":
+        return "shortlist_declined"
+    return "shortlist_already_accepted"

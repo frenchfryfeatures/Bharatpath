@@ -122,6 +122,7 @@ from app.modules.admin.schemas import (
     ProvisionCollegeRequest,
     ProvisionedAccountResponse,
     ProvisionEmployerRequest,
+    RelatedSignal,
     ResumeSummary,
     ResumeVersionView,
     ScorePoint,
@@ -131,7 +132,10 @@ from app.modules.admin.schemas import (
     SearchFilterOptionsPage,
     SeatAllocationResponse,
     SeatSummary,
+    SignalCandidate,
     SignalCount,
+    SignalResumeVersion,
+    SignalScore,
     SubscriptionSummary,
     SuspensionResponse,
     SuspensionSummary,
@@ -158,6 +162,7 @@ from app.modules.employer import service as employer_service
 from app.modules.employer.schemas import CreateOrganisationRequest
 from app.modules.identity import service as identity_service
 from app.modules.integrity import service as integrity_service
+from app.modules.integrity.domain import hides_candidate, rule_text
 from app.modules.interview import service as interview_service
 from app.modules.jobs import service as jobs_service
 from app.modules.kyb import service as kyb_service
@@ -387,9 +392,50 @@ async def integrity_queue(
             reader, state=state, severity=severity, after=_keyset(cursor), limit=size
         )
     return IntegritySignalsPage(
-        items=[IntegritySignalRow.model_validate(dict(r)) for r in rows],
+        items=[IntegritySignalRow.model_validate(_signal_fields(r)) for r in rows],
         next_cursor=_next(rows, size, at="created_at"),
     )
+
+
+def _signal_fields(row: Any) -> dict[str, Any]:
+    """A stored signal, with its rule in words and whether it hides someone.
+    Candidate columns, when the row was read with them, become the masked
+    `candidate` block; a full phone or email never leaves here."""
+    title, description = rule_text(row["rule_id"])
+    fields: dict[str, Any] = {
+        **{k: row[k] for k in _SIGNAL_KEYS if k in row},
+        "rule_title": title,
+        "rule_description": description,
+        "hides_candidate": hides_candidate(row["severity"], row["state"]),
+    }
+    if "candidate_status" in row:
+        fields["candidate"] = SignalCandidate(
+            id=row["candidate_id"],
+            status=row["candidate_status"],
+            full_name=row["candidate_full_name"],
+            phone_masked=mask_phone(row["candidate_phone"]),
+            email_masked=mask_email(row["candidate_email"]),
+        )
+    return fields
+
+
+_SIGNAL_KEYS = (
+    "id",
+    "candidate_id",
+    "resume_version_id",
+    "rule_id",
+    "rule_version",
+    "thresholds_version",
+    "severity",
+    "state",
+    "created_at",
+    "resolved_at",
+    "resolved_by",
+    "resolved_by_email",
+    "resolution_note",
+    "other_open_signals",
+    "evidence",
+)
 
 
 async def open_signal(
@@ -408,9 +454,43 @@ async def open_signal(
         request_id=request_id,
     ) as reader:
         row = await repository.integrity_signal(reader, signal_id=signal_id)
-    if row is None:
-        raise integrity_service.SignalNotFoundError()
-    return IntegritySignalDetail.model_validate(dict(row))
+        if row is None:
+            raise integrity_service.SignalNotFoundError()
+        context = await repository.signal_context(
+            reader,
+            candidate_id=row["candidate_id"],
+            signal_id=signal_id,
+            resume_version_id=row["resume_version_id"],
+        )
+        visible = await discovery_service.is_candidate_visible(
+            reader, candidate_id=row["candidate_id"]
+        )
+    version, latest = context["resume_version"], context["score"]
+    shown = display_value(int(latest["stored_value"])) if latest else None
+    return IntegritySignalDetail(
+        **_signal_fields(row),
+        resume_version=SignalResumeVersion.model_validate(dict(version)) if version else None,
+        score=(
+            SignalScore(
+                display_value=shown, band=band_for(shown), computed_at=latest["computed_at"]
+            )
+            if latest and shown is not None
+            else None
+        ),
+        visible_to_employers=visible,
+        other_signals=[
+            RelatedSignal(
+                id=o["id"],
+                rule_id=o["rule_id"],
+                rule_title=rule_text(o["rule_id"])[0],
+                severity=o["severity"],
+                state=o["state"],
+                hides_candidate=hides_candidate(o["severity"], o["state"]),
+                created_at=o["created_at"],
+            )
+            for o in context["others"]
+        ],
+    )
 
 
 async def resolve_signal(
@@ -431,7 +511,8 @@ async def resolve_signal(
         outcome="CLEARED" if outcome == "CLEARED" else "CONFIRMED",
         note=note,
     )
-    return IntegritySignalDetail.model_validate(row)
+    columns = {c.name: getattr(row, c.name) for c in row.__table__.columns}
+    return IntegritySignalDetail.model_validate(_signal_fields(columns))
 
 
 # ---------------------------------------------------------------------------

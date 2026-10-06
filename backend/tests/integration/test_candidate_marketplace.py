@@ -563,3 +563,25 @@ async def test_the_application_list_pages(client: Any, mint_token: Any) -> None:
     ).json()
     assert [a["id"] for a in first["items"] + second["items"]] == list(reversed(applied))
     assert second["next_cursor"] is None
+
+
+async def test_the_application_list_filters_by_active_or_closed(
+    client: Any, mint_token: Any
+) -> None:
+    employer = await _employer(client, mint_token)
+    me = await _candidate(mint_token)
+    applied = [(await _apply(client, me, await _job(client, employer))).json()["id"] for _ in "ab"]
+    withdrawn = (await _apply(client, me, await _job(client, employer))).json()["id"]
+    response = await client.post(f"{APPLICATIONS}/{withdrawn}/withdraw", headers=me["headers"])
+    assert response.status_code == 200
+
+    async def ids(**params: Any) -> list[str]:
+        listed = await client.get(APPLICATIONS, params=params, headers=me["headers"])
+        assert listed.status_code == 200, listed.text
+        return [a["id"] for a in listed.json()["items"]]
+
+    assert await ids(status="ACTIVE") == list(reversed(applied))
+    assert await ids(status="CLOSED") == [withdrawn]
+    assert await ids() == [withdrawn, *reversed(applied)]
+    refused = await client.get(APPLICATIONS, params={"status": "open"}, headers=me["headers"])
+    assert refused.status_code == 422

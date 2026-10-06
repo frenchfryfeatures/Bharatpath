@@ -26,10 +26,13 @@ from app.modules.applications.domain import (
     refuse_meeting,
 )
 from app.modules.applications.schemas import (
+    ApplicantCard,
+    ApplicantProfile,
     ApplicationDetailResponse,
     ApplicationResponse,
     CandidateHistoryItem,
     EmployerApplicationDetail,
+    EmployerApplicationListItem,
     EmployerApplicationSummary,
     EmployerTarget,
     MoveStageRequest,
@@ -312,12 +315,33 @@ def test_the_candidate_never_sees_an_employers_notes_or_recruiters(
     assert not leaked, f"{model.__name__} exposes {sorted(leaked)}"
 
 
-@pytest.mark.parametrize("model", [EmployerApplicationSummary, EmployerApplicationDetail])
-def test_the_pipeline_is_not_a_candidate_profile(model: type[BaseModel]) -> None:
-    """Who the candidate is belongs to the reveal (Days 13-14), behind the
-    access window and its audit row -- not to a pipeline listing."""
-    pii = {"name", "full_name", "phone", "email", "score", "raw_value", "display_value"}
-    assert not set(model.model_fields) & pii
+PII = {"name", "full_name", "phone", "email", "score", "raw_value", "display_value"}
+
+
+@pytest.mark.parametrize(
+    "model", [EmployerApplicationSummary, EmployerApplicationListItem, EmployerApplicationDetail]
+)
+def test_the_application_itself_names_nobody(model: type[BaseModel]) -> None:
+    """Narrowed 2026-10-05 (was: the pipeline carries no identity at all). Who
+    applied now rides in one `candidate` block, filled only by
+    `discovery.applicant_cards` / `open_applicant`, which audit what they
+    show -- so the application's own fields still name nobody."""
+    assert not set(model.model_fields) & PII
+
+
+def test_a_pipeline_list_names_an_applicant_without_revealing_them() -> None:
+    """A list row carries a name and the band; contact and the score number
+    are only on one opened application."""
+    fields = set(ApplicantCard.model_fields)
+    assert "full_name" in fields
+    assert not fields & (PII - {"full_name"})
+    assert EmployerApplicationListItem.model_fields["candidate"].annotation == ApplicantCard | None
+
+
+def test_only_the_opened_application_carries_contact_and_score() -> None:
+    assert EmployerApplicationDetail.model_fields["candidate"].annotation == ApplicantProfile | None
+    assert {"phone", "email", "score", "resume"} <= set(ApplicantProfile.model_fields)
+    assert not [f for f in ApplicantProfile.model_fields if "raw" in f]
 
 
 @pytest.mark.parametrize("stage", ["HIRED", "WITHDRAWN", "EXPIRED", "SUBMITTED", "hired"])

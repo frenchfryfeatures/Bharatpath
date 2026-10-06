@@ -547,6 +547,64 @@ RULE_IDS: Final[frozenset[str]] = frozenset(
     }
 )
 
+#: What a reviewer reads beside each rule id (2026-10-05): a title for the
+#: queue and one sentence on what the rule saw. Staff-facing English, never
+#: shown to a candidate or an employer. A test holds the keys to `RULE_IDS`.
+RULE_TEXT: Final[dict[str, tuple[str, str]]] = {
+    "INJECTED_INSTRUCTIONS": (
+        "Instructions aimed at the scorer",
+        "The CV contains text addressed to an automated reader, such as telling it "
+        "to rate, rank or recommend this candidate.",
+    ),
+    "HIDDEN_TEXT": (
+        "Hidden text",
+        "Part of the CV is invisible to a person reading it -- white or tiny type, "
+        "hidden runs, or text placed off the page -- but is still read by the parser.",
+    ),
+    "EMPLOYMENT_DATES_IN_FUTURE": (
+        "Employment starting in the future",
+        "A role starts after today. Often a typed year (2026 for 2016), sometimes "
+        "an invented role.",
+    ),
+    "OVERLAPPING_FULL_TIME_ROLES": (
+        "Overlapping full-time roles",
+        "Two full-time roles run at the same time for longer than the tolerance.",
+    ),
+    "CLAIMED_EXPERIENCE_EXCEEDS_TIMELINE": (
+        "Claimed experience exceeds the dated roles",
+        "The total experience stated is well above what the dated roles add up to. "
+        "A CV listing only recent employers looks the same.",
+    ),
+    "SENIOR_TITLE_SHORT_TENURE": (
+        "Senior title with little dated experience",
+        "A senior title with few months of dated work behind it. Common for "
+        "founders and small companies; context, not a finding.",
+    ),
+    "UNEVIDENCED_SKILL_LIST": (
+        "Long skill list with little evidence",
+        "Many skills are listed, and few of them appear in any described role or project.",
+    ),
+    "FABRICATED_PLATFORM_SCORE": (
+        "Claims a BharatPath score",
+        "The CV states a BharatPath score. The score is never published on a CV, "
+        "so an employer reading it has no way to check it.",
+    ),
+}
+
+#: Severity and state that keep a candidate out of employer search: the
+#: discovery CTE's rule, restated for the reviewer queue. Only CLEARED restores.
+HIDING_SEVERITY: Final = "HIGH"
+HIDING_STATES: Final = frozenset({"OPEN", "CONFIRMED"})
+
+
+def rule_text(rule_id: str) -> tuple[str, str]:
+    """The reviewer's title and description; the id itself for an unknown one."""
+    return RULE_TEXT.get(rule_id, (rule_id, ""))
+
+
+def hides_candidate(severity: str, state: str) -> bool:
+    return severity == HIDING_SEVERITY and state in HIDING_STATES
+
 
 def detect(
     claims: ResumeClaims,

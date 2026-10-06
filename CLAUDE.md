@@ -419,9 +419,8 @@ is where a third one would have to be argued for.
   from the `tenants` table (`identity.service.employer_tenant_ids`), **the one
   place a tenant id does not come from a membership**, and is system-only.
   Nothing schedules it yet (blockers E4).
-- **The pipeline is not a candidate profile.** No name, contact or score in
-  any employer schema here; that is the Day 13–14 reveal, behind the access
-  window and its audit row.
+- **The application names nobody; its `candidate` block does** (narrowed
+  2026-10-05). See _Applicants and the shortlist_ below.
 
 ## Masked search — Day 13
 
@@ -451,6 +450,38 @@ is where a third one would have to be argued for.
   on it. **Make that skill letters only** — a hex token sometimes holds eight
   digits in a row, the contact filter drops it as a phone number, and the test
   fails about one run in ten.
+
+## Applicants and the shortlist — 2026-10-05
+
+- **Who applied rides in one `candidate` block, filled only by discovery.**
+  List rows: `ApplicantCard` (name, band, experience, skills, city -- no
+  contact, no score). The opened application: `ApplicantProfile` (plus
+  phone, email, display score, CV). `discovery.applicant_cards` /
+  `open_applicant` join the tenant's own application **and**
+  `VISIBLE_CANDIDATES_CTE`, so a candidate a HIGH signal hides comes back
+  `candidate: null`. Every list page is an `applicants_listed` audit row and
+  every response carrying the profile an `applicant_profile_viewed` row --
+  the moves too. No caps and no view event: they applied.
+  `test_the_application_itself_names_nobody` holds the application's own fields.
+- **A CV leaves only through `resume.service.shared_resume`**: confirmed
+  versions only, sections computed, a presigned link that expires. The
+  reveal and the opened application use it; nothing else should.
+- **The shortlist is a question, not an application** (`employer_shortlists`,
+  migration 0010). SAVED is private to the organisation; INVITED is the
+  candidate's to answer. Accepting goes through
+  `accept_shortlist_invitation` (SECURITY DEFINER), which files or finds the
+  application and walks it to SHORTLISTED with VIEWED/SHORTLISTED recorded as
+  the inviting employer's -- the application guard otherwise lets a
+  candidate's transaction move no stage. **Never let a candidate UPDATE a row
+  to ACCEPTED**; the guard refuses it. A DECLINED row is final for that job.
+- **Shortlisting needs a prior reveal by the same organisation**
+  (`discovery.require_shortlistable`). Drop that and the shortlist list
+  becomes a way to read names off masked cards without spending a cap.
+- **A candidate's `FOR UPDATE` on `employer_shortlists` sees only INVITED
+  rows** (the UPDATE policy). Read unlocked first, lock only to answer, or an
+  idempotent repeat reads as a 404.
+- `guard_shortlist_write`'s moves and statuses are frozen in 0010 and held
+  equal to `applications.domain.SHORTLIST_MOVES` by a test.
 
 ## The employer dashboard — 2026-09-23
 

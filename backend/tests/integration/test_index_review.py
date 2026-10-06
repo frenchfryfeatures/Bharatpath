@@ -44,7 +44,7 @@ GROWING = frozenset(
         "college_seat_assignments", "roster_entries", "interview_sessions", "interview_answers",
         "device_checks", "interview_checkout_notices", "dsr_requests", "disputes",
         "streak_point_events", "questionnaire_responses", "course_completions", "entitlements",
-        "referral_codes", "roster_imports", "streak_activity_days",
+        "referral_codes", "roster_imports", "streak_activity_days", "employer_shortlists",
     }
 )  # fmt: skip
 

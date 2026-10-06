@@ -26,7 +26,19 @@ import uuid
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import Date, cast, distinct, func, insert, literal, or_, select, tuple_
+from sqlalchemy import (
+    Date,
+    cast,
+    delete,
+    distinct,
+    func,
+    insert,
+    literal,
+    or_,
+    select,
+    text,
+    tuple_,
+)
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,6 +48,7 @@ from app.modules.applications.models import (
     Application,
     ApplicationEvent,
     ApplicationMessage,
+    EmployerShortlist,
 )
 
 
@@ -129,9 +142,13 @@ async def list_for_candidate(
     candidate_id: uuid.UUID,
     after: tuple[datetime, uuid.UUID] | None,
     limit: int,
+    stages: tuple[str, ...] | None = None,
 ) -> list[Application]:
-    """Newest first, keyset-paginated on `(created_at, id)`; `ix_applications_candidate`."""
+    """Newest first, keyset-paginated on `(created_at, id)`; `ix_applications_candidate`.
+    `stages` narrows to one tab of the board; None is every stage."""
     stmt = select(Application).where(Application.candidate_id == candidate_id)
+    if stages is not None:
+        stmt = stmt.where(Application.stage.in_(stages))
     if after is not None:
         stmt = stmt.where(_keyset(after, descending=True))
     result = await session.execute(
@@ -492,3 +509,192 @@ async def message_by_id(
     must not touch `applications`, whose policy would hide the row. The
     event payload already names the tenant."""
     return await session.get(ApplicationMessage, message_id)
+
+
+# ---------------------------------------------------------------------------
+# The shortlist (2026-10-05)
+#
+# `employer_shortlists` is under RLS like `applications`: the tenant policy
+# for the organisation, two candidate policies for the person (read an
+# invitation, decline one). The predicates here are belt and braces.
+# ---------------------------------------------------------------------------
+async def shortlist_entry(
+    session: AsyncSession,
+    *,
+    tenant_id: uuid.UUID,
+    candidate_id: uuid.UUID,
+    job_id: uuid.UUID | None,
+    for_update: bool = False,
+) -> EmployerShortlist | None:
+    """The organisation's row for this candidate and job (the SAVED row when
+    `job_id` is None), if any."""
+    stmt = select(EmployerShortlist).where(
+        EmployerShortlist.tenant_id == tenant_id,
+        EmployerShortlist.candidate_id == candidate_id,
+        EmployerShortlist.job_id.is_(None)
+        if job_id is None
+        else EmployerShortlist.job_id == job_id,
+    )
+    if for_update:
+        stmt = stmt.with_for_update().execution_options(populate_existing=True)
+    return (await session.execute(stmt)).scalar_one_or_none()
+
+
+async def insert_shortlist(
+    session: AsyncSession,
+    *,
+    tenant_id: uuid.UUID,
+    candidate_id: uuid.UUID,
+    job_id: uuid.UUID | None,
+    status: str,
+    created_by: uuid.UUID,
+) -> EmployerShortlist | None:
+    """None when a simultaneous request made the same row first."""
+    stmt = (
+        pg_insert(EmployerShortlist)
+        .values(
+            id=uuid.uuid4(),
+            tenant_id=tenant_id,
+            candidate_id=candidate_id,
+            job_id=job_id,
+            status=status,
+            created_by=created_by,
+        )
+        .on_conflict_do_nothing(index_elements=["tenant_id", "candidate_id", "job_id"])
+        .returning(EmployerShortlist.id)
+    )
+    new_id = (await session.execute(stmt)).scalar_one_or_none()
+    if new_id is None:
+        return None
+    return await session.get(EmployerShortlist, new_id)
+
+
+async def shortlist_for_tenant(
+    session: AsyncSession, *, tenant_id: uuid.UUID, shortlist_id: uuid.UUID, for_update: bool
+) -> EmployerShortlist | None:
+    stmt = select(EmployerShortlist).where(
+        EmployerShortlist.id == shortlist_id, EmployerShortlist.tenant_id == tenant_id
+    )
+    if for_update:
+        stmt = stmt.with_for_update().execution_options(populate_existing=True)
+    return (await session.execute(stmt)).scalar_one_or_none()
+
+
+async def set_shortlist_status(
+    session: AsyncSession, *, entry: EmployerShortlist, status: str, answered: bool = False
+) -> EmployerShortlist:
+    """`guard_shortlist_write` refuses a move that is not this party's."""
+    entry.status = status
+    if answered:
+        entry.answered_at = func.now()
+    entry.updated_at = func.now()
+    await session.flush()
+    await session.refresh(entry)
+    return entry
+
+
+async def delete_saved(session: AsyncSession, *, entry: EmployerShortlist) -> None:
+    """A SAVED row only; the guard refuses anything else."""
+    await session.execute(delete(EmployerShortlist).where(EmployerShortlist.id == entry.id))
+
+
+async def shortlists_for_tenant(
+    session: AsyncSession,
+    *,
+    tenant_id: uuid.UUID,
+    job_id: uuid.UUID | None,
+    status: str | None,
+    after: tuple[datetime, uuid.UUID] | None,
+    limit: int,
+) -> list[EmployerShortlist]:
+    """Newest first, `ix_shortlists_tenant_created`."""
+    stmt = select(EmployerShortlist).where(EmployerShortlist.tenant_id == tenant_id)
+    if job_id is not None:
+        stmt = stmt.where(EmployerShortlist.job_id == job_id)
+    if status is not None:
+        stmt = stmt.where(EmployerShortlist.status == status)
+    if after is not None:
+        stmt = stmt.where(
+            tuple_(EmployerShortlist.created_at, EmployerShortlist.id)
+            < tuple_(
+                literal(after[0], EmployerShortlist.created_at.type),
+                literal(after[1], EmployerShortlist.id.type),
+            )
+        )
+    result = await session.execute(
+        stmt.order_by(EmployerShortlist.created_at.desc(), EmployerShortlist.id.desc()).limit(limit)
+    )
+    return list(result.scalars().all())
+
+
+async def shortlists_of_candidate_in_tenant(
+    session: AsyncSession, *, tenant_id: uuid.UUID, candidate_id: uuid.UUID
+) -> list[EmployerShortlist]:
+    """Every row this organisation has for one candidate: the reveal's button state."""
+    result = await session.execute(
+        select(EmployerShortlist)
+        .where(
+            EmployerShortlist.tenant_id == tenant_id,
+            EmployerShortlist.candidate_id == candidate_id,
+        )
+        .order_by(EmployerShortlist.created_at)
+    )
+    return list(result.scalars().all())
+
+
+async def invitations_for_candidate(
+    session: AsyncSession,
+    *,
+    candidate_id: uuid.UUID,
+    status: str | None,
+    after: tuple[datetime, uuid.UUID] | None,
+    limit: int,
+) -> list[EmployerShortlist]:
+    """Newest first. The candidate policy hides SAVED rows; so does this."""
+    stmt = select(EmployerShortlist).where(
+        EmployerShortlist.candidate_id == candidate_id, EmployerShortlist.status != "SAVED"
+    )
+    if status is not None:
+        stmt = stmt.where(EmployerShortlist.status == status)
+    if after is not None:
+        stmt = stmt.where(
+            tuple_(EmployerShortlist.created_at, EmployerShortlist.id)
+            < tuple_(
+                literal(after[0], EmployerShortlist.created_at.type),
+                literal(after[1], EmployerShortlist.id.type),
+            )
+        )
+    result = await session.execute(
+        stmt.order_by(EmployerShortlist.created_at.desc(), EmployerShortlist.id.desc()).limit(limit)
+    )
+    return list(result.scalars().all())
+
+
+async def invitation_for_candidate(
+    session: AsyncSession, *, candidate_id: uuid.UUID, shortlist_id: uuid.UUID, for_update: bool
+) -> EmployerShortlist | None:
+    """Always re-read (`populate_existing`): the accept function writes the row
+    behind the ORM's back. **A lock reaches only an INVITED row** -- `FOR
+    UPDATE` must pass the candidate's UPDATE policy, which admits nothing
+    else -- so lock only to answer one."""
+    stmt = (
+        select(EmployerShortlist)
+        .where(
+            EmployerShortlist.id == shortlist_id,
+            EmployerShortlist.candidate_id == candidate_id,
+            EmployerShortlist.status != "SAVED",
+        )
+        .execution_options(populate_existing=True)
+    )
+    if for_update:
+        stmt = stmt.with_for_update()
+    return (await session.execute(stmt)).scalar_one_or_none()
+
+
+async def accept_invitation(session: AsyncSession, *, shortlist_id: uuid.UUID) -> uuid.UUID | None:
+    """`accept_shortlist_invitation` (migration 0010): the application filed
+    and walked to SHORTLISTED, the invitation marked ACCEPTED, in one call."""
+    result = await session.execute(
+        text("SELECT accept_shortlist_invitation(CAST(:s AS uuid))"), {"s": str(shortlist_id)}
+    )
+    return result.scalar_one_or_none()
