@@ -137,29 +137,6 @@ export function JobSkillsField({
         Required skills <span className="text-[#b42318]">*</span>
       </span>
 
-      {value.length > 0 ? (
-        <div className="mb-2 flex flex-wrap gap-2">
-          {value.map((skill) => (
-            <span
-              key={skill}
-              className="inline-flex items-center gap-1.5 rounded-full bg-[#edf2fa] px-3 py-2 text-xs font-semibold text-[#28578f] ring-1 ring-[#2f5da8]/20"
-            >
-              {skill}
-              {!disabled ? (
-                <button
-                  type="button"
-                  onClick={() => removeSkill(skill)}
-                  aria-label={`Remove ${skill}`}
-                  className="cursor-pointer rounded-full text-[#687386] hover:text-[#b42318]"
-                >
-                  <X aria-hidden="true" size={13} />
-                </button>
-              ) : null}
-            </span>
-          ))}
-        </div>
-      ) : null}
-
       <div ref={containerRef} className="relative">
         <Search
           aria-hidden="true"
@@ -243,8 +220,31 @@ export function JobSkillsField({
                 ) : null}
               </>
             )}
-          </div>
-        ) : null}
+        </div>
+      ) : null}
+
+      {value.length > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {value.map((skill) => (
+            <span
+              key={skill}
+              className="inline-flex items-center gap-1.5 rounded-full bg-[#edf2fa] px-3 py-2 text-xs font-semibold text-[#28578f] ring-1 ring-[#2f5da8]/20"
+            >
+              {skill}
+              {!disabled ? (
+                <button
+                  type="button"
+                  onClick={() => removeSkill(skill)}
+                  aria-label={`Remove ${skill}`}
+                  className="cursor-pointer rounded-full text-[#687386] hover:text-[#b42318]"
+                >
+                  <X aria-hidden="true" size={13} />
+                </button>
+              ) : null}
+            </span>
+          ))}
+        </div>
+      ) : null}
       </div>
 
       {!disabled && suggestionsError && debouncedQuery ? (

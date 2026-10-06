@@ -80,6 +80,7 @@ export function CandidateDetailsDialog({
 }: CandidateDetailsDialogProps) {
   useScrollLock(open);
   const [shortlistCandidate, shortlistState] = useShortlistEmployerCandidateMutation();
+  const [confirmShortlist, setConfirmShortlist] = useState(false);
   const [selection, setSelection] = useState({ candidateId: "", jobId: "", jobTitle: "" });
   const jobId = selection.candidateId === candidate?.candidate_id ? selection.jobId : "";
   const [sentInvitations, setSentInvitations] = useState<Record<string, string>>({});
@@ -113,6 +114,11 @@ export function CandidateDetailsDialog({
     } catch {
       // Keep the selection available for retry; render the API error below.
     }
+  }
+
+  async function confirmShortlistInvitation() {
+    setConfirmShortlist(false);
+    await handleShortlist();
   }
 
   useEffect(() => {
@@ -285,14 +291,15 @@ export function CandidateDetailsDialog({
               <section>
                 <SectionHeading icon={FileText} title="Resume" />
                 {candidate.resume ? (
-                  <div className="mt-3 space-y-4 rounded-xl border border-[#e5e8ee] p-4">
+                  <div className="mt-3 flex max-h-[420px] flex-col overflow-hidden rounded-xl border border-[#e5e8ee]">
                     {candidate.resume.file_url ? (
                       candidate.resume.file_url_expires_at && Date.parse(candidate.resume.file_url_expires_at) <= currentTime ? (
-                        <button type="button" onClick={onRetry} className="text-[12px] font-semibold text-[#51449a]">Refresh resume download link</button>
+                        <button type="button" onClick={onRetry} className="shrink-0 px-4 pt-4 text-left text-[12px] font-semibold text-[#51449a]">Refresh resume download link</button>
                       ) : (
-                        <a href={candidate.resume.file_url} target="_blank" rel="noopener noreferrer" className="inline-flex text-[12px] font-semibold text-[#51449a] hover:underline">Download original resume</a>
+                        <a href={candidate.resume.file_url} target="_blank" rel="noopener noreferrer" className="inline-flex shrink-0 px-4 pt-4 text-[12px] font-semibold text-[#51449a] hover:underline">Download original resume</a>
                       )
                     ) : null}
+                    <div className="bp-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
                     {candidate.resume.sections.length > 0 ? candidate.resume.sections.map((section, index) => (
                       <div key={`${section.kind}-${index}`}>
                         {section.heading ? <h4 className="mb-2 text-[13px] font-semibold text-[#273142]">{section.heading}</h4> : null}
@@ -303,6 +310,7 @@ export function CandidateDetailsDialog({
                     ) : Object.keys(candidate.resume.fields).length > 0 ? (
                       <ResumeFields value={candidate.resume.fields} />
                     ) : <EmptyDetail text="No resume content is available." />}
+                    </div>
                   </div>
                 ) : <EmptyDetail text="No confirmed resume is available." />}
               </section>
@@ -342,7 +350,7 @@ export function CandidateDetailsDialog({
           <div className="flex justify-end gap-2">
           <button
             type="button"
-            onClick={() => void handleShortlist()}
+            onClick={() => setConfirmShortlist(true)}
             disabled={!candidate || isLoading || Boolean(error) || shortlistState.isLoading || !jobId || alreadyInvited}
             className="rounded-lg bg-[#5b4fcf] px-4 py-2 text-[12px] font-semibold text-white transition-colors hover:bg-[#51449a] disabled:cursor-not-allowed disabled:opacity-60"
           >
@@ -358,6 +366,45 @@ export function CandidateDetailsDialog({
           </div>
         </footer>
       </aside>
+      {confirmShortlist && candidate && jobId && (
+        <div className="fixed inset-0 z-[120] grid place-items-center bg-[rgba(23,32,51,0.48)] p-4 backdrop-blur-[2px]" role="presentation">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="shortlist-confirm-title"
+            className="w-full max-w-[420px] overflow-hidden rounded-2xl border border-[#e8ebf0] bg-white shadow-[0_24px_70px_-20px_rgba(15,23,42,0.38)]"
+          >
+            <div className="p-6 pb-5">
+              <div className="flex items-start gap-3.5">
+                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#eeecff] text-[13px] font-bold text-[#51449a]">
+                  {initialsOf(candidate.full_name)}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.09em] text-[#7b8494]">Invitation confirmation</p>
+                  <h2 id="shortlist-confirm-title" className="mt-1 text-[17px] font-bold tracking-[-0.02em] text-[#172033]">Send shortlist invitation?</h2>
+                </div>
+              </div>
+              <p className="mt-5 text-[13px] leading-5 text-[#687182]">You’re inviting <span className="font-semibold text-[#273142]">{displayName}</span> to apply for this role.</p>
+              <div className="mt-3 flex items-center gap-3 rounded-xl border border-[#e8ebf0] bg-[#f8f9fb] px-3.5 py-3">
+                <BriefcaseBusiness className="h-4 w-4 shrink-0 text-[#51449a]" />
+                <span className="min-w-0 truncate text-[13px] font-semibold text-[#273142]">{jobOptions.find((option) => option.value === jobId)?.label ?? selection.jobTitle}</span>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-[#edf0f4] bg-[#fafbfc] px-6 py-4">
+              <button
+                type="button"
+                onClick={() => setConfirmShortlist(false)}
+                className="rounded-lg border border-[#d9dee7] bg-white px-4 py-2.5 text-[12px] font-semibold text-[#344054] transition-colors hover:bg-[#f5f6f8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5b4fcf]/30"
+              >Cancel</button>
+              <button
+                type="button"
+                onClick={() => void confirmShortlistInvitation()}
+                className="rounded-lg bg-[#5b4fcf] px-4 py-2.5 text-[12px] font-semibold text-white transition-colors hover:bg-[#51449a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5b4fcf]/40"
+              >Confirm invitation</button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }

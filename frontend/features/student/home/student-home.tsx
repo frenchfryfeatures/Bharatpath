@@ -100,11 +100,9 @@ export function StudentHome() {
                     <span className="text-[52px] font-extrabold leading-none tracking-[-0.045em] text-white sm:text-[64px]">
                       {score.data.value}
                     </span>
-                    {scale.data ? (
-                      <span className="text-[16px] font-semibold text-[#E0DBF4] sm:text-[18px]">
-                        / {scale.data.highest}
-                      </span>
-                    ) : null}
+                    <span className="text-[16px] font-semibold text-[#E0DBF4] sm:text-[18px]">
+                      / 1000
+                    </span>
                   </span>
                   {scale.isLoading ? (
                     <span

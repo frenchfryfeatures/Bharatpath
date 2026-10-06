@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Mail } from "lucide-react";
+import { Modal } from "@/components/ui/modal";
 import { Spinner } from "@/components/common/loading";
 import { StudentPage } from "@/features/student/shell";
 import { StudentErrorState } from "@/features/student/components/student-error-state";
@@ -29,7 +30,7 @@ const linkClass = "inline-flex items-center rounded-full py-2 text-[13px] font-s
 export function InvitesPage() {
   const [filter, setFilter] = useState<"all" | InvitationStatus>("all");
   const [revision, setRevision] = useState(0);
-  const [confirmDecline, setConfirmDecline] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<{ id: string; action: "accept" | "decline" } | null>(null);
   const [result, setResult] = useState<Invitation | null>(null);
   const responding = useRef(false);
   const [load] = useLazyGetStudentInvitationsQuery();
@@ -54,7 +55,7 @@ export function InvitesPage() {
     try {
       const invitation = await answer({ id, action }).unwrap();
       setResult(invitation);
-      setConfirmDecline(null);
+      setPendingAction(null);
       // Cache invalidation alone cannot update the cursor hook's accumulated items.
       setRevision((previous) => previous + 1);
     } catch {
@@ -67,11 +68,11 @@ export function InvitesPage() {
 
   return (
     <StudentPage>
-      <div className="space-y-5">
+      <div className="space-y-6">
         <p className="text-[13px] leading-5 text-[#5F6B80]">Employers have invited you to apply. Accept an invitation to add the application to your board at Shortlisted.</p>
         <div className="bp-scrollbar flex gap-2 overflow-x-auto pb-1" aria-label="Filter invitations">
           {filters.map((option) => (
-            <button key={option.value} type="button" aria-pressed={filter === option.value} onClick={() => { setFilter(option.value); setConfirmDecline(null); }} className={`whitespace-nowrap rounded-full border px-3.5 py-2 text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/40 ${filter === option.value ? "border-[#C9BEEB] bg-[#F1EAF7] text-[#4A3E8F]" : "border-[#E7E0D4] bg-white text-[#5F6B80] hover:bg-[#F7F3EC]"}`}>
+          <button key={option.value} type="button" aria-pressed={filter === option.value} onClick={() => { setFilter(option.value); setPendingAction(null); }} className={`whitespace-nowrap rounded-full border px-3.5 py-2 text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/40 ${filter === option.value ? "border-[#C9BEEB] bg-[#F1EAF7] text-[#4A3E8F]" : "border-[#E7E0D4] bg-white text-[#5F6B80] hover:bg-[#F7F3EC]"}`}>
               {option.label}
             </button>
           ))}
@@ -93,46 +94,58 @@ export function InvitesPage() {
         ) : !pages.error && pages.items.length === 0 ? (
           <EmptyState icon={<Mail size={22} />} title={filter === "all" ? "No invitations yet" : `No ${statusLabels[filter].toLowerCase()} invitations`} message={filter === "all" ? "Your job invitations will appear here when an employer shortlists you for a role." : "Invitations with this status will appear here."} />
         ) : null}
-        {!pages.isLoading ? <div className="grid gap-3 sm:grid-cols-2">{pages.items.map((invitation) => (
-          <article key={invitation.id} className="flex flex-col gap-4 rounded-[20px] border border-[#E7E0D4] bg-white p-4">
+        {!pages.isLoading ? <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{pages.items.map((invitation) => (
+          <article key={invitation.id} className="group flex max-w-[460px] flex-col gap-3 rounded-[18px] border border-[#E9E4DA] bg-white p-4 shadow-[0_2px_10px_rgba(10,25,49,0.025)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#D9D1C3] hover:shadow-[0_12px_28px_rgba(10,25,49,0.07)]">
             <div className="flex items-start gap-3">
               <MonogramTile size={40}>{employerMonogram(invitation.employer_name)}</MonogramTile>
-              <div className="min-w-0 flex-1">
-                <h2 className="text-[15px] font-bold leading-5 tracking-[-0.02em] text-[#0A1931]">{invitation.job_title ?? "Job no longer available"}</h2>
-                <p className="mt-1 text-[12px] leading-4 text-[#5F6B80]">{invitation.employer_name ?? "Employer"}</p>
+              <div className="min-w-0 flex-1 pt-0.5">
+                <h2 className="text-[15px] font-bold leading-5 tracking-[-0.025em] text-[#0A1931]">{invitation.job_title ?? "Job no longer available"}</h2>
+                <p className="mt-1 truncate text-[12px] leading-4 text-[#657187]">{invitation.employer_name ?? "Employer"}</p>
               </div>
               <StatusChip tone={statusTones[invitation.status]}>{statusLabels[invitation.status]}</StatusChip>
             </div>
-            <div className="text-[12px] leading-5 text-[#5F6B80]">
+            <div className="flex items-center gap-2 border-t border-[#F0ECE5] pt-2.5 text-[12px] text-[#738096]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#B9B2A6]" aria-hidden="true" />
               <p>Invited {formatDate(invitation.created_at)}</p>
-              {invitation.answered_at ? <p>{invitation.status === "ACCEPTED" ? "Accepted" : "Answered"} {formatDate(invitation.answered_at)}</p> : null}
+              {invitation.answered_at ? <><span aria-hidden="true">·</span><p>{invitation.status === "ACCEPTED" ? "Accepted" : "Answered"} {formatDate(invitation.answered_at)}</p></> : null}
             </div>
             {invitation.status === "INVITED" ? (
-              <div className="space-y-3 rounded-[16px] bg-[#F7F4EC] p-3">
-                <p className="text-[13px] leading-5 text-[#3A4761]">{invitation.job_title === null ? "This job has left the board and can no longer be accepted." : "Accept to join the employer’s shortlist. Declining is final for this job."}</p>
-                {confirmDecline === invitation.id ? (
-                  <div className="space-y-2">
-                    <p className="text-[13px] font-semibold text-[#993A22]">Decline this invitation? The employer cannot invite you to this job again.</p>
-                    <div className="flex flex-wrap gap-2">
-                      <PillButton variant="secondary" disabled={actionState.isLoading} onClick={() => void respond(invitation.id, "decline")} className="px-4 py-2.5 text-[13px] text-[#993A22]">{actionState.isLoading && actionState.originalArgs?.id === invitation.id ? "Declining..." : "Confirm decline"}</PillButton>
-                      <PillButton variant="tertiary" disabled={actionState.isLoading} onClick={() => setConfirmDecline(null)}>Keep invitation</PillButton>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    <PillButton disabled={actionState.isLoading || invitation.job_title === null} onClick={() => void respond(invitation.id, "accept")} className="px-4 py-2.5 text-[13px]">{actionState.isLoading && actionState.originalArgs?.id === invitation.id ? "Accepting..." : "Accept invitation"}</PillButton>
-                    <PillButton variant="secondary" disabled={actionState.isLoading} onClick={() => setConfirmDecline(invitation.id)} className="px-4 py-2.5 text-[13px]">Decline</PillButton>
-                  </div>
-                )}
+              <div className="space-y-2.5 rounded-[15px] bg-[#FAF8F3] p-3">
+                <p className="text-[12px] leading-[17px] text-[#657187]">{invitation.job_title === null ? "This job has left the board and can no longer be accepted." : "Accept to join the employer’s shortlist. Declining is final for this job."}</p>
+                <div className="flex flex-wrap gap-2">
+                  <PillButton disabled={actionState.isLoading || invitation.job_title === null} onClick={() => setPendingAction({ id: invitation.id, action: "accept" })} className="!px-3.5 !py-2 !text-[12px]">Accept invitation</PillButton>
+                  <PillButton variant="secondary" disabled={actionState.isLoading} onClick={() => setPendingAction({ id: invitation.id, action: "decline" })} className="!px-3.5 !py-2 !text-[12px]">Decline</PillButton>
+                </div>
               </div>
             ) : invitation.status === "CANCELLED" ? <p className="text-[13px] text-[#5F6B80]">The employer cancelled this invitation.</p> : null}
-            <div className="mt-auto flex flex-wrap items-center gap-x-4">
-              {invitation.job_title !== null ? <Link href={`/student/jobs/${invitation.job_id}`} className={linkClass}>View job details</Link> : null}
+            <div className="mt-auto flex flex-wrap items-center gap-x-4 border-t border-[#F0ECE5] pt-1.5">
+              {invitation.job_title !== null ? <Link href={`/student/jobs/${invitation.job_id}`} className={linkClass}>View job details <span aria-hidden="true" className="ml-1 transition-transform group-hover:translate-x-0.5">→</span></Link> : null}
               {invitation.application_id ? <Link href={`/student/board/${invitation.application_id}`} className={linkClass}>View application</Link> : null}
             </div>
           </article>
         ))}</div> : null}
         {!pages.isLoading && pages.hasMore ? <div className="flex justify-center"><PillButton variant="secondary" disabled={pages.isLoadingMore} onClick={pages.loadMore} className="px-5 py-2.5 text-[13px]">{pages.isLoadingMore ? "Loading..." : "Load more invites"}</PillButton></div> : null}
+        <Modal
+          open={pendingAction !== null}
+          title={pendingAction?.action === "accept" ? "Accept this invitation?" : "Decline this invitation?"}
+          description={pendingAction?.action === "accept"
+            ? "This will add the application to your Shortlisted board."
+            : "Declining is final. The employer cannot invite you to this job again."}
+          onClose={() => setPendingAction(null)}
+          closeDisabled={actionState.isLoading}
+          panelClassName="max-w-[420px]"
+        >
+          <div className="flex justify-end gap-2">
+            <PillButton variant="secondary" disabled={actionState.isLoading} onClick={() => setPendingAction(null)} className="!px-3.5 !py-2 !text-[12px]">Cancel</PillButton>
+            <PillButton
+              disabled={actionState.isLoading || (pendingAction?.action === "accept" && pages.items.find((item) => item.id === pendingAction.id)?.job_title === null)}
+              onClick={() => { if (pendingAction) void respond(pendingAction.id, pendingAction.action); }}
+              className={`!px-3.5 !py-2 !text-[12px] ${pendingAction?.action === "decline" ? "!bg-[#993A22] enabled:hover:!bg-[#7F2F1D]" : ""}`}
+            >
+              {actionState.isLoading ? (pendingAction?.action === "accept" ? "Accepting..." : "Declining...") : (pendingAction?.action === "accept" ? "Accept invitation" : "Confirm decline")}
+            </PillButton>
+          </div>
+        </Modal>
       </div>
     </StudentPage>
   );
