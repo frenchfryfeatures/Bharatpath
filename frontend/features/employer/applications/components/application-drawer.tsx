@@ -3,6 +3,7 @@
 import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useGetEmployerApplicationQuery } from "@/store/employer/applications/applications.api";
+import { ResumeFieldsView, StructuredResumeView } from "@/components/resume/structured-resume";
 import { useScrollLock } from "@/hooks/use-scroll-lock";
 
 import type { EmployerApplication, ApplicationStage } from "../types";
@@ -136,12 +137,12 @@ export function ApplicationDrawer({
                   {resume.file_url && (resume.file_url_expires_at && Date.parse(resume.file_url_expires_at) <= currentTime ? (
                     <button type="button" onClick={() => void detail.refetch()} className="text-xs font-semibold text-[#51449a]">Refresh resume download link</button>
                   ) : <a href={resume.file_url} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-[#51449a] hover:underline">Download original resume</a>)}
-                  {resume.sections.length > 0 ? resume.sections.map((section, index) => (
+                  {resume.structured_status === "READY" && resume.structured_resume ? <StructuredResumeView resume={resume.structured_resume} /> : resume.sections.length > 0 ? resume.sections.map((section, index) => (
                     <div key={`${section.kind}-${index}`}>
                       <h4 className="text-xs font-semibold capitalize text-[#273142]">{section.heading || section.kind.replaceAll("_", " ")}</h4>
                       <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-5 text-[#43516a]">{section.body}</p>
                     </div>
-                  )) : <p className="whitespace-pre-wrap break-words text-xs leading-5 text-[#43516a]">{resume.text || "No resume content is available."}</p>}
+                  )) : resume.text ? <p className="whitespace-pre-wrap break-words text-xs leading-5 text-[#43516a]">{resume.text}</p> : Object.keys(resume.fields).length ? <ResumeFieldsView fields={resume.fields} /> : <p className="text-xs text-[#43516a]">No resume content is available.</p>}
                 </>
               ) : <p className="text-xs text-[#777f90]">No confirmed resume is available.</p>}
               </div>
