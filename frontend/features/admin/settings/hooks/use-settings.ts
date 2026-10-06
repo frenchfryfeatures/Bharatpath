@@ -34,7 +34,9 @@ export function useSettings() {
   };
 
   const setKybMode = async (mode: "manual" | "auto") => {
-    await setApprovalMode(mode === "manual").unwrap();
+    if (mode !== "auto") return;
+
+    await setApprovalMode(false).unwrap();
   };
 
   return {

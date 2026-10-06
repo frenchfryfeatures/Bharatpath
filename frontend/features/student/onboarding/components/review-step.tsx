@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 
 import { FormSkeleton } from "@/components/common/loading";
+import { StructuredResumeReview } from "./structured-resume-review";
 import { getApiErrorCode, getApiErrorMessage } from "@/lib/api/error-message";
 import {
   useConfirmResumeVersionMutation,
@@ -127,7 +128,18 @@ export function ReviewStep({
     );
   }
 
-  return version.data.sections ? (
+  return version.data.structuredStatus === "READY" && version.data.structuredResume ? (
+    <StructuredResumeReview
+      key={version.data.resumeVersionId}
+      version={version.data}
+      onConfirmed={onConfirmed}
+      onStartOver={onStartOver}
+      title={title}
+      subtitle={subtitle}
+      confirmLabel={confirmLabel}
+      startOverLabel={startOverLabel}
+    />
+  ) : version.data.sections ? (
     <SectionsReview
       key={version.data.resumeVersionId}
       version={version.data}

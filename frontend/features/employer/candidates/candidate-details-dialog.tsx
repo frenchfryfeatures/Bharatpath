@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { EmployerErrorState } from "@/features/employer/components/employer-error-state";
+import { StructuredResumeView } from "@/components/resume/structured-resume";
 import { AppSelect } from "@/components/ui/app-select";
 import { useDebouncedSearch } from "@/lib/hooks/use-debounced-value";
 import { useScrollLock } from "@/hooks/use-scroll-lock";
@@ -300,7 +301,7 @@ export function CandidateDetailsDialog({
                       )
                     ) : null}
                     <div className="bp-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
-                    {candidate.resume.sections.length > 0 ? candidate.resume.sections.map((section, index) => (
+                    {candidate.resume.structured_status === "READY" && candidate.resume.structured_resume ? <StructuredResumeView resume={candidate.resume.structured_resume} /> : candidate.resume.sections.length > 0 ? candidate.resume.sections.map((section, index) => (
                       <div key={`${section.kind}-${index}`}>
                         {section.heading ? <h4 className="mb-2 text-[13px] font-semibold text-[#273142]">{section.heading}</h4> : null}
                         <p className="whitespace-pre-wrap break-words text-[12px] leading-5 text-[#43516a]">{section.body}</p>
