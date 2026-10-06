@@ -18,6 +18,7 @@ import {
 
 import { AppSelect } from "@/components/ui/app-select";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
+import { ChangePasswordModal } from "@/components/auth/change-password-modal";
 import { Skeleton } from "@/components/common/loading";
 import { EmployerErrorState } from "@/features/employer/components/employer-error-state";
 import { INDIAN_STATES } from "@/features/student/onboarding/constants";
@@ -183,6 +184,7 @@ export function CompanyTab() {
   const { data: reference } = useGetEmployerReferenceQuery();
   const [updateOrganisation, { isLoading: isSaving }] =
     useUpdateEmployerOrganisationMutation();
+  const [passwordOpen, setPasswordOpen] = useState(false);
 
   const [showUndertakings, setShowUndertakings] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
@@ -1123,6 +1125,27 @@ export function CompanyTab() {
           </button>
         </div>
       </div>
+
+      <section className="rounded-xl border border-[#e0e4e9] bg-white p-5 shadow-sm sm:p-6">
+        <h2 className="m-0 text-[13px] font-bold leading-[18px]">Password</h2>
+        <p className="mt-0.5 mb-3 text-xs leading-4 text-[#718096]">
+          Change the password you use to sign in
+        </p>
+        <button
+          type="button"
+          onClick={() => setPasswordOpen(true)}
+          className="min-h-9 cursor-pointer rounded-lg border border-[#d6dbe2] bg-white px-3.5 text-xs font-bold text-[#172033]"
+        >
+          Change password
+        </button>
+      </section>
+
+      <ChangePasswordModal
+        open={passwordOpen}
+        onClose={() => setPasswordOpen(false)}
+        theme="employer"
+        pool="BUSINESS"
+      />
 
       {/* 7. UNSAVED CHANGES POPUP CONFIRMATION MODAL */}
       <ConfirmModal
