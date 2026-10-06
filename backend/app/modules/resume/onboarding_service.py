@@ -6,11 +6,11 @@ import asyncio
 import uuid
 from typing import Any
 
-from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import storage
 from app.core.errors import AppError
+from app.core.logging import get_logger
 from app.core.openai_responses import OpenAIOutputInvalidError, OpenAIUnavailableError
 from app.core.outbox import emit
 from app.modules.candidate.extraction import extract_career
@@ -23,6 +23,8 @@ from app.modules.resume.service import UploadRejectedError
 from app.modules.resume.structuring import STORED_KEY as STRUCTURED_KEY
 from app.modules.resume.structuring import structure_resume
 from app.settings import get_settings
+
+logger = get_logger(__name__)
 
 
 class ResumePrefillUnavailableError(AppError):
@@ -52,7 +54,9 @@ async def preview(content: bytes) -> dict[str, Any]:
     _, extracted = await read_document(content)
     try:
         facts = await extract_career(extracted.text)
-    except (OpenAIUnavailableError, OpenAIOutputInvalidError, ValidationError) as exc:
+    except (OpenAIUnavailableError, OpenAIOutputInvalidError) as exc:
+        # The reason only (`max_output_tokens`, `http_429`, ...), never the CV.
+        logger.warning("resume_prefill_unavailable", reason=exc.reason)
         raise ResumePrefillUnavailableError() from exc
     values = facts.model_dump()
     full_name = values.pop("full_name")
