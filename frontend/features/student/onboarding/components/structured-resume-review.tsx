@@ -119,7 +119,8 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
   const drawerTriggerRef = useRef<HTMLElement | null>(null);
   const drawerTitleId = useId();
   const busy = editState.isLoading || confirmState.isLoading;
-  const canConfirm = dirty || Boolean(createdId) || !version.confirmed;
+  const [saved, setSaved] = useState(false);
+  const canConfirm = dirty || (!saved && (Boolean(createdId) || !version.confirmed));
   const selectedSection = sections.find((section) => section.key === editing);
   const DrawerIcon = selectedSection?.icon ?? PencilLine;
   useScrollLock(editing !== null);
@@ -158,6 +159,7 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
     if (drawerDraft && JSON.stringify(drawerDraft) !== JSON.stringify(draft)) {
       setDraft(drawerDraft);
       setDirty(true);
+      setSaved(false);
       setError(null);
     }
     closeDrawer();
@@ -176,6 +178,7 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
       }
       if (!version.confirmed || dirty || createdId) {
         const confirmed = await confirmVersion(target).unwrap();
+        setSaved(true);
         onConfirmed(confirmed.confirmedAt);
       }
     } catch (failure) {
@@ -221,7 +224,7 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
         </PillButton>
         <div className="flex items-center justify-between gap-3 text-[12px] leading-4 text-[#5F6B80]">
           <span>Your edits create a new resume version.</span>
-          <button type="button" onClick={() => { setDraft(structuredClone(version.structuredResume!)); setDirty(false); closeDrawer(); setError(null); onStartOver(); }} className="cursor-pointer font-semibold text-[#3A4761] transition hover:text-[#0A1931]">{startOverLabel}</button>
+          <button type="button" disabled={busy || !canConfirm} onClick={() => { setDraft(structuredClone(version.structuredResume!)); setDirty(false); closeDrawer(); setError(null); onStartOver(); }} className="cursor-pointer font-semibold text-[#3A4761] transition hover:text-[#0A1931] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-[#3A4761]">{startOverLabel}</button>
         </div>
       </div>
       {editing && drawerDraft && typeof document !== "undefined" && createPortal(

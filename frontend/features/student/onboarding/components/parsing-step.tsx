@@ -27,7 +27,7 @@ interface ParsingStepProps {
   onPaste: () => void;
   /**
    * Leave for an earlier resume. Only the profile's update flow has one, so
-   * the sign-up flow passes nothing and the button is not shown there.
+   * the sign-up flow passes nothing and no button is shown there.
    */
   onCancel?: () => void;
 }

@@ -324,8 +324,9 @@ export const studentResumeApi = baseApi.injectEndpoints({
         confirmedAt: response.confirmed_at,
         alreadyConfirmed: response.already_confirmed,
       }),
-      invalidatesTags: [
+      invalidatesTags: (_result, _error, id) => [
         { type: "Student", id: "RESUME_VERSIONS" },
+        { type: "Student", id: `RESUME_VERSION_${id}` },
         { type: "Student", id: "SCORE" },
       ],
     }),
