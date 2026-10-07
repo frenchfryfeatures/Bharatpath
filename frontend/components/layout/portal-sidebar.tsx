@@ -36,6 +36,7 @@ import {
 } from "@/lib/auth/use-session-identity";
 
 import { ConfirmModal } from "@/components/ui";
+import { AccountDestinationLoading } from "@/components/common/account-destination-loading";
 import { Skeleton } from "@/components/common/loading";
 import { useGetCollegeOrganisationQuery } from "@/store/college/settings/settings.api";
 import { useGetEmployerDashboardQuery } from "@/store/employer/dashboard";
@@ -60,6 +61,7 @@ export function PortalSidebar({
 
   const dispatch = useAppDispatch();
   const [logoutModalOpen, setLogoutModalOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   /*
    * ============================================================
@@ -178,7 +180,12 @@ export function PortalSidebar({
    */
 
   const handleLogout = async () => {
-    await authService.logout();
+    setIsLoggingOut(true);
+    try {
+      await authService.logout();
+    } catch {
+      // The auth service clears local credentials even when remote sign-out fails.
+    }
     dispatch(clearUser());
     dispatch(clearTenant());
     dispatch(baseApi.util.resetApiState());
@@ -736,12 +743,18 @@ export function PortalSidebar({
 
       <ConfirmModal
         open={logoutModalOpen}
+        confirmLoading={isLoggingOut}
         title="Log out of BharatPath?"
         description="You will need to sign in again to access this portal."
         confirmLabel="Log out"
         onClose={() => setLogoutModalOpen(false)}
         onConfirm={handleLogout}
       />
+      {isLoggingOut && (
+        <div className="fixed inset-0 z-[120]">
+          <AccountDestinationLoading portal={portal} message="Signing you out…" />
+        </div>
+      )}
     </aside>
   );
 }

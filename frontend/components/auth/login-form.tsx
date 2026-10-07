@@ -71,6 +71,13 @@ type AuthStep =
 
 type AccountType = "CANDIDATE" | "EMPLOYER" | "INSTITUTION" | "ADMIN";
 
+const portalByAccountType: Record<AccountType, PortalType> = {
+  CANDIDATE: PORTAL_TYPES.STUDENT,
+  EMPLOYER: PORTAL_TYPES.EMPLOYER,
+  INSTITUTION: PORTAL_TYPES.COLLEGE,
+  ADMIN: PORTAL_TYPES.ADMIN,
+};
+
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -84,6 +91,7 @@ export function LoginForm() {
   const [authStep, setAuthStep] = useState<AuthStep>("CREDENTIALS");
   const [submittingChallenge, setSubmittingChallenge] = useState(false);
   const [completingSignIn, setCompletingSignIn] = useState(false);
+  const [destinationPortal, setDestinationPortal] = useState<PortalType | null>(null);
 
   // Challenge states
   const [newPassword, setNewPassword] = useState("");
@@ -163,6 +171,7 @@ export function LoginForm() {
     accessToken: string,
     emailAddress: string,
   ) => {
+    setDestinationPortal(portalByAccountType[accountType]);
     setCompletingSignIn(true);
     try {
       setStoredToken(accessToken);
@@ -172,6 +181,8 @@ export function LoginForm() {
         emailAddress,
         pool,
       );
+
+      setDestinationPortal(portalTypeByName[result.portal] ?? portalByAccountType[accountType]);
 
       // A different person may have used this browser; drop their cached
       // responses (a stale `has_access` would fire paywalled calls -> 402).
@@ -466,7 +477,7 @@ export function LoginForm() {
     <div className="space-y-5">
       {completingSignIn && (
         <div className="fixed inset-0 z-[120]">
-          <AccountDestinationLoading />
+          <AccountDestinationLoading portal={destinationPortal ?? portalByAccountType[accountType]} />
         </div>
       )}
       {/* Account type selector */}
