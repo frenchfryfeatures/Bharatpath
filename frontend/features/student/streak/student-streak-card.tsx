@@ -42,9 +42,9 @@ export function StudentStreakCard() {
     <Link
       href="/student/streak"
       aria-label="Open daily streak details"
-      className="group block overflow-hidden rounded-[24px] border border-[#E7E0D4] bg-white shadow-[0_5px_18px_rgba(10,25,49,0.06)] transition-all duration-150 hover:-translate-y-0.5 hover:border-[#D8C7B0] hover:shadow-[0_12px_30px_rgba(10,25,49,0.10)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30"
+      className="group block h-full overflow-hidden rounded-[24px] border border-[#E7E0D4] bg-white shadow-[0_5px_18px_rgba(10,25,49,0.06)] transition-all duration-150 hover:-translate-y-0.5 hover:border-[#D8C7B0] hover:shadow-[0_12px_30px_rgba(10,25,49,0.10)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30"
     >
-      <span className="flex h-full flex-col gap-10 p-5 sm:p-6">
+      <span className="flex h-full flex-col justify-between gap-6 p-5 sm:p-6">
         <span className="flex flex-wrap items-center justify-between gap-3">
           <span className="flex items-center gap-2 text-[#5F6B80]">
             <Flame size={16} className="text-[#F97316]" aria-hidden="true" />
@@ -106,7 +106,7 @@ function StudentStreakCardSkeleton() {
     <div
       role="status"
       aria-busy="true"
-      className="min-h-48 overflow-hidden rounded-[24px] border border-[#E7E0D4] bg-white"
+      className="h-full min-h-48 overflow-hidden rounded-[24px] border border-[#E7E0D4] bg-white"
     >
       <span className="sr-only">Loading daily streak</span>
       <div className="flex flex-col gap-6 p-5 sm:p-6">

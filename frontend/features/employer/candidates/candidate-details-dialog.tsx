@@ -6,13 +6,15 @@ import {
   FileText,
   Mail,
   MapPin,
+  Maximize2,
+  Minimize2,
   Phone,
   UserRound,
   X,
 } from "lucide-react";
 
 import { EmployerErrorState } from "@/features/employer/components/employer-error-state";
-import { StructuredResumeView } from "@/components/resume/structured-resume";
+import { ResumeShowcase } from "@/features/employer/components/resume-showcase";
 import { AppSelect } from "@/components/ui/app-select";
 import { useDebouncedSearch } from "@/lib/hooks/use-debounced-value";
 import { useScrollLock } from "@/hooks/use-scroll-lock";
@@ -95,6 +97,7 @@ export function CandidateDetailsDialog({
   if (jobId && !jobOptions.some((option) => option.value === jobId)) {
     jobOptions.unshift({ value: jobId, label: selection.jobTitle });
   }
+  const [isExpanded, setIsExpanded] = useState(false);
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   useEffect(() => {
     if (!open) return;
@@ -160,7 +163,9 @@ export function CandidateDetailsDialog({
         aria-modal="true"
         aria-labelledby="candidate-profile-title"
         aria-busy={isLoading}
-        className="bp-drawer-right absolute inset-y-0 right-0 flex h-full w-[520px] max-w-full flex-col bg-white shadow-[-20px_0_60px_-24px_rgba(0,0,0,0.5)]"
+        className={`bp-drawer-right absolute inset-y-0 right-0 flex h-full ${
+          isExpanded ? "w-[860px]" : "w-[540px]"
+        } max-w-full flex-col bg-white shadow-[-20px_0_60px_-24px_rgba(0,0,0,0.5)] transition-[width] duration-200`}
       >
         <header className="flex shrink-0 items-start justify-between gap-4 border-b border-[#e8ebf0] px-5 py-4">
           <div className="flex min-w-0 items-center gap-3">
@@ -181,15 +186,26 @@ export function CandidateDetailsDialog({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            autoFocus
-            onClick={onClose}
-            aria-label="Close candidate profile"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-[#687182] transition-colors hover:bg-[#f1f3f6] hover:text-[#172033]"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setIsExpanded((prev) => !prev)}
+              aria-label={isExpanded ? "Standard width" : "Expand drawer"}
+              title={isExpanded ? "Collapse drawer width" : "Expand drawer width"}
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-[#687182] transition-colors hover:bg-[#f1f3f6] hover:text-[#172033]"
+            >
+              {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </button>
+            <button
+              type="button"
+              autoFocus
+              onClick={onClose}
+              aria-label="Close candidate profile"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-[#687182] transition-colors hover:bg-[#f1f3f6] hover:text-[#172033]"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </header>
 
         <div className="bp-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-5">
@@ -291,29 +307,14 @@ export function CandidateDetailsDialog({
 
               <section>
                 <SectionHeading icon={FileText} title="Resume" />
-                {candidate.resume ? (
-                  <div className="mt-3 flex max-h-[420px] flex-col overflow-hidden rounded-xl border border-[#e5e8ee]">
-                    {candidate.resume.file_url ? (
-                      candidate.resume.file_url_expires_at && Date.parse(candidate.resume.file_url_expires_at) <= currentTime ? (
-                        <button type="button" onClick={onRetry} className="shrink-0 px-4 pt-4 text-left text-[12px] font-semibold text-[#51449a]">Refresh resume download link</button>
-                      ) : (
-                        <a href={candidate.resume.file_url} target="_blank" rel="noopener noreferrer" className="inline-flex shrink-0 px-4 pt-4 text-[12px] font-semibold text-[#51449a] hover:underline">Download original resume</a>
-                      )
-                    ) : null}
-                    <div className="bp-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
-                    {candidate.resume.structured_status === "READY" && candidate.resume.structured_resume ? <StructuredResumeView resume={candidate.resume.structured_resume} /> : candidate.resume.sections.length > 0 ? candidate.resume.sections.map((section, index) => (
-                      <div key={`${section.kind}-${index}`}>
-                        {section.heading ? <h4 className="mb-2 text-[13px] font-semibold text-[#273142]">{section.heading}</h4> : null}
-                        <p className="whitespace-pre-wrap break-words text-[12px] leading-5 text-[#43516a]">{section.body}</p>
-                      </div>
-                    )) : candidate.resume.text ? (
-                      <p className="whitespace-pre-wrap break-words text-[12px] leading-5 text-[#43516a]">{candidate.resume.text}</p>
-                    ) : Object.keys(candidate.resume.fields).length > 0 ? (
-                      <ResumeFields value={candidate.resume.fields} />
-                    ) : <EmptyDetail text="No resume content is available." />}
-                    </div>
-                  </div>
-                ) : <EmptyDetail text="No confirmed resume is available." />}
+                <ResumeShowcase
+                  resume={candidate.resume}
+                  candidateName={candidate.full_name ?? "Candidate"}
+                  currentTime={currentTime}
+                  onRefresh={onRetry}
+                  isExpanded={isExpanded}
+                  onToggleExpand={() => setIsExpanded((prev) => !prev)}
+                />
               </section>
             </div>
           ) : null}
@@ -408,22 +409,6 @@ export function CandidateDetailsDialog({
       )}
     </div>
   );
-}
-
-function ResumeFields({ value }: { value: unknown }) {
-  if (value === null || value === undefined || value === "") return null;
-  if (Array.isArray(value)) {
-    return <div className="space-y-2">{value.map((item, index) => <ResumeFields key={index} value={item} />)}</div>;
-  }
-  if (typeof value === "object") {
-    return <dl className="space-y-3">{Object.entries(value).map(([key, item]) => (
-      <div key={key}>
-        <dt className="text-[12px] font-semibold capitalize text-[#273142]">{key.replaceAll("_", " ")}</dt>
-        <dd className="mt-1 pl-2"><ResumeFields value={item} /></dd>
-      </div>
-    ))}</dl>;
-  }
-  return <p className="whitespace-pre-wrap break-words text-[12px] leading-5 text-[#43516a]">{String(value)}</p>;
 }
 
 function SectionHeading({

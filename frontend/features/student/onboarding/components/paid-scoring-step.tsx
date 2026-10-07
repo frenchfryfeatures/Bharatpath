@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useConfirmResumeVersionMutation } from "@/store/student";
 import { getApiErrorMessage } from "@/lib/api/error-message";
 import { PillButton } from "./ui";
-import { OnboardingBackButton } from "@/components/common/onboarding-back-button";
+import { StudentBackButton } from "@/features/student/components/student-back-button";
 
 export function PaidScoringStep({
   versionId,
@@ -50,7 +50,7 @@ export function PaidScoringStep({
         </p>
       )}
       <div className="flex items-center gap-3">
-      <OnboardingBackButton onClick={onBack} disabled={state.isLoading} />
+      <StudentBackButton onClick={onBack} disabled={state.isLoading} />
       <PillButton className="flex-1" disabled={state.isLoading} onClick={() => void start()}>
         {state.isLoading ? "Starting scoring…" : "Try again"}
       </PillButton>

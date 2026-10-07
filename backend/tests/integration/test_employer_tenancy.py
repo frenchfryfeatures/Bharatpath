@@ -173,6 +173,58 @@ async def test_an_owner_can_rename_the_organisation(client: Any, mint_token: Any
     assert name == "Acme Talent Pvt Ltd", "tenants.name drifted from the legal name"
 
 
+async def test_an_owner_keeps_the_public_profile_on_the_server(
+    client: Any, mint_token: Any
+) -> None:
+    """The settings page saves these four through the API -- not to the
+    browser, where they would be lost on another device and shown to the
+    next person who signs in on the same one."""
+    headers, _, _ = await _owner(client, mint_token)
+    profile = {
+        "trade_name": "  Acme   Talent ",
+        "employee_count_band": "51_200",
+        "website": "https://acme.example.in",
+        "about": "We place engineers.\n\nMostly in Pune.",
+    }
+    saved = await client.patch(f"{BASE}/organisation", json=profile, headers=headers)
+    assert saved.status_code == 200, saved.text
+
+    read = (await client.get(f"{BASE}/organisation", headers=headers)).json()
+    assert read["trade_name"] == "Acme Talent"
+    assert read["employee_count_band"] == "51_200"
+    assert read["website"] == "https://acme.example.in"
+    assert read["about"] == "We place engineers.\n\nMostly in Pune."
+
+    cleared = await client.patch(
+        f"{BASE}/organisation",
+        json={"trade_name": "", "website": None, "about": "   "},
+        headers=headers,
+    )
+    assert cleared.status_code == 200, cleared.text
+    body = cleared.json()
+    assert body["trade_name"] is None and body["website"] is None and body["about"] is None
+    assert body["employee_count_band"] == "51_200", "a field left out is unchanged"
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"website": "http://acme.example.in"},
+        {"website": "javascript:alert(1)"},
+        {"website": "acme.example.in"},
+        {"employee_count_band": "LOTS"},
+        {"about": "x" * 1001},
+        {"trade_name": "x" * 256},
+    ],
+)
+async def test_a_bad_public_profile_is_refused(
+    client: Any, mint_token: Any, change: dict[str, str]
+) -> None:
+    headers, _, _ = await _owner(client, mint_token)
+    response = await client.patch(f"{BASE}/organisation", json=change, headers=headers)
+    assert response.status_code == 422, response.text
+
+
 async def test_kyb_status_cannot_be_set_through_the_profile(client: Any, mint_token: Any) -> None:
     """Invariant 8 is one PATCH from bypassed if this ever returns 200."""
     headers, _, _ = await _owner(client, mint_token)

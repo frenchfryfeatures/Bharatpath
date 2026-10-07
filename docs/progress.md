@@ -9,6 +9,33 @@ states. Newest entries first.
 
 ---
 
+## 2026-10-06 — company settings save to the server (PR #56)
+
+From the backend review of PR #56. The new company tab saved trade name,
+website, about, headcount **and PAN/GSTIN/CIN/TAN** to `localStorage` under
+keys shared by every account on the browser, sent only `industry` to the API
+(errors swallowed, "saved" shown regardless), "locked" identifiers in the
+browser only, and drew all three KYB undertakings as accepted whatever was
+stored.
+
+- **Backend:** `employers` gains `trade_name`, `employee_count_band`,
+  `website` (https only, like a job's external URL) and `about` (1,000
+  chars); `PATCH /employer/organisation` edits them, blank or null clears.
+  Migration `0013_employer_profile` (idempotent, after `0012_job_details`, so
+  **PR #54 merges first**). `EMPLOYEE_COUNT_BANDS` moved to
+  `app.core.reference`.
+- **Frontend:** the four fields load from the organisation (from the KYB
+  answers until the profile is first saved) and save through the PATCH,
+  changed fields only; a failure is shown and nothing claims success.
+  Statutory details are read-only from KYB with a link back to verification
+  while it is still editable. The undertakings show what was ticked. The
+  correspondence address is dropped (decision: nowhere to keep it). The old
+  `localStorage` keys are removed on load.
+- `resume-showcase.tsx` read the clock during render (a lint error the PR
+  added); it now reads it once at mount.
+
+---
+
 ## 2026-10-06 — review fixes on the job posting (PR #54)
 
 From the backend review of PR #54. Decisions by the backend lead.

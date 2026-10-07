@@ -1,5 +1,6 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import type {
+  EditableCompanyField,
   EmployerSettingsState,
   SettingsTab,
   TeamMember,
@@ -11,11 +12,34 @@ const initialState: EmployerSettingsState = {
 
   company: {
     legalName: "",
-    gstin: "",
     businessType: "",
     industry: "",
     kybStatus: "",
+    pan: "",
+    gstin: "",
+    cin: "",
+    tan: "",
     address: "",
+    addressLine1: "",
+    addressLine2: "",
+    city: "",
+    state: "",
+    pincode: "",
+    signatoryName: "",
+    signatoryDesignation: "",
+    workEmail: "",
+    workPhone: "",
+    documents: [],
+    undertakings: {
+      genuineHiring: false,
+      noRedistribution: false,
+      authorised: false,
+      submittedAt: null,
+    },
+    tradeName: "",
+    employeeCountBand: "",
+    website: "",
+    about: "",
   },
 
   // Team membership is loaded from GET /employer/team when the Team tab opens.
@@ -59,19 +83,14 @@ const initialState: EmployerSettingsState = {
     },
   ],
 
-  account: {
-    fullName: "Sterling Diagnostics Owner",
-    phone: "+91 98765 43210",
-    workEmail: "",
-    twoFactorEnabled: true,
-  },
-
   inviteModalOpen: false,
   paymentModalOpen: false,
   checkoutModalOpen: false,
   memberMenuOpenId: null,
   removeMemberId: null,
   toast: null,
+  hasUnsavedChanges: false,
+  pendingTab: null,
 };
 
 const settingsSlice = createSlice({
@@ -99,7 +118,7 @@ const settingsSlice = createSlice({
     updateCompanyField(
       state,
       action: PayloadAction<{
-        field: keyof EmployerSettingsState["company"];
+        field: EditableCompanyField;
         value: string;
       }>,
     ) {
@@ -108,21 +127,6 @@ const settingsSlice = createSlice({
 
     saveCompanyProfile(state) {
       state.toast = "Company profile saved.";
-    },
-
-    updateAccountField(
-      state,
-      action: PayloadAction<{
-        field: keyof EmployerSettingsState["account"];
-        value: string | boolean;
-      }>,
-    ) {
-      const { field, value } = action.payload;
-      if (field === "twoFactorEnabled") {
-        state.account.twoFactorEnabled = Boolean(value);
-      } else if (typeof value === "string") {
-        state.account[field] = value;
-      }
     },
 
     openInviteModal(state) {
@@ -262,6 +266,18 @@ const settingsSlice = createSlice({
     clearToast(state) {
       state.toast = null;
     },
+
+    setHasUnsavedChanges(state, action: PayloadAction<boolean>) {
+      state.hasUnsavedChanges = action.payload;
+    },
+
+    setPendingTab(state, action: PayloadAction<SettingsTab | null>) {
+      state.pendingTab = action.payload;
+    },
+
+    clearPendingTab(state) {
+      state.pendingTab = null;
+    },
   },
 });
 
@@ -271,7 +287,6 @@ export const {
   setActiveTab,
   updateCompanyField,
   saveCompanyProfile,
-  updateAccountField,
   openInviteModal,
   closeInviteModal,
   inviteMember,
@@ -289,6 +304,9 @@ export const {
   closeCheckoutModal,
   completeCreditPurchase,
   clearToast,
+  setHasUnsavedChanges,
+  setPendingTab,
+  clearPendingTab,
 } = settingsSlice.actions;
 
 export default settingsSlice.reducer;

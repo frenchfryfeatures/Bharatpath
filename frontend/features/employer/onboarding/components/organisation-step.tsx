@@ -12,7 +12,12 @@ import {
 } from "@/store/employer/settings";
 
 import { problemCode } from "../kyb-form";
-import { FieldError, inputBorder, kybInputClass } from "./kyb-field";
+import {
+  FieldError,
+  inputBorder,
+  kybInputClass,
+  renderFieldLabel,
+} from "./kyb-field";
 import { StepCard } from "./signup-shell";
 
 const selectClass =
@@ -146,10 +151,7 @@ export function OrganisationStep({ onCreated }: Readonly<OrganisationStepProps>)
             htmlFor="org-legal-name"
             className="mb-1.5 block text-[13px] font-semibold text-[#303747]"
           >
-            Registered name of the organisation
-            <span className="ml-1 text-[#b42318]" aria-hidden="true">
-              *
-            </span>
+            {renderFieldLabel("Registered name of the organisation", true)}
           </label>
           <div className="relative">
             <Building2
@@ -177,10 +179,7 @@ export function OrganisationStep({ onCreated }: Readonly<OrganisationStepProps>)
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <div>
             <p className="mb-1.5 text-[13px] font-semibold text-[#303747]">
-              What kind of organisation is this?
-              <span className="ml-1 text-[#b42318]" aria-hidden="true">
-                *
-              </span>
+              {renderFieldLabel("What kind of organisation is this?", true)}
             </p>
             <div className={`rounded-[10px] ${errors.businessType ? "ring-1 ring-[#e5484d]" : ""}`}>
               <AppSelect
@@ -197,10 +196,7 @@ export function OrganisationStep({ onCreated }: Readonly<OrganisationStepProps>)
 
           <div>
             <p className="mb-1.5 text-[13px] font-semibold text-[#303747]">
-              Which sector do you work in?
-              <span className="ml-1 text-[#b42318]" aria-hidden="true">
-                *
-              </span>
+              {renderFieldLabel("Which sector do you work in?", true)}
             </p>
             <div className={`rounded-[10px] ${errors.industry ? "ring-1 ring-[#e5484d]" : ""}`}>
               <AppSelect

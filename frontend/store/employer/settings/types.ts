@@ -8,14 +8,56 @@ export type SettingsTab =
 export type TeamRole = "Owner" | "Recruiter" | "View only";
 export type TeamStatus = "Active" | "Invited";
 
+export interface CompanyDocumentItem {
+  docType: string;
+  mime: string | null;
+  uploadedAt: string;
+}
+
+export interface CompanyUndertakings {
+  genuineHiring: boolean;
+  noRedistribution: boolean;
+  authorised: boolean;
+  submittedAt?: string | null;
+}
+
 export interface CompanyProfile {
+  // Read-only / locked
   legalName: string;
-  gstin: string;
   businessType: string;
   industry: string;
   kybStatus: string;
+  pan: string;
+  gstin: string;
+  cin: string;
+  tan: string;
   address: string;
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  state: string;
+  pincode: string;
+  signatoryName: string;
+  signatoryDesignation: string;
+  workEmail: string;
+  workPhone: string;
+  documents: CompanyDocumentItem[];
+  undertakings: CompanyUndertakings;
+
+  // Editable directly, saved to PATCH /employer/organisation
+  tradeName: string;
+  employeeCountBand: string;
+  website: string;
+  about: string;
 }
+
+/** The fields the company tab edits. Everything else is read from KYB. */
+export type EditableCompanyField =
+  | "tradeName"
+  | "industry"
+  | "employeeCountBand"
+  | "website"
+  | "about";
 
 export interface TeamMember {
   id: string;
@@ -51,13 +93,6 @@ export interface Invoice {
   status: "Paid" | "Pending" | "Failed";
 }
 
-export interface AccountProfile {
-  fullName: string;
-  phone: string;
-  workEmail: string;
-  twoFactorEnabled: boolean;
-}
-
 export interface EmployerSettingsState {
   activeTab: SettingsTab;
   company: CompanyProfile;
@@ -67,11 +102,12 @@ export interface EmployerSettingsState {
   creditPacks: CreditPack[];
   selectedCreditPackId: string | null;
   invoices: Invoice[];
-  account: AccountProfile;
   inviteModalOpen: boolean;
   paymentModalOpen: boolean;
   checkoutModalOpen: boolean;
   memberMenuOpenId: string | null;
   removeMemberId: string | null;
   toast: string | null;
+  hasUnsavedChanges: boolean;
+  pendingTab: SettingsTab | null;
 }

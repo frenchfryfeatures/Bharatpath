@@ -9,7 +9,6 @@ import {
   BookOpen,
   Building2,
   ChevronRight,
-  ClipboardCheck,
   Eye,
   FileText,
   KeyRound,
@@ -108,13 +107,7 @@ export function StudentProfile() {
                   tone="violet"
                   onClick={() => router.push("/student/profile/resume")}
                 />
-                <ProfileAction
-                  icon={ClipboardCheck}
-                  title="Attribute report"
-                  detail="View your completed assessment"
-                  tone="green"
-                  onClick={() => router.push("/student/attribute")}
-                />
+
                 <ProfileAction
                   icon={Mic2}
                   title="Interview report"

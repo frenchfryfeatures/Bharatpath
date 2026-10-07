@@ -349,6 +349,14 @@ is where a third one would have to be argued for.
 - **`employers.kyb_status` is what the publish trigger reads.** Only
   `kyb.service` changes it, through `employer.service.set_kyb_status`. The
   profile PATCH must never be a way to set it.
+- **The organisation's public profile is four `employers` columns**
+  (`trade_name`, `employee_count_band`, `website`, `about`; 0013,
+  2026-10-06), edited by `PATCH /employer/organisation` without reopening
+  verification. **Statutory details (PAN, GSTIN, CIN, TAN, address,
+  signatory) stay in the KYB submission** and change only through KYB: a
+  reviewer approved those values. The settings page reads them, never writes
+  them, and **keeps nothing in localStorage**. `EMPLOYEE_COUNT_BANDS` now
+  lives in `app.core.reference`, shared by `kyb` and `employer`.
 - **Forms are validated on the server** by `app.core.forms.validate_answers`;
   the patterns in a form definition are hints to the client. Option lists shared
   between modules live in `app/core/reference.py`.

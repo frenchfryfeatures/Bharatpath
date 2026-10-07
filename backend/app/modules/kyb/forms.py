@@ -42,6 +42,7 @@ from app.core.forms import (
     FormField,
     FormSection,
 )
+from app.core.reference import EMPLOYEE_COUNT_BANDS as EMPLOYEE_COUNT_BANDS
 
 FORM_VERSION: Final = "placeholder-1-2026-09-11"
 
@@ -313,16 +314,6 @@ UNDERTAKINGS = FormSection(
             required=True,
         ),
     ),
-)
-
-EMPLOYEE_COUNT_BANDS: Final[tuple[tuple[str, str], ...]] = (
-    ("1_10", "1-10"),
-    ("11_50", "11-50"),
-    ("51_200", "51-200"),
-    ("201_500", "201-500"),
-    ("501_1000", "501-1,000"),
-    ("1001_5000", "1,001-5,000"),
-    ("5000_PLUS", "More than 5,000"),
 )
 
 KYB_FORM: Final = FormDefinition(

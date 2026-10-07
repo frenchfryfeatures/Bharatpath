@@ -11,6 +11,7 @@ import {
   FieldError,
   inputBorder,
   kybInputClass,
+  renderFieldLabel,
 } from "@/features/employer/onboarding/components/kyb-field";
 import { StepCard } from "@/features/employer/onboarding/components/signup-shell";
 import { useCreateCollegeOrganisationMutation } from "@/store/college/settings/settings.api";
@@ -91,10 +92,7 @@ export function InstitutionStep({ onCreated }: Readonly<InstitutionStepProps>) {
             htmlFor="college-name"
             className="mb-1.5 block text-[13px] font-semibold text-[#303747]"
           >
-            Registered name of the institution
-            <span className="ml-1 text-[#b42318]" aria-hidden="true">
-              *
-            </span>
+            {renderFieldLabel("Registered name of the institution", true)}
           </label>
           <div className="relative">
             <GraduationCap
@@ -121,10 +119,7 @@ export function InstitutionStep({ onCreated }: Readonly<InstitutionStepProps>) {
 
         <div>
           <p className="mb-1.5 text-[13px] font-semibold text-[#303747]">
-            What kind of institution is this?
-            <span className="ml-1 text-[#b42318]" aria-hidden="true">
-              *
-            </span>
+            {renderFieldLabel("What kind of institution is this?", true)}
           </p>
           <div className={`rounded-[10px] ${errors.institutionType ? "ring-1 ring-[#e5484d]" : ""}`}>
             <AppSelect
