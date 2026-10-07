@@ -36,7 +36,7 @@ This service **issues no tokens.** Cognito does, and there are two pools:
 | Pool | Who | How they sign in |
 |---|---|---|
 | `CANDIDATE` | candidates, students | phone OTP, or email |
-| `BUSINESS` | employer, college and platform staff | password **plus mandatory software-token MFA** |
+| `BUSINESS` | employer, college and platform staff | password, plus software-token MFA **if the user turned it on** (optional, off by default, 2026-10-07) |
 
 Send the access token as `Authorization: Bearer <token>`. A token from the
 wrong pool is rejected outright, never half-trusted.

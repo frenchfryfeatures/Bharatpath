@@ -415,7 +415,7 @@ least once.
 | Pool | Users | Mechanism |
 |---|---|---|
 | `bharatpath-candidates` | Candidates / students | Custom auth flow (phone OTP) via three Lambda triggers; Google as a federated IdP; email as a standard flow |
-| `bharatpath-business` | Employer, college, admin users | Username + password, **software-token MFA required** (SRS §1.3.4) |
+| `bharatpath-business` | Employer, college, admin users | Username + password, software-token MFA **optional, off by default** (client 2026-10-07, was required under SRS §1.3.4) |
 
 **How the API uses it:**
 

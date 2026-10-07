@@ -14,7 +14,8 @@ migrator credential is already trusted with the database.
 Roles: PLATFORM_ADMIN, KYB_REVIEWER, INTEGRITY_REVIEWER, SUPPORT_AGENT.
 
 **Two steps, and this is only the second.** The person also needs a user in
-the *business* Cognito pool (admin-create-only, software-token MFA required).
+the *business* Cognito pool (software-token MFA optional since 2026-10-07;
+staff should turn it on).
 On their first sign-in the verified identity adopts the row written here by
 email, exactly as an invited recruiter's does. Create the Cognito user first
 or second; the order does not matter.

@@ -198,10 +198,12 @@ async def test_a_candidate_pool_token_cannot_hold_a_business_role(
 ) -> None:
     """The pools are different assurance levels, not different labels.
 
-    The business pool requires software-token MFA (SRS 1.3.4); the candidate
-    pool does not. Honouring a business membership against a candidate-pool
-    token would let an attacker skip MFA entirely by signing in on the other
-    side of the product.
+    The business pool has its own password policy, shorter sessions and the
+    software-token MFA a user may turn on (optional since 2026-10-07); the
+    candidate pool has none of those. Honouring a business membership against
+    a candidate-pool token would let an attacker skip all of it -- including
+    MFA a business user did turn on -- by signing in on the other side of the
+    product.
     """
     headers, _ = mint_token(pool="CANDIDATE", subject=business_member["subject"])
 
