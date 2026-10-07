@@ -1,30 +1,33 @@
-import { Spinner, Skeleton } from "@/components/common/loading";
+import { Skeleton } from "@/components/common/loading";
 import { StudentPage } from "@/features/student/shell";
 
 export function CourseListSkeleton() {
   return (
-    <StudentPage className="flex min-h-[calc(100dvh-5rem)] flex-col">
-      <div className="flex flex-1 flex-col gap-5" role="status" aria-busy="true">
-        <div>
-          <h1 className="text-[24px] font-bold tracking-[-0.03em] text-[#0A1931] sm:text-[28px]">
-            Learn at your pace
-          </h1>
-          <p className="mt-1 text-[14px] leading-5 text-[#5F6B80]">
-            Explore courses, track lessons, and continue where you left off.
-          </p>
-        </div>
-
-        <div className="flex min-h-64 flex-1 flex-col items-center justify-center gap-3 text-center">
-          <Spinner size={32} tone="primary" />
-          <p className="text-[15px] font-semibold text-[#0A1931]">
-            Finding courses for you
-          </p>
-          <p className="text-[13px] text-[#5F6B80]">
-            Checking the latest courses and your learning progress.
-          </p>
-        </div>
+    <StudentPage>
+      <div className="flex flex-col gap-5">
+        <div className="flex h-10 items-center gap-3"><Skeleton circle width={40} height={40} /><Skeleton width={135} height={20} radius={7} /></div>
+        <Skeleton width="62%" height={15} radius={6} />
+        <CourseGridSkeleton />
       </div>
     </StudentPage>
+  );
+}
+
+export function CourseGridSkeleton() {
+  return (
+    <div role="status" aria-label="Loading courses" className="grid gap-4 lg:grid-cols-2">
+      {Array.from({ length: 4 }).map((_, index) => (
+        <div key={index} className="flex flex-col gap-5 rounded-[20px] border border-[#E7E0D4] bg-white p-5">
+          <div className="flex items-center gap-3">
+            <Skeleton width={46} height={46} radius={12} />
+            <div className="flex-1"><Skeleton width="64%" height={19} radius={7} /><Skeleton className="mt-2" width="35%" height={12} radius={6} /></div>
+            <Skeleton width={70} height={26} radius={999} />
+          </div>
+          <Skeleton width={120} height={25} radius={999} />
+          <Skeleton width={125} height={42} radius={999} />
+        </div>
+      ))}
+    </div>
   );
 }
 

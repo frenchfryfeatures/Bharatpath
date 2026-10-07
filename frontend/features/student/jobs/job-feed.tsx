@@ -9,7 +9,7 @@ import {
 } from "react";
 import { BriefcaseBusiness, Check, Funnel, IndianRupee, MapPin, Search, SlidersHorizontal, Sparkles, X } from "lucide-react";
 
-import { Spinner } from "@/components/common/loading";
+import { StudentJobCardSkeleton, StudentJobGridSkeleton } from "@/features/student/loading";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   selectJobQualifiedOnly,
@@ -114,15 +114,7 @@ export function JobFeed() {
         </div>
 
         {jobs.isLoading ? (
-          <div className="flex min-h-64 flex-1 flex-col items-center justify-center gap-3 text-center">
-            <Spinner size={32} tone="primary" />
-            <p className="text-[15px] font-semibold text-[#0A1931]">
-              Finding jobs for you
-            </p>
-            <p className="text-[13px] text-[#5F6B80]">
-              Checking the latest roles that match your preferences.
-            </p>
-          </div>
+          <StudentJobGridSkeleton count={6} label="Finding jobs for you" />
         ) : jobs.error && !jobs.items.length ? (
           <StudentErrorState
             icon={<Search size={22} />}
@@ -136,13 +128,13 @@ export function JobFeed() {
               {jobs.items.map((job) => (
                 <JobCard key={job.id} job={job} />
               ))}
+              {jobs.isLoadingMore ? (
+                <>
+                  <span role="status" className="sr-only">Loading more jobs</span>
+                  {Array.from({ length: 3 }).map((_, index) => <StudentJobCardSkeleton key={`loading-${index}`} />)}
+                </>
+              ) : null}
             </div>
-
-            {jobs.isLoadingMore ? (
-              <div className="flex justify-center py-6">
-                <Spinner size={28} tone="primary" label="Loading more jobs" />
-              </div>
-            ) : null}
 
             {jobs.error && jobs.hasMore ? (
               <div className="flex flex-col items-center gap-2 pt-1">

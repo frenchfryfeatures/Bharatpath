@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { FormSkeleton } from "@/components/common/loading";
+import { AccountDestinationLoading } from "@/components/common/account-destination-loading";
 import { PORTAL_TYPES } from "@/config/portal";
 import { authService } from "@/features/auth/services/auth.service";
 import type { LoginResponse } from "@/features/auth/types";
@@ -17,6 +17,7 @@ import { useAppDispatch } from "@/store/hooks";
 import {
   studentApi,
   useCompleteResumeUploadMutation,
+  useGetCandidateSubscriptionQuery,
   useLazyGetResumeVersionsQuery,
   useGetCollegeConsentTermsQuery,
   useLinkStudentCollegeByReferralMutation,
@@ -39,9 +40,11 @@ import {
 import { PaidScoringStep } from "./paid-scoring-step";
 import { SubscriptionStep } from "./subscription-step";
 import { SignupFrame, TrustAside, type SignupPhase } from "./ui";
+import { isStudentOnboardingComplete } from "../onboarding-status";
 
 type Stage =
   | { name: "booting" }
+  | { name: "resume-error" }
   | { name: "account" }
   | { name: "account-details" }
   | { name: "referral"; code: string }
@@ -66,6 +69,7 @@ type Stage =
 
 const PHASE_OF: Record<Stage["name"], SignupPhase> = {
   booting: "start",
+  "resume-error": "start",
   account: "start",
   "account-details": "start",
   referral: "start",
@@ -89,8 +93,7 @@ interface Profile {
 const EMPTY_PROFILE: Profile = { fullName: "", city: "", stateCode: "" };
 
 /**
- * Candidate sign-up: account, about you, resume intake, reading, review and confirm, scoring -
- * then the existing score screen takes over.
+ * Candidate sign-up: account, profile, membership, resume intake, review and scoring.
  */
 export function StudentSignup() {
   const router = useRouter();
@@ -101,9 +104,6 @@ export function StudentSignup() {
   const [profile, setProfile] = useState<Profile>(EMPTY_PROFILE);
 
   const [pendingResume, setPendingResume] = useState<File | null>(null);
-  const [reviewedVersionId, setReviewedVersionId] = useState<string | null>(
-    null,
-  );
   const [resumeFilename, setResumeFilename] = useState<string>();
   const [initialProfileSection, setInitialProfileSection] = useState(0);
   const [activeProfileSection, setActiveProfileSection] = useState(0);
@@ -111,6 +111,7 @@ export function StudentSignup() {
   const [saveCareer] = useSaveCareerProfileMutation();
   const [intakeResume] = useIntakeCareerResumeMutation();
   const career = useGetCareerProfileQuery(undefined, { skip: !signedIn });
+  const subscription = useGetCandidateSubscriptionQuery(undefined, { skip: !signedIn });
 
   const [loadProfile] = studentApi.endpoints.getStudentProfile.useLazyQuery();
   const [loadVersions] = useLazyGetResumeVersionsQuery();
@@ -145,8 +146,8 @@ export function StudentSignup() {
     );
   };
 
-  /** Where a signed-in candidate picks up: name, then resume, then score. */
-  const resume = async (): Promise<Stage> => {
+  /** Where a signed-in candidate picks up, using saved onboarding progress. */
+  const resume = async (): Promise<Stage | null> => {
     const current = await loadProfile(undefined, false).unwrap();
     const known: Profile = {
       fullName: current.fullName ?? "",
@@ -163,15 +164,13 @@ export function StudentSignup() {
     const versions = await loadVersions(undefined, false).unwrap();
     const latest = versions.find((version) => !version.superseded);
 
-    if (!latest) return { name: "account-details" };
-    if (latest.confirmed)
-      return { name: "computing", confirmedAt: latest.confirmedAt };
     const savedCareer = await loadCareer(undefined, false).unwrap();
+    if (isStudentOnboardingComplete(current, savedCareer, versions)) return null;
+    if (!known.fullName?.trim() || !latest) return { name: "account-details" };
     if (
       savedCareer.completed &&
       savedCareer.resume_version_id === latest.resumeVersionId
     ) {
-      setReviewedVersionId(latest.resumeVersionId);
       return { name: "subscription" };
     }
     return { name: "review", resumeVersionId: latest.resumeVersionId };
@@ -190,8 +189,11 @@ export function StudentSignup() {
         }
         remember(identity);
         setSignedIn(true);
-        const next = await resume();
-        if (!cancelled) setStage(next);
+        const next = await resume().catch(() => ({ name: "resume-error" } as Stage));
+        if (!cancelled) {
+          if (next) setStage(next);
+          else router.replace("/student");
+        }
       })
       .catch(() => {
         if (!cancelled) setStage({ name: "account" });
@@ -315,7 +317,29 @@ export function StudentSignup() {
 
   switch (stage.name) {
     case "booting":
-      return frame(<FormSkeleton fields={3} bordered={false} />);
+      return <AccountDestinationLoading />;
+
+    case "resume-error":
+      return frame(
+        <div role="alert" className="rounded-2xl border border-red-200 bg-white p-6 text-sm text-[#3A4761]">
+          <p>Could not load your onboarding progress.</p>
+          <button
+            type="button"
+            className="mt-4 rounded-full bg-[#5F4DB2] px-5 py-2 font-semibold text-white"
+            onClick={() => {
+              go({ name: "booting" });
+              void resume()
+                .then((next) => {
+                  if (next) go(next);
+                  else router.replace("/student");
+                })
+                .catch(() => go({ name: "resume-error" }));
+            }}
+          >
+            Try again
+          </button>
+        </div>,
+      );
 
     case "account":
       return frame(
@@ -377,8 +401,7 @@ export function StudentSignup() {
           onSectionChange={setActiveProfileSection}
           resumeVersionId={career.data?.resume_version_id ?? undefined}
           onBack={() => go({ name: "intake" })}
-          onDone={(result) => {
-            setReviewedVersionId(result.resume_version_id);
+          onDone={() => {
             go({ name: "subscription" });
           }}
         />,
@@ -413,9 +436,7 @@ export function StudentSignup() {
             )
           }
           onContinue={() => {
-            const id = reviewedVersionId ?? career.data?.resume_version_id;
-            if (id) go({ name: "paid-scoring", resumeVersionId: id });
-            else go({ name: "intake" });
+            go({ name: "intake" });
           }}
         />,
         <TrustAside />,
@@ -425,7 +446,7 @@ export function StudentSignup() {
       return frame(
         <IntakeStep
           error={stage.error}
-          onBack={() => go({ name: "account-details" })}
+          onBack={() => go({ name: subscription.data?.has_access ? "subscription" : "account-details" })}
           onFile={(file) => {
             setInitialProfileSection(0);
             void startUpload(file);
@@ -433,7 +454,7 @@ export function StudentSignup() {
           onPaste={() => go({ name: "paste" })}
           onForm={() => {
             setInitialProfileSection(0);
-            go({ name: "review" });
+            go({ name: "manual" });
           }}
         />,
       );
@@ -501,9 +522,10 @@ export function StudentSignup() {
           key={stage.resumeVersionId}
           resumeVersionId={stage.resumeVersionId}
           onDone={(result) => {
-            setReviewedVersionId(result.resume_version_id);
             void career.refetch();
-            go({ name: "subscription" });
+            if (subscription.data?.has_access && result.resume_version_id)
+              go({ name: "paid-scoring", resumeVersionId: result.resume_version_id });
+            else go({ name: "subscription" });
           }}
           onBack={() => go({ name: "intake" })}
         />,
@@ -514,7 +536,7 @@ export function StudentSignup() {
         <PaidScoringStep
           versionId={stage.resumeVersionId}
           onConfirmed={(confirmedAt) => go({ name: "computing", confirmedAt })}
-          onBack={() => go({ name: "subscription" })}
+          onBack={() => go({ name: "review", resumeVersionId: stage.resumeVersionId })}
         />,
       );
 

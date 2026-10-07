@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { StudentErrorState } from "@/features/student/components";
+import { Skeleton } from "@/components/common/loading";
 import { StudentPage } from "@/features/student/shell";
 import { useGetInterviewReportQuery } from "@/store/student/learning.api";
 
@@ -191,11 +192,12 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 function FeedbackLoading() {
   return (
-    <div className="grid min-h-[420px] place-items-center rounded-2xl border border-[#E7E0D4] bg-white text-center">
-      <div>
-        <LoaderCircle className="mx-auto h-8 w-8 animate-spin text-[#604BB5]" aria-hidden="true" />
-        <p className="mt-3 text-[14px] font-semibold text-[#0A1931]">Loading your feedback…</p>
-      </div>
+    <div role="status" aria-label="Loading your feedback" className="min-h-[420px] rounded-2xl border border-[#E7E0D4] bg-white p-6 sm:p-8">
+      <Skeleton width={54} height={54} circle />
+      <Skeleton className="mt-6" width="52%" height={28} radius={8} />
+      <Skeleton className="mt-5" width="100%" height={15} radius={7} />
+      <Skeleton className="mt-3" width="84%" height={15} radius={7} />
+      <div className="mt-8 grid gap-3 sm:grid-cols-2"><Skeleton width="100%" height={104} radius={14} /><Skeleton width="100%" height={104} radius={14} /></div>
     </div>
   );
 }

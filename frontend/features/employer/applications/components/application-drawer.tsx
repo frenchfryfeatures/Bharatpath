@@ -3,7 +3,6 @@
 import { Maximize2, Minimize2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useGetEmployerApplicationQuery } from "@/store/employer/applications/applications.api";
-import { ResumeFieldsView, StructuredResumeView } from "@/components/resume/structured-resume";
 import { useScrollLock } from "@/hooks/use-scroll-lock";
 import { ResumeShowcase } from "@/features/employer/components/resume-showcase";
 
@@ -164,11 +163,8 @@ export function ApplicationDrawer({
               ) : (
                 <ResumeShowcase
                   resume={resume}
-                  candidateName={candidate.name}
                   currentTime={currentTime}
                   onRefresh={() => void detail.refetch()}
-                  isExpanded={isExpanded}
-                  onToggleExpand={() => setIsExpanded((prev) => !prev)}
                 />
               )}
             </div>

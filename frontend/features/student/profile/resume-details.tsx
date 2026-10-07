@@ -136,21 +136,32 @@ export function ResumeDetails() {
               <PasteStep onBack={() => { if (current) setView({ name: "review", versionId: current.resumeVersionId }); }} onCreated={(versionId) => { setView({ name: "review", versionId }); void versions.refetch(); }} />
             ) : (
               <div className="flex flex-col gap-5">
+                <header className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#5F4DB2]">My resume</p>
+                    <h1 className="mt-1 text-[24px] font-bold leading-8 tracking-[-0.02em] text-[#0A1931] lg:text-[22px] lg:leading-7">Resume details</h1>
+                    <p className="mt-1 text-[13px] leading-5 text-[#5F6B80]">Review your profile details or replace the source file.</p>
+                  </div>
+                  <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold ${current.confirmed ? "bg-[#E8F4EA] text-[#1F6B45]" : "bg-[#F7EFD6] text-[#85650F]"}`}>
+                    {current.confirmed && <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />}
+                    {current.confirmed ? "Ready for your profile" : "Needs confirmation"}
+                  </span>
+                </header>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <button type="button" onClick={() => fileInput.current?.click()} className="group relative flex min-h-[104px] min-w-0 cursor-pointer items-center gap-4 overflow-hidden rounded-[22px] border border-[#D9D0F5] bg-gradient-to-br from-white via-white to-[#F7F3FF] px-5 py-4 text-left shadow-[0_4px_16px_rgba(58,43,112,0.07)] transition duration-200 hover:-translate-y-0.5 hover:border-[#8D79D8] hover:shadow-[0_10px_24px_rgba(58,43,112,0.13)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/40 focus-visible:ring-offset-2 sm:px-6">
-                    <span className="grid h-14 w-14 shrink-0 place-items-center rounded-[18px] bg-[#EEE8FA] text-[#5F4DB2] ring-1 ring-inset ring-[#DED5F4] transition group-hover:bg-[#E7DFFA]"><Upload className="h-6 w-6" aria-hidden="true" /></span>
-                    <span className="min-w-0 flex-1"><span className="block text-[16px] font-bold tracking-[-0.01em] text-[#0A1931]">Upload new resume</span><span className="mt-1 block text-[13px] leading-5 text-[#5F6B80]">Choose a PDF or DOCX file to update your profile</span></span>
-                    <span className="grid h-14 w-14 shrink-0 place-items-center rounded-[18px] bg-[#5F4DB2] text-white shadow-sm transition group-hover:bg-[#4A3E8F]"><ArrowUpRight className="h-5 w-5" aria-hidden="true" /></span>
+                  <button type="button" onClick={() => fileInput.current?.click()} className="group relative flex min-h-[88px] min-w-0 cursor-pointer items-center gap-3 overflow-hidden rounded-[20px] border border-[#D9D0F5] bg-gradient-to-br from-white via-white to-[#F7F3FF] px-4 py-3 text-left shadow-[0_4px_16px_rgba(58,43,112,0.07)] transition duration-200 hover:-translate-y-0.5 hover:border-[#8D79D8] hover:shadow-[0_10px_24px_rgba(58,43,112,0.13)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/40 focus-visible:ring-offset-2">
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[13px] bg-[#EEE8FA] text-[#5F4DB2] ring-1 ring-inset ring-[#DED5F4] transition group-hover:bg-[#E7DFFA]"><Upload className="h-5 w-5" aria-hidden="true" /></span>
+                    <span className="min-w-0 flex-1"><span className="block text-[14px] font-bold text-[#0A1931]">Upload new resume</span><span className="mt-1 block text-[12px] leading-4 text-[#5F6B80]">PDF or DOCX to update your profile</span></span>
+                    <ArrowUpRight className="h-4 w-4 shrink-0 text-[#5F4DB2] transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" aria-hidden="true" />
                   </button>
                   {current && (
-                    <button type="button" onClick={() => void openResume()} disabled={documentState.isLoading} className="group flex min-h-[104px] min-w-0 items-center gap-4 rounded-[22px] border border-[#E5DFD4] bg-white px-5 py-4 text-left shadow-[0_3px_12px_rgba(10,25,49,0.045)] transition duration-200 hover:-translate-y-0.5 hover:border-[#C7BCEB] hover:bg-[#FCFAFF] hover:shadow-[0_9px_20px_rgba(58,43,112,0.09)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30 focus-visible:ring-offset-2 disabled:opacity-60 sm:px-6">
-                      <span className="grid h-14 w-14 shrink-0 place-items-center rounded-[18px] bg-[#F1EAF7] text-[#5F4DB2] transition group-hover:bg-[#E9E0F5]"><FileText className="h-5 w-5" aria-hidden="true" /></span>
-                      <span className="min-w-0 flex-1"><span className="block text-[16px] font-bold tracking-[-0.01em] text-[#0A1931]">{documentState.isLoading ? "Opening resume…" : "Open resume"}</span><span className="mt-1 block text-[13px] leading-5 text-[#5F6B80]">View your current resume file</span></span>
-                      <ArrowUpRight className="h-5 w-5 shrink-0 text-[#5F4DB2] transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" aria-hidden="true" />
+                    <button type="button" onClick={() => void openResume()} disabled={documentState.isLoading} className="group flex min-h-[88px] min-w-0 items-center gap-3 rounded-[20px] border border-[#E5DFD4] bg-white px-4 py-3 text-left shadow-[0_3px_12px_rgba(10,25,49,0.045)] transition duration-200 hover:-translate-y-0.5 hover:border-[#C7BCEB] hover:bg-[#FCFAFF] hover:shadow-[0_9px_20px_rgba(58,43,112,0.09)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30 focus-visible:ring-offset-2 disabled:opacity-60">
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[13px] bg-[#F1EAF7] text-[#5F4DB2] transition group-hover:bg-[#E9E0F5]"><FileText className="h-5 w-5" aria-hidden="true" /></span>
+                      <span className="min-w-0 flex-1"><span className="block text-[14px] font-bold text-[#0A1931]">{documentState.isLoading ? "Opening resume…" : "Open resume"}</span><span className="mt-1 block text-[12px] leading-4 text-[#5F6B80]">View your current resume file</span></span>
+                      <ArrowUpRight className="h-4 w-4 shrink-0 text-[#5F4DB2] transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" aria-hidden="true" />
                     </button>
                   )}
                 </div>
-                <ReviewStep key={activeView.versionId} resumeVersionId={activeView.versionId} title="Resume details" subtitle="Review and edit the details extracted from your resume. Changes are saved as a new version." confirmLabel="Save & update score" startOverLabel="Cancel and return to previous resume" onStartOver={cancelUpdate} onConfirmed={() => { showSuccessFeedback("Resume saved and score update started."); setView(null); void versions.refetch(); }} />
+                <ReviewStep key={activeView.versionId} resumeVersionId={activeView.versionId} title="Your details" subtitle="Review each section and use the edit button to update it. Changes are saved as a new version." confirmLabel="Save & update score" startOverLabel="Cancel and return to previous resume" onStartOver={cancelUpdate} onConfirmed={() => { showSuccessFeedback("Resume saved and score update started."); setView(null); void versions.refetch(); }} />
               </div>
             )}
           </main>

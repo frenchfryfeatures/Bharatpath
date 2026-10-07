@@ -61,15 +61,6 @@ export function ComputingStep({ confirmedAt, onShowScore, onGoHome }: Readonly<C
     return () => window.clearInterval(timer);
   }, [ready, locked]);
 
-  useEffect(() => {
-    if (ready) {
-      const timer = window.setTimeout(() => {
-        onShowScore();
-      }, 800);
-      return () => window.clearTimeout(timer);
-    }
-  }, [ready, onShowScore]);
-
   const slow = !ready && !locked && (ticks * TICK_MS) / 1000 >= PATIENCE_SECONDS;
   const current = ticks % SCORE_CATEGORIES.length;
   const status = ready
@@ -154,7 +145,7 @@ export function ComputingStep({ confirmedAt, onShowScore, onGoHome }: Readonly<C
       <div className="sticky bottom-0 flex flex-col gap-3 bg-[#FFFCF7] pb-3.5 pt-3">
         {ready ? (
           <PillButton onClick={onShowScore} className="w-full py-[18px]">
-            Go to home screen
+            Check your score on the dashboard
           </PillButton>
         ) : locked ? (
           <PillButton onClick={onGoHome} className="w-full py-[18px]">

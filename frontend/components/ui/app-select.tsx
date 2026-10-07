@@ -19,6 +19,7 @@ interface AppSelectProps {
   value: string;
   onChange: (value: string) => void;
   options: AppSelectOption[];
+  disabled?: boolean;
   className?: string;
   menuClassName?: string;
   menuPlacement?: "top" | "bottom" | "auto";
@@ -52,6 +53,7 @@ export function AppSelect({
   value,
   onChange,
   options,
+  disabled = false,
   className = "",
   menuClassName = "",
   menuPlacement = "bottom",
@@ -315,6 +317,7 @@ export function AppSelect({
 
       <button
         type="button"
+        disabled={disabled}
         aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -338,6 +341,7 @@ export function AppSelect({
           transition-colors
           hover:bg-[#f8f9fb]
           focus:outline-none
+          disabled:cursor-not-allowed disabled:opacity-60
         "
       >
         <span className="truncate text-[11px] font-semibold text-[#283247]">
@@ -356,7 +360,7 @@ export function AppSelect({
           DROPDOWN
           ================================================= */}
 
-      {open && (
+      {open && !disabled && (
         portal
           ? menuPosition
             ? createPortal(

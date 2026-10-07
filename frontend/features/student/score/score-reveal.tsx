@@ -30,8 +30,17 @@ export function ScoreReveal() {
     <StudentPage>
       <StudentTopBar title="Your resume score" />
       {score.isLoading ? (
-        <div className="rounded-2xl border border-[#E7E0D4] bg-white p-5 text-sm text-[#5F6B80]">
-          Loading score…
+        <div role="status" aria-label="Loading resume score" className="grid gap-4 lg:grid-cols-2">
+          <div className="flex flex-col items-center gap-5 rounded-[24px] bg-[#5F4DB2] p-6">
+            <Skeleton className="opacity-55" width={190} height={190} circle />
+            <Skeleton className="opacity-55" width={110} height={16} radius={7} />
+          </div>
+          <div className="rounded-[24px] border border-[#E7E0D4] bg-white p-6">
+            <Skeleton width="58%" height={22} radius={7} />
+            <Skeleton className="mt-5" width="100%" height={14} radius={6} />
+            <Skeleton className="mt-3" width="80%" height={14} radius={6} />
+            <Skeleton className="mt-7" width="100%" height={48} radius={12} />
+          </div>
         </div>
       ) : score.error ? (
         <StudentErrorState

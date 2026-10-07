@@ -3,8 +3,9 @@
 import { useState } from "react";
 
 import { ChangePasswordModal } from "@/components/auth/change-password-modal";
+import { MfaSettingsControl } from "@/components/auth/mfa-settings-control";
 
-/** The settings card the college and admin consoles show for their own password. */
+/** Account security settings shared by the college and admin consoles. */
 export function AccountSecurityCard() {
   const [open, setOpen] = useState(false);
 
@@ -18,7 +19,7 @@ export function AccountSecurityCard() {
           Account &amp; security
         </span>
         <span className="text-[12px] font-normal leading-[17px] text-[#7b8494]">
-          Change the password you use to sign in.
+          Manage your password and authenticator.
         </span>
       </span>
 
@@ -31,6 +32,8 @@ export function AccountSecurityCard() {
           Change password
         </button>
       </div>
+
+      <MfaSettingsControl />
 
       <ChangePasswordModal
         open={open}

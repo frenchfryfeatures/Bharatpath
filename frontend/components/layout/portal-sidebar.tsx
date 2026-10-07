@@ -624,7 +624,7 @@ export function PortalSidebar({
             gap-[10px]
             ${
               collapsed
-                ? "flex-col justify-center gap-2 px-2 py-3"
+                ? "group relative flex-col justify-center px-2 py-3"
                 : "px-[16px]"
             }
           `}
@@ -635,14 +635,15 @@ export function PortalSidebar({
 
           <span
             title={collapsed ? accountTitle : undefined}
-            className="
+            className={`
               grid
               h-10
               w-10
               shrink-0
               place-items-center
               rounded-full
-            "
+              ${collapsed ? "transition-opacity group-hover:opacity-0 group-focus-within:opacity-0" : ""}
+            `}
             style={{
               background:
                 "var(--navy)",
@@ -701,7 +702,7 @@ export function PortalSidebar({
           )}
 
           {/* =================================================
-              LOGOUT - available collapsed too
+              LOGOUT - replaces the avatar when collapsed
           ================================================== */}
 
           <button
@@ -709,19 +710,21 @@ export function PortalSidebar({
             onClick={() => setLogoutModalOpen(true)}
             aria-label="Log out"
             title="Log out"
-            className="
+            className={`
               grid
-              h-8
-              w-8
               shrink-0
               cursor-pointer
               place-items-center
-              rounded-lg
               text-(--ink-muted)
-              transition-colors
+              transition-all
               hover:bg-[#fdecec]
               hover:text-[#c43d3d]
-            "
+              ${
+                collapsed
+                  ? "absolute top-1/2 left-1/2 h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                  : "h-8 w-8 rounded-lg"
+              }
+            `}
           >
             <LogOut
               size={18}

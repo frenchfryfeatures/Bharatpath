@@ -39,6 +39,12 @@ const longListItem = new Set(["highlight", "achievement", "item"]);
 const chipLists = new Set(["skills", "skills_used", "technologies", "interests"]);
 const urlFields = new Set(["url", "website", "linkedin", "github", "behance", "instagram", "tiktok", "pinterest", "x_twitter", "medium", "dev_to", "stack_overflow"]);
 const desktopFieldClass = "lg:rounded-[12px] lg:px-3.5 lg:py-2.5 lg:text-[14px] lg:leading-5";
+const contactGroups = [
+  { title: "Contact details", fields: ["email", "phone", "website"] },
+  { title: "Professional profiles", fields: ["linkedin", "github", "behance", "dev_to", "stack_overflow", "medium"] },
+  { title: "Social profiles", fields: ["instagram", "tiktok", "pinterest", "x_twitter"] },
+] as const;
+const wideSections = new Set<SectionKey>(["basics", "contacts", "experience", "education", "projects", "other_sections"]);
 
 function setPath(doc: StructuredResume, path: Path, value: unknown): StructuredResume {
   const copy = structuredClone(doc);
@@ -83,7 +89,11 @@ function InputTree({ name, value, path, onChange }: {
             <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#5F6B80] lg:text-[10px]">{name === "others" ? "Link" : resumeLabel(name)} {index + 1}</span>
             <button type="button" onClick={() => onChange(path, value.filter((_, itemIndex) => itemIndex !== index))} aria-label={`Remove ${name === "others" ? "link" : resumeLabel(name)} ${index + 1}`} className="inline-flex cursor-pointer items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[12px] font-semibold text-[#A13D37] transition hover:bg-[#F8E6E0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A13D37]/30 lg:text-[11px]"><Trash2 size={13} aria-hidden="true" /> Remove</button>
           </div>
-          <InputTree name={name.endsWith("s") ? name.slice(0, -1) : name} value={item} path={[...path, index]} onChange={onChange} />
+          {name === "others" && item !== null && typeof item === "object" ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {Object.entries(item).map(([key, field]) => <InputTree key={key} name={key} value={field} path={[...path, index, key]} onChange={onChange} />)}
+            </div>
+          ) : <InputTree name={name.endsWith("s") ? name.slice(0, -1) : name} value={item} path={[...path, index]} onChange={onChange} />}
         </div>
       ))}
       <button type="button" onClick={() => onChange(path, [...value, structuredClone(blankItems[name] ?? "")])} className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-[16px] border border-dashed border-[#CFC4F4] bg-white px-4 py-3 text-[13px] font-semibold text-[#5F4DB2] transition hover:border-[#5F4DB2] hover:bg-[#FCFAFF] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30 lg:rounded-[12px] lg:py-2 lg:text-[12px]"><Plus size={15} aria-hidden="true" /> Add {name === "others" ? "another link" : resumeLabel(name).toLowerCase()}</button>
@@ -98,7 +108,7 @@ function InputTree({ name, value, path, onChange }: {
   return (
     <label className="flex min-w-0 flex-col gap-1.5 text-[13px] font-semibold text-[#0A1931] lg:gap-1 lg:text-[12px]">
       {resumeLabel(name)}
-      {multiline.has(name) || longListItem.has(name) ? <textarea rows={4} value={String(value ?? "")} maxLength={5000} onChange={(event) => onChange(path, event.target.value)} className={`${fieldClass} ${fieldBorder(false)} ${desktopFieldClass} min-h-28 resize-y font-normal lg:min-h-24`} /> : <input type={name === "email" ? "email" : name === "phone" ? "tel" : "text"} value={String(value ?? "")} maxLength={name.includes("date") ? 7 : urlFields.has(name) ? 500 : 300} placeholder={name.includes("date") ? "YYYY or YYYY-MM" : undefined} onChange={(event) => onChange(path, event.target.value)} className={`${fieldClass} ${fieldBorder(false)} ${desktopFieldClass}`} />}
+      {multiline.has(name) || longListItem.has(name) ? <textarea rows={longListItem.has(name) ? 2 : 4} value={String(value ?? "")} maxLength={5000} onChange={(event) => onChange(path, event.target.value)} className={`${fieldClass} ${fieldBorder(false)} ${desktopFieldClass} min-h-20 resize-y font-normal lg:min-h-16`} /> : <input type={name === "email" ? "email" : name === "phone" ? "tel" : "text"} value={String(value ?? "")} maxLength={name.includes("date") ? 7 : urlFields.has(name) ? 500 : 300} placeholder={name.includes("date") ? "YYYY or YYYY-MM" : undefined} onChange={(event) => onChange(path, event.target.value)} className={`${fieldClass} ${fieldBorder(false)} ${desktopFieldClass}`} />}
     </label>
   );
 }
@@ -195,10 +205,10 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
         <p className="text-[14px] leading-5 text-[#3A4761] lg:text-[13px]">{subtitle}</p>
       </header>
       {error && <ErrorNote>{error}</ErrorNote>}
-      <div className="flex flex-col gap-3">
+      <div className="grid gap-3 xl:grid-cols-2">
         {sections.map(({ key, label, icon: Icon }) => {
           return (
-            <Card key={key} className="p-4">
+            <Card key={key} className={`min-w-0 p-4 ${wideSections.has(key) ? "xl:col-span-2" : ""}`}>
               <div className="flex items-center gap-3">
                 <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[12px] bg-[#F1EAF7] text-[#5F4DB2]"><Icon size={18} aria-hidden="true" /></span>
                 <h2 className="min-w-0 flex-1 text-[15px] font-semibold leading-5 text-[#0A1931]">{label}</h2>
@@ -245,6 +255,18 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
                 {editing === "basics" ? (
                   <div className="grid gap-4 lg:gap-3">
                     {(["full_name", "headline", "location", "summary"] as const).map((field) => <InputTree key={field} name={field} value={drawerDraft[field]} path={[field]} onChange={changeDrawer} />)}
+                  </div>
+                ) : editing === "contacts" ? (
+                  <div className="space-y-5 lg:space-y-4">
+                    {contactGroups.map(({ title: groupTitle, fields }) => (
+                      <section key={groupTitle} className="space-y-3 lg:space-y-2.5">
+                        <h3 className="border-b border-[#E7E0D4] pb-2 text-[12px] font-bold uppercase tracking-[0.08em] text-[#5F6B80] lg:text-[11px]">{groupTitle}</h3>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          {fields.map((field) => <InputTree key={field} name={field} value={drawerDraft.contacts[field]} path={["contacts", field]} onChange={changeDrawer} />)}
+                        </div>
+                      </section>
+                    ))}
+                    <InputTree name="others" value={drawerDraft.contacts.others} path={["contacts", "others"]} onChange={changeDrawer} />
                   </div>
                 ) : <InputTree name={editing} value={drawerDraft[editing]} path={[editing]} onChange={changeDrawer} />}
               </div>

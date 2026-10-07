@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import QRCode from "qrcode";
 
 import { ApiError } from "@/lib/api/errors";
 import { authService } from "../services/auth.service";
@@ -9,7 +8,7 @@ import type { SignupResponse } from "../types";
 
 type Pool = "CANDIDATE" | "BUSINESS";
 
-export type SignupPhase = "DETAILS" | "CONFIRM" | "TOTP_SETUP";
+export type SignupPhase = "DETAILS" | "CONFIRM";
 
 export const MIN_PASSWORD_LENGTH = 12;
 export const MIN_CANDIDATE_PASSWORD_LENGTH = 8;
@@ -36,8 +35,7 @@ export function passwordError(password: string, pool: Pool = "BUSINESS"): string
 
 /**
  * The Cognito sign-up sequence both account steps share: email and password,
- * the emailed confirmation code, and - for the business pool, which requires
- * MFA - the authenticator-app setup. `onSignedUp` fires once a session exists.
+ * the emailed confirmation code. `onSignedUp` fires once a session exists.
  */
 export function useSignupFlow(
   pool: Pool,
@@ -46,8 +44,6 @@ export function useSignupFlow(
   const [phase, setPhase] = useState<SignupPhase>("DETAILS");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [totpSecret, setTotpSecret] = useState("");
-  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
   const [existingAccount, setExistingAccount] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -89,28 +85,11 @@ export function useSignupFlow(
         return;
       }
 
-      if (result.status === "TOTP_SETUP_REQUIRED") {
-        setTotpSecret(result.sharedSecret);
-        setQrCodeDataUrl(
-          await QRCode.toDataURL(result.setupUri, { margin: 2, width: 200 }).catch(
-            () => null,
-          ),
-        );
-        setPhase("TOTP_SETUP");
-        return;
-      }
-
       throw new ApiError(
         "Your email is confirmed. Sign in to continue.",
         400,
         "AUTH_ERROR",
       );
-    });
-
-  const finishTotp = (code: string) =>
-    run(async () => {
-      const session = await authService.completeTotpSetup(code, email);
-      await onSignedUp(session, email);
     });
 
   const resend = () =>
@@ -128,15 +107,12 @@ export function useSignupFlow(
   return {
     phase,
     email,
-    totpSecret,
-    qrCodeDataUrl,
     existingAccount,
     error,
     notice,
     busy,
     register,
     confirm,
-    finishTotp,
     resend,
     back,
   };

@@ -5,8 +5,7 @@ import { useParams } from "next/navigation";
 import { ArrowLeft, BookOpen, BriefcaseBusiness, FileText, Mic2, TrendingUp } from "lucide-react";
 
 import { Skeleton } from "@/components/common/loading";
-import { StructuredResumeView } from "@/components/resume/structured-resume";
-import { ResumeTextView } from "@/components/resume/resume-text-view";
+import { StructuredResumeUnavailable, StructuredResumeView } from "@/components/resume/structured-resume";
 import { usePageHeader } from "@/components/layout/header-context";
 import { CollegeErrorState } from "@/features/college/components/college-error-state";
 import { CollegeStudentPageSkeleton } from "@/features/college/students/college-student-page-skeleton";
@@ -44,12 +43,6 @@ function Notice({ children }: { children: React.ReactNode }) {
   return <p className="rounded-lg border border-dashed border-[#dfe4ec] bg-[#fbfcfe] px-4 py-5 text-[12px] text-[#7b8494]">{children}</p>;
 }
 
-function ResumeFields({ fields }: { fields: Record<string, unknown> }) {
-  const entries = Object.entries(fields);
-  if (!entries.length) return null;
-  return <dl className="grid gap-4 sm:grid-cols-2">{entries.map(([key, value]) => <Field key={key} label={humanise(key)} value={Array.isArray(value) ? value.join(", ") : typeof value === "object" && value !== null ? Object.entries(value).map(([name, item]) => `${humanise(name)}: ${String(item)}`).join(" · ") : String(value ?? "")} />)}</dl>;
-}
-
 export default function CollegeStudentPage() {
   const id = useParams<{ candidateId: string }>().candidateId;
   const student = useGetCollegeStudentQuery(id);
@@ -83,7 +76,7 @@ export default function CollegeStudentPage() {
       </Section>}
 
       {details.isLoading || (details.data?.resume_confirmed_at && resume.isLoading) ? <SectionSkeleton /> : <Section title="Resume" detail={resume.data?.confirmed_at ? `Confirmed ${formatDate(resume.data.confirmed_at)}` : undefined}>
-        {details.error ? <Notice>The student has not shared resume access with your college under the current consent.</Notice> : resume.error ? <Notice>The resume could not be opened right now.</Notice> : resume.data ? <div className="space-y-4"><span className="rounded-full bg-[#eef3fb] px-2.5 py-1 text-[10px] font-bold text-[#315c9f]">{humanise(resume.data.source)}</span>{resume.data.structured_status === "READY" && resume.data.structured_resume ? <StructuredResumeView resume={resume.data.structured_resume} /> : <>{resume.data.text && <ResumeTextView text={resume.data.text} />}<ResumeFields fields={resume.data.fields} /></>}{resume.data.file_url && <a href={resume.data.file_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-[#d5dfee] px-3 py-2 text-[12px] font-semibold text-[#315c9f] hover:bg-[#f4f7fc]"><FileText size={15} /> Open uploaded resume</a>}</div> : <Notice>No confirmed resume is available.</Notice>}
+        {details.error ? <Notice>The student has not shared resume access with your college under the current consent.</Notice> : resume.error ? <Notice>The resume could not be opened right now.</Notice> : resume.data ? <div className="space-y-4"><span className="rounded-full bg-[#eef3fb] px-2.5 py-1 text-[10px] font-bold text-[#315c9f]">{humanise(resume.data.source)}</span>{resume.data.structured_status === "READY" && resume.data.structured_resume ? <StructuredResumeView resume={resume.data.structured_resume} /> : <StructuredResumeUnavailable status={resume.data.structured_status} />}{resume.data.file_url && <a href={resume.data.file_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-[#d5dfee] px-3 py-2 text-[12px] font-semibold text-[#315c9f] hover:bg-[#f4f7fc]"><FileText size={15} /> Open uploaded resume</a>}</div> : <Notice>No confirmed resume is available.</Notice>}
       </Section>}
 
       <Section title="Score and outcomes" detail={profile.scoredAt ? `Scored ${formatDate(profile.scoredAt)}` : undefined}><div className="grid gap-4 sm:grid-cols-2"><Field label="Current score" value={profile.score ?? "Not scored"} /><Field label="Score band" value={profile.band ? humanise(profile.band) : "Not scored"} /><Field label="Applications" value={profile.applications} /><Field label="Employer interviews reached" value={profile.interviews} /></div></Section>

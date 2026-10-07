@@ -9,7 +9,6 @@ import {
   signInWithCognito,
   signOutCognito,
   signUpWithCognito,
-  verifyTotpSetupCognito,
 } from "@/lib/auth/cognito";
 import { getFreshToken, refreshSession } from "@/lib/auth/refresh-session";
 import { clearBrowserAuthStorage, setStoredToken } from "@/lib/auth/token";
@@ -170,7 +169,6 @@ const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 export type CompleteSignupResult =
   | { status: "COMPLETE"; session: SignupResponse }
-  | { status: "TOTP_SETUP_REQUIRED"; sharedSecret: string; setupUri: string }
   | { status: "SIGN_IN_REQUIRED" };
 
 function toApiError(error: unknown): ApiError {
@@ -245,8 +243,6 @@ export const authService = {
 
   /**
    * Confirm the emailed code, then sign in with the password just chosen.
-   * A business account must set up its authenticator app first, so that
-   * answer is returned for the caller to finish rather than hidden here.
    */
   async completeSignup(payload: {
     email: string;
@@ -273,30 +269,14 @@ export const authService = {
       }
 
       if (result.status === "TOTP_SETUP_REQUIRED") {
-        return {
-          status: "TOTP_SETUP_REQUIRED",
-          sharedSecret: result.sharedSecret,
-          setupUri: result.setupUri,
-        };
+        throw new ApiError(
+          "Authenticator setup is still required by the Cognito pool. Please contact support.",
+          400,
+          "AUTH_ERROR",
+        );
       }
 
       return { status: "SIGN_IN_REQUIRED" };
-    } catch (error) {
-      throw toApiError(error);
-    }
-  },
-
-  /** Answer the authenticator-app setup challenge that follows a business sign-up. */
-  async completeTotpSetup(
-    code: string,
-    email: string,
-  ): Promise<SignupResponse> {
-    try {
-      const result = await verifyTotpSetupCognito(code);
-      if (result.status !== "COMPLETE") {
-        throw new ApiError("Could not finish sign-in. Please sign in again.", 401, "AUTH_ERROR");
-      }
-      return await signedUpSession(result.accessToken, email, "BUSINESS");
     } catch (error) {
       throw toApiError(error);
     }

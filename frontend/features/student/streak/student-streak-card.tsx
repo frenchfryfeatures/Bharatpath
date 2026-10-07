@@ -44,7 +44,7 @@ export function StudentStreakCard() {
       aria-label="Open daily streak details"
       className="group block h-full overflow-hidden rounded-[24px] border border-[#E7E0D4] bg-white shadow-[0_5px_18px_rgba(10,25,49,0.06)] transition-all duration-150 hover:-translate-y-0.5 hover:border-[#D8C7B0] hover:shadow-[0_12px_30px_rgba(10,25,49,0.10)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30"
     >
-      <span className="flex h-full flex-col justify-between gap-6 p-5 sm:p-6">
+      <span className="flex h-full flex-col gap-6 p-5 sm:p-6">
         <span className="flex flex-wrap items-center justify-between gap-3">
           <span className="flex items-center gap-2 text-[#5F6B80]">
             <Flame size={16} className="text-[#F97316]" aria-hidden="true" />
@@ -63,7 +63,7 @@ export function StudentStreakCard() {
           </span>
         </span>
 
-        <span className="grid grid-cols-[auto_1fr] items-center gap-4 xl:grid-cols-[auto_1fr_auto]">
+        <span className="grid flex-1 grid-cols-[auto_minmax(0,1fr)] content-center items-center gap-4 xl:grid-cols-[auto_minmax(0,1fr)_auto]">
           <span className="grid h-16 w-16 place-items-center rounded-full border border-[#F3D6B4] bg-[#FFF5E8] text-[#F97316] sm:h-[72px] sm:w-[72px]">
             <Flame
               size={36}
@@ -73,9 +73,11 @@ export function StudentStreakCard() {
             />
           </span>
           <span className="min-w-0">
-            <span className="block text-[34px] font-extrabold leading-none tracking-[-0.04em] text-[#0A1931] sm:text-[42px]">
-              {data.currentStreak}
-              <span className="ml-2 whitespace-nowrap text-[17px] font-semibold tracking-normal text-[#3A4761] sm:text-[19px] xl:text-[16px]">
+            <span className="flex items-baseline gap-2 whitespace-nowrap">
+              <span className="text-[34px] font-extrabold leading-none tracking-[-0.04em] text-[#0A1931] sm:text-[42px]">
+                {data.currentStreak}
+              </span>
+              <span className="text-[17px] font-semibold tracking-normal text-[#3A4761] sm:text-[19px] xl:text-[16px]">
                 {dayLabel} streak
               </span>
             </span>

@@ -5,7 +5,7 @@ import { CheckCircle } from "lucide-react";
 import Link from "next/link";
 import { Mail } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
-import { Spinner } from "@/components/common/loading";
+import { Skeleton } from "@/components/common/loading";
 import { StudentPage } from "@/features/student/shell";
 import { StudentErrorState } from "@/features/student/components/student-error-state";
 import { EmptyState, MonogramTile, PillButton, StatusChip, type ChipTone } from "@/features/student/components/primitives";
@@ -87,11 +87,7 @@ export function InvitesPage() {
         {actionState.error ? <StudentErrorState variant="inline" error={actionState.error} fallback="Could not respond to this invitation. Please try again." /> : null}
         {pages.error ? <StudentErrorState error={pages.error} title="Unable to load invites" onRetry={pages.retry} /> : null}
         {pages.isLoading ? (
-          <div role="status" className="flex min-h-64 flex-col items-center justify-center gap-3 text-center">
-            <Spinner size={32} tone="primary" />
-            <p className="text-[15px] font-semibold text-[#0A1931]">Loading your invitations</p>
-            <p className="text-[13px] text-[#5F6B80]">Checking the latest invitations from employers.</p>
-          </div>
+          <InvitationGridSkeleton count={6} label="Loading your invitations" />
         ) : !pages.error && pages.items.length === 0 ? (
           <EmptyState icon={<Mail size={22} />} title={filter === "all" ? "No invitations yet" : `No ${statusLabels[filter].toLowerCase()} invitations`} message={filter === "all" ? "Your job invitations will appear here when an employer shortlists you for a role." : "Invitations with this status will appear here."} />
         ) : null}
@@ -134,6 +130,7 @@ export function InvitesPage() {
             </div>
           </article>
         ))}</div> : null}
+        {!pages.isLoading && pages.isLoadingMore ? <InvitationGridSkeleton count={3} label="Loading more invitations" /> : null}
         {!pages.isLoading && pages.hasMore ? <div className="flex justify-center"><PillButton variant="secondary" disabled={pages.isLoadingMore} onClick={pages.loadMore} className="px-5 py-2.5 text-[13px]">{pages.isLoadingMore ? "Loading..." : "Load more invites"}</PillButton></div> : null}
         <Modal
           open={pendingAction !== null}
@@ -159,5 +156,24 @@ export function InvitesPage() {
         </Modal>
       </div>
     </StudentPage>
+  );
+}
+
+function InvitationGridSkeleton({ count, label }: { count: number; label: string }) {
+  return (
+    <div role="status" aria-label={label} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      {Array.from({ length: count }).map((_, index) => (
+        <div key={index} className="flex min-h-[196px] flex-col gap-4 rounded-[18px] border border-[#E9E4DA] bg-white p-4">
+          <div className="flex items-center gap-3">
+            <Skeleton width={40} height={40} radius={12} />
+            <div className="flex-1"><Skeleton width="68%" height={15} radius={6} /><Skeleton className="mt-2" width="42%" height={12} radius={6} /></div>
+            <Skeleton width={90} height={25} radius={999} />
+          </div>
+          <Skeleton width="72%" height={12} radius={6} />
+          <Skeleton width="100%" height={44} radius={12} />
+          <Skeleton className="mt-auto" width={120} height={33} radius={999} />
+        </div>
+      ))}
+    </div>
   );
 }
