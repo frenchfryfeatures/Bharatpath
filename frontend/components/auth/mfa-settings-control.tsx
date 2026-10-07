@@ -6,6 +6,7 @@ import {
   setUpTOTP,
   updateMFAPreference,
   verifyTOTPSetup,
+  type FetchMFAPreferenceOutput,
 } from "aws-amplify/auth";
 import { ShieldCheck } from "lucide-react";
 import QRCode from "qrcode";
@@ -30,6 +31,10 @@ function needsSetup(error: unknown): boolean {
   return name === "InvalidParameterException" || name === "SoftwareTokenMFANotFoundException";
 }
 
+function hasTotpEnabled(preference: FetchMFAPreferenceOutput): boolean {
+  return preference.enabled?.includes("TOTP") === true || preference.preferred === "TOTP";
+}
+
 export function MfaSettingsControl() {
   const { user } = useSessionIdentity();
   const [enabled, setEnabled] = useState<boolean | null>(null);
@@ -49,7 +54,7 @@ export function MfaSettingsControl() {
     configureAmplify("BUSINESS");
     void fetchMFAPreference()
       .then((preference) => {
-        if (active) setEnabled(preference.enabled?.includes("TOTP") ?? false);
+        if (active) setEnabled(hasTotpEnabled(preference));
       })
       .catch((caught) => {
         if (active) setError(mfaError(caught));
@@ -79,8 +84,14 @@ export function MfaSettingsControl() {
       configureAmplify("BUSINESS");
       if (change === "OFF") {
         await updateMFAPreference({ totp: "DISABLED" });
-        setEnabled(false);
-        setNotice("Authenticator MFA is off. Your next sign-in needs only your email and password.");
+        const preference = await fetchMFAPreference();
+        const stillEnabled = hasTotpEnabled(preference);
+        setEnabled(stillEnabled);
+        if (stillEnabled) {
+          setError("Cognito still has authenticator MFA enabled for this account. It may be required by the user pool.");
+          return;
+        }
+        setNotice("Authenticator MFA is off for this account.");
         return;
       }
 
@@ -88,7 +99,9 @@ export function MfaSettingsControl() {
         // Cognito retains a previously verified software token after MFA is
         // disabled. Re-enable it directly when one is already associated.
         await updateMFAPreference({ totp: "PREFERRED" });
-        setEnabled(true);
+        const enabledNow = hasTotpEnabled(await fetchMFAPreference());
+        setEnabled(enabledNow);
+        if (!enabledNow) throw new Error("Cognito did not enable authenticator MFA. Please try again.");
         setNotice("Authenticator MFA is on.");
         return;
       } catch (caught) {
@@ -125,7 +138,9 @@ export function MfaSettingsControl() {
         setSetupVerified(true);
       }
       await updateMFAPreference({ totp: "PREFERRED" });
-      setEnabled(true);
+      const enabledNow = hasTotpEnabled(await fetchMFAPreference());
+      setEnabled(enabledNow);
+      if (!enabledNow) throw new Error("Cognito did not enable authenticator MFA. Please try again.");
       setNotice("Authenticator MFA is on.");
       closeSetup();
     } catch (caught) {
@@ -165,6 +180,11 @@ export function MfaSettingsControl() {
           className="w-24"
         />
       </div>
+      {enabled === false && (
+        <p className="mt-2 text-xs leading-5 text-[#7b8494]">
+          Your account preference is off. Your sign-in policy may still require a code.
+        </p>
+      )}
       {notice && <p role="status" className="mt-3 text-xs text-green-700">{notice}</p>}
       {error && <p role="alert" className="mt-3 text-xs text-red-700">{error}</p>}
 
@@ -173,7 +193,7 @@ export function MfaSettingsControl() {
         title={pending === "ON" ? "Turn on authenticator MFA?" : "Turn off authenticator MFA?"}
         description={pending === "ON"
           ? "If your authenticator is already set up, MFA will turn on now. Otherwise, you will scan a QR code and verify a code first."
-          : "Your next sign-in will need only your email and password."}
+          : "Turn off authenticator MFA for this account. Your user pool may still require verification."}
         confirmLabel={pending === "ON" ? "Continue" : "Turn off"}
         icon={<ShieldCheck size={18} />}
         onClose={() => setPending(null)}

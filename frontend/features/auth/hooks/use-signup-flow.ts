@@ -8,7 +8,7 @@ import type { SignupResponse } from "../types";
 
 type Pool = "CANDIDATE" | "BUSINESS";
 
-export type SignupPhase = "DETAILS" | "CONFIRM";
+export type SignupPhase = "DETAILS" | "CONFIRM" | "TOTP_SETUP" | "TOTP_CODE" | "SIGN_IN_REQUIRED";
 
 export const MIN_PASSWORD_LENGTH = 12;
 export const MIN_CANDIDATE_PASSWORD_LENGTH = 8;
@@ -48,6 +48,7 @@ export function useSignupFlow(
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [totpSetup, setTotpSetup] = useState<{ sharedSecret: string; setupUri: string } | null>(null);
 
   const run = async (action: () => Promise<void>) => {
     setError(null);
@@ -85,11 +86,25 @@ export function useSignupFlow(
         return;
       }
 
-      throw new ApiError(
-        "Your email is confirmed. Sign in to continue.",
-        400,
-        "AUTH_ERROR",
-      );
+      if (result.status === "TOTP_SETUP_REQUIRED") {
+        setTotpSetup({ sharedSecret: result.sharedSecret, setupUri: result.setupUri });
+        setPhase("TOTP_SETUP");
+      } else if (result.status === "TOTP_REQUIRED") {
+        setPhase("TOTP_CODE");
+      } else {
+        setPhase("SIGN_IN_REQUIRED");
+      }
+    });
+
+  const completeTotp = (code: string) =>
+    run(async () => {
+      const session = await authService.completeSignupTotp({
+        email,
+        code,
+        pool,
+        setup: phase === "TOTP_SETUP",
+      });
+      await onSignedUp(session, email);
     });
 
   const resend = () =>
@@ -111,8 +126,10 @@ export function useSignupFlow(
     error,
     notice,
     busy,
+    totpSetup,
     register,
     confirm,
+    completeTotp,
     resend,
     back,
   };

@@ -257,6 +257,20 @@ export function AccountStep({
     );
   }
 
+  if (flow.phase !== "DETAILS") {
+    return (
+      <div className="flex flex-col gap-5">
+        <StepHeader step="account" title="Email confirmed" subtitle="Sign in to finish setting up your account." />
+        <Link
+          href={`/login?email=${encodeURIComponent(flow.email)}`}
+          className="rounded-full bg-[#5F4DB2] px-5 py-3 text-center text-sm font-semibold text-white"
+        >
+          Continue to sign in
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={submitDetails} noValidate className="flex flex-col gap-6">
       <StepHeader

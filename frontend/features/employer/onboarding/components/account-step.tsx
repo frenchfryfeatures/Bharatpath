@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { OnboardingBackButton } from "@/components/common/onboarding-back-button";
 import Link from "next/link";
 import { ArrowRight, KeyRound, Lock, Mail } from "lucide-react";
+import QRCode from "qrcode";
 
 import { Button, ErrorState } from "@/components/ui";
 import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
@@ -51,12 +52,23 @@ export function AccountStep({
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [code, setCode] = useState("");
+  const [totpCode, setTotpCode] = useState("");
+  const [qrCode, setQrCode] = useState<string | null>(null);
   const [errors, setErrors] = useState<{ email?: string; password?: string; confirmPassword?: string }>({});
 
   const flow = useSignupFlow("BUSINESS", (session, signedUpEmail) => {
     showSuccessFeedback(copy.successMessage);
     onSignedUp(session, signedUpEmail);
   });
+
+  useEffect(() => {
+    if (!flow.totpSetup) return;
+    let active = true;
+    void QRCode.toDataURL(flow.totpSetup.setupUri, { margin: 2, width: 200 })
+      .then((url) => { if (active) setQrCode(url); })
+      .catch(() => { if (active) setQrCode(null); });
+    return () => { active = false; };
+  }, [flow.totpSetup]);
 
   const submitDetails = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -77,11 +89,16 @@ export function AccountStep({
     void flow.confirm(code.trim());
   };
 
+  const submitTotp = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (totpCode.length === 6) void flow.completeTotp(totpCode);
+  };
+
   return (
     <StepCard
       eyebrow="Step 1 · Your account"
-      title={copy.title}
-      description={copy.description}
+      title={flow.phase === "TOTP_SETUP" ? "Set up your authenticator" : flow.phase === "TOTP_CODE" ? "Enter your authenticator code" : copy.title}
+      description={flow.phase === "TOTP_SETUP" ? "Your email is confirmed. This sign-in requires an authenticator. Scan the QR code and enter its 6-digit code to continue." : flow.phase === "TOTP_CODE" ? "Your email is confirmed. Enter the 6-digit code from your authenticator app to continue." : copy.description}
     >
       {flow.phase === "DETAILS" && (
         <form onSubmit={submitDetails} noValidate className="max-w-md space-y-5">
@@ -262,6 +279,51 @@ export function AccountStep({
             </Button>
           </div>
         </form>
+      )}
+
+      {(flow.phase === "TOTP_SETUP" || flow.phase === "TOTP_CODE") && (
+        <form onSubmit={submitTotp} noValidate className="max-w-md space-y-5">
+          {flow.error && <ErrorState message={flow.error} />}
+          {flow.phase === "TOTP_SETUP" && flow.totpSetup && (
+            <div className="space-y-3">
+              {qrCode && (
+                <div className="flex justify-center rounded-xl border border-[#e5e8ee] bg-white p-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={qrCode} alt="Scan to set up authenticator" className="h-44 w-44" />
+                </div>
+              )}
+              <p className="break-all rounded-lg bg-[#f4f7fb] p-3 text-xs text-[#4f5666]">
+                Can&apos;t scan? Enter this key in your app: <strong className="select-all font-mono text-[#17233a]">{flow.totpSetup.sharedSecret}</strong>
+              </p>
+            </div>
+          )}
+          <div>
+            <label htmlFor="signup-totp-code" className="mb-1.5 block text-[13px] font-semibold text-[#303747]">Authenticator code</label>
+            <input
+              id="signup-totp-code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              placeholder="6-digit code"
+              value={totpCode}
+              onChange={(event) => setTotpCode(event.target.value.replace(/\D/g, ""))}
+              className={`${kybInputClass} ${inputBorder(false)}`}
+            />
+          </div>
+          <Button type="submit" variant="dark" size="lg" className="w-full" isLoading={flow.busy} loadingText="Verifying…" disabled={totpCode.length !== 6}>
+            Verify and continue
+          </Button>
+          <p className="text-xs text-[#7b8493]">
+            Need to start again? <Link href={`/login?email=${encodeURIComponent(flow.email)}`} className="font-semibold text-[#3566b8]">Sign in</Link> to resume setup.
+          </p>
+        </form>
+      )}
+
+      {flow.phase === "SIGN_IN_REQUIRED" && (
+        <div className="max-w-md space-y-4 text-sm text-[#4f5666]">
+          <p>Your email is confirmed. Sign in to finish setting up your account.</p>
+          <Link href={`/login?email=${encodeURIComponent(flow.email)}`} className="inline-flex rounded-lg bg-[#151b2b] px-4 py-3 font-semibold text-white">Continue to sign in</Link>
+        </div>
       )}
 
     </StepCard>

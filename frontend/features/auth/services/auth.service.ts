@@ -4,11 +4,13 @@ import { handleSessionExpired } from "@/lib/auth/handle-session-expired";
 import {
   configureAmplify,
   confirmSignUpCognito,
+  confirmTotpCodeCognito,
   formatCognitoError,
   resendSignUpCodeCognito,
   signInWithCognito,
   signOutCognito,
   signUpWithCognito,
+  verifyTotpSetupCognito,
 } from "@/lib/auth/cognito";
 import { getFreshToken, refreshSession } from "@/lib/auth/refresh-session";
 import { clearBrowserAuthStorage, setStoredToken } from "@/lib/auth/token";
@@ -169,6 +171,8 @@ const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 export type CompleteSignupResult =
   | { status: "COMPLETE"; session: SignupResponse }
+  | { status: "TOTP_SETUP_REQUIRED"; sharedSecret: string; setupUri: string }
+  | { status: "TOTP_REQUIRED" }
   | { status: "SIGN_IN_REQUIRED" };
 
 function toApiError(error: unknown): ApiError {
@@ -180,6 +184,12 @@ function toApiError(error: unknown): ApiError {
     name === "UsernameExistsException" ? 409 : 400,
     "AUTH_ERROR",
   );
+}
+
+function alreadyConfirmed(error: unknown): boolean {
+  const cognitoError = error as { name?: string; message?: string } | null;
+  return cognitoError?.name === "NotAuthorizedException" &&
+    /current status is confirmed/i.test(cognitoError.message ?? "");
 }
 
 async function signedUpSession(
@@ -253,8 +263,13 @@ export const authService = {
     const email = payload.email.trim();
 
     try {
-      await confirmSignUpCognito(email, payload.code);
-      await signOutCognito();
+      try {
+        await confirmSignUpCognito(email, payload.code);
+      } catch (error) {
+        // A previous attempt can confirm the email before MFA setup finishes.
+        // Continue with password sign-in so the same user can resume setup.
+        if (!alreadyConfirmed(error)) throw error;
+      }
       const result = await signInWithCognito({
         email,
         password: payload.password,
@@ -268,15 +283,31 @@ export const authService = {
         };
       }
 
-      if (result.status === "TOTP_SETUP_REQUIRED") {
-        throw new ApiError(
-          "Authenticator setup is still required by the Cognito pool. Please contact support.",
-          400,
-          "AUTH_ERROR",
-        );
+      if (result.status === "TOTP_SETUP_REQUIRED" || result.status === "TOTP_REQUIRED") {
+        return result;
       }
 
       return { status: "SIGN_IN_REQUIRED" };
+    } catch (error) {
+      throw toApiError(error);
+    }
+  },
+
+  /** Finish the sign-in challenge started after email confirmation. */
+  async completeSignupTotp(payload: {
+    email: string;
+    code: string;
+    pool: "CANDIDATE" | "BUSINESS";
+    setup: boolean;
+  }): Promise<SignupResponse> {
+    try {
+      const result = payload.setup
+        ? await verifyTotpSetupCognito(payload.code)
+        : await confirmTotpCodeCognito(payload.code);
+      if (result.status !== "COMPLETE") {
+        throw new ApiError("Authenticator verification did not finish. Please try again.", 400, "AUTH_ERROR");
+      }
+      return await signedUpSession(result.accessToken, payload.email, payload.pool);
     } catch (error) {
       throw toApiError(error);
     }
