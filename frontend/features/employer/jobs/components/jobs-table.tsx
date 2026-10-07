@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Eye,
   Pencil,
   Users,
   ChevronRight,
@@ -24,6 +25,7 @@ interface JobsTableProps {
   onPageSizeChange: (pageSize: number) => void;
   onViewApplicants: (job: EmployerJob) => void;
   onEditJob: (job: EmployerJob) => void;
+  onViewJob: (job: EmployerJob) => void;
 }
 
 function formatSalary(min: number, max: number) {
@@ -109,15 +111,20 @@ function CountButton({
 function createJobColumns({
   onViewApplicants,
   onEditJob,
-}: Pick<JobsTableProps, "onViewApplicants" | "onEditJob">): ColumnDef<EmployerJob>[] {
+  onViewJob,
+}: Pick<JobsTableProps, "onViewApplicants" | "onEditJob" | "onViewJob">): ColumnDef<EmployerJob>[] {
   return [
     {
       id: "job",
       header: "Job",
       cell: (job: EmployerJob) => (
-        <span className="font-semibold text-[#151b2b]">
+        <button
+          type="button"
+          onClick={() => onViewJob(job)}
+          className="cursor-pointer text-left font-semibold text-[#151b2b] underline-offset-2 hover:underline"
+        >
           {job.title}
-        </span>
+        </button>
       ),
       headerClassName: "min-w-[220px]",
     },
@@ -238,6 +245,15 @@ function createJobColumns({
 
           <button
             type="button"
+            aria-label={`View ${job.title}`}
+            onClick={() => onViewJob(job)}
+            className="grid h-8 w-8 place-items-center rounded-lg border border-[#e2e5eb] bg-white text-[#151b2b] transition-colors hover:bg-[#f7f8fa]"
+          >
+            <Eye size={15} strokeWidth={1.8} />
+          </button>
+
+          <button
+            type="button"
             aria-label={`Edit ${job.title}`}
             onClick={() => onEditJob(job)}
             className="grid h-8 w-8 place-items-center rounded-lg border border-[#e2e5eb] bg-white text-[#151b2b] transition-colors hover:bg-[#f7f8fa]"
@@ -261,10 +277,12 @@ export function JobsTable({
   onPageSizeChange,
   onViewApplicants,
   onEditJob,
+  onViewJob,
 }: Readonly<JobsTableProps>) {
   const columns = createJobColumns({
     onViewApplicants,
     onEditJob,
+    onViewJob,
   });
 
   return (

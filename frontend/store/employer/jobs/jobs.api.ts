@@ -7,7 +7,7 @@ import type {
   EmployerJobPageApiResponse,
 } from "@/features/employer/jobs/types";
 import type { CreateJobFormValues } from "@/features/employer/jobs/create";
-import { thresholdForApi } from "@/features/employer/jobs/create/threshold";
+import { jobBody } from "@/features/employer/jobs/create/job-form-values";
 
 export interface ThresholdPreview {
   min_score: number;
@@ -25,19 +25,6 @@ export interface EmployerJobsQuery {
 export interface EmployerJobsPage {
   items: EmployerJob[];
   nextCursor: string | null;
-}
-
-function jobBody(values: CreateJobFormValues) {
-  return {
-    title: values.title.trim(),
-    description: values.description.trim(),
-    skills: values.skills,
-    location: values.location.trim() || null,
-    work_mode: "ONSITE" as const,
-    salary_min_minor: Number(values.salaryMin) * 100,
-    salary_max_minor: Number(values.salaryMax) * 100,
-    min_score: thresholdForApi(values.minScore),
-  };
 }
 
 const API_STATUS_TO_JOB_STATUS: Record<

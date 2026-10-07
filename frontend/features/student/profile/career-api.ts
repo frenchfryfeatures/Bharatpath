@@ -104,6 +104,10 @@ const inactiveEmploymentFields = [
   "job_role",
 ];
 
+// Describe the current job, so they are hidden when there is none. Unlike
+// inactiveEmploymentFields they are not stripped on save.
+const jobDescribingFields = ["industry", "department", "role_category"];
+
 export function careerDetailsForSave(details: CareerDetails): CareerDetails {
   const result = { ...details };
   // The deployed backend requires non-empty key_skills when complete=true.
@@ -134,6 +138,10 @@ export function careerFieldRequired(
 export function visibleCareerField(field: CareerField, details: CareerDetails) {
   if (field.key === "employment_end") return false;
   if (field.key === "key_skills") return false;
+  // The employed question is always asked; "Yes" opens the rest, even for a
+  // fresher, who becomes experienced by answering it (see the form's update).
+  if (field.key === "currently_employed") return true;
+  if (details.currently_employed === "YES") return true;
   const experiencedOnly = [
     "currently_employed",
     "experience_years",
@@ -153,6 +161,10 @@ export function visibleCareerField(field: CareerField, details: CareerDetails) {
     !(
       details.work_status === "FRESHER" && experiencedOnly.includes(field.key)
     ) &&
-    !(details.currently_employed === "NO" && inactiveEmploymentFields.includes(field.key))
+    !(
+      details.currently_employed === "NO" &&
+      (inactiveEmploymentFields.includes(field.key) ||
+        jobDescribingFields.includes(field.key))
+    )
   );
 }

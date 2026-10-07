@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Award, BriefcaseBusiness, Check, ContactRound, FolderKanban, GraduationCap, Heart, Languages, List, PencilLine, Plus, Trash2, Trophy, UserRound, Wrench, X, type LucideIcon } from "lucide-react";
 import { StructuredResumeSectionView, resumeLabel, type StructuredResume } from "@/components/resume/structured-resume";
 import { structuredResumeToText } from "@/components/resume/structured-resume-text";
@@ -226,7 +227,7 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
           <button type="button" disabled={busy || !canConfirm} onClick={() => { setDraft(structuredClone(version.structuredResume!)); setDirty(false); closeDrawer(); setError(null); onStartOver(); }} className="cursor-pointer font-semibold text-[#3A4761] transition hover:text-[#0A1931] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-[#3A4761]">{startOverLabel}</button>
         </div>
       </div>
-      {editing && drawerDraft && (
+      {editing && drawerDraft && typeof document !== "undefined" && createPortal(
         <div data-scroll-lock-root className="fixed inset-0 z-[100] flex justify-end bg-[#0A1931]/40" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeDrawer(); }}>
           <aside ref={drawerRef} role="dialog" aria-modal="true" aria-labelledby={drawerTitleId} tabIndex={-1} className="flex h-full w-full flex-col bg-[#FFFCF7] font-sans shadow-[-16px_0_48px_rgba(10,25,49,0.18)] outline-none sm:max-w-[540px] lg:max-w-[480px]">
             <form onSubmit={(event) => { event.preventDefault(); applyDrawer(); }} className="flex min-h-0 flex-1 flex-col">
@@ -256,7 +257,8 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
               </footer>
             </form>
           </aside>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

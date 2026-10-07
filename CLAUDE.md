@@ -435,6 +435,28 @@ is where a third one would have to be argued for.
 - **The application names nobody; its `candidate` block does** (narrowed
   2026-10-05). See _Applicants and the shortlist_ below.
 
+## Job postings carry a `details` document — 2026-10-06
+
+`jobs.details` (`jobs/details.py`). Columns stay for what is searched or
+constrained; the rest of the posting is one validated JSONB document.
+**It has no age and no gender field, and must never get one** (invariant 5,
+C3). A candidate reads `CandidateJobDetails`, built from narrower models, so a
+new employer field stays employer-only until added there on purpose. Only
+PUBLIC jobs are listed on the board (`repository._listed`).
+
+- **The external link and the application email are a way round `apply`**,
+  so `get_board_job` sends them only to a candidate who is ELIGIBLE and
+  `is_candidate_visible` -- the two rules `apply` checks -- and says so in
+  `can_apply_externally`. Never send them to everyone again: an EXTERNAL job
+  with a threshold would take anyone, and a HIGH signal would stop nothing.
+- **A screening question is refused by its words** if it asks about age or
+  gender (`_asks_about_age_or_gender`). Invariant 5 is otherwise checked by
+  field name, and a knockout on "are you under 30?" is age-gating whatever
+  the key is.
+- `PRIVATE`/`INVITE_ONLY` are both *unlisted* -- anyone with the link can
+  apply -- and are labelled so. `applicant_access`, `allow_referrals` and
+  `publish_on` are stored and change nothing, so the composer hides them.
+
 ## Masked search — Day 13
 
 - **`MaskedCandidate` has no field for contact or the score**, and

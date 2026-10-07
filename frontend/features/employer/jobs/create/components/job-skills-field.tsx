@@ -6,7 +6,7 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { EmployerErrorState } from "@/features/employer/components/employer-error-state";
 import { useDebouncedSearch } from "@/lib/hooks/use-debounced-value";
@@ -16,16 +16,18 @@ import {
 } from "@/store/employer/candidates";
 
 import { renderFieldLabel } from "@/features/employer/onboarding/components/kyb-field";
-import type { JobValidationErrors } from "../schemas/job.schema";
 
 const MAX_SKILLS = 50;
 const MAX_SKILL_LENGTH = 80;
 
 interface JobSkillsFieldProps {
   value: string[];
-  error?: JobValidationErrors["skills"];
+  error?: string;
   disabled?: boolean;
   onChange: (skills: string[]) => void;
+  /** Defaults to the required-skills field this was first written for. */
+  label?: string;
+  required?: boolean;
 }
 
 export function JobSkillsField({
@@ -33,7 +35,10 @@ export function JobSkillsField({
   error,
   disabled = false,
   onChange,
+  label = "Required skills",
+  required = true,
 }: JobSkillsFieldProps) {
+  const listId = useId();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -123,6 +128,7 @@ export function JobSkillsField({
     onChange([...value, skill]);
     setQuery("");
     inputRef.current?.focus();
+    setOpen(false);
   }
 
   function removeSkill(skill: string) {
@@ -135,10 +141,11 @@ export function JobSkillsField({
   return (
     <div>
       <span className="mb-1.5 block text-[12px] font-semibold leading-4 text-[#687386]">
-        {renderFieldLabel("Required skills", true)}
+        {renderFieldLabel(label, required)}
       </span>
 
-      <div ref={containerRef} className="relative">
+      <div ref={containerRef}>
+        <div className="relative">
         <Search
           aria-hidden="true"
           size={15}
@@ -149,7 +156,7 @@ export function JobSkillsField({
           type="text"
           role="combobox"
           aria-expanded={open}
-          aria-controls="job-skill-suggestions"
+          aria-controls={listId}
           value={query}
           maxLength={MAX_SKILL_LENGTH}
           disabled={disabled || value.length >= MAX_SKILLS}
@@ -160,17 +167,17 @@ export function JobSkillsField({
           }}
           placeholder={
             disabled
-              ? "Required skills"
+              ? label
               : value.length >= MAX_SKILLS
               ? "Maximum 50 skills selected"
-              : "Search required skills"
+              : `Search ${label.toLocaleLowerCase()}`
           }
           className="h-10 w-full rounded-[9px] border border-[#e1e5ea] bg-white pl-9 pr-3 text-[12px] text-[#182132] outline-none placeholder:text-[#8a919d] focus:border-[#9bb4d4] focus:ring-2 focus:ring-[#315f9b]/10 disabled:cursor-not-allowed disabled:bg-[#f5f6f8]"
         />
 
         {!disabled && open ? (
           <div
-            id="job-skill-suggestions"
+            id={listId}
             role="listbox"
             className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-[10px] border border-[#e1e5ea] bg-white p-1 shadow-[0_8px_24px_rgba(19,26,38,0.10)]"
           >
@@ -223,6 +230,7 @@ export function JobSkillsField({
             )}
         </div>
       ) : null}
+        </div>
 
       {value.length > 0 ? (
         <div className="mt-2 flex flex-wrap gap-2">

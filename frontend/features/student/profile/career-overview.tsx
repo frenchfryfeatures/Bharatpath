@@ -285,7 +285,9 @@ export function CareerOverview({
                           : value === null ||
                               value === undefined ||
                               value === ""
-                            ? "Not added"
+                            ? field.key === "currently_employed"
+                              ? "No"
+                              : "Not added"
                             : String(value));
                       return (
                         <div key={field.key}>

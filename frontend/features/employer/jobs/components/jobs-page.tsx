@@ -120,6 +120,12 @@ export function JobsPage() {
         );
     }
 
+    function handleViewJob(job: EmployerJob) {
+        router.push(
+            `/employer/jobs/${job.id}`
+        );
+    }
+
     function handleEditJob(job: EmployerJob) {
         router.push(
             `/employer/jobs/${job.id}/edit`
@@ -224,6 +230,7 @@ export function JobsPage() {
                         onPageSizeChange={pagination.setPageSize}
                         onViewApplicants={handleViewApplicants}
                         onEditJob={handleEditJob}
+                        onViewJob={handleViewJob}
                     />
                 )}
             </section>
