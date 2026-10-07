@@ -9,6 +9,28 @@ states. Newest entries first.
 
 ---
 
+## 2026-10-07 — business MFA is optional, off by default (closes E37)
+
+The client asked for business users (employers, colleges, staff) to turn
+authenticator-app MFA on or off themselves, off by default.
+
+- **Terraform only.** Business pool `mfa_configuration` `"ON"` → `"OPTIONAL"`,
+  software token still enabled (it is the only factor -- no SMS). Under `ON`
+  a user cannot turn it off; with `OFF` they cannot turn it on. The API
+  never checked MFA, so no code changed -- docstrings and docs that said
+  "mandatory" were corrected.
+- **Not yet applied.** `terraform plan -out` must show an **in-place update**
+  of `aws_cognito_user_pool.business`; a replace would delete every business
+  user.
+- Users enrolled while it was mandatory keep MFA until they turn it off. A
+  lost device is a staff reset (`admin-set-user-mfa-preference`); there is no
+  console route.
+- Frontend: sign-in already handles both cases. The settings toggle is new
+  and calls Cognito directly -- `docs/signup-and-accounts.md` → _MFA for
+  business accounts_.
+
+---
+
 ## 2026-10-06 — company settings save to the server (PR #56)
 
 From the backend review of PR #56. The new company tab saved trade name,

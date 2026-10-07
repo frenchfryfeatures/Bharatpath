@@ -134,7 +134,9 @@ async def current_user(
     The pool is checked against the role in step 3. A candidate-pool token can
     never carry a business role, whatever any row says, because the two pools
     are different authentication models with different assurance -- the
-    business pool requires software-token MFA and the candidate pool does not.
+    business pool has a stricter password policy, shorter sessions and the
+    user's own software-token MFA (optional since 2026-10-07), none of which
+    the candidate pool applies.
     """
     user, token = await _authenticate(session, authorization)
 
@@ -143,8 +145,9 @@ async def current_user(
     if token.pool == "CANDIDATE":
         # Candidates belong to no tenant. A membership row against a
         # candidate-pool identity means someone has been granted staff access
-        # to an account that never passed MFA, so it is refused rather than
-        # honoured.
+        # to an account that never passed the business pool's sign-in (and
+        # the MFA its owner may have turned on), so it is refused rather
+        # than honoured.
         if membership is not None:
             raise PermissionDeniedError(code="pool_role_mismatch")
         ctx = TenantContext(user_id=user.id, tenant_id=None, role=CANDIDATE, pool=token.pool)
@@ -237,7 +240,7 @@ async def current_business_identity(
     **Self-registration is open (2026-09-18).** The client decided employers
     and colleges sign themselves up, as R15 said, so the business Cognito pool
     is no longer admin-create-only and this dependency now admits strangers:
-    anyone can register, verify their email, set up MFA, and reach these
+    anyone can register, verify their email, and reach these
     routes. That is acceptable only because they stay this narrow -- what a
     new organisation can *do* is still gated on KYB and payment (R15).
     """

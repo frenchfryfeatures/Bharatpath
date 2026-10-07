@@ -1,5 +1,7 @@
-# Two user pools keep candidate and business identities separate. Both use
-# email and password; business users can opt into authenticator MFA.
+# Two user pools, matching the two authentication models the PRD requires
+# (plan.md 5.7). They are separate pools rather than one pool with groups
+# because the mechanisms differ: candidates authenticate by phone OTP
+# through a custom flow, business users by password with optional MFA.
 #
 # Neither pool is an authorisation authority. Role and tenant come from
 # our `memberships` table on every request (app/core/auth/membership.py).
@@ -150,8 +152,9 @@ resource "aws_cognito_user_pool" "business" {
   auto_verified_attributes = ["email"]
   username_attributes      = ["email"]
 
-  # minimum_length 12 (2026-10-05, was 14). Symbols remain required:
-  # these accounts reach candidate PII in bulk.
+  # minimum_length 12 (2026-10-05, was 14). Symbols stay: these accounts
+  # reach candidate PII in bulk, and since 2026-10-07 the password is the
+  # only factor for anyone who has not turned MFA on.
   password_policy {
     minimum_length                   = 12
     require_lowercase                = true
@@ -161,10 +164,19 @@ resource "aws_cognito_user_pool" "business" {
     temporary_password_validity_days = 7
   }
 
-  # Staff can turn authenticator MFA on or off in account settings. Cognito
-  # must permit per-user preferences; required pool MFA overrides "Off".
+  # Software-token MFA is OPTIONAL, off until the user turns it on
+  # (client, 2026-10-07, closing blockers E37; was "ON" under SRS 1.3.4).
+  # Each business user enrols or removes an authenticator app from their
+  # own settings, calling Cognito directly -- the API never checks MFA.
+  # OPTIONAL is what makes the toggle possible: under ON a user cannot turn
+  # it off, and with OFF they cannot turn it on. Users who enrolled while it
+  # was mandatory keep it until they turn it off.
+  #
+  # Changing this is an in-place update. A plan that REPLACES this pool
+  # would delete every business user -- do not apply it.
   mfa_configuration = "OPTIONAL"
 
+  # Must stay enabled: it is the only factor a user can turn on (no SMS).
   software_token_mfa_configuration {
     enabled = true
   }

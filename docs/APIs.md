@@ -23,7 +23,8 @@ matching the path — see `app/core/deps.py`.
 
 There is no login/token endpoint in this service. Cognito issues the token —
 candidates via phone OTP (custom-auth) or email, business accounts via
-password + mandatory software-token MFA — and this service only verifies the
+password, plus software-token MFA if the user turned it on (optional, off by
+default since 2026-10-07) — and this service only verifies the
 token and then resolves role and tenant itself:
 
 - **`CurrentUser` / `TenantContext`** — the authenticated caller, built from a
