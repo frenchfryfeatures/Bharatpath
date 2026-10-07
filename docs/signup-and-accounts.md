@@ -9,7 +9,7 @@ app and web teams; the API reference is `openapi.json` / `docs/APIs.md`.
 | Topic | Decision |
 |---|---|
 | Who can sign up | **Anyone**, as a candidate, an employer or a college. Staff can also create any of the three. |
-| How people sign in | **Email and password only**, on both Cognito pools. Business accounts also set up an authenticator app (MFA). |
+| How people sign in | **Email and password only**, on both Cognito pools. Business accounts **may** turn on an authenticator app (MFA) in their settings; it is **off by default** (client, 2026-10-07). See [MFA for business accounts](#mfa-for-business-accounts-optional). |
 | Password rules | Set in Cognito (`infra/terraform/cognito.tf`), not the API. **Candidates and students: at least 8 characters**, with upper case, lower case and a number. **Employers, colleges and staff: at least 12**, with upper case, lower case, a number and a symbol (2026-10-05; were 12 and 14). Apps should show the same rule before calling `SignUp`. |
 | Phone OTP | **Deferred**, and there is **no SMS of any kind**, until the organisation's registration (and with it TRAI DLT) exists. Every code and every message goes by email or to the in-app inbox. |
 | Codes by email | **Cognito sends them**: sign-up verification, password reset, and the temporary password of a staff-created account. It sends through Amazon SES once the client's domain is verified. The backend never generates or checks a code. |
@@ -33,7 +33,7 @@ The app talks to Cognito directly; our API has no login endpoint.
 **Employer or college** (business pool):
 
 1. `SignUp` → emailed code → `ConfirmSignUp`.
-2. First sign-in: Cognito asks for authenticator-app MFA setup (a QR code, then a 6-digit code). This happens at every sign-in afterwards too. It is Cognito's flow; the Amplify UI components handle it.
+2. First sign-in: email and password only. **No MFA setup step** -- MFA is off until the user turns it on in settings. A user who has turned it on is asked for the 6-digit code at every sign-in.
 3. `GET /auth/me` → **403 `no_active_membership`**. This is expected, and means "create your organisation".
 4. The user picks employer or college, and the app calls `POST /employer/organisation` or `POST /college/organisation`. They become its owner or admin.
 5. The usual onboarding follows: KYB or college onboarding, then a subscription (with an optional discount code).
@@ -86,7 +86,7 @@ What happens:
 
 1. The API creates our account row, and the organisation if there is one, with the person as owner or admin.
 2. It then asks Cognito for the sign-in (`AdminCreateUser`). **Cognito emails a temporary password**, valid for 7 days.
-3. The person signs in with it and Cognito forces a new password. Business accounts then set up MFA.
+3. The person signs in with it and Cognito forces a new password. MFA is off until they turn it on themselves.
 4. The first API call finds the row staff made, matching by email and within the same pool, and the organisation and role are already there. Onboarding continues as usual: an organisation made by staff still does its own KYB and pays like any other.
 
 Response `invitation` is `SENT`, or `ALREADY_REGISTERED` if the person already had a sign-in (no email went out; they sign in as usual).
@@ -112,6 +112,39 @@ Staff creating an account can send what they already know with it. (No console s
 ### 4. Organisation email invitation
 
 Staff creating an employer or college (3) *is* the invitation to its owner. Adding a member (`/admin/tenants/{id}/members`) invites a colleague. An owner adding a colleague in their own team screen (`POST /employer/team`, `POST /college/team`) now sends the same Cognito email to anyone who has never signed in.
+
+## MFA for business accounts (optional)
+
+Client, 2026-10-07 (closing blockers E37). Employers, colleges and staff
+**may** use an authenticator app (Google Authenticator, Microsoft
+Authenticator, Authy). It is **off by default**, and each user turns it on or
+off in their own settings. Candidates have no MFA.
+
+- **The API is not involved.** There is no endpoint for MFA and the API never
+  checks it; the app talks to Cognito directly with Amplify, using the
+  signed-in user's session.
+- **Sign-in** (`frontend/lib/auth/cognito.ts`) already handles it. A user with
+  MFA on gets `CONFIRM_SIGN_IN_WITH_TOTP_CODE` (ask for the 6-digit code); a
+  user with it off goes straight to `DONE`. `CONTINUE_SIGN_IN_WITH_TOTP_SETUP`
+  no longer happens, because nobody is forced to set up.
+- **Users who set it up while it was mandatory still have it on**, and are
+  asked for the code until they turn it off.
+
+The settings toggle, with `aws-amplify/auth` (v6):
+
+| Step | Call |
+|---|---|
+| Show whether it is on | `fetchMFAPreference()` → on when `enabled` includes `"TOTP"` |
+| Turn on, 1: get a secret | `setUpTOTP()` → show `getSetupUri("BharatPath", email)` as a QR code, and `sharedSecret` as text for manual entry |
+| Turn on, 2: prove the app works | the user types the 6-digit code → `verifyTOTPSetup({ code })` |
+| Turn on, 3: switch it on | `updateMFAPreference({ totp: "PREFERRED" })` -- **without this step it stays off** |
+| Turn off | `updateMFAPreference({ totp: "DISABLED" })` |
+
+- **Cognito asks for no code to turn MFA off**: any signed-in session can.
+  Ask for the current 6-digit code (or the password) in the UI before calling
+  it.
+- **Lost phone**: there is no self-service recovery. Staff reset it:
+  `aws cognito-idp admin-set-user-mfa-preference --user-pool-id <business pool> --username <email> --software-token-mfa-settings Enabled=false,PreferredMfa=false`.
 
 ## Discount codes in the console
 

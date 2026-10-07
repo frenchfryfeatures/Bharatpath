@@ -5,8 +5,8 @@ Added 2026-09-18 for admin-created accounts and team invitations
 college in the console; an owner adds a colleague. Either way the person has
 no Cognito user yet, so we ask Cognito to make one: `AdminCreateUser` with the
 address as the username, **which emails a temporary password**. The person
-signs in with it, Cognito forces a new password (and, in the business pool,
-authenticator-app MFA setup), and on their first API call
+signs in with it, Cognito forces a new password (MFA is optional and off
+until they turn it on, since 2026-10-07), and on their first API call
 `app.core.auth.users._adopt_unlinked` links that identity to the row we
 created here by email -- so the organisation and role are waiting for them.
 

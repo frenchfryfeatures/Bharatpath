@@ -166,8 +166,9 @@ class, one `Literal`, no route or schema change.
   authority: a revoked membership that stayed valid until token expiry is the
   tenant-isolation failure SRS §2.24.7 forbids.
 - `cognito_sub` is stored on `users` but **must never appear in an API response.**
-- Two pools: candidates (email + password) and business (email + password +
-  mandatory software-token MFA). **No phone OTP and no SMS** (client,
+- Two pools: candidates (email + password) and business (email + password,
+  plus software-token MFA **only if the user turns it on** -- optional and off
+  by default since 2026-10-07, closing E37; the API never checks it). **No phone OTP and no SMS** (client,
   2026-09-18) — see _Sign-up, accounts and discount codes_ below. A token from
   the wrong pool is rejected, not half-trusted.
 - `AUTH_ALLOW_LOCAL_TOKENS=true` enables a dev-only provider that mints real

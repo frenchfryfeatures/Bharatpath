@@ -7,7 +7,8 @@ import-linter enforces the second half of that sentence.
 
 **What is NOT here, and why.** There is no login endpoint and no token
 endpoint. Cognito owns the session and issues the tokens: both pools by email
-and password (the business pool adds software-token MFA), with Cognito
+and password (the business pool adds software-token MFA for users who turn
+it on -- optional since 2026-10-07, enrolled against Cognito directly), with Cognito
 emailing every verification and reset code. Phone OTP is deferred by the
 client (2026-09-18); its route below exists only behind
 `AUTH_PHONE_OTP_ENABLED`. Putting a
