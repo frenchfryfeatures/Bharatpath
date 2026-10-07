@@ -169,6 +169,8 @@ from app.modules.jobs import service as jobs_service
 from app.modules.kyb import service as kyb_service
 from app.modules.kyb.schemas import KybSubmissionResponse
 from app.modules.questionnaire.domain import answers_in_words
+from app.modules.resume import service as resume_service
+from app.modules.resume.structuring import structured_view
 from app.modules.scoring.domain import band_for, display_value
 from app.settings import Settings, get_settings
 
@@ -2028,13 +2030,16 @@ def onboarding_answers(answers: dict[str, Any]) -> list[OnboardingAnswer]:
 async def resume_version_view(row: Any, *, bucket: str, ttl: int) -> ResumeVersionView:
     parsed = row["parsed"] if isinstance(row["parsed"], dict) else {}
     body = parsed.get("raw_text")
+    structured, structured_status = structured_view(parsed)
     return ResumeVersionView(
         id=row["id"],
         source=row["source"],
         created_at=row["created_at"],
         confirmed_at=row["confirmed_at"],
         text=body if isinstance(body, str) else None,
-        fields={} if isinstance(body, str) else dict(parsed),
+        fields=resume_service.shared_fields(parsed),
+        structured_resume=structured,
+        structured_status=structured_status,
         file_url=(
             await storage.presign_get(bucket=bucket, key=row["s3_key"], expires_in=ttl)
             if row["s3_key"]

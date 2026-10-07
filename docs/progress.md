@@ -33,6 +33,36 @@ characters, the cross-field checks), so any of them could do the same.
 
 ---
 
+## 2026-10-06 — the structured CV on the employer, admin and college views
+
+Asked for by the portal team. Earlier the same day the structured document
+was kept to the candidate's own screens; it now also rides on every surface
+that already shows the whole CV, and nowhere else.
+
+- **Where:** `SharedResumeView` (the reveal, `GET /employer/discovery/
+  candidates/{id}`, and the opened application, `GET /employer/applications/
+  {id}`), the admin `ResumeVersionView` (`GET /admin/candidates/{id}/resume`)
+  and `GET /college/students/{id}/resume`. Each gains `structured_resume` and
+  `structured_status`, filled by `structuring.structured_view`. Additive.
+- **Why it is safe there:** each of these already returns `raw_text` and the
+  original file, so the structured document holds nothing new -- the same
+  contacts, in fields. The confirm gate is unchanged (employer and college
+  read confirmed versions only; admin `latest` already showed drafts).
+- **Not on `GET /college/students`.** That is a list under one
+  `college_students_listed` audit row; the CV is its own endpoint, its own
+  audit row and its own consent-version check. The portal reads `/resume`.
+- **No back-fill** (decided by the backend owner): versions from before today
+  read `UNAVAILABLE` and the apps draw `sections`/`text`. A back-fill would
+  need its own table, since a version is immutable.
+- **`resume.service.shared_fields`** now builds `fields` for all three
+  surfaces. Admin and college used `dict(parsed)`, which sent a form-built
+  CV's `extractor` provenance block; it is stripped, as `shared_resume`
+  already did.
+- Tests: `test_resume_structured_view.py` (shared, admin, `shared_fields`),
+  `test_college_student_details.py` (READY and UNAVAILABLE on `/resume`).
+
+---
+
 ## 2026-10-06 — the CV as structured JSON, for review and preview
 
 Backend only, asked for by the backend owner: give the apps the CV as fields

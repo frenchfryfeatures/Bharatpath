@@ -855,6 +855,8 @@ async def get_student_resume(
         source=resume.source,
         text=resume.text,
         fields=resume.fields,
+        structured_resume=resume.structured_resume,
+        structured_status=resume.structured_status,
         file_url=resume.file_url,
         file_mime=resume.file_mime,
     )
