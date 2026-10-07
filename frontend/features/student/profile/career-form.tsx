@@ -213,8 +213,10 @@ export function CareerForm({
           notice_period: "",
           job_role: "",
         });
-      if (updateEmploymentFields && key === "currently_employed" && value === "YES")
+      if (updateEmploymentFields && key === "currently_employed" && value === "YES") {
         next.employment_end = "";
+        if (next.work_status !== "EXPERIENCED") next.work_status = "EXPERIENCED";
+      }
       if (updateEmploymentFields && key === "currently_employed" && value === "NO")
         Object.assign(next, {
           company_name: "",
@@ -591,7 +593,7 @@ export function CareerForm({
             >
               {field.type === "select" ? (
                 <AppSelect
-                  value={String(value ?? "")}
+                  value={String(value || (field.key === "currently_employed" ? "NO" : ""))}
                   onChange={(v) => update(field.key, v)}
                   options={[{ value: "", label: "Select" }, ...field.options]}
                   ariaLabel={field.label}

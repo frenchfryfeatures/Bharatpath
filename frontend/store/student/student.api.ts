@@ -1,4 +1,8 @@
 import { baseApi } from "@/store/api/base-api";
+import {
+  candidateDetailsWithDefaults,
+  type CandidateJobDetails,
+} from "@/features/jobs/job-details";
 import type {
   CollegeLink,
   Course,
@@ -98,12 +102,15 @@ interface JobResponse {
   title: string;
   employer_name: string | null;
   description?: string;
+  details?: Partial<CandidateJobDetails>;
   skills: string[];
   location: string | null;
   work_mode: JobListing["workMode"];
   experience_min_months: number | null;
   salary_min_minor: number;
   salary_max_minor: number;
+  salary_disclosed?: boolean;
+  can_apply_externally?: boolean;
   published_at: string;
   eligibility: JobListing["eligibility"];
 }
@@ -252,12 +259,17 @@ function mapJob(response: JobResponse): JobListing {
     title: response.title,
     employerName: response.employer_name,
     description: response.description,
+    details: response.details
+      ? candidateDetailsWithDefaults(response.details)
+      : undefined,
     skills: response.skills,
     location: response.location,
     workMode: response.work_mode,
     experienceMinMonths: response.experience_min_months,
     salaryMinMinor: response.salary_min_minor,
     salaryMaxMinor: response.salary_max_minor,
+    salaryDisclosed: response.salary_disclosed ?? true,
+    canApplyExternally: response.can_apply_externally ?? false,
     publishedAt: response.published_at,
     eligibility: response.eligibility,
   };

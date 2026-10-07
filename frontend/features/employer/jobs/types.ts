@@ -1,3 +1,5 @@
+import type { JobDetails } from "@/features/jobs/job-details";
+
 export type JobStatus = "live" | "draft" | "paused" | "closed";
 
 export interface EmployerJob {
@@ -51,6 +53,8 @@ export interface EmployerJobApiResponse {
   salary_min_minor: number;
   salary_max_minor: number;
   min_score: number | null;
+  /** Absent from an API that predates `jobs.details`. */
+  details?: Partial<JobDetails>;
   status: ApiJobStatus;
   published_at: string | null;
   closed_at: string | null;

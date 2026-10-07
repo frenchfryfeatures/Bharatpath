@@ -1,6 +1,7 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { CheckCircle } from "lucide-react";
 import Link from "next/link";
 import { Mail } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
@@ -25,7 +26,7 @@ const statusLabels: Record<InvitationStatus, string> = {
 const statusTones: Record<InvitationStatus, ChipTone> = {
   INVITED: "short", ACCEPTED: "advanced", DECLINED: "neutral", CANCELLED: "neutral",
 };
-const linkClass = "inline-flex items-center rounded-full py-2 text-[13px] font-semibold text-[#5F4DB2] hover:text-[#4A3E8F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30";
+const linkClass = "inline-flex items-center gap-1 rounded-full border border-[#C9BEEB] bg-[#F1EAF7] px-3.5 py-2 text-[12px] font-semibold text-[#4A3E8F] transition-all hover:bg-[#E8DFFE] hover:border-[#B0A4E0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30";
 
 export function InvitesPage() {
   const [filter, setFilter] = useState<"all" | InvitationStatus>("all");
@@ -111,16 +112,25 @@ export function InvitesPage() {
             </div>
             {invitation.status === "INVITED" ? (
               <div className="space-y-2.5 rounded-[15px] bg-[#FAF8F3] p-3">
-                <p className="text-[12px] leading-[17px] text-[#657187]">{invitation.job_title === null ? "This job has left the board and can no longer be accepted." : "Accept to join the employer’s shortlist. Declining is final for this job."}</p>
+                <p className="text-[12px] leading-[17px] text-[#657187]">{invitation.job_title === null ? "This job has left the board and can no longer be accepted." : "Accept to join the employer's shortlist. Declining is final for this job."}</p>
                 <div className="flex flex-wrap gap-2">
                   <PillButton disabled={actionState.isLoading || invitation.job_title === null} onClick={() => setPendingAction({ id: invitation.id, action: "accept" })} className="!px-3.5 !py-2 !text-[12px]">Accept invitation</PillButton>
                   <PillButton variant="secondary" disabled={actionState.isLoading} onClick={() => setPendingAction({ id: invitation.id, action: "decline" })} className="!px-3.5 !py-2 !text-[12px]">Decline</PillButton>
                 </div>
               </div>
-            ) : invitation.status === "CANCELLED" ? <p className="text-[13px] text-[#5F6B80]">The employer cancelled this invitation.</p> : null}
-            <div className="mt-auto flex flex-wrap items-center gap-x-4 border-t border-[#F0ECE5] pt-1.5">
-              {invitation.job_title !== null ? <Link href={`/student/jobs/${invitation.job_id}`} className={linkClass}>View job details <span aria-hidden="true" className="ml-1 transition-transform group-hover:translate-x-0.5">→</span></Link> : null}
-              {invitation.application_id ? <Link href={`/student/board/${invitation.application_id}`} className={linkClass}>View application</Link> : null}
+            ) : invitation.status === "ACCEPTED" ? (
+              <div className="flex items-center gap-2 rounded-[15px] bg-[#E6F1EA] px-3 py-2.5">
+                <CheckCircle size={15} className="shrink-0 text-[#1F6B45]" />
+                <p className="text-[12px] font-medium leading-[17px] text-[#1F6B45]">Application added to your board.</p>
+              </div>
+            ) : invitation.status === "CANCELLED" ? (
+              <div className="flex items-center gap-2 rounded-[15px] bg-[#F7F4EC] px-3 py-2.5">
+                <p className="text-[12px] leading-[17px] text-[#657187]">The employer cancelled this invitation.</p>
+              </div>
+            ) : null}
+            <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-[#F0ECE5] pt-2.5">
+              {invitation.job_title !== null ? <Link href={`/student/jobs/${invitation.job_id}`} className={linkClass}>View job details</Link> : null}
+              {invitation.application_id ? <Link href={`/student/board/${invitation.application_id}`} className={`${linkClass} border-[#DDD6C7] bg-white text-[#3A4761] hover:bg-[#F7F4EC] hover:border-[#CFC6B4]`}>View application</Link> : null}
             </div>
           </article>
         ))}</div> : null}
