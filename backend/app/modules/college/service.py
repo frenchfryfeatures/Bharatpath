@@ -104,6 +104,7 @@ from app.modules.identity import service as identity_service
 # `admin.router` reading `notifications.service`.
 from app.modules.notifications.domain import roster_invitation_contact_fields
 from app.modules.resume import service as resume_service
+from app.modules.resume.structuring import StructuredResume, StructuredStatus, structured_view
 from app.modules.scoring.domain import band_for, display_value
 from app.modules.subscriptions import service as subscriptions_service
 from app.settings import Settings, get_settings
@@ -1818,6 +1819,8 @@ class StudentResume:
     source: str
     text: str | None
     fields: dict[str, Any]
+    structured_resume: StructuredResume | None
+    structured_status: StructuredStatus
     file_url: str | None
     file_mime: str | None
 
@@ -1850,11 +1853,14 @@ async def open_student_resume(
     )
     parsed = row.resume_parsed or {}
     body = parsed.get("raw_text")
+    structured, structured_status = structured_view(parsed)
     return StudentResume(
         confirmed_at=row.resume_confirmed_at,
         source=row.resume_source,
         text=body if isinstance(body, str) else None,
-        fields={} if isinstance(body, str) else dict(parsed),
+        fields=resume_service.shared_fields(parsed),
+        structured_resume=structured,
+        structured_status=structured_status,
         file_url=(
             await storage.presign_get(
                 bucket=settings.s3_bucket_resumes,

@@ -202,8 +202,11 @@ attached to it.
 - **`parsed.structured_resume` is a model's display view, never scored**
   (`resume/structuring.py`, 2026-10-06). Written at version creation beside
   `raw_text`, best effort (no key = `UNAVAILABLE`). Never make it a scoring
-  input, and never show it on a surface that shows `fields` -- it holds
-  every contact and link on the CV.
+  input. It holds every contact and link on the CV, so it goes **only where
+  the whole CV already goes**: the owner's screens, `SharedResumeView`
+  (reveal, opened application), admin `/candidates/{id}/resume` and college
+  `/students/{id}/resume` -- never a list, card or masked view. Not
+  back-filled: older versions read `UNAVAILABLE`.
 
 Anything that feeds a deliberately unreadable document into the parse chain
 will call **Textract for real** unless it is pinned to `LocalResumeParser` —

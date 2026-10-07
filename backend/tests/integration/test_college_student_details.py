@@ -129,6 +129,8 @@ async def test_the_cv_is_its_own_audited_read_and_revocation_ends_it_at_once(
     assert resume.status_code == 200, resume.text
     assert resume.json()["text"] == "Forklift operator, 2019-2024."
     assert resume.json()["file_url"] is None
+    assert resume.json()["structured_status"] == "UNAVAILABLE", "made before structuring"
+    assert resume.json()["structured_resume"] is None
     assert (
         await _scalar(
             "SELECT count(*) FROM audit_events WHERE action = 'college_student_resume_opened' "
@@ -176,3 +178,30 @@ async def test_the_cohort_funnel_is_floored_like_every_aggregate(
     assert counted["below_floor"] is False and counted["total_applications"] == 0
     assert set(counted["by_stage"].values()) == {0}
     assert "candidate" not in str(counted), "no identifier in an aggregate"
+
+
+async def test_the_college_sees_the_structured_cv_beside_the_text(
+    client: Any, mint_token: Any
+) -> None:
+    college, student = await _visible_student(client, mint_token)
+    document = {"full_name": "Asha Rao", "experience": [{"job_title": "Forklift operator"}]}
+    await _as_migrator(
+        "INSERT INTO resume_versions (id, user_id, source, parsed, confirmed_at) VALUES "
+        "(:v, :u, 'PASTE', CAST(:p AS jsonb), now())",
+        v=uuid.uuid4(),
+        u=student["id"],
+        p=json.dumps(
+            {
+                "raw_text": "Asha Rao. Forklift operator, 2019-2024.",
+                "extractor": {"name": "paste"},
+                "structured_resume": {"status": "READY", "data": document},
+            }
+        ),
+    )
+    resume = await client.get(f"{STUDENTS}/{student['id']}/resume", headers=college["headers"])
+    assert resume.status_code == 200, resume.text
+    body = resume.json()
+    assert body["structured_status"] == "READY"
+    assert body["structured_resume"]["experience"][0]["job_title"] == "Forklift operator"
+    assert body["text"] == "Asha Rao. Forklift operator, 2019-2024."
+    assert body["fields"] == {}

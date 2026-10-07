@@ -385,6 +385,17 @@ class SharedResumeView(_Base):
     fields: dict[str, Any] = Field(
         description="A form-built CV's fields, when it has no text. Empty otherwise."
     )
+    structured_resume: StructuredResume | None = Field(
+        default=None,
+        description="The same CV sorted into fields by a model -- contacts and "
+        "profile links, each job, each qualification and the rest -- for display. "
+        "Never scored. Null unless `structured_status` is READY; draw `sections` then.",
+    )
+    structured_status: StructuredStatus = Field(
+        default="UNAVAILABLE",
+        description="READY; FAILED (the model could not read it); or UNAVAILABLE "
+        "(not configured, or a CV from before 2026-10-06, which is not back-filled).",
+    )
     file_url: str | None = Field(
         description="Presigned GET of the uploaded PDF or DOCX. Null for a pasted or "
         "form-built CV. Expires at `file_url_expires_at`; fetch the profile again for a new one."

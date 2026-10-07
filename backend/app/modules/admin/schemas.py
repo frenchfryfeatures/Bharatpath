@@ -34,6 +34,7 @@ from pydantic import Field
 from app.core.schemas import ApiSchema
 from app.modules.admin.domain import MAX_DISPUTE_DESCRIPTION, MAX_RESOLUTION, DisputeKind
 from app.modules.candidate.career import CareerResponse, form_fields
+from app.modules.resume.structuring import StructuredResume, StructuredStatus
 
 
 class _Base(ApiSchema):
@@ -813,6 +814,16 @@ class ResumeVersionView(_Base):
     text: str | None = Field(description="The CV as read, or as the candidate edited it.")
     fields: dict[str, Any] = Field(
         default_factory=dict, description="A form-built CV's fields, when it has no text."
+    )
+    structured_resume: StructuredResume | None = Field(
+        default=None,
+        description="The CV sorted into fields by a model, for display. Never scored. "
+        "Null unless `structured_status` is READY.",
+    )
+    structured_status: StructuredStatus = Field(
+        default="UNAVAILABLE",
+        description="READY, FAILED, or UNAVAILABLE (not configured, or a CV from "
+        "before 2026-10-06).",
     )
     file_url: str | None = Field(
         default=None, description="Presigned GET of the uploaded file; expires."

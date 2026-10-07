@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
 
@@ -173,3 +174,99 @@ async def test_without_a_model_the_version_is_still_created(candidate: uuid.UUID
     assert response.structured_status == "UNAVAILABLE"
     assert response.structured_resume is None
     assert response.sections
+
+
+# ---------------------------------------------------------------------------
+# Shown to someone other than the owner: employer, admin, college (2026-10-06)
+# ---------------------------------------------------------------------------
+async def test_an_employer_sees_the_structured_cv_of_a_confirmed_version_only(
+    candidate: uuid.UUID, model: list[str]
+) -> None:
+    """`shared_resume` feeds the reveal and the opened application."""
+    from app.modules.resume import service
+
+    row = await _paste(candidate)
+    async with sessions(_seed_url())() as session:
+        unconfirmed = await service.shared_resume(
+            session, user_id=candidate, resume_version_id=row.id
+        )
+    assert unconfirmed is None, "a draft the candidate has not checked reaches nobody"
+
+    async with sessions(_seed_url())() as session, session.begin():
+        await service.confirm_version(session, user_id=candidate, resume_version_id=row.id)
+    async with sessions(_seed_url())() as session:
+        shared = await service.shared_resume(session, user_id=candidate, resume_version_id=row.id)
+
+    assert shared is not None
+    assert shared.structured_status == "READY"
+    assert shared.structured_resume.experience[0].job_title == "Senior Developer"
+    assert shared.text == PASTED and shared.sections, "the text views are unchanged"
+    assert shared.fields == {}
+
+
+async def test_a_cv_from_before_structuring_is_shared_as_unavailable(
+    candidate: uuid.UUID,
+) -> None:
+    from app.modules.resume import service
+
+    version_id = uuid.uuid4()
+    async with sessions(_seed_url())() as session, session.begin():
+        await session.execute(
+            text(
+                "INSERT INTO resume_versions (id, user_id, source, parsed, confirmed_at) "
+                "VALUES (:v, :u, 'PASTE', CAST(:p AS jsonb), now())"
+            ),
+            {"v": str(version_id), "u": str(candidate), "p": json.dumps({"raw_text": PASTED})},
+        )
+    async with sessions(_seed_url())() as session:
+        shared = await service.shared_resume(
+            session, user_id=candidate, resume_version_id=version_id
+        )
+
+    assert shared is not None
+    assert shared.structured_status == "UNAVAILABLE" and shared.structured_resume is None
+
+
+def test_shared_fields_never_carry_provenance_or_the_stored_document() -> None:
+    from app.modules.resume.service import shared_fields
+
+    form = {
+        "full_name": "Priya Sharma",
+        "skills": ["Python"],
+        "extractor": {"name": "manual"},
+        STORED_KEY: {"status": "READY", "data": {}},
+    }
+    assert shared_fields(form) == {"full_name": "Priya Sharma", "skills": ["Python"]}
+    assert shared_fields({"raw_text": PASTED, "extractor": {}}) == {}
+    assert shared_fields(None) == {}
+
+
+async def test_the_admin_resume_view_carries_the_structured_cv() -> None:
+    from app.modules.admin.service import resume_version_view
+
+    parsed = {
+        "raw_text": PASTED,
+        STORED_KEY: {"status": "READY", "data": _document("Senior Developer")},
+    }
+    row = {
+        "id": uuid.uuid4(),
+        "source": "PASTE",
+        "created_at": datetime.now(UTC),
+        "confirmed_at": datetime.now(UTC),
+        "parsed": parsed,
+        "s3_key": None,
+        "mime": None,
+    }
+    view = await resume_version_view(row, bucket="unused", ttl=60)
+
+    assert view.structured_status == "READY"
+    assert view.structured_resume.full_name == "Priya Sharma"
+    assert view.text == PASTED and view.fields == {}
+
+    form = await resume_version_view(
+        {**row, "parsed": {"full_name": "Priya Sharma", "extractor": {"name": "manual"}}},
+        bucket="unused",
+        ttl=60,
+    )
+    assert form.structured_status == "READY", "a form-built CV is mapped, not read"
+    assert form.fields == {"full_name": "Priya Sharma"}

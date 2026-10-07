@@ -31,6 +31,7 @@ from app.modules.college.domain import (
     MAX_ROSTER_BYTES,
     StudentLinkState,
 )
+from app.modules.resume.structuring import StructuredResume, StructuredStatus
 
 InstitutionType = Literal[
     "UNIVERSITY",
@@ -392,6 +393,16 @@ class CollegeStudentResumeResponse(_Base):
     text: str | None = Field(description="The CV as read, or as the student edited it.")
     fields: dict[str, Any] = Field(
         default_factory=dict, description="A form-built CV's fields, when it has no text."
+    )
+    structured_resume: StructuredResume | None = Field(
+        default=None,
+        description="The same CV sorted into fields by a model, for display. Never "
+        "scored. Null unless `structured_status` is READY; draw `text` then.",
+    )
+    structured_status: StructuredStatus = Field(
+        default="UNAVAILABLE",
+        description="READY, FAILED, or UNAVAILABLE (not configured, or a CV from "
+        "before 2026-10-06).",
     )
     file_url: str | None = Field(description="Presigned GET of the uploaded file; expires.")
     file_mime: str | None = None

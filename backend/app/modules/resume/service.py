@@ -476,6 +476,15 @@ async def get_scorable_version(session: AsyncSession, *, user_id: uuid.UUID) -> 
     return row
 
 
+def shared_fields(parsed: object) -> dict[str, Any]:
+    """A form-built CV's fields for someone other than its owner: empty for a
+    version with text, and never the extractor's provenance block or the stored
+    structured document (that goes out once, as `structured_resume`)."""
+    if not isinstance(parsed, dict) or isinstance(parsed.get("raw_text"), str):
+        return {}
+    return {k: v for k, v in parsed.items() if k not in ("extractor", STRUCTURED_KEY)}
+
+
 async def shared_resume(
     session: AsyncSession,
     *,
@@ -517,6 +526,7 @@ async def shared_resume(
         if file is not None
         else None
     )
+    structured, structured_status = structured_view(parsed)
     return SharedResumeView(
         version_id=row.id,
         source=row.source,
@@ -526,8 +536,9 @@ async def shared_resume(
             SharedResumeSection(kind=s.kind, heading=s.heading, body=s.body)
             for s in (split_sections(text) if text is not None else [])
         ],
-        # A form-built CV's fields; never the extractor's provenance block.
-        fields={} if text is not None else {k: v for k, v in parsed.items() if k != "extractor"},
+        fields=shared_fields(parsed),
+        structured_resume=structured,
+        structured_status=structured_status,
         file_url=url,
         file_mime=file.mime if file is not None else None,
         file_url_expires_at=datetime.now(UTC) + timedelta(seconds=ttl) if url else None,
