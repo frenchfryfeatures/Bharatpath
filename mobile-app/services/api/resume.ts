@@ -70,6 +70,73 @@ export interface ResumeSection {
   items?: ResumeSectionItem[] | null;
 }
 
+export interface StructuredResumeContacts {
+  email?: string | null;
+  phone?: string | null;
+  linkedin?: string | null;
+  github?: string | null;
+  behance?: string | null;
+  website?: string | null;
+  instagram?: string | null;
+  tiktok?: string | null;
+  pinterest?: string | null;
+  x_twitter?: string | null;
+  medium?: string | null;
+  dev_to?: string | null;
+  stack_overflow?: string | null;
+  others?: { label: string; url: string }[] | null;
+}
+
+export interface StructuredResumeExperience {
+  job_title?: string | null;
+  company?: string | null;
+  location?: string | null;
+  employment_type?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  is_current?: boolean | null;
+  description?: string | null;
+  highlights?: string[] | null;
+  skills_used?: string[] | null;
+}
+
+export interface StructuredResumeEducation {
+  qualification?: string | null;
+  field_of_study?: string | null;
+  institution?: string | null;
+  location?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  grade?: string | null;
+  description?: string | null;
+}
+
+export type StructuredResumeListItem =
+  | string
+  | Record<string, unknown>;
+
+export interface ParsedStructuredResume {
+  full_name?: string | null;
+  headline?: string | null;
+  location?: string | null;
+  summary?: string | null;
+  contacts?: StructuredResumeContacts | null;
+  experience?: StructuredResumeExperience[] | null;
+  education?: StructuredResumeEducation[] | null;
+  skills?: string[] | null;
+  projects?: StructuredResumeListItem[] | null;
+  certifications?: StructuredResumeListItem[] | null;
+  languages?: StructuredResumeListItem[] | null;
+  achievements?: StructuredResumeListItem[] | null;
+  interests?: StructuredResumeListItem[] | null;
+  other_sections?: {
+    heading: string;
+    items: StructuredResumeListItem[];
+  }[] | null;
+}
+
+export type StructuredResumeStatus = 'READY' | 'FAILED' | 'UNAVAILABLE';
+
 export interface ResumeVersionDetailResponse {
   resume_version_id: string;
   source: 'UPLOAD' | 'PASTE' | 'MANUAL' | 'EDIT';
@@ -95,7 +162,12 @@ export interface ResumeVersionDetailResponse {
       parser: string;
       parser_version: string;
     };
+    // Accepted temporarily for servers that nested the new fields in parsed.
+    structured_resume?: ParsedStructuredResume | null;
+    structured_status?: StructuredResumeStatus;
   };
+  structured_resume?: ParsedStructuredResume | null;
+  structured_status?: StructuredResumeStatus;
   sections?: ResumeSection[] | null;
   confirmed: boolean;
   confirmed_at: string | null;

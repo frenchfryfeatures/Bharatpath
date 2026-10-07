@@ -193,7 +193,7 @@ export function PaymentSheet({ checkout, planLabel, onPaid, onClose }: PaymentSh
                   <CheckCircle size={40} color="#1F6B45" weight="fill" />
                   <Text style={styles.resultTitle}>Payment confirmed</Text>
                   <Text style={styles.resultBody}>
-                    Your membership is open. Taking you to your resume.
+                    Your membership is active. Return to start resume scoring.
                   </Text>
                 </View>
               ) : status === 'failed' ? (

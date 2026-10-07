@@ -91,7 +91,10 @@ export function formatSalaryRangePaise(
   const minLabel = formatMonthlySalaryPaise(minMinor);
   const maxLabel = formatMonthlySalaryPaise(maxMinor);
   if (minLabel === maxLabel) return minLabel;
-  return `${minLabel}–${maxLabel.replace('₹', '')}`;
+  if (minLabel.endsWith('k') && maxLabel.endsWith('k')) {
+    return `${minLabel}–${maxLabel.replace('₹', '')}`;
+  }
+  return `${minLabel}–${maxLabel}`;
 }
 
 /**

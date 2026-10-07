@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
 import {
   View,
@@ -9,21 +9,33 @@ import {
   ActivityIndicator,
   StyleSheet,
   Modal,
+  KeyboardAvoidingView,
+  Keyboard,
+  Platform,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, FileText, PencilSimple, X } from 'phosphor-react-native';
 import { WebView } from 'react-native-webview';
 import { OnboardingProgress } from '@/screens/onboarding/OnboardingProgress';
-import { useRouter } from 'expo-router';
+import { AppAlert } from '@/components/feedback/AppAlert';
 import { useAuthContext } from '@/context/AuthContext';
 import { updateCandidateName } from '@/services/api/auth';
+import { getResumeVersionDetails } from '@/services/api/resume';
+import {
+  readyStructuredResume,
+  structuredResumeCareerDetails,
+} from '@/services/profile/structuredResume';
 import {
   getCareerFields,
   getCareerProfile,
   intakeCareerResume,
+  mergeResumeDetails,
   prefillCareerProfile,
+  previewSignupResume,
   saveCareerProfile,
   getResumePreview,
+  careerDetailsForSave,
   fieldRequired,
   fieldVisible,
   type CareerField,
@@ -61,7 +73,6 @@ export function CareerDetailsScreen({
   onDone: (profile: CareerProfile) => void;
   initialSection?: number;
 }) {
-  const router = useRouter();
   const { candidateFullName, session, rememberCandidate } = useAuthContext();
   const [fullName, setFullName] = useState(candidateFullName ?? '');
   const [fields, setFields] = useState<CareerField[]>([]);
@@ -78,6 +89,62 @@ export function CareerDetailsScreen({
   const [lists, setLists] = useState<Record<string, string>>({});
   const [documentHtml, setDocumentHtml] = useState<string | null>(null);
   const [selectedFilename, setSelectedFilename] = useState(resumeFilename);
+  const scrollRef = useRef<ScrollView>(null);
+  const fieldOffsets = useRef<Record<string, number>>({});
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  const activeFieldKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    fieldOffsets.current = {};
+  }, [step, editing]);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        const height = e.endCoordinates?.height || 280;
+        setKeyboardHeight(height);
+        if (activeFieldKey.current) {
+          scrollToField(activeFieldKey.current);
+        }
+      },
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+        activeFieldKey.current = null;
+      },
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const onFieldLayout = (key: string, event: LayoutChangeEvent) => {
+    fieldOffsets.current[key] = event.nativeEvent.layout.y;
+  };
+
+  const scrollToField = (key: string) => {
+    activeFieldKey.current = key;
+    const performScroll = () => {
+      const y = fieldOffsets.current[key];
+      if (y !== undefined && scrollRef.current) {
+        scrollRef.current.scrollTo({ y: Math.max(0, y - 70), animated: true });
+      }
+    };
+    performScroll();
+    setTimeout(performScroll, 80);
+    setTimeout(performScroll, 200);
+    setTimeout(performScroll, 350);
+  };
+
+  const prefillRequest = useRef<{
+    id: string;
+    promise: Promise<CareerProfile>;
+  } | null>(null);
 
   const goBack = () => {
     if (editing && step > 0) setStep(step - 1);
@@ -99,15 +166,72 @@ export function CareerDetailsScreen({
     setBusy(true);
     setError('');
     try {
-      // Preserve candidate-entered facts before applying resume suggestions.
-      await saveCareerProfile(draft, activeVersionId, false, selectedFilename);
-      const uploaded = await intakeCareerResume({ fileName: file.name, fileUri: file.uri, mimeType: file.mimeType, fileSize: '' });
-      const saved = await prefillCareerProfile(uploaded.resume_version_id);
+      const selected = {
+        fileName: file.name,
+        fileUri: file.uri,
+        mimeType: file.mimeType,
+        fileSize: '',
+      };
+      const uploaded = await intakeCareerResume(selected);
+      const version = await getResumeVersionDetails(uploaded.resume_version_id);
+      const structured = readyStructuredResume(version);
+      let parsedName = structured?.full_name || '';
+      let filled: CareerDetails;
+      if (structured) {
+        filled = structuredResumeCareerDetails(structured, draft);
+      } else if (
+        !version.structured_status &&
+        !version.parsed?.structured_status
+      ) {
+        // Compatibility with servers that predate structured_resume.
+        try {
+          const preview = await previewSignupResume(selected);
+          filled = mergeResumeDetails(draft, preview.details);
+          parsedName = preview.full_name;
+        } catch {
+          filled = draft;
+        }
+      } else {
+        // A terminal FAILED/UNAVAILABLE status still links the uploaded file;
+        // the candidate can correct the preserved profile fields below.
+        filled = draft;
+      }
+      const saved = await saveCareerProfile(
+        filled,
+        uploaded.resume_version_id,
+        false,
+        file.name,
+      );
       setProfile(saved);
       setDraft(saved.details);
       setLists({});
       setActiveVersionId(saved.resume_version_id);
       setSelectedFilename(file.name);
+      if (!fullName && parsedName) setFullName(parsedName);
+      if (onboarding) {
+        setStep(0);
+        setEditing(true);
+      } else {
+        AppAlert.alert(
+          'Resume Uploaded',
+          'Your new resume has been uploaded and details extracted. Would you like to recalculate your score now, or review and edit details first?',
+          [
+            {
+              text: 'Calculate score now',
+              style: 'default',
+              onPress: () => onDone(saved),
+            },
+            {
+              text: 'Review & edit details',
+              style: 'secondary',
+              onPress: () => {
+                setStep(0);
+                setEditing(true);
+              },
+            },
+          ]
+        );
+      }
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'Your resume could not be read. Try again or enter your details.');
     } finally {
@@ -120,9 +244,21 @@ export function CareerDetailsScreen({
     setBusy(true);
     Promise.all([getCareerFields(), getCareerProfile()])
       .then(async ([specs, saved]) => {
-        if (versionId && saved.resume_version_id !== versionId) {
+        const shouldPrefill =
+          !!versionId &&
+          (onboarding
+            ? saved.resume_version_id !== versionId
+            : !saved.resume_version_id);
+        if (shouldPrefill) {
           try {
-            saved = await prefillCareerProfile(versionId);
+            // React development remounts effects. Reuse the mutation so a
+            // single resume is never prefetched twice concurrently.
+            if (prefillRequest.current?.id !== versionId)
+              prefillRequest.current = {
+                id: versionId,
+                promise: prefillCareerProfile(versionId),
+              };
+            saved = await prefillRequest.current.promise;
           } catch {
             if (alive)
               setError(
@@ -164,10 +300,21 @@ export function CareerDetailsScreen({
           employment_start: '',
           employment_end: '',
           annual_salary: null,
-          notice_period: 'NOT_WORKING',
+          notice_period: '',
+          job_role: '',
         });
       if (key === 'currently_employed' && value === 'YES')
         next.employment_end = '';
+      if (key === 'currently_employed' && value === 'NO')
+        Object.assign(next, {
+          company_name: '',
+          job_title: '',
+          employment_start: '',
+          employment_end: '',
+          annual_salary: null,
+          notice_period: '',
+          job_role: '',
+        });
       return next;
     });
     setErrors((current) => ({ ...current, [key]: '' }));
@@ -212,7 +359,7 @@ export function CareerDetailsScreen({
         if (session) rememberCandidate(session, identity, fullName.trim());
       }
       const saved = await saveCareerProfile(
-        draft,
+        careerDetailsForSave(draft),
         activeVersionId,
         step === groups.length - 1,
         selectedFilename,
@@ -220,11 +367,7 @@ export function CareerDetailsScreen({
       setProfile(saved);
       setActiveVersionId(saved.resume_version_id);
       if (step === groups.length - 1) {
-        if (onboarding) onDone(saved);
-        else {
-          setEditing(false);
-          setStep(0);
-        }
+        onDone(saved);
       } else setStep(step + 1);
     } catch (failure) {
       setError(
@@ -268,11 +411,22 @@ export function CareerDetailsScreen({
           {onboarding ? 'Create your profile' : 'Profile details'}
         </Text>
       </View>
-      <ScrollView
-        key={`${editing}-${step}`}
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
       >
+        <ScrollView
+          ref={scrollRef}
+          key={`${editing}-${step}`}
+          contentContainerStyle={[
+            styles.content,
+            { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 120 : 60 },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
+        >
         {busy && (
           <View style={styles.loading}>
             <ActivityIndicator color="#5F4DB2" />
@@ -304,7 +458,12 @@ export function CareerDetailsScreen({
               <Text style={styles.primaryText}>Open resume</Text>
             </Pressable>
             <Pressable
-              onPress={() => router.push('/resume-details')}
+              disabled={busy}
+              onPress={() =>
+                void uploadResume().catch(() =>
+                  setError('The file picker could not open. Please try again.'),
+                )
+              }
               style={styles.back}
             >
               <Text style={styles.label}>Update resume</Text>
@@ -342,13 +501,17 @@ export function CareerDetailsScreen({
                     <Text style={styles.help}>We fill your details from your resume. Review them below. Scoring starts after payment.</Text>
                   </View>
                 )}
-                <View style={styles.field}>
+                <View
+                  style={styles.field}
+                  onLayout={(e) => onFieldLayout('fullName', e)}
+                >
                   <Text style={styles.label}>Full name *</Text>
                   <TextInput
                     style={styles.input}
                     accessibilityLabel="Full name"
                     value={fullName}
                     onChangeText={setFullName}
+                    onFocus={() => scrollToField('fullName')}
                     autoComplete="name"
                   />
                   {!!errors.full_name && (
@@ -371,7 +534,11 @@ export function CareerDetailsScreen({
               .map((field) => {
                 const value = draft[field.key];
                 return (
-                  <View key={field.key} style={styles.field}>
+                  <View
+                    key={field.key}
+                    style={styles.field}
+                    onLayout={(e) => onFieldLayout(field.key, e)}
+                  >
                     <Text style={styles.label}>
                       {field.label}
                       {fieldRequired(field, draft) ? ' *' : ' (optional)'}
@@ -410,6 +577,7 @@ export function CareerDetailsScreen({
                     ) : (
                       <TextInput
                         accessibilityLabel={field.label}
+                        onFocus={() => scrollToField(field.key)}
                         value={
                           field.type === 'list'
                             ? (lists[field.key] ??
@@ -488,7 +656,7 @@ export function CareerDetailsScreen({
                   {step === 3
                     ? onboarding
                       ? 'Save and continue'
-                      : 'Save profile'
+                      : 'Save & update score'
                     : 'Save and continue'}
                 </Text>
               </Pressable>
@@ -524,6 +692,7 @@ export function CareerDetailsScreen({
           ))
         )}
       </ScrollView>
+      </KeyboardAvoidingView>
       <Modal
         visible={documentHtml !== null}
         onRequestClose={() => setDocumentHtml(null)}

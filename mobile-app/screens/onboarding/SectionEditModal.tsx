@@ -9,6 +9,7 @@ import {
   Pressable,
   ScrollView,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Alert,
   ActivityIndicator,
@@ -57,6 +58,26 @@ export function SectionEditModal({
   const [editingChipText, setEditingChipText] = useState('');
   const [isRawMode, setIsRawMode] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardHeight(e.endCoordinates?.height || 280);
+      },
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+      },
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   // Basics field state when section.kind === 'header'
   const [basicsName, setBasicsName] = useState('');
@@ -243,8 +264,15 @@ export function SectionEditModal({
           {/* Form Content */}
           <ScrollView
             style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[
+              styles.scrollContent,
+              {
+                paddingBottom:
+                  keyboardHeight > 0 ? keyboardHeight + 80 : Spacing.lg,
+              },
+            ]}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
           >
             {/* Header (Basics) Section Fields */}
             {isHeader ? (
@@ -273,12 +301,12 @@ export function SectionEditModal({
                 </View>
 
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>City & State</Text>
+                  <Text style={styles.inputLabel}>City</Text>
                   <TextInput
                     style={styles.textInput}
                     value={basicsCity}
                     onChangeText={setBasicsCity}
-                    placeholder="e.g. Pune, Maharashtra"
+                    placeholder="e.g. Pune"
                     placeholderTextColor="#A0AEC0"
                   />
                 </View>

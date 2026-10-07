@@ -33,6 +33,10 @@ import { initialsFromName, nameFromEmail } from '@/services/profile/display';
 import { countMyApplications } from '@/services/api/applications';
 import { countCompletedCourses } from '@/services/api/courses';
 import { listInterviewSessions } from '@/services/api/interview';
+import {
+  getCandidateSubscription,
+  SubscriptionResponse,
+} from '@/services/api/subscription';
 
 export default function YouRoute() {
   const router = useRouter();
@@ -49,6 +53,7 @@ export default function YouRoute() {
   const score = candidateScore;
   const [appliedCount, setAppliedCount] = useState<number | null>(null);
   const [addonsCount, setAddonsCount] = useState<number | null>(null);
+  const [subscription, setSubscription] = useState<SubscriptionResponse | null>(null);
 
   // Profile name + location. The name is resolved (and saved for an account
   // that has none) via `resolveCandidateFullName`; the location comes straight
@@ -96,11 +101,23 @@ export default function YouRoute() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Score. Re-fetches on focus so edits/recalculated score immediately reflect.
+  // Subscription. Fetches current membership status.
+  const refreshSubscription = useCallback(() => {
+    getCandidateSubscription()
+      .then((sub) => setSubscription(sub))
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    refreshSubscription();
+  }, [refreshSubscription]);
+
+  // Re-fetches on focus so edits, recalculated score and subscriptions immediately reflect.
   useFocusEffect(
     useCallback(() => {
       refreshScore();
-    }, [refreshScore])
+      refreshSubscription();
+    }, [refreshScore, refreshSubscription])
   );
 
   // Applied count. Walks cursor pages; 0 on any error (incl. 402).
@@ -164,6 +181,8 @@ export default function YouRoute() {
       scorePending={score == null || score.status !== 'READY'}
       appliedCount={appliedCount ?? undefined}
       addonsCount={addonsCount ?? undefined}
+      subscriptionState={subscription?.state}
+      hasSubscriptionAccess={!!subscription?.has_access}
       activeTab={activeTab}
       onTabPress={handleTabPress}
       onScorePress={() =>
@@ -178,6 +197,8 @@ export default function YouRoute() {
       onAppliedPress={() => router.push('/board' as any)}
       onAddonsPress={() => router.push('/courses' as any)}
       onResumeDetailsPress={() => router.push('/profile-details' as any)}
+      onResumeReviewPress={() => router.push('/resume-details' as any)}
+      onSubscriptionPress={() => router.push('/subscription' as any)}
       onAttributeReportPress={() => router.push('/attribute-report' as any)}
       onInterviewReportPress={() => router.push('/interview-sessions' as any)}
       onCoursesPress={() => router.push('/courses' as any)}

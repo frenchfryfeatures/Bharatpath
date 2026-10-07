@@ -1,16 +1,27 @@
-import { useEffect } from 'react';
+import React from 'react';
 import { useRouter } from 'expo-router';
+import { SubscriptionManagementScreen } from '@/screens/subscription/SubscriptionManagementScreen';
 
 /**
- * Fallback route for /subscription.
- * Automatically forwards candidates to their profile & membership management screen (/you).
+ * BharatPath - Candidate Subscription Route (/subscription)
+ *
+ * Provides access to view and manage candidate membership and billing:
+ * - Current subscription status (ACTIVE, access indicator, renewal date, cancel renewal)
+ * - Available plans list (Monthly, Quarterly, Semester, Annual) with Razorpay checkout
+ * - Promo / discount code support
  */
 export default function SubscriptionRoute() {
   const router = useRouter();
 
-  useEffect(() => {
-    router.replace('/you');
-  }, [router]);
-
-  return null;
+  return (
+    <SubscriptionManagementScreen
+      onBack={() => {
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace('/you');
+        }
+      }}
+    />
+  );
 }

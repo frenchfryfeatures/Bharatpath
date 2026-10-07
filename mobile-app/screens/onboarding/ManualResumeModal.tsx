@@ -8,6 +8,7 @@ import {
   Pressable,
   ScrollView,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Switch,
 } from 'react-native';
@@ -98,6 +99,26 @@ export function ManualResumeModal({
 }: ManualResumeModalProps) {
   const [fullName, setFullName] = useState(initialFullName);
   const [headline, setHeadline] = useState('');
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardHeight(e.endCoordinates?.height || 280);
+      },
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+      },
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   // Experience state
   const [experienceList, setExperienceList] = useState<ManualExperienceItem[]>([
@@ -362,8 +383,15 @@ export function ManualResumeModal({
           </View>
 
           <ScrollView
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[
+              styles.scrollContent,
+              {
+                paddingBottom:
+                  keyboardHeight > 0 ? keyboardHeight + 80 : Spacing.xl,
+              },
+            ]}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
             showsVerticalScrollIndicator={false}
           >
             {/* Error Banner */}

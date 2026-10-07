@@ -1,4 +1,12 @@
-import { intakeCareerResume } from '@/services/api/career';
+import {
+  getCareerProfile,
+  intakeCareerResume,
+  mergeResumeDetails,
+  prefillCareerProfile,
+  previewSignupResume,
+  saveCareerProfile,
+  type CareerDetails,
+} from '@/services/api/career';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -28,10 +36,15 @@ import {
   ResumeVersionDetailResponse,
 } from '@/services/api/resume';
 import { ApiError } from '@/services/api/client';
+import {
+  readyStructuredResume,
+  structuredResumeCareerDetails,
+} from '@/services/profile/structuredResume';
 
 interface ParsingScreenProps {
   fileMeta?: UploadedFileMeta;
   payload?: ResumeIntakePayload;
+  initialDetails?: CareerDetails;
   onReviewFound?: (
     versionId: string,
     versionDetails: ResumeVersionDetailResponse,
@@ -56,6 +69,7 @@ const DEFAULT_STEPS: StepItem[] = [
 export function ParsingScreen({
   fileMeta,
   payload,
+  initialDetails,
   onReviewFound,
   onBack,
 }: ParsingScreenProps) {
@@ -150,8 +164,28 @@ export function ParsingScreen({
           const selectedFile = payload?.fileMeta ?? fileMeta;
           if (!selectedFile?.fileUri)
             throw new Error('Choose your resume file again.');
+          // Match the web flow: read transient facts, create the owned resume
+          // version, then link both to the career profile in one screen flow.
+          // Linking here means the next screen does not need to invoke AI a
+          // second time just to display the fields we already extracted.
+          // Use the signup preview when it is already available. Otherwise,
+          // preview before intake so a parser failure cannot leave an
+          // unattached resume version behind.
+          const currentProfile = await getCareerProfile();
           const created = await intakeCareerResume(selectedFile);
           createdVersionId = created.resume_version_id;
+          if (initialDetails) {
+            try {
+              await saveCareerProfile(
+                mergeResumeDetails(currentProfile.details, initialDetails),
+                created.resume_version_id,
+                false,
+                selectedFile.fileName,
+              );
+            } catch (draftErr) {
+              console.warn('Initial draft sync deferred to structured resume save:', draftErr);
+            }
+          }
         } catch (uploadErr) {
           console.warn('Upload/complete failed:', uploadErr);
           throw uploadErr;
@@ -168,6 +202,64 @@ export function ParsingScreen({
       if (createdVersionId) {
         setVersionId(createdVersionId);
         const details = await getResumeVersionDetails(createdVersionId);
+        const structured = readyStructuredResume(details);
+        const structuredStatus =
+          details.structured_status ?? details.parsed?.structured_status;
+        if (structured) {
+          const currentProfile = await getCareerProfile();
+          const mappedDetails = structuredResumeCareerDetails(
+            structured,
+            currentProfile.details,
+          );
+          try {
+            await saveCareerProfile(
+              mappedDetails,
+              createdVersionId,
+              false,
+              (payload?.fileMeta ?? fileMeta)?.fileName,
+            );
+          } catch (saveErr) {
+            console.warn(
+              '[ParsingScreen] Failed to save parsed details, retrying with safe fallback:',
+              saveErr,
+            );
+            try {
+              await saveCareerProfile(
+                currentProfile.details,
+                createdVersionId,
+                false,
+                (payload?.fileMeta ?? fileMeta)?.fileName,
+              );
+            } catch (fallbackErr) {
+              console.warn(
+                '[ParsingScreen] Fallback career profile save failed:',
+                fallbackErr,
+              );
+            }
+          }
+        } else if (!structuredStatus) {
+          // Compatibility for older API responses, pasted text and manual
+          // versions from servers that predate structured_status.
+          await prefillCareerProfile(createdVersionId);
+        } else {
+          // FAILED/UNAVAILABLE is a completed parser outcome, not a reason to
+          // retry the old AI-prefill endpoint. Link the version and let the
+          // candidate correct the preserved fields manually.
+          const currentProfile = await getCareerProfile();
+          try {
+            await saveCareerProfile(
+              currentProfile.details,
+              createdVersionId,
+              false,
+              (payload?.fileMeta ?? fileMeta)?.fileName,
+            );
+          } catch (fallbackErr) {
+            console.warn(
+              '[ParsingScreen] Terminal status profile save failed:',
+              fallbackErr,
+            );
+          }
+        }
         setVersionDetails(details);
       }
 

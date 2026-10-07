@@ -46,6 +46,10 @@ import {
 } from '@/services/api/resume';
 import { ApiError } from '@/services/api/client';
 import { extractCandidateResumeInfo } from '@/services/profile/extractedResume';
+import {
+  readyStructuredResume,
+  structuredResumeSections,
+} from '@/services/profile/structuredResume';
 
 export interface ReviewDetailsScreenProps {
   onBack?: () => void;
@@ -155,7 +159,16 @@ export function ReviewDetailsScreen({
 
   const parsed = details?.parsed;
   const rawText = typeof parsed?.raw_text === 'string' ? parsed.raw_text : '';
-  const sections = details?.sections || null;
+  const structuredResume = useMemo(
+    () => readyStructuredResume(details),
+    [details],
+  );
+  const sections = useMemo(() => {
+    if (structuredResume) return structuredResumeSections(structuredResume);
+    return details?.sections || null;
+  }, [details?.sections, structuredResume]);
+  const structuredStatus =
+    details?.structured_status ?? details?.parsed?.structured_status;
 
   const resumeInfo = useMemo(
     () => extractCandidateResumeInfo(details, candidateName),
@@ -173,21 +186,53 @@ export function ReviewDetailsScreen({
   const structuredData = useMemo<ManualResumeData>(
     () => ({
       full_name:
+        structuredResume?.full_name?.trim() ||
         parsed?.full_name?.trim() ||
         resumeInfo.name ||
         manualData?.full_name ||
         candidateName ||
         '',
-      headline: parsed?.headline || manualData?.headline,
-      experience: Array.isArray(parsed?.experience)
+      headline:
+        structuredResume?.headline || parsed?.headline || manualData?.headline,
+      experience: structuredResume?.experience?.length
+        ? structuredResume.experience.map((experience) => ({
+            employer: experience.company || '',
+            title: experience.job_title || '',
+            start_year:
+              Number.parseInt(experience.start_date?.slice(0, 4) || '', 10) ||
+              new Date().getFullYear(),
+            end_year: experience.is_current
+              ? null
+              : Number.parseInt(experience.end_date?.slice(0, 4) || '', 10) ||
+                null,
+            summary: experience.description || null,
+          }))
+        : Array.isArray(parsed?.experience)
         ? parsed.experience
         : manualData?.experience || [],
-      education: Array.isArray(parsed?.education)
+      education: structuredResume?.education?.length
+        ? structuredResume.education.map((education) => ({
+            institution: education.institution || '',
+            qualification: [
+              education.qualification,
+              education.field_of_study,
+            ]
+              .filter(Boolean)
+              .join(' — '),
+            completed_year:
+              Number.parseInt(education.end_date?.slice(0, 4) || '', 10) ||
+              null,
+          }))
+        : Array.isArray(parsed?.education)
         ? parsed.education
         : manualData?.education || [],
-      skills: Array.isArray(parsed?.skills) ? parsed.skills : manualData?.skills || [],
+      skills: structuredResume?.skills?.length
+        ? structuredResume.skills
+        : Array.isArray(parsed?.skills)
+          ? parsed.skills
+          : manualData?.skills || [],
     }),
-    [candidateName, manualData, parsed, resumeInfo.name]
+    [candidateName, manualData, parsed, resumeInfo.name, structuredResume]
   );
 
   const errorMessage = (error: unknown, fallback: string) =>
@@ -534,6 +579,17 @@ export function ReviewDetailsScreen({
             </View>
           ) : null}
 
+          {!structuredResume &&
+          (structuredStatus === 'FAILED' || structuredStatus === 'UNAVAILABLE') ? (
+            <View style={styles.errorBanner}>
+              <WarningCircle size={17} color="#7A5C0E" weight="fill" />
+              <Text style={styles.errorBannerText}>
+                Structured resume details are {structuredStatus.toLowerCase()}.
+                Showing the extracted resume text instead.
+              </Text>
+            </View>
+          ) : null}
+
           {/* Cards List */}
           <View style={styles.cardsList}>
             {sections && sections.length > 0 ? (
@@ -651,7 +707,7 @@ export function ReviewDetailsScreen({
                       ) : section.kind === 'education' ? (
                         /* EDUCATION LIST */
                         <View style={styles.eduList}>
-                          {structuredData.education.length > 0 ? (
+                          {!structuredResume && structuredData.education.length > 0 ? (
                             structuredData.education.map((edu, eduIdx) => (
                               <React.Fragment key={`edu-${eduIdx}`}>
                                 {eduIdx > 0 && <View style={styles.hairlineDivider} />}
@@ -686,7 +742,8 @@ export function ReviewDetailsScreen({
                       ) : section.kind === 'experience' || section.kind === 'projects' ? (
                         /* EXPERIENCE & PROJECTS LIST */
                         <View style={styles.expList}>
-                          {section.kind === 'experience' &&
+                          {!structuredResume &&
+                          section.kind === 'experience' &&
                           structuredData.experience.length > 0 ? (
                             structuredData.experience.map((exp, expIdx) => (
                               <React.Fragment key={`exp-${expIdx}`}>

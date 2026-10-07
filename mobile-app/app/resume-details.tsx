@@ -31,7 +31,7 @@ type Step = 'review' | 'parsing' | 'scoring' | 'score-reveal' | 'subscribe';
 
 export default function ResumeDetailsRoute() {
   const router = useRouter();
-  const { session, candidateFullName, updateCandidateScore, setCandidateScore, candidateScore: authScore } = useAuthContext();
+  const { session, candidateFullName, updateCandidateScore, setCandidateScore, candidateScore: authScore, refreshScore } = useAuthContext();
 
   const [step, setStep] = useState<Step>('review');
   const [isLoading, setIsLoading] = useState(true);
@@ -273,7 +273,7 @@ export default function ResumeDetailsRoute() {
           setVersionId(newVerId);
           setVersionDetails(newDetails);
           setError(null);
-          router.replace('/profile-details');
+          setStep('review');
         }}
         onBack={() => setStep('review')}
       />
@@ -292,9 +292,11 @@ export default function ResumeDetailsRoute() {
           if (score.value != null) {
             updateCandidateScore(score.value, score.band, score.computed_at);
           }
+          refreshScore();
           setStep('score-reveal');
         }}
         onContinueWithoutScore={() => {
+          refreshScore();
           AppAlert.alert(
             'Resume Saved',
             'Your updated resume is confirmed. Your score is being updated in the background.',
@@ -317,6 +319,7 @@ export default function ResumeDetailsRoute() {
             setCandidateScore(candidateScore);
             updateCandidateScore(candidateScore.value, candidateScore.band, candidateScore.computed_at);
           }
+          refreshScore();
           AppAlert.alert(
             'Score Updated',
             `Your score of ${candidateScore?.value ?? '—'} has been saved to your profile.`,

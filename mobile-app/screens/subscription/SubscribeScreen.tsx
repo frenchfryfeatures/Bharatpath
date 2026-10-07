@@ -253,8 +253,8 @@ export function SubscribeScreen({
               <View style={styles.activeCard}>
                 <CheckCircle size={24} color="#1F6B45" weight="fill" />
                 <Text style={styles.activeCardText}>
-                  Nothing more to pay. Your resume comes next - we read it, you check what we
-                  read, and the score follows from that.
+                  Your profile and resume review are saved. Continue to confirm
+                  the reviewed resume and start scoring.
                 </Text>
               </View>
             </>

@@ -4,6 +4,7 @@
  */
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { ActivityIndicator, View } from 'react-native';
 
 import { SplashScreen } from '@/screens/splash/SplashScreen';
 import { IntroScreen } from '@/screens/onboarding/IntroScreen';
@@ -24,7 +25,10 @@ import {
 } from '@/screens/onboarding/ResumeIntakeScreen';
 import { ParsingScreen } from '@/screens/onboarding/ParsingScreen';
 import { CareerDetailsScreen } from '@/screens/profile/CareerDetailsScreen';
-import { onboardingDestination } from '@/services/profile/onboarding';
+import {
+  membershipResumeVersion,
+  onboardingDestination,
+} from '@/services/profile/onboarding';
 import {
   getCareerProfile,
   saveCareerProfile,
@@ -32,12 +36,12 @@ import {
 } from '@/services/api/career';
 import { AppAlert } from '@/components/feedback/AppAlert';
 import { ScoringScreen } from '@/screens/onboarding/ScoringScreen';
+import { PaidScoringScreen } from '@/screens/onboarding/PaidScoringScreen';
 import { ScoreRevealScreen } from '@/screens/onboarding/ScoreRevealScreen';
 import { NotificationPermissionScreen } from '@/screens/onboarding/NotificationPermissionScreen';
 import { ShareResultScreen } from '@/screens/onboarding/ShareResultScreen';
 import {
   ResumeVersionDetailResponse,
-  confirmResumeVersion,
   getResumeVersionDetails,
   listResumeVersions,
 } from '@/services/api/resume';
@@ -52,6 +56,7 @@ import {
 } from '@/services/api/scoring';
 import { HomeScreen } from '@/screens/home/HomeScreen';
 import { useAuthContext } from '@/context/AuthContext';
+import { getCandidateSubscription } from '@/services/api/subscription';
 import {
   confirmSignUpWithCode,
   signInWithEmail,
@@ -71,6 +76,7 @@ type AppStep =
   | 'language'
   | 'howItWorks'
   | 'subscribe'
+  | 'paid-scoring'
   | 'intake'
   | 'parsing'
   | 'review'
@@ -120,6 +126,7 @@ export default function FoundationPreview() {
   const [confirmedAtTimestamp, setConfirmedAtTimestamp] = useState<
     string | null
   >(null);
+  const [subscriptionGateReady, setSubscriptionGateReady] = useState(false);
 
   // Synchronize score with AuthContext
   const candidateScore = authCandidateScore || localCandidateScore;
@@ -145,6 +152,23 @@ export default function FoundationPreview() {
     }
   }, [params.step]);
 
+  // Membership screen is shown directly after signup so candidate can pay before parsing, matching the web flow.
+  useEffect(() => {
+    if (step !== 'subscribe') {
+      setSubscriptionGateReady(false);
+      return;
+    }
+    if (!session) {
+      setStep('login');
+      return;
+    }
+    setSubscriptionGateReady(true);
+  }, [session, step]);
+
+  useEffect(() => {
+    if (step === 'paid-scoring' && !resumeVersionId) setStep('review');
+  }, [resumeVersionId, step]);
+
   const resumeInfo = useMemo(() => {
     return extractCandidateResumeInfo(
       resumeVersionDetails,
@@ -167,12 +191,22 @@ export default function FoundationPreview() {
     setIntakePayload(undefined);
     setFileMeta(undefined);
     setResumeVersionId(latest?.resume_version_id);
-    setResumeVersionDetails(latest ? await getResumeVersionDetails(latest.resume_version_id) : null);
     const destination = onboardingDestination(profile, latest);
     if (destination === 'home') {
       refreshScore().catch(() => undefined);
       router.replace('/home');
-    } else setStep(destination);
+    } else {
+      setStep(destination);
+    }
+    // Resume detail rendering is helpful later, but it must never block an
+    // existing confirmed candidate from reaching Home.
+    if (latest) {
+      getResumeVersionDetails(latest.resume_version_id)
+        .then(setResumeVersionDetails)
+        .catch(() => setResumeVersionDetails(null));
+    } else {
+      setResumeVersionDetails(null);
+    }
   };
 
   if (step === 'splash') {
@@ -224,14 +258,24 @@ export default function FoundationPreview() {
           if (isUnconfirmed) {
             setStep('verify-email');
           } else {
-            // Account created: parse the selected resume before profile review and payment.
-            await saveCareerProfile(
-              data.details,
-              null,
-              false,
-              fileMeta?.fileName,
-            );
-            setStep(data.referralCode ? 'referral' : intakePayload ? 'parsing' : 'review');
+            // Account created: proceed to resume intake/parsing -> review (steps 1,2,3,4) -> payment!
+            try {
+              if (data.details) {
+                await saveCareerProfile(
+                  data.details,
+                  null,
+                  false,
+                  fileMeta?.fileName,
+                );
+              }
+            } catch (err) {
+              console.warn('Initial profile draft save error:', err);
+            }
+            if (fileMeta || intakePayload) {
+              setStep('parsing');
+            } else {
+              setStep('intake');
+            }
           }
         }}
       />
@@ -263,9 +307,17 @@ export default function FoundationPreview() {
           // Recover the pending resume draft after verification required a manual login.
           if (onboardingDraft && data.session.email.toLowerCase() === userEmail.toLowerCase()) {
             if (userName) await updateCandidateName(userName);
-            await saveCareerProfile(onboardingDraft, null, false, fileMeta?.fileName);
+            try {
+              await saveCareerProfile(onboardingDraft, null, false, fileMeta?.fileName);
+            } catch (err) {
+              console.warn('Draft save error:', err);
+            }
             setUserPassword('');
-            setStep(collegeReferralCode ? 'referral' : intakePayload ? 'parsing' : 'review');
+            if (fileMeta || intakePayload) {
+              setStep('parsing');
+            } else {
+              setStep('intake');
+            }
             return;
           }
           try {
@@ -336,14 +388,23 @@ export default function FoundationPreview() {
             }
           }
 
-          if (onboardingDraft)
-            await saveCareerProfile(
-              onboardingDraft,
-              null,
-              false,
-              fileMeta?.fileName,
-            );
-          setStep(collegeReferralCode ? 'referral' : intakePayload ? 'parsing' : 'review');
+          if (onboardingDraft) {
+            try {
+              await saveCareerProfile(
+                onboardingDraft,
+                null,
+                false,
+                fileMeta?.fileName,
+              );
+            } catch (err) {
+              console.warn('Draft save error:', err);
+            }
+          }
+          if (fileMeta || intakePayload) {
+            setStep('parsing');
+          } else {
+            setStep('intake');
+          }
         }}
         onResendCode={async () => {
           await resendConfirmationCode(userEmail);
@@ -352,12 +413,17 @@ export default function FoundationPreview() {
     );
   }
 
-  // 5. Onboarding: Language Selection
+  // 5. Onboarding: Referral Consent
   if (step === 'referral') {
-    return <CollegeReferralConsentScreen code={collegeReferralCode} onDone={() => {
-      setCollegeReferralCode('');
-      setStep(intakePayload ? 'parsing' : 'review');
-    }} />;
+    return (
+      <CollegeReferralConsentScreen
+        code={collegeReferralCode}
+        onDone={() => {
+          setCollegeReferralCode('');
+          setStep('subscribe');
+        }}
+      />
+    );
   }
   if (step === 'language') {
     return (
@@ -375,34 +441,61 @@ export default function FoundationPreview() {
     );
   }
 
-  // 7. Membership follows a saved profile; confirmation starts paid scoring.
+  // 7. Membership / Payment Screen (after completing Step 1, 2, 3, 4)
   if (step === 'subscribe') {
+    if (!subscriptionGateReady) {
+      return (
+        <View
+          style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
+        >
+          <ActivityIndicator size="large" color="#5F4DB2" />
+        </View>
+      );
+    }
     return (
       <SubscribeScreen
         candidateName={userName}
         onSubscribed={async () => {
+          // After payment is successful: Proceed to Paid Scoring confirmation!
           try {
             const saved = await getCareerProfile();
-            const id = saved.resume_version_id ?? resumeVersionId;
-            if (!id || !saved.completed) {
-              setStep('review');
-              return;
+            if (saved.resume_version_id) {
+              setResumeVersionId(saved.resume_version_id);
             }
-            const confirmed = await confirmResumeVersion(id);
-            setConfirmedAtTimestamp(confirmed.confirmed_at);
-            setStep('scoring');
-          } catch {
-            AppAlert.alert(
-              'Scoring could not start',
-              'Please confirm membership access and try again.',
-            );
-          }
+          } catch {}
+          setStep('paid-scoring');
         }}
-        onSkip={() => router.replace('/you')}
+        onSkip={() => {
+          setStep('paid-scoring');
+        }}
         onBack={() => {
           setOnboardingSection(3);
           setStep('review');
         }}
+      />
+    );
+  }
+
+  // Payment is complete. As on the website, confirmation is its own stage;
+  // this is the first action that is allowed to start score computation.
+  if (step === 'paid-scoring') {
+    if (!resumeVersionId) {
+      return (
+        <View
+          style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
+        >
+          <ActivityIndicator size="large" color="#5F4DB2" />
+        </View>
+      );
+    }
+    return (
+      <PaidScoringScreen
+        versionId={resumeVersionId}
+        onConfirmed={(confirmedAt) => {
+          setConfirmedAtTimestamp(confirmedAt);
+          setStep('scoring');
+        }}
+        onBack={() => setStep('subscribe')}
       />
     );
   }
@@ -432,18 +525,12 @@ export default function FoundationPreview() {
       <ParsingScreen
         fileMeta={fileMeta}
         payload={intakePayload}
+        initialDetails={fileMeta ? onboardingDraft ?? undefined : undefined}
         onBack={() => {
           setOnboardingSection(0);
           setStep('review');
         }}
         onReviewFound={async (verId, details) => {
-          if (onboardingDraft)
-            await saveCareerProfile(
-              onboardingDraft,
-              verId,
-              false,
-              fileMeta?.fileName,
-            );
           setResumeVersionId(verId);
           setResumeVersionDetails(details);
           const extracted = extractCandidateResumeInfo(details);
@@ -456,7 +543,7 @@ export default function FoundationPreview() {
     );
   }
 
-  // 10. Onboarding: Review Parsed Details (The confirm gate before scoring)
+  // 10. Onboarding: Review Parsed Details (The confirm gate before payment & scoring)
   if (step === 'review') {
     return (
       <CareerDetailsScreen
@@ -464,12 +551,31 @@ export default function FoundationPreview() {
         initialSection={onboardingSection}
         resumeFilename={fileMeta?.fileName}
         versionId={resumeVersionId}
-        onBack={() => router.replace('/you')}
-        onDone={(profile) => {
-          setResumeVersionId(profile.resume_version_id ?? undefined);
+        onBack={() => {
+          if (fileMeta || intakePayload) {
+            setStep('intake');
+          } else {
+            router.replace('/you');
+          }
+        }}
+        onDone={async (profile) => {
+          const verId = profile.resume_version_id ?? resumeVersionId;
+          if (verId) setResumeVersionId(verId);
           setOnboardingSection(3);
           setOnboardingDraft(null);
-          setStep('subscribe');
+
+          // Step 1, 2, 3, 4 completed!
+          // Check if candidate already has an active subscription
+          try {
+            const sub = await getCandidateSubscription();
+            if (sub?.has_access) {
+              setStep('paid-scoring');
+              return;
+            }
+          } catch {}
+
+          // If not subscribed: proceed to Payment!
+          setStep(collegeReferralCode ? 'referral' : 'subscribe');
         }}
       />
     );
