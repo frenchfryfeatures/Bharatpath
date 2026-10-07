@@ -40,6 +40,7 @@ import {
   DownloadSimple,
   SignOut,
   GraduationCap,
+  CreditCard,
 } from 'phosphor-react-native';
 import { Colors, Spacing } from '@/theme/tokens';
 import { BottomTabBar, TabName } from '@/components/navigation/BottomTabBar';
@@ -63,12 +64,18 @@ export interface ProfileScreenProps {
   appliedCount?: number;
   /** Completed courses + completed interview sessions. Undefined while loading. */
   addonsCount?: number;
+  /** Candidate's subscription state ('ACTIVE', 'NONE', etc.) */
+  subscriptionState?: string;
+  /** True if the candidate has active paid subscription access */
+  hasSubscriptionAccess?: boolean;
   activeTab?: TabName;
   onTabPress?: (tab: TabName, href: string) => void;
   onScorePress?: () => void;
   onAppliedPress?: () => void;
   onAddonsPress?: () => void;
   onResumeDetailsPress?: () => void;
+  onResumeReviewPress?: () => void;
+  onSubscriptionPress?: () => void;
   onAttributeReportPress?: () => void;
   onInterviewReportPress?: () => void;
   onCoursesPress?: () => void;
@@ -89,12 +96,16 @@ export function ProfileScreen({
   scorePending = true,
   appliedCount,
   addonsCount,
+  subscriptionState,
+  hasSubscriptionAccess,
   activeTab = 'you',
   onTabPress,
   onScorePress,
   onAppliedPress,
   onAddonsPress,
   onResumeDetailsPress,
+  onResumeReviewPress,
+  onSubscriptionPress,
   onAttributeReportPress,
   onInterviewReportPress,
   onCoursesPress,
@@ -210,12 +221,62 @@ export function ProfileScreen({
               onPress={onResumeDetailsPress}
               accessibilityRole="button"
             >
-              <FileText size={20} color={Colors.navy} weight="duotone" />
+              <UserCircle size={20} color={Colors.navy} weight="duotone" />
               <Text style={styles.menuItemTitle}>Profile details</Text>
               <CaretRight size={16} color="#5F6B80" weight="bold" />
             </Pressable>
 
-            {/* Attribute report */}
+            {/* Resume review */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuItem,
+                pressed && styles.cardPressed,
+              ]}
+              onPress={onResumeReviewPress}
+              accessibilityRole="button"
+            >
+              <FileText size={20} color={Colors.navy} weight="duotone" />
+              <Text style={styles.menuItemTitle}>Resume review</Text>
+              <CaretRight size={16} color="#5F6B80" weight="bold" />
+            </Pressable>
+
+            {/* Subscription */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuItem,
+                pressed && styles.cardPressed,
+              ]}
+              onPress={onSubscriptionPress}
+              accessibilityRole="button"
+            >
+              <CreditCard size={20} color={Colors.navy} weight="duotone" />
+              <Text style={styles.menuItemTitle}>Subscription</Text>
+              {subscriptionState ? (
+                <View
+                  style={[
+                    styles.subBadgePill,
+                    hasSubscriptionAccess
+                      ? styles.subBadgePillActive
+                      : styles.subBadgePillDefault,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.subBadgePillText,
+                      hasSubscriptionAccess
+                        ? styles.subBadgePillActiveText
+                        : styles.subBadgePillDefaultText,
+                    ]}
+                  >
+                    {subscriptionState}
+                  </Text>
+                </View>
+              ) : null}
+              <CaretRight size={16} color="#5F6B80" weight="bold" />
+            </Pressable>
+
+            {/* Attribute report (commented out as requested) */}
+            {/*
             <Pressable
               style={({ pressed }) => [
                 styles.menuItem,
@@ -226,6 +287,21 @@ export function ProfileScreen({
             >
               <Compass size={20} color={Colors.navy} weight="duotone" />
               <Text style={styles.menuItemTitle}>Attribute report</Text>
+              <CaretRight size={16} color="#5F6B80" weight="bold" />
+            </Pressable>
+            */}
+
+            {/* Certified skill courses (adjusted in place of attribute report) */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuItem,
+                pressed && styles.cardPressed,
+              ]}
+              onPress={onCoursesPress}
+              accessibilityRole="button"
+            >
+              <GraduationCap size={20} color={Colors.navy} weight="duotone" />
+              <Text style={styles.menuItemTitle}>Certified skill courses</Text>
               <CaretRight size={16} color="#5F6B80" weight="bold" />
             </Pressable>
 
@@ -240,20 +316,6 @@ export function ProfileScreen({
             >
               <MicrophoneStage size={20} color={Colors.navy} weight="duotone" />
               <Text style={styles.menuItemTitle}>Interview report</Text>
-              <CaretRight size={16} color="#5F6B80" weight="bold" />
-            </Pressable>
-
-            {/* Skill courses */}
-            <Pressable
-              style={({ pressed }) => [
-                styles.menuItem,
-                pressed && styles.cardPressed,
-              ]}
-              onPress={onCoursesPress}
-              accessibilityRole="button"
-            >
-              <GraduationCap size={20} color={Colors.navy} weight="duotone" />
-              <Text style={styles.menuItemTitle}>Skill courses</Text>
               <CaretRight size={16} color="#5F6B80" weight="bold" />
             </Pressable>
 
@@ -518,6 +580,30 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 16,
     color: Colors.navy,
+  },
+  subBadgePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginRight: 4,
+  },
+  subBadgePillActive: {
+    backgroundColor: '#E6F1EA',
+  },
+  subBadgePillDefault: {
+    backgroundColor: '#F3EFE9',
+  },
+  subBadgePillText: {
+    fontFamily: 'GeneralSans-Semibold',
+    fontSize: 11,
+    lineHeight: 14,
+    textTransform: 'uppercase',
+  },
+  subBadgePillActiveText: {
+    color: '#23805D',
+  },
+  subBadgePillDefaultText: {
+    color: '#5F6B80',
   },
   cardPressed: {
     transform: [{ scale: 0.98 }],

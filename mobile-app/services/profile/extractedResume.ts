@@ -1,4 +1,5 @@
 import { ResumeVersionDetailResponse } from '@/services/api/resume';
+import { readyStructuredResume } from './structuredResume';
 
 export interface ExtractedResumeInfo {
   name: string;
@@ -29,11 +30,19 @@ export function extractCandidateResumeInfo(
   fallbackName?: string,
   fallbackCity?: string
 ): ExtractedResumeInfo {
-  let name = details?.parsed?.full_name?.trim() || fallbackName?.trim() || '';
-  let field = '';
-  let city = fallbackCity?.trim() || '';
-  let phone = '';
-  let email = '';
+  const structured = readyStructuredResume(details);
+  let name =
+    structured?.full_name?.trim() ||
+    details?.parsed?.full_name?.trim() ||
+    fallbackName?.trim() ||
+    '';
+  let field =
+    structured?.education?.[0]?.field_of_study?.trim() ||
+    structured?.education?.[0]?.qualification?.trim() ||
+    '';
+  let city = structured?.location?.trim() || fallbackCity?.trim() || '';
+  let phone = structured?.contacts?.phone?.trim() || '';
+  let email = structured?.contacts?.email?.trim() || '';
   let scoreDate = '';
 
   // 1. Format score date from confirmed_at or created_at

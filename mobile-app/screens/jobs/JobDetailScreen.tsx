@@ -32,6 +32,7 @@ import {
   Pressable,
   Platform,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -50,6 +51,12 @@ import {
   Briefcase,
   Sparkle,
   Bell,
+  ArrowSquareOut,
+  GraduationCap,
+  Gift,
+  Translate,
+  Users,
+  CalendarBlank,
 } from 'phosphor-react-native';
 import { Colors } from '@/theme/tokens';
 import { BoardJobDetail, EligibilityStatus } from '@/types/job';
@@ -66,6 +73,62 @@ import {
   isJobGoneError,
 } from '@/services/api/jobs';
 import { ApiError } from '@/services/api/client';
+
+// Label constants for structured job details from backend
+const JOB_TYPE_LABELS: Record<string, string> = {
+  FULL_TIME: 'Full-time',
+  PART_TIME: 'Part-time',
+  CONTRACT: 'Contract',
+  INTERNSHIP: 'Internship',
+  FREELANCE: 'Freelance',
+};
+
+const EMPLOYMENT_TYPE_LABELS: Record<string, string> = {
+  PERMANENT: 'Permanent',
+  TEMPORARY: 'Temporary',
+  FIXED_TERM: 'Fixed term',
+  APPRENTICESHIP: 'Apprenticeship',
+};
+
+const EDUCATION_LABELS: Record<string, string> = {
+  NONE: 'No formal requirement',
+  CLASS_10: '10th pass',
+  CLASS_12: '12th pass',
+  DIPLOMA: 'Diploma',
+  GRADUATE: 'Graduate / Bachelor’s',
+  POST_GRADUATE: 'Post Graduate / Master’s',
+  DOCTORATE: 'Doctorate / PhD',
+};
+
+const NOTICE_PERIOD_LABELS: Record<string, string> = {
+  IMMEDIATE: 'Immediate joiner',
+  '15_DAYS': '15 days or less',
+  '30_DAYS': '30 days or less',
+  '60_DAYS': '60 days or less',
+  '90_DAYS': '90 days or less',
+  ANY: 'Flexible notice period',
+};
+
+const RELOCATION_LABELS: Record<string, string> = {
+  REQUIRED: 'Relocation required',
+  PREFERRED: 'Relocation preferred',
+  NOT_REQUIRED: 'No relocation',
+};
+
+function formatDeadline(dateStr?: string | null): string {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  } catch {
+    return dateStr;
+  }
+}
 
 // Text strings extracted as constants so the JSX contains no literal
 // apostrophes (react/no-unescaped-entities).
@@ -85,6 +148,7 @@ const TXT_APPLIED_CTA_SUB = 'See it on your Application Board';
 const TXT_BELOW_CTA_SUB = 'There are other jobs that fit your profile';
 const TXT_PENDING_CTA_SUB = "We'll notify you";
 const TXT_APPLY_CTA_SUB = 'One tap · no forms, no cover letter';
+const TXT_EXTERNAL_CTA_SUB = 'Opens employer application in your browser';
 const TXT_PRIVACY =
   'Your name and number stay hidden until this employer unlocks your profile. You get told when they do.';
 
@@ -128,7 +192,84 @@ export function JobDetailScreen({
   const employerName = job.employer_name || 'Employer';
   const initials = getInitials(employerName);
 
+  const isSalaryDisclosed =
+    job.salary_disclosed !== false &&
+    job.details?.compensation?.disclosed !== false;
+
+  const isExternalApply = Boolean(
+    job.can_apply_externally && job.details?.application?.external_url,
+  );
+
+  const jobTypeLabel = job.details?.basics?.job_type
+    ? JOB_TYPE_LABELS[job.details.basics.job_type] || job.details.basics.job_type
+    : null;
+
+  const employmentTypeLabel = job.details?.basics?.employment_type
+    ? EMPLOYMENT_TYPE_LABELS[job.details.basics.employment_type] || job.details.basics.employment_type
+    : null;
+
+  const preferredSkills = [
+    ...(job.details?.content?.nice_to_have_skills || []),
+    ...(job.details?.skills?.preferred || []),
+    ...(job.details?.skills?.tools || []),
+  ].filter(
+    (s, idx, arr) => Boolean(s) && arr.indexOf(s) === idx && !job.skills.includes(s),
+  );
+
+  const responsibilities = job.details?.content?.responsibilities || [];
+  const reqQualifications = job.details?.content?.required_qualifications || [];
+  const prefQualifications = job.details?.content?.preferred_qualifications || [];
+  const benefits = job.details?.content?.benefits || [];
+  const eduMinimum = job.details?.education?.minimum
+    ? EDUCATION_LABELS[job.details.education.minimum] || job.details.education.minimum
+    : null;
+  const ugInfo = job.details?.education?.ug_qualification
+    ? `${job.details.education.ug_qualification}${
+        job.details.education.ug_specialization
+          ? ` (${job.details.education.ug_specialization})`
+          : ''
+      }`
+    : null;
+  const pgInfo = job.details?.education?.pg_qualification
+    ? `${job.details.education.pg_qualification}${
+        job.details.education.pg_specialization
+          ? ` (${job.details.education.pg_specialization})`
+          : ''
+      }`
+    : null;
+  const certs = job.details?.education?.certifications || [];
+  const hasEducation = Boolean(eduMinimum || ugInfo || pgInfo || certs.length > 0);
+
+  const noticePeriod = job.details?.requirements?.notice_period
+    ? NOTICE_PERIOD_LABELS[job.details.requirements.notice_period] ||
+      job.details.requirements.notice_period
+    : null;
+  const relocation = job.details?.requirements?.relocation
+    ? RELOCATION_LABELS[job.details.requirements.relocation] ||
+      job.details.requirements.relocation
+    : null;
+  const languages = job.details?.requirements?.languages || [];
+  const workAuth = job.details?.requirements?.work_authorization || null;
+  const hasRequirements = Boolean(
+    noticePeriod || relocation || languages.length > 0 || workAuth,
+  );
+
+  const deadline = formatDeadline(job.details?.application?.deadline);
+
   const handleApply = useCallback(async () => {
+    if (isExternalApply && job.details?.application?.external_url) {
+      try {
+        const canOpen = await Linking.canOpenURL(job.details.application.external_url);
+        if (canOpen) {
+          await Linking.openURL(job.details.application.external_url);
+        } else {
+          AppAlert.alert('External Link', 'Could not open the application link.');
+        }
+      } catch {
+        AppAlert.alert('External Link', 'Could not open the application link.');
+      }
+      return;
+    }
     if (applyState.kind === 'submitting' || applied) return;
     setApplyState({ kind: 'submitting' });
     try {
@@ -166,6 +307,8 @@ export function JobDetailScreen({
       setApplyState({ kind: 'error', message });
     }
   }, [
+    isExternalApply,
+    job.details?.application?.external_url,
     applyState.kind,
     applied,
     job.id,
@@ -231,6 +374,27 @@ export function JobDetailScreen({
                   <SealCheck size={14} color="#FFFCF7" weight="fill" />
                   <Text style={styles.verifiedLabelText}>Verified</Text>
                 </View>
+                {jobTypeLabel || employmentTypeLabel || job.details?.basics?.department ? (
+                  <View style={styles.heroTagsRow}>
+                    {jobTypeLabel ? (
+                      <View style={styles.heroTag}>
+                        <Text style={styles.heroTagText}>{jobTypeLabel}</Text>
+                      </View>
+                    ) : null}
+                    {employmentTypeLabel ? (
+                      <View style={styles.heroTag}>
+                        <Text style={styles.heroTagText}>{employmentTypeLabel}</Text>
+                      </View>
+                    ) : null}
+                    {job.details?.basics?.department ? (
+                      <View style={styles.heroTag}>
+                        <Text style={styles.heroTagText}>
+                          {job.details.basics.department}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                ) : null}
               </View>
             </View>
 
@@ -243,17 +407,32 @@ export function JobDetailScreen({
         <View style={styles.detailsBody}>
           {/* Metric cards */}
           <View style={styles.metricsRow}>
+            {/* MONTHLY / SALARY */}
             <View style={styles.metricCard}>
               <CurrencyInr size={17} color="#5E4DB2" weight="duotone" />
-              <Text style={styles.metricLabel}>MONTHLY</Text>
-              <Text style={styles.metricValueMono} numberOfLines={2}>
-                {formatSalaryRangePaise(
-                  job.salary_min_minor,
-                  job.salary_max_minor,
-                )}
+              <Text style={styles.metricLabel}>
+                {job.details?.compensation?.period &&
+                job.details.compensation.period !== 'MONTHLY'
+                  ? `SALARY (${job.details.compensation.period.replace('_', ' ')})`
+                  : 'MONTHLY'}
               </Text>
+              <Text
+                style={isSalaryDisclosed ? styles.metricValueMono : styles.metricValueSans}
+                numberOfLines={2}
+              >
+                {isSalaryDisclosed
+                  ? formatSalaryRangePaise(
+                      job.salary_min_minor,
+                      job.salary_max_minor,
+                    )
+                  : 'Not disclosed'}
+              </Text>
+              {isSalaryDisclosed && job.details?.compensation?.negotiable ? (
+                <Text style={styles.metricSubLabel}>Negotiable</Text>
+              ) : null}
             </View>
 
+            {/* WORK MODE */}
             {job.work_mode ? (
               <View style={styles.metricCard}>
                 <Briefcase size={17} color="#5F6B80" weight="duotone" />
@@ -264,37 +443,88 @@ export function JobDetailScreen({
               </View>
             ) : null}
 
+            {/* EXPERIENCE */}
             {job.experience_min_months ? (
               <View style={styles.metricCard}>
                 <Clock size={17} color="#5F6B80" weight="duotone" />
                 <Text style={styles.metricLabel}>EXPERIENCE</Text>
                 <Text style={styles.metricValueSans} numberOfLines={2}>
                   {formatExperienceMonths(job.experience_min_months)}
+                  {job.details?.compensation?.experience_max_months
+                    ? ` – ${formatExperienceMonths(
+                        job.details.compensation.experience_max_months,
+                      )}`
+                    : ''}
                 </Text>
               </View>
             ) : null}
 
+            {/* LOCATION */}
             {job.location ? (
               <View
                 style={[
                   styles.metricCard,
-                  !job.experience_min_months && styles.metricCardWide,
+                  !job.experience_min_months &&
+                    !job.details?.basics?.openings &&
+                    styles.metricCardWide,
                 ]}
               >
                 <MapPin size={17} color="#5F6B80" weight="duotone" />
                 <Text style={styles.metricLabel}>LOCATION</Text>
                 <Text style={styles.metricValueSans} numberOfLines={2}>
                   {job.location}
+                  {job.details?.location?.additional_locations &&
+                  job.details.location.additional_locations.length > 0
+                    ? ` (+${job.details.location.additional_locations.length})`
+                    : ''}
+                </Text>
+              </View>
+            ) : null}
+
+            {/* OPENINGS */}
+            {job.details?.basics?.openings ? (
+              <View style={styles.metricCard}>
+                <Users size={17} color="#5F6B80" weight="duotone" />
+                <Text style={styles.metricLabel}>OPENINGS</Text>
+                <Text style={styles.metricValueSans} numberOfLines={2}>
+                  {job.details.basics.openings}{' '}
+                  {job.details.basics.openings === 1 ? 'position' : 'positions'}
                 </Text>
               </View>
             ) : null}
           </View>
+
+          {/* APPLICATION DEADLINE (if set) */}
+          {deadline ? (
+            <View style={styles.deadlineContainer}>
+              <CalendarBlank size={16} color="#5F4DB2" weight="bold" />
+              <Text style={styles.deadlineText}>
+                Application deadline:{' '}
+                <Text style={styles.deadlineBold}>{deadline}</Text>
+              </Text>
+            </View>
+          ) : null}
 
           {/* WHAT YOU WOULD DO */}
           {job.description ? (
             <View style={styles.sectionBlock}>
               <Text style={styles.sectionEyebrow}>WHAT YOU WOULD DO</Text>
               <Text style={styles.bodyDescription}>{job.description}</Text>
+            </View>
+          ) : null}
+
+          {/* KEY RESPONSIBILITIES */}
+          {responsibilities.length > 0 ? (
+            <View style={styles.sectionBlock}>
+              <Text style={styles.sectionEyebrow}>KEY RESPONSIBILITIES</Text>
+              <View style={styles.bulletList}>
+                {responsibilities.map((resp, idx) => (
+                  <View key={idx} style={styles.bulletRow}>
+                    <View style={styles.bulletDot} />
+                    <Text style={styles.bulletText}>{resp}</Text>
+                  </View>
+                ))}
+              </View>
             </View>
           ) : null}
 
@@ -315,6 +545,147 @@ export function JobDetailScreen({
             </View>
           ) : null}
 
+          {/* PREFERRED & NICE-TO-HAVE SKILLS */}
+          {preferredSkills.length > 0 ? (
+            <View style={styles.sectionBlock}>
+              <View style={styles.skillsEyebrowRow}>
+                <Text style={styles.sectionEyebrow}>PREFERRED & ADDITIONAL SKILLS</Text>
+              </View>
+              <View style={styles.skillsChipsWrap}>
+                {preferredSkills.map((skill) => (
+                  <View key={skill} style={styles.skillChipSecondary}>
+                    <Sparkle size={11} color="#5F4DB2" weight="bold" />
+                    <Text style={styles.skillChipSecondaryText}>{skill}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          ) : null}
+
+          {/* REQUIRED QUALIFICATIONS */}
+          {reqQualifications.length > 0 ? (
+            <View style={styles.sectionBlock}>
+              <Text style={styles.sectionEyebrow}>REQUIRED QUALIFICATIONS</Text>
+              <View style={styles.bulletList}>
+                {reqQualifications.map((item, idx) => (
+                  <View key={idx} style={styles.bulletRow}>
+                    <View style={styles.bulletDot} />
+                    <Text style={styles.bulletText}>{item}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          ) : null}
+
+          {/* PREFERRED QUALIFICATIONS */}
+          {prefQualifications.length > 0 ? (
+            <View style={styles.sectionBlock}>
+              <Text style={styles.sectionEyebrow}>PREFERRED QUALIFICATIONS</Text>
+              <View style={styles.bulletList}>
+                {prefQualifications.map((item, idx) => (
+                  <View key={idx} style={styles.bulletRow}>
+                    <View style={styles.bulletDot} />
+                    <Text style={styles.bulletText}>{item}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          ) : null}
+
+          {/* EDUCATION & CERTIFICATIONS */}
+          {hasEducation ? (
+            <View style={styles.sectionBlock}>
+              <Text style={styles.sectionEyebrow}>EDUCATION & CERTIFICATIONS</Text>
+              <View style={styles.cardBlock}>
+                {eduMinimum ? (
+                  <View style={styles.factRow}>
+                    <GraduationCap size={16} color="#5F6B80" weight="duotone" />
+                    <Text style={styles.factLabel}>Minimum Education:</Text>
+                    <Text style={styles.factValue}>{eduMinimum}</Text>
+                  </View>
+                ) : null}
+                {ugInfo ? (
+                  <View style={styles.factRow}>
+                    <GraduationCap size={16} color="#5F6B80" weight="duotone" />
+                    <Text style={styles.factLabel}>Undergraduate:</Text>
+                    <Text style={styles.factValue}>{ugInfo}</Text>
+                  </View>
+                ) : null}
+                {pgInfo ? (
+                  <View style={styles.factRow}>
+                    <GraduationCap size={16} color="#5F6B80" weight="duotone" />
+                    <Text style={styles.factLabel}>Postgraduate:</Text>
+                    <Text style={styles.factValue}>{pgInfo}</Text>
+                  </View>
+                ) : null}
+                {certs.length > 0 ? (
+                  <View style={styles.certRow}>
+                    <Text style={styles.factLabel}>Certifications:</Text>
+                    <View style={styles.skillsChipsWrap}>
+                      {certs.map((c) => (
+                        <View key={c} style={styles.certChip}>
+                          <Text style={styles.certChipText}>{c}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                ) : null}
+              </View>
+            </View>
+          ) : null}
+
+          {/* CANDIDATE REQUIREMENTS */}
+          {hasRequirements ? (
+            <View style={styles.sectionBlock}>
+              <Text style={styles.sectionEyebrow}>CANDIDATE REQUIREMENTS</Text>
+              <View style={styles.cardBlock}>
+                {noticePeriod ? (
+                  <View style={styles.factRow}>
+                    <Clock size={16} color="#5F6B80" weight="duotone" />
+                    <Text style={styles.factLabel}>Notice Period:</Text>
+                    <Text style={styles.factValue}>{noticePeriod}</Text>
+                  </View>
+                ) : null}
+                {languages.length > 0 ? (
+                  <View style={styles.factRow}>
+                    <Translate size={16} color="#5F6B80" weight="duotone" />
+                    <Text style={styles.factLabel}>Languages:</Text>
+                    <Text style={styles.factValue}>{languages.join(', ')}</Text>
+                  </View>
+                ) : null}
+                {relocation ? (
+                  <View style={styles.factRow}>
+                    <MapPin size={16} color="#5F6B80" weight="duotone" />
+                    <Text style={styles.factLabel}>Relocation:</Text>
+                    <Text style={styles.factValue}>{relocation}</Text>
+                  </View>
+                ) : null}
+                {workAuth ? (
+                  <View style={styles.factRow}>
+                    <Briefcase size={16} color="#5F6B80" weight="duotone" />
+                    <Text style={styles.factLabel}>Work Authorization:</Text>
+                    <Text style={styles.factValue}>{workAuth}</Text>
+                  </View>
+                ) : null}
+              </View>
+            </View>
+          ) : null}
+
+          {/* BENEFITS & PERKS */}
+          {benefits.length > 0 ? (
+            <View style={styles.sectionBlock}>
+              <Text style={styles.sectionEyebrow}>BENEFITS & PERKS</Text>
+              <View style={styles.skillsChipsWrap}>
+                {benefits.map((benefit, idx) => (
+                  <View key={idx} style={styles.benefitChip}>
+                    <Gift size={13} color="#1F6B45" weight="duotone" />
+                    <Text style={styles.benefitChipText}>{benefit}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          ) : null}
+
           {/* Privacy Protection Notice */}
           <View style={styles.privacyNoticeBox}>
             <EyeSlash size={17} color="#5F6B80" weight="bold" />
@@ -327,6 +698,7 @@ export function JobDetailScreen({
               eligibility={eligibility}
               applied={applied}
               applyState={applyState}
+              isExternal={isExternalApply}
               onApply={handleApply}
               onBack={onBack}
             />
@@ -411,6 +783,7 @@ interface BottomCTAProps {
   eligibility: EligibilityStatus;
   applied: boolean;
   applyState: ApplyState;
+  isExternal?: boolean;
   onApply: () => void;
   onBack?: () => void;
 }
@@ -419,6 +792,7 @@ function BottomCTA({
   eligibility,
   applied,
   applyState,
+  isExternal,
   onApply,
   onBack,
 }: BottomCTAProps) {
@@ -468,6 +842,27 @@ function BottomCTA({
 
   // ELIGIBLE
   const submitting = applyState.kind === 'submitting';
+
+  if (isExternal) {
+    return (
+      <>
+        <Pressable
+          style={({ pressed }) => [
+            styles.applyBtn,
+            pressed && styles.buttonPressed,
+          ]}
+          onPress={onApply}
+          accessibilityRole="button"
+          accessibilityLabel="Apply on company site"
+        >
+          <Text style={styles.applyBtnText}>Apply on company site</Text>
+          <ArrowSquareOut size={16} color="#FFFFFF" weight="bold" />
+        </Pressable>
+        <Text style={styles.applySubtext}>{TXT_EXTERNAL_CTA_SUB}</Text>
+      </>
+    );
+  }
+
   return (
     <>
       <Pressable
@@ -479,12 +874,12 @@ function BottomCTA({
         onPress={onApply}
         disabled={submitting}
         accessibilityRole="button"
-        accessibilityLabel="Apply with my profile"
+        accessibilityLabel="Apply now"
       >
         {submitting ? (
           <ActivityIndicator size="small" color="#FFFFFF" />
         ) : (
-          <Text style={styles.applyBtnText}>Apply with my profile</Text>
+          <Text style={styles.applyBtnText}>Apply now</Text>
         )}
       </Pressable>
       <Text style={styles.applySubtext}>{TXT_APPLY_CTA_SUB}</Text>
@@ -738,6 +1133,150 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     color: '#5F6B80',
   },
+  heroTagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 4,
+  },
+  heroTag: {
+    backgroundColor: 'rgba(255, 252, 247, 0.14)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  heroTagText: {
+    fontFamily: 'GeneralSans-Medium',
+    fontSize: 11,
+    lineHeight: 14,
+    color: '#FFFCF7',
+  },
+  metricSubLabel: {
+    fontFamily: 'GeneralSans-Regular',
+    fontSize: 11,
+    lineHeight: 14,
+    color: '#5F6B80',
+    marginTop: 2,
+  },
+  bulletList: {
+    gap: 10,
+  },
+  bulletRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  bulletDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#5F4DB2',
+    marginTop: 8,
+  },
+  bulletText: {
+    flex: 1,
+    fontFamily: 'GeneralSans-Regular',
+    fontSize: 14,
+    lineHeight: 21,
+    color: Colors.text.primary,
+  },
+  skillChipSecondary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: '#EFEBFA',
+    borderWidth: 1,
+    borderColor: 'rgba(95, 77, 178, 0.2)',
+  },
+  skillChipSecondaryText: {
+    fontFamily: 'GeneralSans-Medium',
+    fontSize: 13,
+    lineHeight: 16,
+    color: '#5F4DB2',
+  },
+  cardBlock: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: Colors.surface.border,
+    borderRadius: 16,
+    padding: 16,
+    gap: 12,
+  },
+  factRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  factLabel: {
+    fontFamily: 'GeneralSans-Medium',
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#5F6B80',
+  },
+  factValue: {
+    fontFamily: 'GeneralSans-Semibold',
+    fontSize: 13,
+    lineHeight: 18,
+    color: Colors.navy,
+  },
+  certRow: {
+    gap: 8,
+  },
+  certChip: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: Colors.surface.tint,
+    borderWidth: 1,
+    borderColor: Colors.surface.hairline,
+  },
+  certChipText: {
+    fontFamily: 'GeneralSans-Medium',
+    fontSize: 12,
+    lineHeight: 16,
+    color: Colors.navy,
+  },
+  benefitChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: '#E6F1EA',
+    borderWidth: 1,
+    borderColor: 'rgba(31, 107, 69, 0.2)',
+  },
+  benefitChipText: {
+    fontFamily: 'GeneralSans-Medium',
+    fontSize: 13,
+    lineHeight: 16,
+    color: '#1F6B45',
+  },
+  deadlineContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#EFEBFA',
+    borderWidth: 1,
+    borderColor: 'rgba(95, 77, 178, 0.2)',
+  },
+  deadlineText: {
+    fontFamily: 'GeneralSans-Medium',
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#5F4DB2',
+  },
+  deadlineBold: {
+    fontFamily: 'GeneralSans-Bold',
+    color: '#5F4DB2',
+  },
   bottomCtaContainer: {
     gap: 8,
     paddingTop: 8,
@@ -746,8 +1285,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#5F4DB2',
     borderRadius: 999,
     paddingVertical: 18,
+    paddingHorizontal: 24,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
   },
   applyBtnSubmitting: {
     opacity: 0.7,
@@ -757,6 +1299,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 20,
     color: '#FFFFFF',
+    textAlign: 'center',
   },
   appliedBtn: {
     flexDirection: 'row',

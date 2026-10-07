@@ -388,7 +388,8 @@ export function HomeScreen({
             </View>
 
             <View style={styles.featureGrid}>
-              {/* Feature 1: Attribute check */}
+              {/* Feature 1: Work preferences (commented out as requested) */}
+              {/*
               <Pressable
                 style={({ pressed }) => [
                   styles.featureCard,
@@ -415,6 +416,38 @@ export function HomeScreen({
                   </Text>
                 </View>
               </Pressable>
+              */}
+
+              {/* Feature 1: Certified Skill Courses (adjusted in place of work preferences) */}
+              <Pressable
+                style={({ pressed }) => [
+                  styles.featureCard,
+                  styles.courseCardBg,
+                  pressed && styles.cardPressed,
+                ]}
+                onPress={onCoursesPress}
+                accessibilityRole="button"
+                accessibilityLabel="Certified skill courses"
+              >
+                <View style={styles.featureImageContainer}>
+                  <Image
+                    source={require('../../assets/icons/card-course.png')}
+                    style={styles.featureImage}
+                  />
+                  <View style={styles.courseBadge}>
+                    <Sparkle size={9} color="#FFFFFF" weight="fill" />
+                    <Text style={styles.courseBadgeText}>+30 BOOST</Text>
+                  </View>
+                </View>
+                <View style={styles.featureInfo}>
+                  <Text style={styles.featureTitle} numberOfLines={1}>
+                    Skill courses
+                  </Text>
+                  <Text style={styles.featureMeta} numberOfLines={1}>
+                    Certified modules
+                  </Text>
+                </View>
+              </Pressable>
 
               {/* Feature 2: Mock interview */}
               <Pressable
@@ -435,13 +468,18 @@ export function HomeScreen({
                   </View>
                 </View>
                 <View style={styles.featureInfo}>
-                  <Text style={styles.featureTitle}>Mock interview</Text>
-                  <Text style={styles.featureMeta}>6 questions · 15 min</Text>
+                  <Text style={styles.featureTitle} numberOfLines={1}>
+                    Mock interview
+                  </Text>
+                  <Text style={styles.featureMeta} numberOfLines={1}>
+                    6 questions · 15 min
+                  </Text>
                 </View>
               </Pressable>
             </View>
 
-            {/* Feature 3: Skill Courses Promo Banner */}
+            {/* Feature 3: Skill Courses Promo Banner - commented out since skill courses are now adjusted in the featureGrid above */}
+            {/*
             <Pressable
               style={({ pressed }) => [
                 styles.coursePromoCard,
@@ -470,6 +508,7 @@ export function HomeScreen({
                 <CaretRight size={16} color="#5F4DB2" weight="bold" />
               </View>
             </Pressable>
+            */}
           </View>
 
           {/* "JOBS YOU QUALIFY FOR" Section */}
@@ -854,6 +893,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#DDD6F2',
     borderColor: '#CDC4EA',
   },
+  courseCardBg: {
+    backgroundColor: '#DDD6F2',
+    borderColor: '#CDC4EA',
+  },
   mockCardBg: {
     backgroundColor: '#CFD8ED',
     borderColor: '#BDC8E3',
@@ -885,6 +928,25 @@ const styles = StyleSheet.create({
     backgroundColor: '#5F4DB2',
   },
   freeBadgeText: {
+    fontFamily: 'GeneralSans-Bold',
+    fontSize: 10,
+    lineHeight: 12,
+    letterSpacing: 0.6,
+    color: '#FFFFFF',
+  },
+  courseBadge: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: Radii.pill,
+    backgroundColor: '#5F4DB2',
+  },
+  courseBadgeText: {
     fontFamily: 'GeneralSans-Bold',
     fontSize: 10,
     lineHeight: 12,

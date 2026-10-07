@@ -130,8 +130,8 @@ export function ForgotPasswordScreen({
       return;
     }
 
-    if (newPassword.length < 12) {
-      setErrorMsg('Password must be at least 12 characters long.');
+    if (newPassword.length < 8) {
+      setErrorMsg('Password must be at least 8 characters long.');
       return;
     }
     const hasUpper = /[A-Z]/.test(newPassword);
@@ -397,7 +397,7 @@ export function ForgotPasswordScreen({
                     <TextInput
                       ref={passwordRef}
                       style={styles.textInput}
-                      placeholder="At least 12 characters"
+                      placeholder="At least 8 characters"
                       placeholderTextColor={Colors.text.muted}
                       value={newPassword}
                       onChangeText={(text) => {
@@ -426,7 +426,7 @@ export function ForgotPasswordScreen({
                     </Pressable>
                   </Pressable>
                   <Text style={styles.inputHint}>
-                    Must be at least 12 characters with uppercase, lowercase, number & symbol.
+                    Must be at least 8 characters with uppercase, lowercase, number & symbol.
                   </Text>
                 </View>
 
@@ -481,11 +481,11 @@ export function ForgotPasswordScreen({
                 <Pressable
                   style={({ pressed }) => [
                     styles.primaryButton,
-                    (code.length < 6 || newPassword.length < 12 || isLoading) && styles.primaryButtonDisabled,
-                    pressed && code.length === 6 && newPassword.length >= 12 && !isLoading && styles.buttonPressed,
+                    (code.length < 6 || newPassword.length < 8 || isLoading) && styles.primaryButtonDisabled,
+                    pressed && code.length === 6 && newPassword.length >= 8 && !isLoading && styles.buttonPressed,
                   ]}
                   onPress={handleResetPassword}
-                  disabled={code.length < 6 || newPassword.length < 12 || isLoading}
+                  disabled={code.length < 6 || newPassword.length < 8 || isLoading}
                   accessibilityRole="button"
                 >
                   {isLoading ? (

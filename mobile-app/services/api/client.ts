@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import { fetch as expoFetch } from 'expo/fetch';
 
 export interface ProblemDetails {
   type: string;
@@ -119,7 +120,13 @@ export async function apiRequest<T>(
   let response: Response;
   try {
     console.log(`[API Request] ${options.method || 'GET'} ${url}`);
-    response = await fetch(url, fetchOptions);
+    response =
+      Platform.OS !== 'web' && options.body instanceof FormData
+        ? ((await expoFetch(
+            url,
+            fetchOptions as unknown as Parameters<typeof expoFetch>[1],
+          )) as unknown as Response)
+        : await fetch(url, fetchOptions);
   } catch (netErr: any) {
     console.error(`[API Network Error] ${options.method || 'GET'} ${url}:`, netErr);
     throw new ApiError({
@@ -137,8 +144,23 @@ export async function apiRequest<T>(
   const data = isJson ? await response.json() : await response.text();
 
   if (!response.ok) {
-    if (isJson && data && typeof data === 'object' && (data.code || data.title)) {
-      throw new ApiError(data as ProblemDetails);
+    console.warn(`[API Error ${response.status}] ${options.method || 'GET'} ${url}:`, JSON.stringify(data));
+    if (isJson && data && typeof data === 'object') {
+      const detailMsg = Array.isArray(data.detail)
+        ? data.detail.map((d: any) => `${d.loc ? d.loc.filter((p: any) => p !== 'body').join('.') : 'field'}: ${d.msg}`).join(', ')
+        : typeof data.detail === 'string'
+        ? data.detail
+        : undefined;
+
+      if (data.code || data.title || detailMsg) {
+        throw new ApiError({
+          type: data.type || 'https://bharatpath.example/problems/http_error',
+          title: data.title || detailMsg || `Server returned status ${response.status}`,
+          status: response.status,
+          code: data.code || `http_${response.status}`,
+          params: data.params || { detail: data.detail },
+        });
+      }
     }
 
     throw new ApiError({

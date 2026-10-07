@@ -55,19 +55,104 @@ export interface BoardJobSummary {
   salary_min_minor: number;
   /** Maximum monthly salary, integer paise. Always present (NOT NULL in DB). */
   salary_max_minor: number;
+  /** False when the employer chose not to show the range (PRD 5.2). */
+  salary_disclosed?: boolean;
   /** When the job was published (ISO 8601). */
   published_at: string;
   /** Eligibility of the signed-in candidate for this job. */
   eligibility: EligibilityStatus;
 }
 
+export interface CandidateJobBasics {
+  job_type?: string;
+  employment_type?: string;
+  department?: string;
+  category?: string;
+  industry?: string;
+  openings?: number | null;
+}
+
+export interface CandidateJobLocation {
+  additional_locations?: string[];
+  relocation_assistance?: boolean;
+}
+
+export interface CandidateJobCompensation {
+  experience_max_months?: number | null;
+  period?: string;
+  salary_type?: string;
+  disclosed?: boolean;
+  negotiable?: boolean;
+}
+
+export interface CandidateJobContent {
+  responsibilities?: string[];
+  required_qualifications?: string[];
+  preferred_qualifications?: string[];
+  nice_to_have_skills?: string[];
+  benefits?: string[];
+}
+
+export interface CandidateSkillExperience {
+  skill: string;
+  years: number;
+}
+
+export interface CandidateJobSkills {
+  preferred?: string[];
+  tools?: string[];
+  primary?: string;
+  experience?: CandidateSkillExperience[];
+}
+
+export interface CandidateJobEducation {
+  minimum?: string;
+  ug_qualification?: string;
+  ug_specialization?: string;
+  pg_qualification?: string;
+  pg_specialization?: string;
+  certifications?: string[];
+}
+
+export interface CandidateJobRequirements {
+  languages?: string[];
+  notice_period?: string;
+  work_authorization?: string;
+  relocation?: string;
+}
+
+export interface CandidateJobApplication {
+  deadline?: string | null;
+  method?: 'BHARATPATH' | 'EXTERNAL';
+  email?: string;
+  external_url?: string;
+  resume_required?: boolean;
+  cover_letter_required?: boolean;
+  portfolio_required?: boolean;
+}
+
+export interface CandidateJobDetails {
+  basics?: CandidateJobBasics;
+  location?: CandidateJobLocation;
+  compensation?: CandidateJobCompensation;
+  content?: CandidateJobContent;
+  skills?: CandidateJobSkills;
+  education?: CandidateJobEducation;
+  requirements?: CandidateJobRequirements;
+  application?: CandidateJobApplication;
+}
+
 /**
  * A single job's detail (`BoardJobDetail`). Extends the summary with the
- * full description.
+ * full description and projection details.
  */
 export interface BoardJobDetail extends BoardJobSummary {
   /** Full job description (20–20,000 chars on the backend). */
   description: string;
+  /** Extended details projection when provided by backend. */
+  details?: CandidateJobDetails;
+  /** True when the candidate can apply externally via company site / email. */
+  can_apply_externally?: boolean;
 }
 
 /**

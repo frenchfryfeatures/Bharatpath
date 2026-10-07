@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
 import type { UploadedFileMeta } from '@/screens/onboarding/ResumeIntakeScreen';
 import { previewSignupResume, type CareerDetails } from '@/services/api/career';
@@ -12,8 +12,10 @@ import {
   ScrollView,
   TextInput,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   ActivityIndicator,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -91,10 +93,58 @@ export function SignUpScreen({
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
   const confirmPasswordRef = useRef<TextInput>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const fieldOffsets = useRef<Record<string, number>>({});
+  const formYRef = useRef<number>(0);
+  const activeFieldKey = useRef<string | null>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        const height = e.endCoordinates?.height || 280;
+        setKeyboardHeight(height);
+        if (activeFieldKey.current) {
+          scrollToField(activeFieldKey.current, activeFieldKey.current !== 'referralCode');
+        }
+      },
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+        activeFieldKey.current = null;
+      },
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const onFieldLayout = (key: string, event: LayoutChangeEvent) => {
+    fieldOffsets.current[key] = event.nativeEvent.layout.y;
+  };
+
+  const scrollToField = (key: string, isInsideForm = true) => {
+    activeFieldKey.current = key;
+    const performScroll = () => {
+      const localY = fieldOffsets.current[key];
+      if (localY !== undefined && scrollRef.current) {
+        const totalY = isInsideForm ? formYRef.current + localY : localY;
+        scrollRef.current.scrollTo({ y: Math.max(0, totalY - 70), animated: true });
+      }
+    };
+    performScroll();
+    setTimeout(performScroll, 80);
+    setTimeout(performScroll, 200);
+    setTimeout(performScroll, 350);
+  };
 
   // Validation rules according to backend invariants:
   // - full_name: 1-100 chars, letters, spaces, . ' - only, no digits or @
-  // - candidate pool: 12 characters, uppercase, lowercase and a number
+  // - candidate pool: 8 characters, uppercase, lowercase and a number
   const validate = (): boolean => {
     setErrorMsg(null);
     if (readingResume) return false;
@@ -135,8 +185,8 @@ export function SignUpScreen({
       return false;
     }
 
-    if (password.length < 12) {
-      setErrorMsg('Password must be at least 12 characters long.');
+    if (password.length < 8) {
+      setErrorMsg('Password must be at least 8 characters long.');
       return false;
     }
     const hasUpper = /[A-Z]/.test(password);
@@ -259,8 +309,8 @@ export function SignUpScreen({
   const isFormFilled =
     fullName.trim().length > 0 &&
     email.trim().length > 0 &&
-    password.length >= 12 &&
-    confirmPassword.length >= 12;
+    password.length >= 8 &&
+    confirmPassword.length >= 8;
 
   return (
     <View style={styles.root}>
@@ -289,9 +339,17 @@ export function SignUpScreen({
           </View>
 
           <ScrollView
-            contentContainerStyle={styles.scrollContent}
+            ref={scrollRef}
+            contentContainerStyle={[
+              styles.scrollContent,
+              {
+                paddingBottom:
+                  keyboardHeight > 0 ? keyboardHeight + 120 : Spacing.xxl,
+              },
+            ]}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
           >
             {/* Header / Intro */}
             <View style={styles.headerSection}>
@@ -349,7 +407,7 @@ export function SignUpScreen({
                         return;
                       }
                       setResumeName(asset.name);
-                      onResumeSelected({
+                      onResumeSelected?.({
                         fileName: asset.name,
                         fileUri: asset.uri,
                         fileSizeBytes: asset.size,
@@ -358,33 +416,33 @@ export function SignUpScreen({
                           : '',
                         mimeType: asset.mimeType,
                       });
+                      setErrorMsg(null);
                       setReadingResume(true);
-                      const facts = await previewSignupResume({
-                        fileName: asset.name,
-                        fileUri: asset.uri,
-                        mimeType: asset.mimeType,
-                        fileSize: '',
-                      });
-                      setResumeDetails(facts.details);
-                      if (facts.full_name)
-                        setFullName((current) => current || facts.full_name);
-                      if (facts.email)
-                        setEmail((current) => current || facts.email);
-                      if (facts.details.phone)
-                        setPhone(
-                          (current) => current || String(facts.details.phone),
-                        );
-                      if (facts.details.work_status)
-                        setWorkStatus(
-                          (current) =>
-                            current || String(facts.details.work_status),
-                        );
-                    } catch {
-                      setErrorMsg(
-                        'Your resume could not be read. Try again or enter your details.',
-                      );
-                    } finally {
-                      setReadingResume(false);
+                      try {
+                        const facts = await previewSignupResume({
+                          fileName: asset.name,
+                          fileUri: asset.uri,
+                          mimeType: asset.mimeType,
+                          fileSize: '',
+                        });
+                        setResumeDetails(facts.details);
+                        if (facts.full_name?.trim())
+                          setFullName((current) => current || facts.full_name.trim());
+                        if (facts.email?.trim())
+                          setEmail((current) => current || facts.email.trim());
+                        if (facts.details?.phone)
+                          setPhone((current) => current || String(facts.details.phone).trim());
+                        if (facts.details?.work_status)
+                          setWorkStatus(
+                            (current) => current || String(facts.details.work_status).trim(),
+                          );
+                      } catch (err) {
+                        console.warn('Transient resume preview skipped or unavailable:', err);
+                      } finally {
+                        setReadingResume(false);
+                      }
+                    } catch (pickerErr) {
+                      console.warn('Document picker error:', pickerErr);
                     }
                   }}
                 >
@@ -420,9 +478,17 @@ export function SignUpScreen({
             ) : null}
 
             {/* Form Fields */}
-            <View style={styles.form}>
+            <View
+              style={styles.form}
+              onLayout={(e) => {
+                formYRef.current = e.nativeEvent.layout.y;
+              }}
+            >
               {/* Full Name */}
-              <View style={styles.inputGroup}>
+              <View
+                style={styles.inputGroup}
+                onLayout={(e) => onFieldLayout('fullName', e)}
+              >
                 <Text style={styles.inputLabel}>Full Name</Text>
                 <View
                   style={[
@@ -448,8 +514,15 @@ export function SignUpScreen({
                       setFullName(text);
                       if (errorMsg) setErrorMsg(null);
                     }}
-                    onFocus={() => setFocusedField('fullName')}
-                    onBlur={() => setFocusedField(null)}
+                    onFocus={() => {
+                      setFocusedField('fullName');
+                      scrollToField('fullName');
+                    }}
+                    onBlur={() => {
+                      setFocusedField(null);
+                      if (activeFieldKey.current === 'fullName')
+                        activeFieldKey.current = null;
+                    }}
                     autoCapitalize="words"
                     autoCorrect={false}
                     maxLength={100}
@@ -467,7 +540,10 @@ export function SignUpScreen({
               </View>
 
               {/* Email Address */}
-              <View style={styles.inputGroup}>
+              <View
+                style={styles.inputGroup}
+                onLayout={(e) => onFieldLayout('email', e)}
+              >
                 <Text style={styles.inputLabel}>Email Address</Text>
                 <View
                   style={[
@@ -493,8 +569,15 @@ export function SignUpScreen({
                       setEmail(text);
                       if (errorMsg) setErrorMsg(null);
                     }}
-                    onFocus={() => setFocusedField('email')}
-                    onBlur={() => setFocusedField(null)}
+                    onFocus={() => {
+                      setFocusedField('email');
+                      scrollToField('email');
+                    }}
+                    onBlur={() => {
+                      setFocusedField(null);
+                      if (activeFieldKey.current === 'email')
+                        activeFieldKey.current = null;
+                    }}
                     keyboardType="email-address"
                     autoCapitalize="none"
                     autoCorrect={false}
@@ -511,11 +594,23 @@ export function SignUpScreen({
                 </Text>
               </View>
 
-              <View style={{ marginBottom: 24, gap: 12 }}>
+              <View
+                style={{ marginBottom: 24, gap: 12 }}
+                onLayout={(e) => onFieldLayout('phone', e)}
+              >
                 <Text style={styles.inputLabel}>Mobile number *</Text>
                 <TextInput
                   value={phone}
                   onChangeText={setPhone}
+                  onFocus={() => {
+                    setFocusedField('phone');
+                    scrollToField('phone');
+                  }}
+                  onBlur={() => {
+                    setFocusedField(null);
+                    if (activeFieldKey.current === 'phone')
+                      activeFieldKey.current = null;
+                  }}
                   keyboardType="phone-pad"
                   placeholder="+919876543210"
                   accessibilityLabel="Mobile number"
@@ -561,7 +656,10 @@ export function SignUpScreen({
                 </View>
               </View>
               {/* Password */}
-              <View style={styles.inputGroup}>
+              <View
+                style={styles.inputGroup}
+                onLayout={(e) => onFieldLayout('password', e)}
+              >
                 <Text style={styles.inputLabel}>Password</Text>
                 <View
                   style={[
@@ -580,15 +678,22 @@ export function SignUpScreen({
                   <TextInput
                     ref={passwordRef}
                     style={styles.textInput}
-                    placeholder="At least 12 characters"
+                    placeholder="At least 8 characters"
                     placeholderTextColor={Colors.text.muted}
                     value={password}
                     onChangeText={(text) => {
                       setPassword(text);
                       if (errorMsg) setErrorMsg(null);
                     }}
-                    onFocus={() => setFocusedField('password')}
-                    onBlur={() => setFocusedField(null)}
+                    onFocus={() => {
+                      setFocusedField('password');
+                      scrollToField('password');
+                    }}
+                    onBlur={() => {
+                      setFocusedField(null);
+                      if (activeFieldKey.current === 'password')
+                        activeFieldKey.current = null;
+                    }}
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
                     autoCorrect={false}
@@ -625,14 +730,17 @@ export function SignUpScreen({
                   </View>
                 ) : (
                   <Text style={styles.inputHint}>
-                    Must be at least 12 characters with uppercase, lowercase,
+                    Must be at least 8 characters with uppercase, lowercase,
                     and a number. Symbols are optional.
                   </Text>
                 )}
               </View>
 
               {/* Confirm Password */}
-              <View style={styles.inputGroup}>
+              <View
+                style={styles.inputGroup}
+                onLayout={(e) => onFieldLayout('confirmPassword', e)}
+              >
                 <Text style={styles.inputLabel}>Confirm Password</Text>
                 <View
                   style={[
@@ -659,8 +767,15 @@ export function SignUpScreen({
                       setConfirmPassword(text);
                       if (errorMsg) setErrorMsg(null);
                     }}
-                    onFocus={() => setFocusedField('confirmPassword')}
-                    onBlur={() => setFocusedField(null)}
+                    onFocus={() => {
+                      setFocusedField('confirmPassword');
+                      scrollToField('confirmPassword');
+                    }}
+                    onBlur={() => {
+                      setFocusedField(null);
+                      if (activeFieldKey.current === 'confirmPassword')
+                        activeFieldKey.current = null;
+                    }}
                     secureTextEntry={!showConfirmPassword}
                     autoCapitalize="none"
                     autoCorrect={false}
@@ -696,10 +811,32 @@ export function SignUpScreen({
             </View>
 
             {/* Submit Button */}
-            <View style={[styles.inputGroup, { marginBottom: 24 }]}>
+            <View
+              style={[styles.inputGroup, { marginBottom: 24 }]}
+              onLayout={(e) => onFieldLayout('referralCode', e)}
+            >
               <Text style={styles.inputLabel}>College referral code (optional)</Text>
               <View style={styles.inputWrapper}>
-                <TextInput style={styles.textInput} accessibilityLabel="College referral code" value={referralCode} onChangeText={setReferralCode} maxLength={32} autoCapitalize="characters" autoCorrect={false} placeholder="Enter your college code" editable={!isLoading} />
+                <TextInput
+                  style={styles.textInput}
+                  accessibilityLabel="College referral code"
+                  value={referralCode}
+                  onChangeText={setReferralCode}
+                  maxLength={32}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  placeholder="Enter your college code"
+                  editable={!isLoading}
+                  onFocus={() => {
+                    setFocusedField('referralCode');
+                    scrollToField('referralCode', false);
+                  }}
+                  onBlur={() => {
+                    setFocusedField(null);
+                    if (activeFieldKey.current === 'referralCode')
+                      activeFieldKey.current = null;
+                  }}
+                />
               </View>
               <Text style={styles.inputHint}>This is separate from a payment discount code. You choose whether to link after verifying your email.</Text>
             </View>
