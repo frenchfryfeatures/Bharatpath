@@ -1,11 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { ArrowRight, Briefcase, ChevronRight, Rocket } from "lucide-react";
+import { ArrowRight, BookOpen, Briefcase, ChevronRight, Mic2 } from "lucide-react";
 
 import {
   useGetInterviewOfferQuery,
-  useGetQuestionnaireQuery,
+  useGetStudentCoursesQuery,
   useGetStudentJobsQuery,
   useGetStudentProfileQuery,
   useGetStudentScoreQuery,
@@ -32,25 +32,46 @@ export function StudentHome() {
   const score = useGetStudentScoreQuery();
   const scale = useGetStudentScoreScaleQuery();
   const jobs = useGetStudentJobsQuery({ eligibleOnly: true, limit: 3 });
-  const questionnaire = useGetQuestionnaireQuery();
   const interview = useGetInterviewOfferQuery();
+  const courses = useGetStudentCoursesQuery();
 
   const jobsError = jobs.error
     ? getApiErrorMessage(jobs.error, "Could not load jobs.")
     : null;
-  const questionCount =
-    questionnaire.data?.sections.reduce(
-      (total, section) => total + section.questions.length,
-      0,
-    ) ?? 0;
+
   const interviewPrice =
     !interview.data?.onSale || interview.data.priceMinor == null
-      ? "Unavailable"
+      ? "₹349"
       : new Intl.NumberFormat("en-IN", {
           style: "currency",
           currency: interview.data.currency || "INR",
           maximumFractionDigits: 0,
         }).format(interview.data.priceMinor / 100);
+
+  const interviewSubtitle = interview.data?.openSessionId
+    ? "Continue your session"
+    : (interview.data?.sessionsAvailable ?? 0) > 0
+      ? `${interview.data?.sessionsAvailable} sessions available`
+      : "1-on-1 AI practice";
+
+  const firstCourse = courses.data?.[0];
+  const coursesPrice =
+    firstCourse?.priceMinor != null
+      ? new Intl.NumberFormat("en-IN", {
+          style: "currency",
+          currency: firstCourse.currency || "INR",
+          maximumFractionDigits: 0,
+        }).format(firstCourse.priceMinor / 100)
+      : "₹499";
+
+  const purchasedCourses =
+    courses.data?.filter((c) => c.purchased || c.completed).length ?? 0;
+  const coursesSubtitle =
+    purchasedCourses > 0
+      ? `${purchasedCourses} enrolled`
+      : (courses.data?.length ?? 0) > 0
+        ? `${courses.data?.length} available`
+        : "Improve your score";
 
   return (
     <StudentPage>
@@ -79,7 +100,7 @@ export function StudentHome() {
             <button
               type="button"
               onClick={() => router.push("/student/score")}
-              className="relative flex min-h-48 flex-col justify-between gap-4 overflow-hidden rounded-[24px] bg-[#5F4DB2] p-5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:bg-[#5646A6] hover:shadow-[0_14px_30px_rgba(95,77,178,0.28)] active:translate-y-0 active:scale-[.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/40 focus-visible:ring-offset-2 sm:p-6"
+              className="relative flex h-full min-h-48 flex-col justify-between gap-4 overflow-hidden rounded-[24px] bg-[#5F4DB2] p-5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:bg-[#5646A6] hover:shadow-[0_14px_30px_rgba(95,77,178,0.28)] active:translate-y-0 active:scale-[.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/40 focus-visible:ring-offset-2 sm:p-6"
             >
               <span className="flex items-center justify-between gap-3">
                 <span className="text-[11px] font-bold uppercase leading-3 tracking-[0.14em] text-[#E0DBF4]">
@@ -132,40 +153,29 @@ export function StudentHome() {
             </button>
           )}
           <StudentStreakCard />
-          <div className="flex flex-col gap-3">
-            <SectionEyebrow icon={<Rocket size={12} />}>Go further</SectionEyebrow>
-            <div className="grid grid-cols-2 gap-3 xl:grid-cols-1">
-              {questionnaire.isLoading ? (
-                <AddOnCardSkeleton label="Loading attribute check" />
-              ) : (
-                <AddOnButton
-                  title="Attribute check"
-                  subtitle={
-                    questionnaire.data?.submitted
-                      ? "Report ready"
-                      : questionCount
-                        ? `${questionCount} questions`
-                        : "Work-style questionnaire"
-                  }
-                  badge="Included"
-                  onClick={() => router.push("/student/attribute")}
-                />
-              )}
-              {interview.isLoading ? (
-                <AddOnCardSkeleton label="Loading mock interview" />
-              ) : (
-                <AddOnButton
-                  title="Mock interview"
-                  subtitle={
-                    interview.data?.openSessionId
-                      ? "Continue your session"
-                      : `${interview.data?.sessionsAvailable ?? 0} sessions available`
-                  }
-                  badge={interviewPrice}
-                  onClick={() => router.push("/student/interview")}
-                />
-              )}
-            </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1 xl:grid-rows-2 h-full">
+            {interview.isLoading ? (
+              <AddOnCardSkeleton label="Loading mock interview" />
+            ) : (
+              <AddOnButton
+                title="Mock interview"
+                subtitle={interviewSubtitle}
+                badge={interviewPrice}
+                icon={<Mic2 size={16} />}
+                onClick={() => router.push("/student/interview")}
+              />
+            )}
+            {courses.isLoading ? (
+              <AddOnCardSkeleton label="Loading skill courses" />
+            ) : (
+              <AddOnButton
+                title="Skill courses"
+                subtitle={coursesSubtitle}
+                badge={coursesPrice}
+                icon={<BookOpen size={16} />}
+                onClick={() => router.push("/student/courses")}
+              />
+            )}
           </div>
         </div>
 
@@ -222,7 +232,7 @@ function ScoreCardSkeleton() {
     <div
       role="status"
       aria-busy="true"
-      className="flex min-h-48 flex-col justify-between gap-4 rounded-[24px] bg-[#5F4DB2] p-5 sm:p-6"
+      className="flex h-full min-h-48 flex-col justify-between gap-4 rounded-[24px] bg-[#5F4DB2] p-5 sm:p-6"
     >
       <span className="sr-only">Loading score</span>
       <div className="flex items-center justify-between">
@@ -247,7 +257,7 @@ function AddOnCardSkeleton({ label }: { label: string }) {
     <div
       role="status"
       aria-busy="true"
-      className="flex min-h-[118px] flex-col justify-between gap-3 rounded-[20px] border border-[#CDC4EA] bg-[#DDD6F2] p-3"
+      className="flex h-full min-h-[96px] flex-col justify-between gap-3 rounded-[20px] border border-[#CDC4EA] bg-[#DDD6F2] p-4"
     >
       <span className="sr-only">{label}</span>
       <div className="flex items-start justify-between">
@@ -271,22 +281,24 @@ function AddOnButton({
   title,
   subtitle,
   badge,
+  icon,
   onClick,
 }: {
   title: string;
   subtitle: string;
   badge: string;
+  icon: React.ReactNode;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex flex-col gap-3 overflow-hidden rounded-[20px] border border-[#CDC4EA] bg-[#DDD6F2] p-3 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-[#B7AAE0] hover:bg-[#D4CBEE] hover:shadow-[0_10px_24px_rgba(74,62,143,0.14)] active:translate-y-0 active:scale-[.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30"
+      className="flex h-full flex-col justify-between gap-3 overflow-hidden rounded-[20px] border border-[#CDC4EA] bg-[#DDD6F2] p-4 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-[#B7AAE0] hover:bg-[#D4CBEE] hover:shadow-[0_10px_24px_rgba(74,62,143,0.14)] active:translate-y-0 active:scale-[.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30"
     >
       <span className="flex items-start justify-between">
         <span className="grid h-9 w-9 place-items-center rounded-xl bg-white/70 text-[#4A3E8F]">
-          <Rocket size={16} />
+          {icon}
         </span>
         <CommerceBadge>{badge}</CommerceBadge>
       </span>

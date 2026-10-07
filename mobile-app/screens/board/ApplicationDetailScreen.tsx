@@ -51,7 +51,7 @@ import {
   Sparkle,
   Warning,
 } from 'phosphor-react-native';
-import { Colors, Spacing } from '@/theme/tokens';
+import { Colors, Layout, Spacing } from '@/theme/tokens';
 import {
   getMyApplication,
   withdrawApplication,
@@ -742,6 +742,9 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xxl,
     gap: 16,
     flexGrow: 1,
+    maxWidth: Layout.maxContentWidth,
+    width: '100%',
+    alignSelf: 'center',
   },
   topBar: {
     flexDirection: 'row',
@@ -806,6 +809,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E7E0D4',
+    borderRadius: 20,
+    padding: 16,
   },
   companyBadge: {
     width: 48,

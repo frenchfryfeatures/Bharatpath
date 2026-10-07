@@ -14,6 +14,7 @@ Two constraints that are business rules expressed as database rules:
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import (
     CheckConstraint,
@@ -54,6 +55,14 @@ class Job(Base, UUIDPrimaryKey, TenantScoped, Timestamps):
     # A threshold below the base is meaningless - every candidate has at least
     # 700 - so the range is constrained to the live part of the scale.
     min_score: Mapped[int | None] = mapped_column(Integer)
+
+    #: The rest of the posting -- openings, responsibilities, education,
+    #: interview rounds, screening questions -- as one document validated by
+    #: `jobs.details.JobDetails`. Read whole and shown whole; nothing searches
+    #: inside it except the board's `settings.visibility` predicate.
+    details: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, default=dict, server_default=text("'{}'::jsonb"), nullable=False
+    )
 
     status: Mapped[str] = mapped_column(String(16), default="DRAFT", nullable=False)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { OnboardingBackButton } from "@/components/common/onboarding-back-button";
+import { StudentBackButton } from "@/features/student/components/student-back-button";
 import {
   ArrowRight,
   BriefcaseBusiness,
@@ -184,7 +184,7 @@ export function IntakeStep({ onFile, onPaste, onForm, onBack, error }: Readonly<
 
       <div className="mt-2 flex flex-col gap-3">
         {onBack && (
-          <OnboardingBackButton onClick={onBack} />
+          <StudentBackButton onClick={onBack} />
         )}      </div>
     </div>
   );
@@ -289,7 +289,7 @@ export function PasteStep({
 
       <footer className="sticky bottom-0 z-20 border-t border-[#E7E0D4] bg-[#FFFCF7]/95 py-3 backdrop-blur">
         <div className="flex gap-3">
-          <OnboardingBackButton onClick={onBack} />
+          <StudentBackButton onClick={onBack} />
           <PillButton type="submit" form="paste-resume-form" isLoading={isLoading} disabled={characterCount < MIN_PASTE_CHARS} className="flex-1 rounded-[16px] py-3.5">Continue &amp; Parse</PillButton>
         </div>
       </footer>
@@ -703,7 +703,7 @@ export function ManualStep({
     </form>
       <footer className="sticky bottom-0 z-20 border-t border-[#E7E0D4] bg-[#FFFCF7]/95 py-3 backdrop-blur">
         <div className="flex gap-3">
-          <OnboardingBackButton onClick={onBack} />
+          <StudentBackButton onClick={onBack} />
           <PillButton type="submit" form="manual-resume-form" isLoading={saving} className="flex-1 rounded-[16px] py-3.5">{editOf ? "Save changes" : "Save & Review"}</PillButton>
         </div>
       </footer>

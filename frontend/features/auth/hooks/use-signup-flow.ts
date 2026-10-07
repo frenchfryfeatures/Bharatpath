@@ -12,9 +12,14 @@ type Pool = "CANDIDATE" | "BUSINESS";
 export type SignupPhase = "DETAILS" | "CONFIRM" | "TOTP_SETUP";
 
 export const MIN_PASSWORD_LENGTH = 12;
+export const MIN_CANDIDATE_PASSWORD_LENGTH = 8;
+
+export function minPasswordLength(pool: Pool = "BUSINESS"): number {
+  return pool === "CANDIDATE" ? MIN_CANDIDATE_PASSWORD_LENGTH : MIN_PASSWORD_LENGTH;
+}
 
 export function passwordError(password: string, pool: Pool = "BUSINESS"): string | undefined {
-  const minimumLength = MIN_PASSWORD_LENGTH;
+  const minimumLength = minPasswordLength(pool);
   if (password.length < minimumLength) {
     return `Use at least ${minimumLength} characters.`;
   }

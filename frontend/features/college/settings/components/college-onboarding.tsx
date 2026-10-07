@@ -11,6 +11,7 @@ import type {
   OnboardingOption,
 } from "@/store/college/types";
 
+import { renderFieldLabel } from "@/features/employer/onboarding/components/kyb-field";
 import { useCollegeOnboarding } from "../hooks/use-onboarding";
 
 const inputClass =
@@ -104,8 +105,7 @@ function Field({
         />
         <span className="flex flex-col gap-1">
           <span className="text-[13px] font-medium leading-[17px] text-[#131A26]">
-            {field.label}
-            {field.required && <span className="text-[#e02424]"> *</span>}
+            {renderFieldLabel(field.label, field.required, { asteriskColor: "text-[#e02424]" })}
           </span>
           {field.help_text && (
             <span className="text-[12px] font-normal leading-[16px] text-[#64748b]">
@@ -129,8 +129,7 @@ function Field({
   return (
     <Wrapper className="flex flex-col gap-2">
       <span className="text-[13px] font-semibold leading-[17px] text-[#131A26]">
-        {field.label}
-        {field.required && <span className="text-[#e02424]"> *</span>}
+        {renderFieldLabel(field.label, field.required, { asteriskColor: "text-[#e02424]" })}
       </span>
 
       {field.type === "TEXTAREA" ? (

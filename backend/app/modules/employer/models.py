@@ -14,7 +14,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -38,6 +38,16 @@ class Employer(Base, Timestamps):
     # lists and they will change.
     employer_type: Mapped[str | None] = mapped_column(String(64))
     industry: Mapped[str | None] = mapped_column(String(64))
+
+    # The organisation's own profile (2026-10-06). The KYB form asks the same
+    # four questions at onboarding; these are what the organisation keeps
+    # editing afterwards, without reopening verification. Statutory details
+    # (PAN, GSTIN, address, signatory) stay in the KYB submission, because a
+    # reviewer approved those values.
+    trade_name: Mapped[str | None] = mapped_column(String(255))
+    employee_count_band: Mapped[str | None] = mapped_column(String(16))
+    website: Mapped[str | None] = mapped_column(String(255))
+    about: Mapped[str | None] = mapped_column(Text)
 
     # Invariant 8 hangs off this column. `kyb.require_approval` defaults to
     # off (client, 2026-08-27), which moves a submission straight to APPROVED

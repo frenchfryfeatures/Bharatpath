@@ -9,6 +9,81 @@ states. Newest entries first.
 
 ---
 
+## 2026-10-06 — company settings save to the server (PR #56)
+
+From the backend review of PR #56. The new company tab saved trade name,
+website, about, headcount **and PAN/GSTIN/CIN/TAN** to `localStorage` under
+keys shared by every account on the browser, sent only `industry` to the API
+(errors swallowed, "saved" shown regardless), "locked" identifiers in the
+browser only, and drew all three KYB undertakings as accepted whatever was
+stored.
+
+- **Backend:** `employers` gains `trade_name`, `employee_count_band`,
+  `website` (https only, like a job's external URL) and `about` (1,000
+  chars); `PATCH /employer/organisation` edits them, blank or null clears.
+  Migration `0013_employer_profile` (idempotent, after `0012_job_details`, so
+  **PR #54 merges first**). `EMPLOYEE_COUNT_BANDS` moved to
+  `app.core.reference`.
+- **Frontend:** the four fields load from the organisation (from the KYB
+  answers until the profile is first saved) and save through the PATCH,
+  changed fields only; a failure is shown and nothing claims success.
+  Statutory details are read-only from KYB with a link back to verification
+  while it is still editable. The undertakings show what was ticked. The
+  correspondence address is dropped (decision: nowhere to keep it). The old
+  `localStorage` keys are removed on load.
+- `resume-showcase.tsx` read the clock during render (a lint error the PR
+  added); it now reads it once at mount.
+
+---
+
+## 2026-10-06 — review fixes on the job posting (PR #54)
+
+From the backend review of PR #54. Decisions by the backend lead.
+
+- **The external apply route is withheld from anyone `apply` would refuse.**
+  The student page drew "Apply on company site" with no eligibility check
+  and the API sent `external_url` to every candidate, so an EXTERNAL job with
+  `min_score` took anyone and a HIGH integrity signal stopped nothing. Now
+  `for_candidate(..., may_apply=)` drops the link and the email unless the
+  candidate is ELIGIBLE and visible; `BoardJobDetail.can_apply_externally`
+  tells the client. The method/URL validator moved to the employer's
+  `Application` so the candidate's copy may hold EXTERNAL without its link.
+- **Screening questions may not ask about age or gender** -- English,
+  romanised Hindi and Devanagari, question and options. Deliberately narrow
+  ("man-hours" and "stage" pass) so it refuses the person, never the work.
+- **Salary "not disclosed" stays display-only** (option a). The range is still
+  sent, as PRD 5.2 requires; the composer now says so. Hiding it from the API
+  is the client's call and would make the salary fields nullable for mobile.
+- **"Invite only" relabelled "Unlisted (link or invitation)"**: nothing
+  enforces an invitation. Referrals, applicant access and scheduled
+  publication are hidden from the composer and the job view; their stored
+  values round-trip untouched.
+
+## 2026-10-06 — the frontend builds again (7 type errors)
+
+`cd frontend && npm run build` failed on the branch `Rishabh/CreateJobUpdate`.
+`tsc --noEmit` named exactly seven errors, both from commits that touched one
+side of a shared component and not the other.
+
+- **`store/shortlist/shortlist.api.ts`** typed `EmployerInvitation.candidate`
+  as `{ full_name, city, band }` while the invitation drawer read
+  `state_code`, `experience_years` and `skills` too. The block is the
+  backend's `ApplicantCard`, which returns all of those plus `badges`, so the
+  type was stale rather than the UI wrong. It now mirrors `ApplicantCard`
+  exactly (`ShortlistedCandidate`, reusing `CandidateBand`/`CandidateBadge`).
+  **No contact and no score** — widening it to `ApplicantProfile` would put a
+  reveal's fields on a list row.
+- **`ParsingStep` gained a required `onCancel`** (commit `9f6a4c1`, "Update the
+  student flow") with the button *Cancel and return to previous resume*.
+  `resume-details.tsx` was wired; the sign-up flow was not, so its call site
+  failed. The prop is now optional and the button renders only when a caller
+  passes one: sign-up has no previous resume, so the label would be a lie
+  there.
+- Both `tsc --noEmit` and `npm run build` exit 0 afterwards. The four
+  remaining `npm run lint` errors are pre-existing, in files not touched.
+
+---
+
 ## 2026-10-06 — the resume prefill no longer fails on one bad field
 
 `POST /auth/resume-preview` answered 503 `resume_prefill_unavailable` for some
@@ -60,6 +135,41 @@ that already shows the whole CV, and nowhere else.
   already did.
 - Tests: `test_resume_structured_view.py` (shared, admin, `shared_fields`),
   `test_college_student_details.py` (READY and UNAVAILABLE on `/resume`).
+
+---
+
+## 2026-10-06 — the full job posting, and one job page for every portal
+
+Branch `Rishabh/CreateJobUpdate`. The client asked for a Naukri-style job page
+and a twelve-section job composer.
+
+- **`jobs.details`** (migration `0012_job_details`, JSONB, `{}` default),
+  validated by `jobs/details.py` `JobDetails`: basics, extra locations,
+  experience max and salary period/type/disclosure, responsibilities and
+  qualifications, preferred skills and tools, education, languages and notice
+  period, application method, screening questions, hiring process, visibility.
+  Strict shape, optional presence -- an old client sending no `details` still
+  works. The composer decides what is required.
+- **Refused, deliberately: minimum/maximum age and gender.** Invariant 5 and
+  the discrimination rule (`blockers.md` C3). `extra="forbid"` makes either a
+  422; `test_a_job_cannot_ask_for_age_or_gender` holds it. The composer says so
+  in section 7.
+- **Candidates read `CandidateJobDetails`**: no hiring manager, no screening
+  questions or knockout answers, no internal settings (featured only).
+- **Enforced**: visibility -- only PUBLIC jobs are listed on the board;
+  PRIVATE/INVITE_ONLY are published but unlisted (open by link). External
+  application URLs must be https.
+- **Recorded, not yet acted on**: screening questions are not asked at apply
+  (the apply request is held to `job_id` alone by a test); cover letter and
+  portfolio are shown, not collected; `featured` is a badge, not a ranking;
+  referrals and applicant access change no permission; `publish_on` is a
+  planned date, publishing stays manual. Salary "not disclosed" hides the
+  range on screen (`salary_disclosed` on board rows) but the range is still
+  mandatory and still in the API (PRD 5.2).
+- **Frontend**: `features/jobs/` holds the shared types and
+  `JobDescriptionView` (tone `student` / `employer`), used by the student job
+  page, the new employer page `/employer/jobs/[id]` and the composer preview.
+  Colleges have no job surface to put it on. The mobile app is unchanged.
 
 ---
 

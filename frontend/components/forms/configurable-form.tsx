@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { Dropdown } from "@/components/ui/dropdown";
+import { renderFieldLabel } from "@/features/employer/onboarding/components/kyb-field";
 
 import type {
   ConfigurableFormProps,
@@ -133,8 +134,7 @@ function ConfigurableField<TValues extends FormValues>({
   return (
     <label htmlFor={inputId} className={`block ${field.className ?? ""}`}>
       <span className="mb-1.5 block text-[12px] font-semibold leading-4 text-[#687386]">
-        {field.label}
-        {field.required ? <span className="ml-1 text-[#b42318]">*</span> : null}
+        {renderFieldLabel(field.label, field.required)}
       </span>
 
       {field.description ? (

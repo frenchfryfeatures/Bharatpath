@@ -39,22 +39,28 @@ interface DateTimePickerProps {
   required?: boolean;
   ariaDescribedBy?: string;
   ariaLabel?: string;
+  dateOnly?: boolean;
 }
 
 function pad(value: number) {
   return String(value).padStart(2, "0");
 }
 
-function toValue(date: Date) {
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+function toValue(date: Date, dateOnly = false) {
+  const day = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  return dateOnly ? day : `${day}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-function parseValue(value: string) {
+function parseValue(value: string, dateOnly = false) {
   if (!value) return null;
-  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(value);
+  const match = (dateOnly
+    ? /^(\d{4})-(\d{2})-(\d{2})$/
+    : /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/).exec(value);
   if (!match) return null;
-  const date = new Date(+match[1], +match[2] - 1, +match[3], +match[4], +match[5]);
-  return Number.isNaN(date.getTime()) ? null : date;
+  const date = new Date(+match[1], +match[2] - 1, +match[3], +(match[4] ?? 0), +(match[5] ?? 0));
+  return date.getFullYear() === +match[1]
+    && date.getMonth() === +match[2] - 1
+    && date.getDate() === +match[3] ? date : null;
 }
 
 function sameDay(a: Date, b: Date) {
@@ -63,9 +69,12 @@ function sameDay(a: Date, b: Date) {
     && a.getDate() === b.getDate();
 }
 
-function displayValue(value: string) {
-  const date = parseValue(value);
+function displayValue(value: string, dateOnly = false) {
+  const date = parseValue(value, dateOnly);
   if (!date) return "";
+  if (dateOnly) {
+    return date.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  }
   return date.toLocaleString("en-IN", {
     day: "2-digit",
     month: "short",
@@ -93,22 +102,23 @@ export function DateTimePicker({
   value,
   onChange,
   onBlur,
-  placeholder = "Select date and time",
+  placeholder,
   className = "",
   invalid = false,
   disabled = false,
   required = false,
   ariaDescribedBy,
   ariaLabel,
+  dateOnly = false,
 }: Readonly<DateTimePickerProps>) {
   const generatedId = useId();
   const controlId = id ?? generatedId;
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
-  const selected = useMemo(() => parseValue(value), [value]);
+  const selected = useMemo(() => parseValue(value, dateOnly), [value, dateOnly]);
   const [visibleMonth, setVisibleMonth] = useState(() => {
-    const initial = parseValue(value) ?? new Date();
+    const initial = parseValue(value, dateOnly) ?? new Date();
     return new Date(initial.getFullYear(), initial.getMonth(), 1);
   });
   const [placement, setPlacement] = useState<Placement | null>(null);
@@ -129,19 +139,20 @@ export function DateTimePicker({
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     const width = Math.min(320, viewportWidth - margin * 2);
-    const estimatedHeight = Math.min(420, viewportHeight - margin * 2);
+    const popoverHeight = dateOnly ? 340 : 420;
+    const estimatedHeight = Math.min(popoverHeight, viewportHeight - margin * 2);
     const roomBelow = viewportHeight - rect.bottom - margin;
     const roomAbove = rect.top - margin;
     const placeAbove = roomBelow < Math.min(estimatedHeight, 300) && roomAbove > roomBelow;
     const availableHeight = Math.max(0, (placeAbove ? roomAbove : roomBelow) - gap);
-    const maxHeight = Math.max(0, Math.min(420, viewportHeight - margin * 2, availableHeight));
+    const maxHeight = Math.max(0, Math.min(popoverHeight, viewportHeight - margin * 2, availableHeight));
     const preferredLeft = rect.left + rect.width / 2 - width / 2;
     const left = Math.min(Math.max(margin, preferredLeft), viewportWidth - width - margin);
     const top = placeAbove
       ? Math.max(margin, rect.top - gap - Math.min(estimatedHeight, maxHeight))
       : rect.bottom + gap;
     setPlacement({ top, left, width, maxHeight });
-  }, []);
+  }, [dateOnly]);
 
   useEffect(() => {
     if (!open) return;
@@ -182,6 +193,11 @@ export function DateTimePicker({
   }
 
   function chooseDay(day: Date) {
+    if (dateOnly) {
+      onChange(toValue(day, true));
+      close(true);
+      return;
+    }
     const next = new Date(day);
     next.setHours(selected?.getHours() ?? 9, selected?.getMinutes() ?? 0, 0, 0);
     onChange(toValue(next));
@@ -202,7 +218,7 @@ export function DateTimePicker({
     <div
       ref={popoverRef}
       role="dialog"
-      aria-label="Choose date and time"
+      aria-label={dateOnly ? "Choose date" : "Choose date and time"}
       className="bp-date-time-popover fixed z-[200] overflow-y-auto overscroll-contain rounded-xl border border-[#dfe3e9] bg-white p-3 shadow-[0_18px_45px_rgba(20,31,51,0.18)]"
       style={{
         top: placement.top,
@@ -250,7 +266,7 @@ export function DateTimePicker({
               onClick={() => chooseDay(day)}
               className={`mx-auto grid h-8 w-8 place-items-center rounded-lg text-[11px] font-medium transition-colors ${
                 isSelected
-                  ? "bg-[#315c9f] font-semibold text-white shadow-sm"
+                  ? "bg-[#315c9f] font-semibold text-white shadow-sm hover:bg-[#244f8e]"
                   : inMonth
                     ? "text-[#263247] hover:bg-[#edf3fb] hover:text-[#244f8e]"
                     : "text-[#b7bdc7] hover:bg-[#f5f7fa]"
@@ -262,7 +278,7 @@ export function DateTimePicker({
         })}
       </div>
 
-      <div className="mt-3 flex items-center gap-2 border-t border-[#edf0f3] pt-3">
+      {!dateOnly ? <div className="mt-3 flex items-center gap-2 border-t border-[#edf0f3] pt-3">
         <Clock3 size={15} className="shrink-0 text-[#687384]" />
         <span className="mr-auto text-[11px] font-semibold text-[#344054]">Time</span>
         <select
@@ -282,7 +298,7 @@ export function DateTimePicker({
         >
           {MINUTES.map((minute) => <option key={minute} value={minute}>{pad(minute)}</option>)}
         </select>
-      </div>
+      </div> : null}
 
       <div className="mt-3 flex items-center justify-between gap-2">
         <button
@@ -299,20 +315,21 @@ export function DateTimePicker({
             onClick={() => {
               const now = new Date();
               now.setSeconds(0, 0);
-              onChange(toValue(now));
+              onChange(toValue(now, dateOnly));
               setVisibleMonth(new Date(now.getFullYear(), now.getMonth(), 1));
+              if (dateOnly) close(true);
             }}
             className="rounded-lg px-2.5 py-2 text-[11px] font-semibold text-[#315c9f] hover:bg-[#edf3fb]"
           >
-            Now
+            {dateOnly ? "Today" : "Now"}
           </button>
-          <button
+          {!dateOnly ? <button
             type="button"
             onClick={() => close(true)}
             className="rounded-lg bg-[#172033] px-3 py-2 text-[11px] font-semibold text-white hover:bg-[#263247]"
           >
             Done
-          </button>
+          </button> : null}
         </div>
       </div>
     </div>
@@ -332,17 +349,17 @@ export function DateTimePicker({
         data-invalid={invalid || undefined}
         data-required={required || undefined}
         onClick={() => open ? close() : openPicker()}
-        className={`flex w-full items-center gap-2 text-left ${value ? "pr-9" : ""} ${className} ${invalid ? "border-[#d92d20] focus:border-[#d92d20]" : ""}`}
+        className={`flex w-full items-center gap-2 text-left enabled:cursor-pointer ${value ? "pr-9" : ""} ${className} ${invalid ? "border-[#d92d20] focus:border-[#d92d20]" : "enabled:hover:border-[#a9bdd9] enabled:hover:bg-[#f8faff]"}`}
       >
         <CalendarDays size={15} className={`shrink-0 ${value ? "text-[#315c9f]" : "text-[#8a93a3]"}`} />
         <span className={`min-w-0 flex-1 truncate ${value ? "text-[#172033]" : "text-[#98a0ae]"}`}>
-          {displayValue(value) || placeholder}
+          {displayValue(value, dateOnly) || placeholder || (dateOnly ? "Select date" : "Select date and time")}
         </span>
       </button>
       {value ? (
         <button
           type="button"
-          aria-label="Clear date and time"
+          aria-label={dateOnly ? "Clear date" : "Clear date and time"}
           disabled={disabled}
           onClick={() => onChange("")}
           className="absolute right-2 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-md text-[#8a93a3] hover:bg-[#eef1f5] hover:text-[#344054] disabled:opacity-50"
@@ -353,4 +370,8 @@ export function DateTimePicker({
       {typeof document !== "undefined" ? createPortal(popover, document.body) : null}
     </div>
   );
+}
+
+export function DatePicker(props: Readonly<Omit<DateTimePickerProps, "dateOnly">>) {
+  return <DateTimePicker {...props} dateOnly />;
 }

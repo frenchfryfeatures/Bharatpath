@@ -1,9 +1,9 @@
 "use client";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, Mail, Phone, Plus, User, X } from "lucide-react";
-import { OnboardingBackButton } from "@/components/common/onboarding-back-button";
-import { Spinner } from "@/components/common/loading";
+import { StudentBackButton } from "@/features/student/components/student-back-button";
 import { AppSelect } from "@/components/ui/app-select";
+import { Spinner } from "@/components/common/loading";
 import {
   useGetStudentProfileQuery,
   useUpdateStudentNameMutation,
@@ -213,8 +213,10 @@ export function CareerForm({
           notice_period: "",
           job_role: "",
         });
-      if (updateEmploymentFields && key === "currently_employed" && value === "YES")
+      if (updateEmploymentFields && key === "currently_employed" && value === "YES") {
         next.employment_end = "";
+        if (next.work_status !== "EXPERIENCED") next.work_status = "EXPERIENCED";
+      }
       if (updateEmploymentFields && key === "currently_employed" && value === "NO")
         Object.assign(next, {
           company_name: "",
@@ -591,7 +593,7 @@ export function CareerForm({
             >
               {field.type === "select" ? (
                 <AppSelect
-                  value={String(value ?? "")}
+                  value={String(value || (field.key === "currently_employed" ? "NO" : ""))}
                   onChange={(v) => update(field.key, v)}
                   options={[{ value: "", label: "Select" }, ...field.options]}
                   ariaLabel={field.label}
@@ -717,7 +719,7 @@ export function CareerForm({
         </p>
       )}
       <div className="flex items-center gap-3">
-        <OnboardingBackButton
+        <StudentBackButton
           disabled={busy}
           className={editing ? "lg:h-12 lg:text-[14px]" : ""}
           label={editing ? "Close" : "Back"}
