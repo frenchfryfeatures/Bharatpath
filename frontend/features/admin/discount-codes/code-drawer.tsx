@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { X } from "lucide-react";
 
 import { ErrorState } from "@/components/ui";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { useScrollLock } from "@/hooks/use-scroll-lock";
 import { showAdminFeedback } from "@/store/admin";
 import {
@@ -25,11 +27,12 @@ export function CodeDrawer({ code, canWrite, onClose }: CodeDrawerProps) {
   const dispatch = useAppDispatch();
   const redemptions = useGetAdminDiscountRedemptionsQuery({ id: code.id, limit: 50 });
   const [disableCode, disableState] = useDisableAdminDiscountCodeMutation();
+  const [disableOpen, setDisableOpen] = useState(false);
 
   const disable = async () => {
-    if (!window.confirm(`Disable ${code.code}? It can never be re-enabled.`)) return;
     try {
       await disableCode(code.id).unwrap();
+      setDisableOpen(false);
       dispatch(showAdminFeedback(`Discount code ${code.code} disabled.`));
     } catch {
       // Surfaced through `disableState.error` below.
@@ -79,7 +82,7 @@ export function CodeDrawer({ code, canWrite, onClose }: CodeDrawerProps) {
             <button
               type="button"
               disabled={disableState.isLoading}
-              onClick={() => void disable()}
+              onClick={() => setDisableOpen(true)}
               className="w-full rounded-lg border border-[#c92f3f] px-4 py-3 text-[13px] font-semibold text-[#c92f3f] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {disableState.isLoading ? "Disabling…" : "Disable permanently"}
@@ -112,6 +115,16 @@ export function CodeDrawer({ code, canWrite, onClose }: CodeDrawerProps) {
             </div>
           </section>
         </div>
+        <ConfirmModal
+          open={disableOpen}
+          title={`Disable ${code.code}?`}
+          description="This discount code cannot be re-enabled."
+          confirmLabel="Disable permanently"
+          confirmLoading={disableState.isLoading}
+          tone="danger"
+          onClose={() => setDisableOpen(false)}
+          onConfirm={() => void disable()}
+        />
       </aside>
     </div>
   );

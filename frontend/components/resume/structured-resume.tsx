@@ -40,11 +40,15 @@ const isVisible = (value: unknown): boolean =>
   value !== null && value !== undefined && value !== "" && value !== false &&
   (!Array.isArray(value) || value.length > 0);
 
+function SkillBadges({ skills }: { skills: string[] }) {
+  return <ul className="flex flex-wrap gap-2" aria-label="Resume skills">{skills.map((skill, index) => <li key={`${skill}-${index}`} className="max-w-full break-words rounded-full border border-[#d5dfee] bg-[#eef3fb] px-3 py-1.5 text-[12px] font-medium text-[#315c9f]">{skill}</li>)}</ul>;
+}
+
 function Value({ value, student = false }: { value: unknown; student?: boolean }): ReactNode {
   if (!isVisible(value)) return null;
   if (student && Array.isArray(value) && value.every((item) => item !== null && typeof item === "object")) return <div className="space-y-3">{value.map((item, index) => <div key={index} className="rounded-[16px] border border-[#E7E0D4] bg-[#F7F4EC] p-4"><Value value={item} student /></div>)}</div>;
   if (Array.isArray(value)) return <ul className={`space-y-2 pl-4 text-[13px] leading-5 ${student ? "text-[#3A4761]" : "text-[#344054]"}`}>{value.map((item, index) => <li key={index} className="list-disc break-words">{typeof item === "string" ? item : <Value value={item} student={student} />}</li>)}</ul>;
-  if (value !== null && typeof value === "object") return <dl className={`grid gap-x-6 gap-y-3 sm:grid-cols-2 ${student ? "lg:grid-cols-1 xl:grid-cols-2" : ""}`}>{Object.entries(value).filter(([, item]) => isVisible(item)).map(([key, item]) => <div key={key} className="min-w-0"><dt className={`text-[11px] font-medium ${student ? "text-[#7B8495]" : "text-[#7b8494]"}`}>{resumeLabel(key)}</dt><dd className="mt-1 break-words"><Value value={item} student={student} /></dd></div>)}</dl>;
+  if (value !== null && typeof value === "object") return <dl className={`grid gap-x-6 gap-y-3 sm:grid-cols-2 ${student ? "lg:grid-cols-1 xl:grid-cols-2" : ""}`}>{Object.entries(value).filter(([, item]) => isVisible(item)).map(([key, item]) => <div key={key} className="min-w-0"><dt className={`text-[11px] font-medium ${student ? "text-[#7B8495]" : "text-[#7b8494]"}`}>{resumeLabel(key)}</dt><dd className="mt-1 break-words">{key === "skills" && Array.isArray(item) && item.every((skill) => typeof skill === "string") ? <SkillBadges skills={item} /> : <Value value={item} student={student} />}</dd></div>)}</dl>;
   return <span className={`whitespace-pre-wrap break-words leading-5 ${student ? "text-[14px] font-medium text-[#0A1931]" : "text-[13px] text-[#344054]"}`}>{value === true ? "Yes" : String(value)}</span>;
 }
 
@@ -64,8 +68,19 @@ export function StructuredResumeView({ resume }: { resume: StructuredResume }) {
     </section>
     {sections.filter(({ key }) => isVisible(resume[key]) && (key !== "contacts" || Object.values(resume.contacts).some(isVisible))).map(({ key, title }) => <section key={key} className="rounded-xl border border-[#e7e9ee] bg-white p-4">
       <h3 className="mb-3 text-[13px] font-bold text-[#172033]">{title}</h3>
-      <Value value={resume[key]} />
+      {key === "skills" ? <SkillBadges skills={resume.skills} /> : <Value value={resume[key]} />}
     </section>)}
+  </div>;
+}
+
+export function StructuredResumeUnavailable({ status }: { status?: StructuredStatus }) {
+  return <div className="rounded-xl border border-dashed border-[#dfe4ec] bg-white px-4 py-5">
+    <p className="text-[13px] font-semibold text-[#172033]">Structured resume details unavailable</p>
+    <p className="mt-1 text-[12px] leading-5 text-[#687182]">
+      {status === "FAILED"
+        ? "The details for this resume could not be organised into sections."
+        : "This resume version does not have structured details to display."}
+    </p>
   </div>;
 }
 
@@ -75,8 +90,4 @@ export function StructuredResumeSectionView({ resume, section }: { resume: Struc
   if (!isVisible(resume[section])) return <p className="text-[13px] text-[#5F6B80]">Nothing added yet.</p>;
   if (section === "skills" || section === "interests") return <div className="flex flex-wrap gap-2">{resume[section].map((item, index) => <span key={`${item}-${index}`} className="rounded-full bg-[#F7EFD6] px-3 py-2 text-[13px] font-medium text-[#0A1931]">{item}</span>)}</div>;
   return <Value value={resume[section]} student />;
-}
-
-export function ResumeFieldsView({ fields }: { fields: Record<string, unknown> }) {
-  return <Value value={fields} />;
 }

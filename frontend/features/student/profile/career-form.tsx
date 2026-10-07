@@ -3,7 +3,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, Mail, Phone, Plus, User, X } from "lucide-react";
 import { StudentBackButton } from "@/features/student/components/student-back-button";
 import { AppSelect } from "@/components/ui/app-select";
-import { Spinner } from "@/components/common/loading";
+import { FormSkeleton } from "@/components/common/loading";
 import {
   useGetStudentProfileQuery,
   useUpdateStudentNameMutation,
@@ -170,9 +170,9 @@ export function CareerForm({
   if (!draft || !fields.data || prefillState.isLoading)
     return (
       <div
-        className={`flex items-center justify-center ${editing ? "min-h-72" : "min-h-[calc(100dvh-8rem)]"}`}
+        className={editing ? "min-h-72" : "min-h-[calc(100dvh-8rem)]"}
       >
-        <Spinner size={36} tone="primary" />
+        <FormSkeleton fields={5} />
       </div>
     );
   const section = sections[step];
@@ -200,7 +200,7 @@ export function CareerForm({
   const update = (key: string, value: CareerDetails[string]) => {
     setDraft((current) => {
       const next = { ...(current ?? draft), [key]: value };
-      if ((!editing || editingAll) && key === "work_status" && value === "FRESHER")
+      if (key === "work_status" && value === "FRESHER")
         Object.assign(next, {
           experience_years: 0,
           experience_months: 0,
@@ -494,7 +494,7 @@ export function CareerForm({
                     setFullName(preview.full_name);
                   setListText({});
                   await save({
-                    details: filled,
+                    details: careerDetailsForSave(filled),
                     resume_version_id: version.resume_version_id,
                     resume_filename: file.name,
                     complete: false,

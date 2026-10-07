@@ -148,13 +148,13 @@ def form_fields() -> list[dict[str, Any]]:
             "basic",
             [
                 ("phone", "Mobile number", "tel", True),
-                ("work_status", "Work status", "select", True),
                 ("current_city", "Current city", "text", True),
             ],
         ),
         (
             "employment",
             [
+                ("work_status", "Work status", "select", True),
                 ("currently_employed", "Are you currently employed?", "select", False),
                 ("experience_years", "Total work experience - years", "number", False),
                 ("experience_months", "Total work experience - months", "number", False),

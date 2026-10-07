@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useGetInterviewSessionQuery, useGetInterviewUploadMutation, useCompleteInterviewAnswerMutation, useNextInterviewQuestionMutation, useCompleteInterviewMutation } from "@/store/student/learning.api";
 import { StudentPage } from "@/features/student/shell";
+import { Skeleton } from "@/components/common/loading";
 import { Clock, LoaderCircle, Mic, Square } from "lucide-react";
 import { MeterBar, PillButton, SectionEyebrow, StatusChip, StudentAudioPlayer, StudentCard, StudentErrorState } from "@/features/student/components";
 
@@ -83,7 +84,10 @@ export default function InterviewSessionPage() {
         </p>
       </div>
     ) : session.isLoading ? (
-      <StudentCard><p className="text-sm text-[#5F6B80]">Loading your interview…</p></StudentCard>
+      <div role="status" aria-label="Loading your interview" className="flex flex-col gap-4">
+        <StudentCard className="!p-5"><Skeleton width="35%" height={14} radius={6} /><Skeleton className="mt-4" width="100%" height={6} radius={999} /></StudentCard>
+        <StudentCard className="!p-5"><Skeleton width="75%" height={24} radius={8} /><Skeleton className="mt-3" width="52%" height={13} radius={6} /><Skeleton className="mt-7" width="100%" height={88} radius={15} /></StudentCard>
+      </div>
     ) : session.error ? (
       <StudentErrorState title="Interview unavailable" error={session.error} fallback="We could not load this interview." onRetry={() => void session.refetch()} />
     ) : session.data ? <>

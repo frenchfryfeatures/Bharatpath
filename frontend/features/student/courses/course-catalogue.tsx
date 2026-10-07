@@ -15,6 +15,7 @@ import {
   StudentErrorState,
 } from "@/features/student/components";
 import { StudentPage, StudentTopBar } from "@/features/student/shell";
+import { CourseGridSkeleton } from "./course-skeletons";
 
 function money(amountMinor: number, currency: string) {
   return new Intl.NumberFormat("en-IN", {
@@ -42,7 +43,7 @@ export function CourseCatalogue() {
         </p>
 
         {courses.isLoading ? (
-          <StudentCard>Loading courses…</StudentCard>
+          <CourseGridSkeleton />
         ) : courses.error ? (
           <StudentErrorState
             title="Courses unavailable"

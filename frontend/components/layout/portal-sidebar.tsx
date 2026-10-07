@@ -36,6 +36,7 @@ import {
 } from "@/lib/auth/use-session-identity";
 
 import { ConfirmModal } from "@/components/ui";
+import { AccountDestinationLoading } from "@/components/common/account-destination-loading";
 import { Skeleton } from "@/components/common/loading";
 import { useGetCollegeOrganisationQuery } from "@/store/college/settings/settings.api";
 import { useGetEmployerDashboardQuery } from "@/store/employer/dashboard";
@@ -60,6 +61,7 @@ export function PortalSidebar({
 
   const dispatch = useAppDispatch();
   const [logoutModalOpen, setLogoutModalOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   /*
    * ============================================================
@@ -178,7 +180,12 @@ export function PortalSidebar({
    */
 
   const handleLogout = async () => {
-    await authService.logout();
+    setIsLoggingOut(true);
+    try {
+      await authService.logout();
+    } catch {
+      // The auth service clears local credentials even when remote sign-out fails.
+    }
     dispatch(clearUser());
     dispatch(clearTenant());
     dispatch(baseApi.util.resetApiState());
@@ -624,7 +631,7 @@ export function PortalSidebar({
             gap-[10px]
             ${
               collapsed
-                ? "flex-col justify-center gap-2 px-2 py-3"
+                ? "group relative flex-col justify-center px-2 py-3"
                 : "px-[16px]"
             }
           `}
@@ -635,14 +642,15 @@ export function PortalSidebar({
 
           <span
             title={collapsed ? accountTitle : undefined}
-            className="
+            className={`
               grid
               h-10
               w-10
               shrink-0
               place-items-center
               rounded-full
-            "
+              ${collapsed ? "transition-opacity group-hover:opacity-0 group-focus-within:opacity-0" : ""}
+            `}
             style={{
               background:
                 "var(--navy)",
@@ -701,7 +709,7 @@ export function PortalSidebar({
           )}
 
           {/* =================================================
-              LOGOUT - available collapsed too
+              LOGOUT - replaces the avatar when collapsed
           ================================================== */}
 
           <button
@@ -709,19 +717,21 @@ export function PortalSidebar({
             onClick={() => setLogoutModalOpen(true)}
             aria-label="Log out"
             title="Log out"
-            className="
+            className={`
               grid
-              h-8
-              w-8
               shrink-0
               cursor-pointer
               place-items-center
-              rounded-lg
               text-(--ink-muted)
-              transition-colors
+              transition-all
               hover:bg-[#fdecec]
               hover:text-[#c43d3d]
-            "
+              ${
+                collapsed
+                  ? "absolute top-1/2 left-1/2 h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                  : "h-8 w-8 rounded-lg"
+              }
+            `}
           >
             <LogOut
               size={18}
@@ -733,12 +743,18 @@ export function PortalSidebar({
 
       <ConfirmModal
         open={logoutModalOpen}
+        confirmLoading={isLoggingOut}
         title="Log out of BharatPath?"
         description="You will need to sign in again to access this portal."
         confirmLabel="Log out"
         onClose={() => setLogoutModalOpen(false)}
         onConfirm={handleLogout}
       />
+      {isLoggingOut && (
+        <div className="fixed inset-0 z-[120]">
+          <AccountDestinationLoading portal={portal} message="Signing you out…" />
+        </div>
+      )}
     </aside>
   );
 }

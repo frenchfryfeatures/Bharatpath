@@ -60,7 +60,7 @@ export function SubscriptionStep({
         <StepHeader
           step="subscription"
           title="You’re a member"
-          subtitle="Your profile is saved and your membership is active. You can now start resume scoring."
+          subtitle="Your membership is active. Choose how to add the resume you want scored."
         />
         <section className="flex items-start gap-3 rounded-[20px] border border-[#B8D9C8] bg-[#EEF7F1] p-5">
           <ShieldCheck
@@ -73,15 +73,15 @@ export function SubscriptionStep({
               Membership active
             </h2>
             <p className="mt-1 text-[13px] leading-5 text-[#35624A]">
-              Your subscription is ready. Continue to score your reviewed
-              resume.
+              Your subscription is ready. Choose a file, paste your resume, or
+              fill in a form before scoring.
             </p>
           </div>
         </section>
         <div className="flex items-center gap-3">
           {onBack ? <StudentBackButton onClick={onBack} /> : null}
           <PillButton onClick={onContinue} className="min-w-0 flex-1">
-            Start resume scoring <ArrowRight size={17} />
+            Choose how to add your resume <ArrowRight size={17} />
           </PillButton>
         </div>
       </div>

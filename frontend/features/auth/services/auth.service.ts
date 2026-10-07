@@ -4,6 +4,7 @@ import { handleSessionExpired } from "@/lib/auth/handle-session-expired";
 import {
   configureAmplify,
   confirmSignUpCognito,
+  confirmTotpCodeCognito,
   formatCognitoError,
   resendSignUpCodeCognito,
   signInWithCognito,
@@ -171,6 +172,7 @@ const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 export type CompleteSignupResult =
   | { status: "COMPLETE"; session: SignupResponse }
   | { status: "TOTP_SETUP_REQUIRED"; sharedSecret: string; setupUri: string }
+  | { status: "TOTP_REQUIRED" }
   | { status: "SIGN_IN_REQUIRED" };
 
 function toApiError(error: unknown): ApiError {
@@ -182,6 +184,12 @@ function toApiError(error: unknown): ApiError {
     name === "UsernameExistsException" ? 409 : 400,
     "AUTH_ERROR",
   );
+}
+
+function alreadyConfirmed(error: unknown): boolean {
+  const cognitoError = error as { name?: string; message?: string } | null;
+  return cognitoError?.name === "NotAuthorizedException" &&
+    /current status is confirmed/i.test(cognitoError.message ?? "");
 }
 
 async function signedUpSession(
@@ -245,8 +253,6 @@ export const authService = {
 
   /**
    * Confirm the emailed code, then sign in with the password just chosen.
-   * A business account must set up its authenticator app first, so that
-   * answer is returned for the caller to finish rather than hidden here.
    */
   async completeSignup(payload: {
     email: string;
@@ -257,8 +263,13 @@ export const authService = {
     const email = payload.email.trim();
 
     try {
-      await confirmSignUpCognito(email, payload.code);
-      await signOutCognito();
+      try {
+        await confirmSignUpCognito(email, payload.code);
+      } catch (error) {
+        // A previous attempt can confirm the email before MFA setup finishes.
+        // Continue with password sign-in so the same user can resume setup.
+        if (!alreadyConfirmed(error)) throw error;
+      }
       const result = await signInWithCognito({
         email,
         password: payload.password,
@@ -272,12 +283,8 @@ export const authService = {
         };
       }
 
-      if (result.status === "TOTP_SETUP_REQUIRED") {
-        return {
-          status: "TOTP_SETUP_REQUIRED",
-          sharedSecret: result.sharedSecret,
-          setupUri: result.setupUri,
-        };
+      if (result.status === "TOTP_SETUP_REQUIRED" || result.status === "TOTP_REQUIRED") {
+        return result;
       }
 
       return { status: "SIGN_IN_REQUIRED" };
@@ -286,17 +293,21 @@ export const authService = {
     }
   },
 
-  /** Answer the authenticator-app setup challenge that follows a business sign-up. */
-  async completeTotpSetup(
-    code: string,
-    email: string,
-  ): Promise<SignupResponse> {
+  /** Finish the sign-in challenge started after email confirmation. */
+  async completeSignupTotp(payload: {
+    email: string;
+    code: string;
+    pool: "CANDIDATE" | "BUSINESS";
+    setup: boolean;
+  }): Promise<SignupResponse> {
     try {
-      const result = await verifyTotpSetupCognito(code);
+      const result = payload.setup
+        ? await verifyTotpSetupCognito(payload.code)
+        : await confirmTotpCodeCognito(payload.code);
       if (result.status !== "COMPLETE") {
-        throw new ApiError("Could not finish sign-in. Please sign in again.", 401, "AUTH_ERROR");
+        throw new ApiError("Authenticator verification did not finish. Please try again.", 400, "AUTH_ERROR");
       }
-      return await signedUpSession(result.accessToken, email, "BUSINESS");
+      return await signedUpSession(result.accessToken, payload.email, payload.pool);
     } catch (error) {
       throw toApiError(error);
     }

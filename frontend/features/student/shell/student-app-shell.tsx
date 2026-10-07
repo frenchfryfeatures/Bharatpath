@@ -7,6 +7,7 @@ import { useAppDispatch } from "@/store/hooks";
 import { clearUser } from "@/store/common/slices/auth.slice";
 import { clearTenant } from "@/store/common/slices/tenant.slice";
 import { authService } from "@/features/auth/services/auth.service";
+import { AccountDestinationLoading } from "@/components/common/account-destination-loading";
 import { ConfirmModal } from "@/components/ui";
 import { useScrollLock } from "@/hooks/use-scroll-lock";
 import { baseApi } from "@/store/api/base-api";
@@ -34,6 +35,7 @@ export function StudentAppShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useScrollLock(mobileOpen);
 
@@ -43,7 +45,12 @@ export function StudentAppShell({ children }: { children: ReactNode }) {
   }, [pathname]);
 
   const handleLogout = async () => {
-    await authService.logout();
+    setIsLoggingOut(true);
+    try {
+      await authService.logout();
+    } catch {
+      // The auth service clears local credentials even when remote sign-out fails.
+    }
     dispatch(clearUser());
     dispatch(clearTenant());
     dispatch(baseApi.util.resetApiState());
@@ -115,6 +122,7 @@ export function StudentAppShell({ children }: { children: ReactNode }) {
 
       <ConfirmModal
         open={logoutOpen}
+        confirmLoading={isLoggingOut}
         variant="student"
         title="Log out?"
         description="You'll need to sign in again to see your score and applications."
@@ -123,6 +131,11 @@ export function StudentAppShell({ children }: { children: ReactNode }) {
         onConfirm={handleLogout}
         onClose={() => setLogoutOpen(false)}
       />
+      {isLoggingOut && (
+        <div className="fixed inset-0 z-[120]">
+          <AccountDestinationLoading message="Signing you out…" />
+        </div>
+      )}
     </div>
   );
 }

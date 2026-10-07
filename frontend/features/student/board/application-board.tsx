@@ -5,7 +5,7 @@ import { ListChecks } from "lucide-react";
 
 import { useLazyGetStudentApplicationsQuery } from "@/store/student";
 import { ApplicationCard, EmptyState, StudentErrorState } from "@/features/student/components";
-import { Spinner } from "@/components/common/loading";
+import { StudentApplicationCardSkeleton, StudentApplicationGridSkeleton } from "@/features/student/loading";
 import { StudentPage } from "@/features/student/shell";
 import { useCursorLoadMore } from "@/lib/pagination/use-cursor-load-more";
 
@@ -87,15 +87,7 @@ export function ApplicationBoard() {
         )}
 
         {applications.isLoading ? (
-          <div className="flex min-h-64 flex-1 flex-col items-center justify-center gap-3 text-center">
-            <Spinner size={32} tone="primary" />
-            <p className="text-[15px] font-semibold text-[#0A1931]">
-              Loading your board
-            </p>
-            <p className="text-[13px] text-[#5F6B80]">
-              Checking the latest status of your applications.
-            </p>
-          </div>
+          <StudentApplicationGridSkeleton count={6} label="Loading your board" />
         ) : applications.error && !applications.items.length ? (
           <StudentErrorState
             icon={<ListChecks size={22} />}
@@ -112,19 +104,15 @@ export function ApplicationBoard() {
                   application={application}
                 />
               ))}
+              {applications.isLoadingMore ? (
+                <>
+                  <span role="status" className="sr-only">Loading more applications</span>
+                  {Array.from({ length: 2 }).map((_, index) => <StudentApplicationCardSkeleton key={`loading-${index}`} />)}
+                </>
+              ) : null}
             </div>
             {!visibleApplications.length ? (
               <EmptyState icon={<ListChecks size={22} />} title={`No ${filter} applications${applications.hasMore ? " loaded yet" : ""}`} message={applications.hasMore ? "Checking more applications for this filter." : "Applications in this category will appear here."} />
-            ) : null}
-
-            {applications.isLoadingMore ? (
-              <div className="flex justify-center py-6">
-                <Spinner
-                  size={28}
-                  tone="primary"
-                  label="Loading more applications"
-                />
-              </div>
             ) : null}
 
             {applications.error && applications.hasMore ? (

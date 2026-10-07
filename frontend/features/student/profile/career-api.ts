@@ -45,6 +45,17 @@ export const careerApi = baseApi.injectEndpoints({
     >({ query: () => "/auth/me" }),
     getCareerFields: builder.query<CareerField[], void>({
       query: () => "/candidate/profile/form",
+      transformResponse: (fields: CareerField[]) => {
+        const workStatus = fields.find((field) => field.key === "work_status");
+        const ordered = fields.filter((field) => field.key !== "work_status");
+        const employmentIndex = ordered.findIndex((field) => field.section === "employment");
+        if (workStatus)
+          ordered.splice(employmentIndex < 0 ? ordered.length : employmentIndex, 0, {
+            ...workStatus,
+            section: "employment",
+          });
+        return ordered;
+      },
     }),
     getCareerProfile: builder.query<CareerProfile, void>({
       query: () => "/candidate/profile/details",
@@ -110,15 +121,20 @@ const jobDescribingFields = ["industry", "department", "role_category"];
 
 export function careerDetailsForSave(details: CareerDetails): CareerDetails {
   const result = { ...details };
+  if (result.work_status === "FRESHER") {
+    result.currently_employed = "NO";
+    result.experience_years = 0;
+    result.experience_months = 0;
+  }
   // The deployed backend requires non-empty key_skills when complete=true.
   // Preserve existing skills if present, or provide a default fallback.
   const keySkills = result.key_skills;
   if (!keySkills || (Array.isArray(keySkills) && keySkills.length === 0)) {
     result.key_skills = details.work_status === "FRESHER" ? ["Fresher"] : ["General"];
   }
-  if (details.currently_employed === "NO") {
+  if (result.currently_employed === "NO") {
     for (const key of inactiveEmploymentFields) delete result[key];
-  } else if (details.currently_employed === "YES") {
+  } else if (result.currently_employed === "YES") {
     delete result.employment_end;
   }
   return result;

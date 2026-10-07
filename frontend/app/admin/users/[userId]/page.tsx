@@ -5,8 +5,7 @@ import { useParams } from "next/navigation";
 import { ArrowLeft, BriefcaseBusiness, BookOpen, FileText, Mic2, TrendingUp } from "lucide-react";
 
 import { Skeleton } from "@/components/common/loading";
-import { ResumeFieldsView, StructuredResumeView, type StructuredResume } from "@/components/resume/structured-resume";
-import { ResumeTextView } from "@/components/resume/resume-text-view";
+import { StructuredResumeUnavailable, StructuredResumeView, type StructuredResume } from "@/components/resume/structured-resume";
 import { usePageHeader } from "@/components/layout/header-context";
 import { ErrorState } from "@/components/ui";
 import { CandidatePageSkeleton } from "@/features/admin/users/components/candidate-page-skeleton";
@@ -64,9 +63,6 @@ function UploadedResumeLink({ url }: { url: string }) {
 }
 
 function ResumeContent({ version, showFileLink = true }: { version: ResumeVersion; showFileLink?: boolean }) {
-  const fields = Object.fromEntries(
-    Object.entries(version.fields ?? {}).filter(([key]) => key !== "extractor" && key !== "structured_resume"),
-  );
   const stored = version.fields?.structured_resume;
   const storedResume =
     stored && typeof stored === "object" && "status" in stored && stored.status === "READY" &&
@@ -74,10 +70,9 @@ function ResumeContent({ version, showFileLink = true }: { version: ResumeVersio
       ? stored.data as StructuredResume
       : null;
   const structured = version.structured_status === "READY" ? version.structured_resume : storedResume;
-  const hasFields = Object.keys(fields).length > 0;
   return <div className="space-y-4">
     <div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-[#eef3fb] px-2.5 py-1 text-[10px] font-bold text-[#315c9f]">{humanise(version.source)}</span><span className={muted}>{version.confirmed_at ? `Confirmed ${formatDate(version.confirmed_at)}` : `Added ${formatDate(version.created_at)}`}</span></div>
-    {structured ? <StructuredResumeView resume={structured} /> : version.text ? <ResumeTextView text={version.text} /> : hasFields ? <ResumeFieldsView fields={fields} /> : <Empty>No resume content available.</Empty>}
+    {structured ? <StructuredResumeView resume={structured} /> : <StructuredResumeUnavailable status={version.structured_status} />}
     {showFileLink && version.file_url && <UploadedResumeLink url={version.file_url} />}
   </div>;
 }

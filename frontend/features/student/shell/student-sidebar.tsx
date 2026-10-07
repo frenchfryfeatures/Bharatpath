@@ -176,7 +176,7 @@ export function StudentSidebarContent({
         <div
           className={[
             "flex min-h-[72px] items-center gap-2.5",
-            collapsed ? "flex-col justify-center gap-2 px-2 py-3" : "px-3",
+            collapsed ? "group relative flex-col justify-center px-2 py-3" : "px-3",
           ].join(" ")}
         >
           <Link
@@ -185,7 +185,7 @@ export function StudentSidebarContent({
             title={collapsed ? displayName : undefined}
             className={[
               "flex min-w-0 items-center gap-2.5 rounded-lg transition-colors",
-              collapsed ? "" : "flex-1",
+              collapsed ? "group-hover:opacity-0" : "flex-1",
             ].join(" ")}
           >
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#5F4DB2] text-[13px] font-bold text-white">
@@ -214,7 +214,12 @@ export function StudentSidebarContent({
             onClick={onLogout}
             aria-label="Log out"
             title="Log out"
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[#5F6B80] transition-colors hover:bg-[#F8E6E0] hover:text-[#993A22]"
+            className={[
+              "grid shrink-0 place-items-center text-[#5F6B80] transition-all hover:bg-[#F8E6E0] hover:text-[#993A22]",
+              collapsed
+                ? "absolute top-1/2 left-1/2 h-9 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-0 group-hover:opacity-100 focus-visible:bg-[#F8E6E0] focus-visible:opacity-100"
+                : "h-8 w-8 rounded-lg",
+            ].join(" ")}
           >
             <LogOut size={16} strokeWidth={1.9} />
           </button>

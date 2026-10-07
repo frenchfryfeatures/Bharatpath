@@ -20,6 +20,7 @@ import {
 import { AppSelect } from "@/components/ui/app-select";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { ChangePasswordModal } from "@/components/auth/change-password-modal";
+import { MfaSettingsControl } from "@/components/auth/mfa-settings-control";
 import { Skeleton } from "@/components/common/loading";
 import { EmployerErrorState } from "@/features/employer/components/employer-error-state";
 import { INDIAN_STATES } from "@/features/student/onboarding/constants";
@@ -314,17 +315,6 @@ export function CompanyTab() {
     setIsDirty(changed);
     dispatch(setHasUnsavedChanges(changed));
   }, [company, dispatch]);
-
-  // Handle browser beforeunload alert when changes exist
-  useEffect(() => {
-    if (!isDirty) return;
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = "";
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [isDirty]);
 
   // Intercept anchor link clicks when there are unsaved changes
   useEffect(() => {
@@ -961,6 +951,9 @@ export function CompanyTab() {
         >
           Change password
         </button>
+        <div className="mt-4">
+          <MfaSettingsControl />
+        </div>
       </section>
 
       <ChangePasswordModal

@@ -17,6 +17,7 @@ import {
   Wifi,
 } from "lucide-react";
 import { useState } from "react";
+import { Skeleton } from "@/components/common/loading";
 
 import { StudentAudioPlayer, StudentErrorState } from "@/features/student/components";
 import { StudentPage } from "@/features/student/shell";
@@ -211,9 +212,11 @@ export default function StudentInterviewPage() {
                   <p className="text-[11px] font-medium text-[#5F6B80]">
                     Sessions ready
                   </p>
-                  <p className="text-lg font-bold leading-6 text-[#0A1931]">
-                    {offerData?.sessionsAvailable ?? "-"}
-                  </p>
+                  {offer.isLoading ? <Skeleton width={28} height={23} radius={6} /> : (
+                    <p className="text-lg font-bold leading-6 text-[#0A1931]">
+                      {offerData?.sessionsAvailable ?? "-"}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -232,11 +235,12 @@ export default function StudentInterviewPage() {
               </div>
 
               {offer.isLoading ? (
-                <div
-                  className="h-44 animate-pulse rounded-xl bg-[#F7F4EC]"
-                  role="status"
-                  aria-label="Loading interview availability"
-                />
+                <div role="status" aria-label="Loading interview availability" className="flex flex-col gap-4 rounded-xl border border-[#E7E0D4] bg-[#FFFCF7] p-5">
+                  <Skeleton width="62%" height={18} radius={7} />
+                  <Skeleton width="90%" height={13} radius={6} />
+                  <Skeleton width="78%" height={13} radius={6} />
+                  <Skeleton className="mt-3" width={150} height={40} radius={999} />
+                </div>
               ) : offer.isError ? (
                 <StudentErrorState
                   error={offer.error}
@@ -538,7 +542,9 @@ export default function StudentInterviewPage() {
               onRetry={() => void history.refetch()}
             />
           ) : history.isLoading ? (
-            <div className="h-16 animate-pulse rounded-xl bg-[#F7F4EC]" />
+            <div role="status" aria-label="Loading interview history" className="space-y-2">
+              {[0, 1, 2].map((index) => <div key={index} className="rounded-xl border border-[#E7E0D4] p-3.5"><Skeleton width="48%" height={14} radius={6} /><Skeleton className="mt-2" width="28%" height={11} radius={5} /></div>)}
+            </div>
           ) : history.data?.length ? (
             <div className="space-y-2">
               {history.data.map((session) => (
@@ -594,7 +600,7 @@ export default function StudentInterviewPage() {
                   title="Recordings could not be loaded"
                 />
               ) : recordings.isLoading ? (
-                <div className="h-20 animate-pulse rounded-xl bg-[#F7F4EC]" />
+                <div role="status" aria-label="Loading interview recordings" className="rounded-xl border border-[#E7E0D4] p-4"><Skeleton width="70%" height={13} radius={6} /><Skeleton className="mt-4" width="100%" height={44} radius={10} /></div>
               ) : recordings.data?.length ? (
                 recordings.data.map((recording) => (
                   <div

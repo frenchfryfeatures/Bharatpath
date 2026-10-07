@@ -46,30 +46,69 @@ export function StudentJobGridSkeleton({
     >
       <span className="sr-only">{label}</span>
       {Array.from({ length: count }).map((_, index) => (
-        <div
-          key={index}
-          className="flex min-h-[166px] flex-col gap-3.5 rounded-[20px] border border-[#E7E0D4] bg-white p-4"
-        >
-          <div className="flex items-center gap-3">
-            <Skeleton width={44} height={44} radius={14} />
-            <div className="min-w-0 flex-1">
-              <Skeleton width="68%" height={16} radius={6} />
-              <Skeleton className="mt-2" width="52%" height={12} radius={6} />
-            </div>
-            <Skeleton circle width={36} height={36} />
-          </div>
-          <div className="flex items-center gap-2.5">
-            <Skeleton width={88} height={13} radius={6} />
-            <Skeleton width={72} height={13} radius={6} />
-            <Skeleton width={54} height={13} radius={6} />
-          </div>
-          <div className="mt-auto flex items-center gap-2 border-t border-[#F0EBDF] pt-3">
-            <Skeleton circle width={14} height={14} />
-            <Skeleton className="flex-1" width="42%" height={11} radius={6} />
-            <Skeleton width={62} height={24} radius={999} />
-          </div>
-        </div>
+        <StudentJobCardSkeleton key={index} />
       ))}
+    </div>
+  );
+}
+
+export function StudentJobCardSkeleton() {
+  return (
+    <div className="flex min-h-[166px] flex-col gap-3.5 rounded-[20px] border border-[#E7E0D4] bg-white p-4">
+      <div className="flex items-center gap-3">
+        <Skeleton width={44} height={44} radius={14} />
+        <div className="min-w-0 flex-1">
+          <Skeleton width="68%" height={16} radius={6} />
+          <Skeleton className="mt-2" width="52%" height={12} radius={6} />
+        </div>
+        <Skeleton circle width={36} height={36} />
+      </div>
+      <div className="flex items-center gap-2.5">
+        <Skeleton width={88} height={13} radius={6} />
+        <Skeleton width={72} height={13} radius={6} />
+        <Skeleton width={54} height={13} radius={6} />
+      </div>
+      <div className="mt-auto flex items-center gap-2 border-t border-[#F0EBDF] pt-3">
+        <Skeleton circle width={14} height={14} />
+        <Skeleton className="flex-1" width="42%" height={11} radius={6} />
+        <Skeleton width={62} height={24} radius={999} />
+      </div>
+    </div>
+  );
+}
+
+export function StudentApplicationGridSkeleton({
+  count = 4,
+  label = "Loading applications",
+}: {
+  count?: number;
+  label?: string;
+}) {
+  return (
+    <div role="status" aria-busy="true" aria-label={label} className="grid gap-3 sm:grid-cols-2">
+      {Array.from({ length: count }).map((_, index) => (
+        <StudentApplicationCardSkeleton key={index} />
+      ))}
+    </div>
+  );
+}
+
+export function StudentApplicationCardSkeleton() {
+  return (
+    <div className="flex min-h-[120px] flex-col gap-3 rounded-[20px] border border-[#E7E0D4] bg-white p-4">
+      <div className="flex items-center gap-3">
+        <Skeleton width={40} height={40} radius={12} />
+        <div className="min-w-0 flex-1">
+          <Skeleton width="64%" height={15} radius={6} />
+          <Skeleton className="mt-2" width="46%" height={12} radius={6} />
+        </div>
+        <Skeleton width={76} height={24} radius={999} />
+      </div>
+      <Skeleton className="mt-auto" width="100%" height={4} radius={999} />
+      <div className="flex justify-between">
+        <Skeleton width={76} height={11} radius={5} />
+        <Skeleton width={86} height={11} radius={5} />
+      </div>
     </div>
   );
 }

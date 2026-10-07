@@ -24,6 +24,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import { ErrorState } from "@/components/ui";
+import { Modal } from "@/components/ui/modal";
+import { AccountDestinationLoading } from "@/components/common/account-destination-loading";
 import { PORTAL_TYPES, PortalType } from "@/config/portal";
 import {
   LoginFormValues,
@@ -69,6 +71,13 @@ type AuthStep =
 
 type AccountType = "CANDIDATE" | "EMPLOYER" | "INSTITUTION" | "ADMIN";
 
+const portalByAccountType: Record<AccountType, PortalType> = {
+  CANDIDATE: PORTAL_TYPES.STUDENT,
+  EMPLOYER: PORTAL_TYPES.EMPLOYER,
+  INSTITUTION: PORTAL_TYPES.COLLEGE,
+  ADMIN: PORTAL_TYPES.ADMIN,
+};
+
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -81,6 +90,8 @@ export function LoginForm() {
   const [serverError, setServerError] = useState("");
   const [authStep, setAuthStep] = useState<AuthStep>("CREDENTIALS");
   const [submittingChallenge, setSubmittingChallenge] = useState(false);
+  const [completingSignIn, setCompletingSignIn] = useState(false);
+  const [destinationPortal, setDestinationPortal] = useState<PortalType | null>(null);
 
   // Challenge states
   const [newPassword, setNewPassword] = useState("");
@@ -90,6 +101,7 @@ export function LoginForm() {
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
   const [codeCopied, setCodeCopied] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
+  const [emailConfirmedOpen, setEmailConfirmedOpen] = useState(false);
 
   // Forgot-password states
   const [forgotEmail, setForgotEmail] = useState("");
@@ -159,33 +171,44 @@ export function LoginForm() {
     accessToken: string,
     emailAddress: string,
   ) => {
-    setStoredToken(accessToken);
+    setDestinationPortal(portalByAccountType[accountType]);
+    setCompletingSignIn(true);
+    try {
+      setStoredToken(accessToken);
 
-    const result = await authService.loginWithToken(
-      accessToken,
-      emailAddress,
-      pool,
-    );
+      const result = await authService.loginWithToken(
+        accessToken,
+        emailAddress,
+        pool,
+      );
 
-    // A different person may have used this browser; drop their cached
-    // responses (a stale `has_access` would fire paywalled calls -> 402).
-    dispatch(baseApi.util.resetApiState());
-    dispatch(
-      setUser({
-        ...result.user,
-        backendRole: result.backendRole,
-      }),
-    );
-    dispatch(
-      setTenant({
-        portal: portalTypeByName[result.portal] ?? null,
-        tenantId: result.user.tenantId ?? null,
-        tenantSlug: null,
-        tenantName: null,
-      }),
-    );
+      setDestinationPortal(portalTypeByName[result.portal] ?? portalByAccountType[accountType]);
 
-    router.replace(result.path);
+      // A different person may have used this browser; drop their cached
+      // responses (a stale `has_access` would fire paywalled calls -> 402).
+      dispatch(baseApi.util.resetApiState());
+      dispatch(
+        setUser({
+          ...result.user,
+          backendRole: result.backendRole,
+        }),
+      );
+      dispatch(
+        setTenant({
+          portal: portalTypeByName[result.portal] ?? null,
+          tenantId: result.user.tenantId ?? null,
+          tenantSlug: null,
+          tenantName: null,
+        }),
+      );
+
+      // The student route verifies saved progress before showing the dashboard
+      // or sending an unfinished candidate to onboarding.
+      router.replace(result.path);
+    } catch (error) {
+      setCompletingSignIn(false);
+      throw error;
+    }
   };
 
   const onSubmit = async (values: LoginFormValues) => {
@@ -330,7 +353,7 @@ export function LoginForm() {
       await confirmSignUpCognito(enteredEmail, confirmationCode);
       setAuthStep("CREDENTIALS");
       setServerError("");
-      alert("Email confirmed successfully! You can now sign in with your password.");
+      setEmailConfirmedOpen(true);
     } catch (err) {
       setServerError(formatCognitoError(err));
     } finally {
@@ -452,6 +475,11 @@ export function LoginForm() {
 
   return (
     <div className="space-y-5">
+      {completingSignIn && (
+        <div className="fixed inset-0 z-[120]">
+          <AccountDestinationLoading portal={destinationPortal ?? portalByAccountType[accountType]} />
+        </div>
+      )}
       {/* Account type selector */}
       <div className="grid grid-cols-4 rounded-xl bg-[#f0f2f6] p-1 text-[11px] font-medium text-[#4b5563]">
         <button
@@ -1136,6 +1164,22 @@ export function LoginForm() {
       )}
 
       {/* Session Expired Toast */}
+      <Modal
+        open={emailConfirmedOpen}
+        title="Email confirmed"
+        description="Your email is verified. Sign in with your password to continue."
+        onClose={() => setEmailConfirmedOpen(false)}
+        panelClassName="max-w-[420px]"
+      >
+        <button
+          type="button"
+          onClick={() => setEmailConfirmedOpen(false)}
+          className="w-full rounded-lg bg-[#17233a] px-4 py-3 text-sm font-semibold text-white hover:bg-[#223453]"
+        >
+          Continue to sign in
+        </button>
+      </Modal>
+
       {showSessionExpiredToast ? (
         <div
           className="fixed right-5 top-5 z-110 flex w-[min(26rem,calc(100vw-2.5rem))] items-start gap-3 rounded-2xl border border-[#f2d3a0] bg-white p-4 text-[#613b08] shadow-[0_18px_50px_rgba(23,35,58,0.2)]"

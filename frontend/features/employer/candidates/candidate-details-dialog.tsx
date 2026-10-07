@@ -309,11 +309,8 @@ export function CandidateDetailsDialog({
                 <SectionHeading icon={FileText} title="Resume" />
                 <ResumeShowcase
                   resume={candidate.resume}
-                  candidateName={candidate.full_name ?? "Candidate"}
                   currentTime={currentTime}
                   onRefresh={onRetry}
-                  isExpanded={isExpanded}
-                  onToggleExpand={() => setIsExpanded((prev) => !prev)}
                 />
               </section>
             </div>
