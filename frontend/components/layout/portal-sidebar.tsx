@@ -28,6 +28,7 @@ import {
 } from "@/store/common/slices/auth.slice";
 
 import { authService } from "@/features/auth/services/auth.service";
+import { canAccessPortalPath } from "@/lib/auth/route-access";
 import {
   identityDisplayLabel,
   identityInitials,
@@ -382,7 +383,7 @@ export function PortalSidebar({
 
       <nav className="flex-1 overflow-y-auto px-3 bp-scrollbar">
         <div className="space-y-1">
-          {navigation.map((item) => {
+          {navigation.filter((item) => portal !== "admin" || (identity && canAccessPortalPath(identity, "admin", item.href))).map((item) => {
             const Icon = item.icon;
 
             /*

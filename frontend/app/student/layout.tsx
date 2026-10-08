@@ -1,5 +1,6 @@
 import { StudentAppShell } from "@/features/student/shell";
 import { StudentOnboardingGate } from "@/features/student/shell/student-onboarding-gate";
+import { PortalAccessGuard } from "@/components/auth/portal-access-guard";
 
 export default function StudentLayout({
   children,
@@ -7,8 +8,10 @@ export default function StudentLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <StudentOnboardingGate>
-      <StudentAppShell>{children}</StudentAppShell>
-    </StudentOnboardingGate>
+    <PortalAccessGuard portal="student">
+      <StudentOnboardingGate>
+        <StudentAppShell>{children}</StudentAppShell>
+      </StudentOnboardingGate>
+    </PortalAccessGuard>
   );
 }

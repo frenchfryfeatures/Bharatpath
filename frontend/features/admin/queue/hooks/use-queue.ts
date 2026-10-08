@@ -1,6 +1,7 @@
 "use client";
 
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { canAccessAdminQueueTab } from "@/lib/auth/route-access";
 
 import {
   closeReview,
@@ -53,26 +54,30 @@ export function useQueue() {
   const dispatch = useAppDispatch();
 
   const state = useAppSelector(selectAdminQueue);
+  const role = useAppSelector((store) => store.auth.user?.backendRole);
+  const canViewKyb = canAccessAdminQueueTab(role, "kyb");
+  const canViewIntegrity = canAccessAdminQueueTab(role, "integrity");
+  const tab = canAccessAdminQueueTab(role, state.tab) ? state.tab : canViewKyb ? "kyb" : "integrity";
 
-  const pager = useCursorPagination([state.tab]);
+  const pager = useCursorPagination([tab]);
 
   const kybQuery = useGetAdminKybSubmissionsQuery({
     state: "SUBMITTED",
     limit: pager.pageSize,
-    cursor: state.tab === "kyb" ? pager.cursor : undefined,
-  });
+    cursor: tab === "kyb" ? pager.cursor : undefined,
+  }, { skip: !canViewKyb });
   const integrityQuery = useGetAdminIntegritySignalsQuery({
     state: "OPEN",
     limit: pager.pageSize,
-    cursor: state.tab === "integrity" ? pager.cursor : undefined,
-  });
+    cursor: tab === "integrity" ? pager.cursor : undefined,
+  }, { skip: !canViewIntegrity });
   const [decideKyb, kybDecision] = useDecideAdminKybMutation();
   const [resolveSignal, signalDecision] = useResolveAdminIntegritySignalMutation();
 
   const kybNextCursor = kybQuery.data?.next_cursor ?? null;
   const integrityNextCursor = integrityQuery.data?.next_cursor ?? null;
   const activeNextCursor =
-    state.tab === "kyb" ? kybNextCursor : integrityNextCursor;
+    tab === "kyb" ? kybNextCursor : integrityNextCursor;
 
   const kybItems: QueueItem[] = (kybQuery.data?.items ?? []).map((item) => ({
     id: item.id,
@@ -96,9 +101,10 @@ export function useQueue() {
     type: "Integrity",
   }));
 
-  const items = state.tab === "kyb" ? kybItems : integrityItems;
+  const items = tab === "kyb" ? kybItems : integrityItems;
 
   const setTab = (tab: QueueTab) => {
+    if (!canAccessAdminQueueTab(role, tab)) return;
     dispatch(setQueueTab(tab));
   };
 
@@ -113,7 +119,9 @@ export function useQueue() {
   return {
     state,
 
-    tab: state.tab,
+    tab,
+    canViewKyb,
+    canViewIntegrity,
 
     openReviewId: state.openReviewId,
 
@@ -133,15 +141,15 @@ export function useQueue() {
 
     pagination: tablePagination(pager, activeNextCursor),
 
-    isLoading: state.tab === "kyb" ? kybQuery.isLoading : integrityQuery.isLoading,
+    isLoading: tab === "kyb" ? kybQuery.isLoading : integrityQuery.isLoading,
 
-    error: state.tab === "kyb" ? kybQuery.error : integrityQuery.error,
+    error: tab === "kyb" ? kybQuery.error : integrityQuery.error,
 
     isActing: kybDecision.isLoading || signalDecision.isLoading,
 
     reviewRequired: kybQuery.data?.review_required ?? false,
 
-    refresh: state.tab === "kyb" ? kybQuery.refetch : integrityQuery.refetch,
+    refresh: tab === "kyb" ? kybQuery.refetch : integrityQuery.refetch,
 
     approve: async (item: QueueItem) => {
       if (item.type === "KYB") {

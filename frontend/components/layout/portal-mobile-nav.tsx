@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSessionIdentity } from "@/lib/auth/use-session-identity";
+import { canAccessPortalPath } from "@/lib/auth/route-access";
 
 import {
   adminNavigation,
@@ -17,6 +19,7 @@ export function PortalMobileNav({
   portal,
 }: PortalMobileNavProps) {
   const pathname = usePathname();
+  const { user } = useSessionIdentity();
 
   /*
    * ==========================================
@@ -53,7 +56,7 @@ export function PortalMobileNav({
   return (
     <div className="shrink-0 overflow-x-auto border-b border-[#e7e9ee] bg-white lg:hidden">
       <nav className="flex min-w-max gap-1 p-2">
-        {navigation.map((item) => {
+        {navigation.filter((item) => portal !== "admin" || (user && canAccessPortalPath(user, "admin", item.href))).map((item) => {
           /*
            * ======================================
            * RESOLVE HREF
