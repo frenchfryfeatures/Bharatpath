@@ -5,6 +5,7 @@ import { useState } from "react";
 // import { QueueStatusBanner } from "@/components/banner"; // kept for later use
 import { DemoStatePanel } from "@/components/demo-state";
 import { PortalShell } from "@/components/layout/portal-shell";
+import { PortalAccessGuard } from "@/components/auth/portal-access-guard";
 
 type EmployerState =
   | "not-started"
@@ -57,7 +58,8 @@ export default function EmployerLayout({
   };
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
+    <PortalAccessGuard portal="employer">
+      <div className="flex h-screen flex-col overflow-hidden">
       {/* Temporarily hidden - kept for later use.
       {!bannerDismissed && (
         <QueueStatusBanner
@@ -89,6 +91,7 @@ export default function EmployerLayout({
           {children}
         </PortalShell>
       </div>
-    </div>
+      </div>
+    </PortalAccessGuard>
   );
 }

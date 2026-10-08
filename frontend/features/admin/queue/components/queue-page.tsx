@@ -4,7 +4,9 @@ import { useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { usePageHeader } from "@/components/layout/header-context";
+import { canAccessAdminQueueTab } from "@/lib/auth/route-access";
 import { useAppDispatch } from "@/store/hooks";
+import { useSessionIdentity } from "@/lib/auth/use-session-identity";
 import { setQueueTab } from "@/store/admin/queue/slice";
 
 import { DataTable } from "@/components/ui/table";
@@ -30,6 +32,8 @@ export function QueuePage() {
 
   const {
     tab,
+    canViewKyb,
+    canViewIntegrity,
     items,
     kybCount,
     integrityCount,
@@ -49,12 +53,13 @@ export function QueuePage() {
 
   // Links such as the dashboard's "Integrity flags" card name the tab to open.
   const dispatch = useAppDispatch();
+  const { user } = useSessionIdentity();
   const requestedTab = useSearchParams().get("tab");
   useEffect(() => {
-    if (requestedTab === "kyb" || requestedTab === "integrity") {
+    if ((requestedTab === "kyb" || requestedTab === "integrity") && canAccessAdminQueueTab(user?.backendRole, requestedTab)) {
       dispatch(setQueueTab(requestedTab));
     }
-  }, [dispatch, requestedTab]);
+  }, [dispatch, requestedTab, user?.backendRole]);
 
   const columns: ColumnDef<QueueItem>[] = [
     {
@@ -171,7 +176,7 @@ export function QueuePage() {
     },
   ];
 
-  const tabs: Array<
+  const allTabs: Array<
     [QueueTab, string]
   > = [
     [
@@ -183,6 +188,7 @@ export function QueuePage() {
       `Integrity · ${integrityCount}${integrityHasMore ? "+" : ""}`,
     ],
   ];
+  const tabs = allTabs.filter(([key]) => key === "kyb" ? canViewKyb : canViewIntegrity);
 
   return (
     <>

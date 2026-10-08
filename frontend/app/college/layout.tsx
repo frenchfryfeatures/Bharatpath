@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { PortalShell } from "@/components/layout/portal-shell";
+import { PortalAccessGuard } from "@/components/auth/portal-access-guard";
 // import { QueueStatusBanner } from "@/components/banner"; // kept for later use
 import { DemoStatePanel } from "@/components/demo-state";
 
@@ -49,7 +50,8 @@ export default function CollegeLayout({
   };
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
+    <PortalAccessGuard portal="college">
+      <div className="flex h-screen flex-col overflow-hidden">
       {/* Temporarily hidden - kept for later use.
       {!bannerDismissed && (
         <QueueStatusBanner
@@ -80,6 +82,7 @@ export default function CollegeLayout({
           {children}
         </PortalShell>
       </div>
-    </div>
+      </div>
+    </PortalAccessGuard>
   );
 }
