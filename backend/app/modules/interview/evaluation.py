@@ -1,6 +1,6 @@
-"""Transcription and evaluation, each behind one interface (Day 17).
+"""Transcription and evaluation, each behind one interface.
 
-**Chosen 2026-09-18: Sarvam for speech (`sarvam.py`), OpenAI for evaluation
+**Sarvam for speech (`sarvam.py`), OpenAI for evaluation
 (`openai_evaluator.py`)**, each selected by setting. Besides those, as for
 payments and CV extraction, there are two more implementations of each:
 
@@ -21,7 +21,7 @@ What a real implementation must satisfy:
   * Handles the eight shipped locales and code-mixed speech (Hinglish is the
     common case, not the edge). Returns the words as spoken; **no translation**.
   * Returns an empty string for silence rather than hallucinated text, or the
-    `no_speech` failure cannot be detected (blockers E19).
+    `no_speech` failure cannot be detected.
   * Runs in `ap-south-1`, or the region the audio goes to is recorded where a
     reviewer can find it (N2 allows it to leave India; say where it went).
   * Raises `EvaluationUnavailableError` on a transient failure so the task

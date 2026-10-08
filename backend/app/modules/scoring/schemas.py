@@ -15,8 +15,7 @@ response, and `tests/invariants/test_score_never_explained.py` reads this
 module and fails the build on a field that would.
 
 That test scans every schema here, so the admin drill-down view does not
-belong in this file when it lands on Day 19. It belongs in `admin`, where the
-role guard is.
+belong in this file. It lives in `admin`, where the role guard is.
 
 **This contradicts PRD section 4.2**, which promises a category-by-category
 breakdown and top improvement suggestions. The rescission is recorded
@@ -115,8 +114,8 @@ class ScoreReplayResponse(_Base):
     Not candidate-facing -- this answers a dispute, and the route that serves
     it is guarded. It still carries no breakdown: what a replay proves is that
     the number reproduces, and the number is the thing in dispute. The stored
-    breakdown reaches a human through admin drill-down on Day 19, behind a
-    role that is allowed to see it.
+    breakdown reaches a human through the admin drill-down, behind a role
+    that is allowed to see it.
     """
 
     score_id: uuid.UUID

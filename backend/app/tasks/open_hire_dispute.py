@@ -1,4 +1,4 @@
-"""File a disputed hire in the console's dispute queue (Day 19).
+"""File a disputed hire in the console's dispute queue.
 
 Triggered by `applications.hire_disputed`. The dispute is the candidate's, so
 it is written as the candidate -- their identity bound as their own request

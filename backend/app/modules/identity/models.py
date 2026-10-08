@@ -88,7 +88,7 @@ class User(Base, UUIDPrimaryKey, Timestamps):
         # A user must be reachable by something, or we can never contact them
         # and they can never sign in again.
         #
-        # **Unless they asked to be forgotten** (Day 20). An erasure clears
+        # **Unless they asked to be forgotten.** An erasure clears
         # phone and email and hashes the Cognito subject -- that emptying *is*
         # the pseudonymisation (the hash remains so a live token is refused
         # rather than signed up again, `app/core/auth/users.py`), and the row
@@ -114,7 +114,7 @@ class Tenant(Base, UUIDPrimaryKey, Timestamps):
     employer- and college-specific columns live in their own tables keyed on
     `tenant_id`.
 
-    **PLATFORM is our own staff** (Day 19, blockers E10), and there is exactly
+    **PLATFORM is our own staff**, and there is exactly
     one: `uq_tenants_one_platform`. It holds no employer or college data, so
     binding it reads nothing through a tenant policy. Staff reach across
     tenants by the read-only bypass engine, and write through services that
@@ -181,7 +181,7 @@ class TenantSuspension(Base, UUIDPrimaryKey):
     Suspension blocks sign-in and API access immediately. It deletes nothing -
     you must be able to prove what was visible to whom on a given date.
 
-    **Day 19.** One open suspension per tenant (`uq_tenant_suspension_open`);
+    One open suspension per tenant (`uq_tenant_suspension_open`);
     lifting is a latch, the row is never deleted, and
     `guard_tenant_suspension_write` mirrors the open row onto
     `tenants.status`, so every check that already reads `status = 'ACTIVE'`

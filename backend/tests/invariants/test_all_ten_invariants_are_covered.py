@@ -56,7 +56,7 @@ COVERAGE: dict[str, tuple[str, str]] = {
     # Not numbered in the plan, but enforced the same way and worth the same
     # protection against a quietly deleted file.
     "the confirm gate (SRS 1.4.4)": ("invariants/test_confirm_gate.py", "version_confirmed"),
-    "the erasure policy (Day 20)": ("invariants/test_erasure_plan.py", "ERASURE_PLAN"),
+    "the erasure policy": ("invariants/test_erasure_plan.py", "ERASURE_PLAN"),
     "streak points never move the score": (
         "invariants/test_streak_never_moves_the_score.py",
         "engagement",

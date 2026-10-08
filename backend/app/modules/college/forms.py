@@ -1,8 +1,5 @@
 """The college onboarding form.
 
-Produced 2026-09-11 under `answers-log.md` Round 7.10, closing the college half
-of blocker C8.
-
 **Shorter than the employer form on purpose.** A college is a B2B deal with
 seats assigned by an admin (client, 2026-08-24), so somebody at our end has
 already spoken to them before this form is filled in. The form records what the

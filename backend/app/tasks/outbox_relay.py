@@ -35,11 +35,7 @@ MAX_ATTEMPTS = 10
 def relay_outbox(self: Any) -> dict[str, int]:
     """Publish a batch of unpublished events.
 
-    Run by Celery Beat every 30 seconds (`app/tasks/schedule.py`). This
-    docstring used to say the opposite -- EventBridge, "not Celery Beat",
-    because SQS has no ETA or countdown. See `app/worker.py` for why that
-    reasoning was wrong; the short version is that Beat never asks the broker
-    to delay anything.
+    Run by Celery Beat every 30 seconds (`app/tasks/schedule.py`).
 
     Draining a batch is the only thing standing between an outbox row and a
     granted entitlement, a sent notification or a re-score, so an interval
@@ -106,7 +102,7 @@ async def _relay_batch() -> dict[str, int]:
 
 
 def _publish(event: dict[str, Any]) -> None:
-    """Enqueue every task the event triggers (Day 19; blockers E15).
+    """Enqueue every task the event triggers.
 
     **Raises if any enqueue fails**, and then the row stays unpublished and
     its attempt is counted, so the whole event is retried. A subscriber that

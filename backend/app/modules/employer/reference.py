@@ -1,6 +1,6 @@
 """Employer type and industry vocabularies.
 
-Confirmed by the client 2026-09-11 (`answers-log.md` Round 7.5).
+Confirmed by the client, 2026-09-11.
 
 **Why these are closed lists and not a free-text box.** Candidates filter on
 them. Free text produces "IT", "I.T.", "Information Technology" and "it" as

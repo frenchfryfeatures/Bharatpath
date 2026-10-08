@@ -507,7 +507,7 @@ async def employer_facts(
             t=tenant_id,
         ),
         # Distinct people, not opens: a re-open costs nothing under the caps
-        # either (Day 14), and "how many candidates has this employer seen?"
+        # either, and "how many candidates has this employer seen?"
         # is the question a bulk-extraction review asks.
         "views": await _one(
             reader,

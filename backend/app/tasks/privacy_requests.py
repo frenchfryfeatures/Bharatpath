@@ -4,13 +4,11 @@
 as soon as it is asked for, so `privacy.export_requested` routes straight to
 `build_export`. A deletion must wait out its cooling-off period, and an event
 is consumed the moment it is published, so erasure is found by
-`erase_due` reading the clock. Both sweeps are started by EventBridge
-Scheduler (`app/worker.py`), and **the schedule is not provisioned yet**
-(blockers E4). Until it is, a deletion request is accepted, tracked and shown
-with its due date, and nothing is destroyed -- which fails in the safe
-direction, and is a launch blocker, not a code one. Run hourly once
-scheduling exists: the response window is thirty days, and an hour of slack
-inside it costs nothing.
+`erase_due` reading the clock. Both sweeps run hourly on Celery Beat
+(`app/tasks/schedule.py`): the response window is thirty days, and an hour of
+slack inside it costs nothing. Without beat a deletion request is accepted,
+tracked and shown with its due date, and nothing is destroyed -- a promise
+not kept, so beat is not optional in any deployment.
 
 Idempotent throughout. A redelivered export finds its request finished; a
 second sweep finds nothing RECEIVED to claim; an S3 delete of an object
@@ -135,10 +133,9 @@ async def erase_one(*, dsr_id: uuid.UUID, user_id: uuid.UUID, now: datetime) -> 
         for kind, key in targets.object_keys:
             await storage.delete_object(bucket=_bucket(kind), key=key)
 
-        # The sign-in itself (blockers E32). Before this, an erasure left the
-        # Cognito user standing, so someone erased and later signing in with
-        # the same address presented a subject whose hash we still held and
-        # was refused forever instead of starting fresh.
+        # The sign-in itself. Left standing, someone erased and later signing
+        # in with the same address would present a subject whose hash we still
+        # hold, and be refused forever instead of starting fresh.
         if targets.sign_in is not None:
             pool, subject = targets.sign_in
             await get_account_directory().delete_user(pool=pool, subject=subject)  # type: ignore[arg-type]

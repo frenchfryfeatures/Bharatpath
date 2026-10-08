@@ -8,7 +8,7 @@ no other module may import it (import-linter contract `module-privacy`).
 **Which candidates an employer can see at all is decided in one place: the
 CTE below.** PRD 7.2 asks for high-severity integrity signals to suppress a
 candidate "as a filter inside the discovery query, not a separate code
-path" (plan.md Day 9). A separate filtering step is something the next
+path". A separate filtering step is something the next
 endpoint forgets to call; a CTE that every query is built on is not.
 `test_discovery_suppression.py` fails the build if a query function here
 stops using it.
@@ -84,7 +84,7 @@ async def visible_candidate_ids(
 ) -> list[uuid.UUID]:
     """A page of visible candidate ids, keyset-paginated on the id.
 
-    The foundation Day 13's masked search builds on. It returns ids only:
+    The foundation masked search builds on. It returns ids only:
     everything an employer is shown about a candidate is a separate, audited
     read (invariant 7-prime).
     """
@@ -110,7 +110,7 @@ async def visible_candidate_ids(
 async def is_candidate_visible(session: AsyncSession, *, candidate_id: uuid.UUID) -> bool:
     """Whether one candidate passes the same rule as search.
 
-    The reveal route on Day 14 must answer this before showing a profile,
+    The reveal must answer this before showing a profile,
     because a candidate can become suppressed between appearing in a result
     page and being clicked. It uses the identical CTE so that "in the search
     results" and "openable" can never disagree.
@@ -246,7 +246,7 @@ async def search_candidates(
 
 
 # ---------------------------------------------------------------------------
-# The reveal (Day 14)
+# The reveal
 # ---------------------------------------------------------------------------
 async def revealed_candidate(session: AsyncSession, *, candidate_id: uuid.UUID) -> Any:
     """One visible candidate's contact details and card facts, or None.

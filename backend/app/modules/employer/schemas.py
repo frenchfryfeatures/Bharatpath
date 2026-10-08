@@ -160,7 +160,7 @@ class OrganisationResponse(_Base):
     website: str | None = None
     about: str | None = None
     kyb_status: str = Field(
-        description="DRAFT until KYB is submitted (Day 10). An organisation "
+        description="DRAFT until KYB is submitted. An organisation "
         "exists before it is verified; publishing a job does not."
     )
 

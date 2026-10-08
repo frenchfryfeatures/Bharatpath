@@ -19,9 +19,9 @@ MODULE: Final = "interview"
 #: `interview.service.contributions_for`.
 SESSION_COMPLETED: Final = f"{MODULE}.session_completed"
 
-#: One answer's audio is stored. For the transcription pipeline (Day 17).
+#: One answer's audio is stored. For the transcription pipeline.
 ANSWER_STORED: Final = f"{MODULE}.answer_stored"
 
 #: A completed session was evaluated, or could not be (`outcome`). Feedback
-#: only: routed to nothing that scores. For notifications (Day 19).
+#: only: routed to nothing that scores. For notifications.
 SESSION_EVALUATED: Final = f"{MODULE}.session_evaluated"

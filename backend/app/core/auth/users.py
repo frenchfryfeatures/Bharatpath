@@ -98,8 +98,8 @@ async def resolve_or_create_user(
         existing = await _by_subject(session, token.subject)
         if existing is None:
             # Not a race: the phone or email already belongs to another
-            # account -- in practice the other pool's (blockers E8: one
-            # address cannot be both a candidate and employer staff). Said
+            # account -- in practice the other pool's (one address cannot be
+            # both a candidate and employer staff). Said
             # plainly rather than as a 500. The address is not logged.
             logger.warning("user_contact_in_use", pool=token.pool)
             raise PermissionDeniedError(code="account_contact_in_use")
@@ -110,7 +110,7 @@ async def resolve_or_create_user(
 
 
 def erased_subject(subject: str) -> str:
-    """What an erasure leaves in `cognito_sub` (Day 20): the subject's SHA-256.
+    """What an erasure leaves in `cognito_sub`: the subject's SHA-256.
 
     Must match `erase_candidate` in the baseline migration byte for byte.
     """

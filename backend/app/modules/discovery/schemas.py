@@ -6,11 +6,13 @@ Separate Create / Update / Read schemas. ORM models are never exposed
 directly - the schema IS the API contract, and for several modules it is also
 where an invariant is enforced structurally.
 
-**`MaskedCandidate` is structurally incapable of holding a name, a phone
-number, an email or the score** (plan.md Day 13). Not "does not populate" --
-there is no field to put them in, `extra="forbid"` refuses one arriving, and
-no field is free-form. `tests/invariants/test_masked_candidate.py` holds the
-field list, so widening the card is a visible change to a test.
+**`MaskedCandidate` is structurally incapable of holding a phone number, an
+email or the score.** Not "does not populate" -- there is no field to put them
+in, `extra="forbid"` refuses one arriving, and no field is free-form. The one
+identifying field it carries is `full_name`, from the candidate's own profile
+(product decision, 2026-10-06), never from the CV.
+`tests/invariants/test_masked_candidate.py` holds the field list, so widening
+the card is a visible change to a test.
 """
 
 from __future__ import annotations
@@ -49,7 +51,7 @@ class MaskedCandidate(_Base):
     **The band, never the score.** Employers never see the raw number (R4,
     2026-08-24), and the band is what the design system draws.
 
-    `candidate_id` is the handle the Day 14 reveal opens, behind the access
+    `candidate_id` is the handle the reveal opens, behind the access
     window and its audit row.
 
     **`full_name` is on the card since 2026-10-06** (product decision): the

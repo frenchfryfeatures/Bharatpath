@@ -7,8 +7,8 @@ mypy runs in strict mode here and import-linter forbids I/O imports, because
 this is the layer the invariant property tests exercise directly.
 
 **This file is the deletion policy, written down.** The client's answer was
-*"do full delete for them"* (Round 7.4), with one carve-out we raised and they
-confirmed as *"B3 correct"* (Round 10.2): financial and audit records survive,
+*"do full delete for them"*, with one carve-out we raised and they confirmed:
+financial and audit records survive,
 because statutory retention and PRD rule 9 both outrank a deletion request.
 Every table in the schema is named in `ERASURE_PLAN` below with what happens to
 it and why, and `tests/invariants/test_erasure_plan.py` fails the build when a
@@ -186,7 +186,7 @@ ERASURE_PLAN: Final[Mapping[str, TablePlan]] = {
         "SHA-256 so a still-valid token is refused rather than signed up again, "
         "and the row is marked DELETED. The row itself stays because every retained payment and "
         "audit row points at it; emptied, that id identifies nobody, which is "
-        "the non-reversible pseudonymisation promised in answers-log 7.4 done "
+        "the non-reversible pseudonymisation promised to the client, done "
         "once instead of rewritten across an append-only trail.",
     ),
     # -- the person's own content: erased --------------------------------
@@ -311,7 +311,7 @@ ERASURE_PLAN: Final[Mapping[str, TablePlan]] = {
     "audit_events": _retain(
         "PRD rule 9 and invariant 7'. Deleting these destroys the evidence "
         "that every reveal of this person's data was lawful, which harms "
-        "their position as much as ours (answers-log 7.4).",
+        "their position as much as ours.",
         link="actor_id",
     ),
     "candidate_view_events": _retain(
@@ -341,7 +341,7 @@ ERASURE_PLAN: Final[Mapping[str, TablePlan]] = {
         None,
         "A contact a college supplied about its own student. **It carries no "
         "link to an account** -- deliberately, because a college must never "
-        "learn who has one (SRS 1.15, Day 17) -- so finding it would require "
+        "learn who has one (SRS 1.15) -- so finding it would require "
         "exactly the match the design forbids. It is the college's record to "
         "erase, and a request against us cannot reach it. Named for counsel.",
     ),

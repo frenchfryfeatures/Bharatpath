@@ -3,8 +3,7 @@
 Plans, periods, renewal, cancellation, seats.
 
 Events this module emits through the transactional outbox. Consumers are
-idempotent by event id. Notifications (Day 19) is the consumer all three
-exist for: nothing reaches the subscriber until it lands.
+idempotent by event id. Notifications is the consumer all three exist for.
 """
 
 from __future__ import annotations

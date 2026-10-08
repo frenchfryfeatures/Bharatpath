@@ -95,7 +95,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def global_ip_limit(
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
-        """The per-IP tier of the global limit (Day 20), before authentication.
+        """The per-IP tier of the global limit, before authentication.
 
         Before, so an unauthenticated flood is turned away without costing a
         JWKS verification or a database lookup each. Fails open -- see
@@ -248,8 +248,8 @@ def _add_error_responses(schema: dict[str, Any]) -> None:
     #
     # That the API has two error shapes at all is a real wart, found by the
     # fuzzer. Normalising them is a breaking change for anyone already parsing
-    # `detail`, so it is recorded in `docs/blockers.md` rather than done
-    # quietly here while a client team is mid-integration.
+    # `detail`, so it is the client's decision (`docs/blockers.md` E42), not
+    # something to do quietly here.
     framework_schema = {
         "application/json": {"schema": {"$ref": "#/components/schemas/FrameworkError"}}
     }

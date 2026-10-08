@@ -83,7 +83,7 @@ async def create_organisation(
     is not stylistic.
 
     KYB starts at DRAFT. The organisation exists before it is verified;
-    publishing a job does not (invariant 8, Day 10).
+    publishing a job does not (invariant 8).
 
     `actor_id` / `actor_role` name who did it when that is not the owner:
     staff creating the organisation for them from the console (2026-09-18).

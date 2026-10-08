@@ -17,7 +17,7 @@ The arithmetic was fixed by the client and is not ours to change:
     700 base + 0-200 resume + 30 course + 60 interviews = 990 exactly
 
 Only the 0-200 resume band is defined here. The client delegated its shape to
-us on 2026-09-11 (`answers-log.md` Round 7.1).
+us on 2026-09-11.
 """
 
 from __future__ import annotations

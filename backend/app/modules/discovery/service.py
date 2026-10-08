@@ -6,10 +6,10 @@ Services own the transaction. They never touch `Request`, and anything that
 reveals private data writes its audit row on the same session before the
 transaction closes.
 
-Day 9 landed the rule everything here is built on: which candidates are
-visible at all, with high-severity integrity suppression inside it. Day 13
-adds masked search on top of it, and Day 14 the reveal: the view caps, the
-view log and the audit row that make opening a profile safe to allow at all.
+Everything here is built on one rule: which candidates are visible at all,
+with high-severity integrity suppression inside it. Masked search sits on top
+of it, and then the reveal: the view caps, the view log and the audit row that
+make opening a profile safe to allow at all.
 
 **Masked search writes no audit row, deliberately.** A card carries nothing
 PRD rule 9 calls private: no name, no contact, no score. What it does expose
@@ -216,7 +216,7 @@ async def count_visible_at_or_above(session: AsyncSession, *, min_score: int) ->
 
 
 # ---------------------------------------------------------------------------
-# Masked search (Day 13)
+# Masked search
 # ---------------------------------------------------------------------------
 def _cursor_of(row: Any) -> str:
     return encode_cursor({"r": int(row.band_rank), "i": str(row.user_id)})
@@ -324,7 +324,7 @@ async def search_candidates(
 
 
 # ---------------------------------------------------------------------------
-# The reveal (Day 14)
+# The reveal
 # ---------------------------------------------------------------------------
 @dataclass(frozen=True, slots=True)
 class OpenedCandidate:
@@ -372,7 +372,7 @@ async def open_candidate(
          session**: if any write fails, the reveal rolls back with it.
 
     Candidates only ever arrive one at a time. There is no batch form of this
-    and there must not be one: export is not a feature (plan.md Day 14).
+    and there must not be one: export is not a feature.
     """
     tenant_id = await _verified_employer(session, ctx)
     limits = await load_limits(session, now=datetime.now(UTC))

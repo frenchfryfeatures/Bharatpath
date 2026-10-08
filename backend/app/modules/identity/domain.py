@@ -6,10 +6,10 @@ No I/O. No database, no HTTP, no clock, no randomness that is not passed in.
 mypy runs in strict mode here and import-linter forbids I/O imports, because
 this is the layer the invariant property tests exercise directly.
 
-**Which role may be held in which kind of tenant** (Day 19, closing blockers
-E10). Our own staff belong to one PLATFORM tenant, so `memberships.tenant_id`
-stays NOT NULL and the one-membership-per-account rule still answers "who is
-this caller acting for?" with a single row. The pairing below is what stops
+**Which role may be held in which kind of tenant.** Our own staff belong to
+one PLATFORM tenant, so `memberships.tenant_id` stays NOT NULL and the
+one-membership-per-account rule still answers "who is this caller acting
+for?" with a single row. The pairing below is what stops
 that becoming a way in: an employer owner who could add a team member as
 `PLATFORM_ADMIN` would have handed themselves the console. The service checks
 the team roles it offers; `guard_membership_tenant_type` in the baseline is

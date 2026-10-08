@@ -294,7 +294,7 @@ async def search_board(
     can apply to nothing yet, so there is nothing eligible to show.
 
     Substring matching is enough for a board this size and is honest about
-    what it is. The indexed search on Day 13 is for candidates, which is the
+    what it is. The indexed search is for candidates, which is the
     query that grows; this one is bounded by how many jobs are live.
     """
     stmt = select(Job).where(Job.status == "PUBLISHED", _listed())

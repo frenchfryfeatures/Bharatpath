@@ -12,13 +12,12 @@ where nothing can route around it. The service check is for the message; the
 trigger is for the guarantee. If the two ever disagree the trigger wins, and
 its error is translated into the same `kyb_required` a client already handles.
 
-**Not yet here: the employer subscription gate.** Employers get the portal on
-signup and can do nothing in it until they pay (R15). That is a second,
-independent gate with its own error code. The dependency works as of Day 11 --
-the candidate board below sits behind it -- but employers cannot buy anything
-until Day 15, so the employer routes gain it then.
+**The subscription gate is the router's, not this file's.** Employers get the
+portal on signup and can do nothing in it until they pay (R15); every employer
+route here carries `require_active_subscription`, a second, independent gate
+with its own error code.
 
-**The candidate board** (Day 11) is the second half of this file. It reads
+**The candidate board** is the second half of this file. It reads
 every employer's published jobs, which no tenant binding can express, so it
 binds the candidate's own identity instead; see `set_transaction_user` and the
 candidate policies in the baseline migration.
@@ -73,7 +72,7 @@ logger = get_logger(__name__)
 
 #: Threshold previews per organisation per hour. Enough for someone composing
 #: several jobs and trying thresholds; far too few to binary-search a score.
-#: The number lives in `app.core.ratelimit.STATIC_POLICIES` (Day 20), beside
+#: The number lives in `app.core.ratelimit.STATIC_POLICIES`, beside
 #: every other limit, so it can be held as one of the two tightest.
 THRESHOLD_PREVIEWS_PER_HOUR: Final = STATIC_POLICIES["jobs.threshold_preview"].limit
 
@@ -362,7 +361,7 @@ async def threshold_preview(
 
 
 # ---------------------------------------------------------------------------
-# The candidate board (Day 11)
+# The candidate board
 # ---------------------------------------------------------------------------
 async def bind_candidate(session: AsyncSession, ctx: TenantContext) -> uuid.UUID:
     """Bind `app.user_id` for a candidate's transaction, and refuse anyone else.

@@ -45,9 +45,8 @@ class AuditAction(StrEnum):
     CANDIDATE_PROFILE_VIEWED = "candidate_profile_viewed"
     CANDIDATE_CONTACT_REVEALED = "candidate_contact_revealed"
     CANDIDATE_SEARCH_PERFORMED = "candidate_search_performed"
-    #: An organisation's views crossed a velocity or cap threshold (Day 14).
-    #: The admin console reads these by action; nobody can hold a platform
-    #: role to read them yet (blockers E10).
+    #: An organisation's views crossed a velocity or cap threshold. Staff read
+    #: these in the admin console, by action.
     CANDIDATE_VIEW_ANOMALY_FLAGGED = "candidate_view_anomaly_flagged"
 
     # Admin privilege - SRS 2.24.5, every drill-down
@@ -55,9 +54,9 @@ class AuditAction(StrEnum):
     ADMIN_EMPLOYER_DRILLDOWN = "admin_employer_drilldown"
     ADMIN_COLLEGE_DRILLDOWN = "admin_college_drilldown"
     ADMIN_BYPASS_SESSION_OPENED = "admin_bypass_session_opened"
-    #: A KYB submission's answers opened by a reviewer (Day 19).
+    #: A KYB submission's answers opened by a reviewer.
     ADMIN_KYB_SUBMISSION_OPENED = "admin_kyb_submission_opened"
-    #: A signal's evidence opened (Day 19). Evidence can quote the CV.
+    #: A signal's evidence opened. Evidence can quote the CV.
     ADMIN_INTEGRITY_SIGNAL_OPENED = "admin_integrity_signal_opened"
     #: A dispute opened in the console: its description is the raiser's words.
     ADMIN_DISPUTE_OPENED = "admin_dispute_opened"
@@ -135,7 +134,7 @@ class AuditAction(StrEnum):
     # Metadata holds the kind and ids, never the words.
     APPLICATION_MESSAGE_SENT = "application_message_sent"
 
-    # Colleges (Day 17). A seat is a student's paid access, and a referral
+    # Colleges. A seat is a student's paid access, and a referral
     # code is a credential that attaches students to a roster: issuing,
     # revoking and allocating are all privileged.
     COLLEGE_SEATS_ALLOCATED = "college_seats_allocated"
@@ -147,20 +146,20 @@ class AuditAction(StrEnum):
     # Consent - PRD rule 8
     CONSENT_GRANTED = "consent_granted"
     CONSENT_REVOKED = "consent_revoked"
-    #: One consenting student's details opened by college staff (Day 18).
+    #: One consenting student's details opened by college staff.
     COLLEGE_STUDENT_VIEWED = "college_student_viewed"
     #: The list of students who let their college see them was read. It
     #: names people, so it is a reveal too; metadata holds the ids shown.
     COLLEGE_STUDENTS_LISTED = "college_students_listed"
 
-    # Notifications (Day 19). Stopping messages to a person is our decision
+    # Notifications. Stopping messages to a person is our decision
     # about them, so it is recorded like one.
     NOTIFICATIONS_SUPPRESSED = "notifications_suppressed"
 
     # Privacy
     DSR_EXPORT_REQUESTED = "dsr_export_requested"
     DSR_DELETION_REQUESTED = "dsr_deletion_requested"
-    #: A download link to an export was minted (Day 20). The link is a bearer
+    #: A download link to an export was minted. The link is a bearer
     #: token for a whole person's record, so handing one out is a reveal.
     DSR_EXPORT_DOWNLOADED = "dsr_export_downloaded"
     DSR_COMPLETED = "dsr_completed"

@@ -14,8 +14,7 @@ Institution tenant, roster, invites, consent, referral codes.
 
 **Referral codes are new since 2026-08-27** and run *alongside* the invite
 flow, not instead of it - invites still cover students with no account yet.
-Three decisions we took, all in the schema, and approved by the client in
-Round 7.9 (*"do it"*):
+Three decisions we took, all in the schema, and approved by the client:
 
   1. Entering a code **is** the consent act (`granted_via = REFERRAL_CODE`).
      It is arguably better consent than invite-accept, because the student
@@ -26,7 +25,7 @@ Round 7.9 (*"do it"*):
      revocable, expiring. A guessable code lets anyone attach themselves to a
      roster, or lets a college harvest students who never agreed to anything.
 
-**Seats are held per student** (Day 17). `college_seats` is the allowance and
+**Seats are held per student.** `college_seats` is the allowance and
 the count; `college_seat_assignments` says which student each counted seat is
 paying for. `guard_college_seat_assignment` (baseline migration) keeps the two
 equal and refuses a seat past the allowance, for every writer.
@@ -101,8 +100,7 @@ class CollegeSeat(Base, Timestamps):
     """Admin-assigned seat allowance (client: "No of Seats ... from the admin").
 
     One payment per period covering up to N students - mirroring the employer
-    model rather than the tiers the employer side rejected (Q10, approved in
-    Round 7.7).
+    model rather than the tiers the employer side rejected (client-approved).
 
     **A seat replaces the student's own subscription entirely** (client,
     2026-09-12, closing C12): *"Student does not pay if the college has paid
@@ -182,7 +180,7 @@ class CollegeSeatAssignment(Base, UUIDPrimaryKey, TenantScoped):
             postgresql_where=text("released_at IS NULL"),
         ),
         # Every seat a candidate ever held, released ones included -- the
-        # erasure's predicate (Day 20 index review). The unique index above
+        # erasure's predicate (`test_index_review.py`). The unique index above
         # covers only the live one.
         Index("ix_college_seat_assignments_candidate", "candidate_id"),
         Index(

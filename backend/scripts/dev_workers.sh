@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
-# Run the local Celery worker and regularly enqueue the transactional outbox
-# relay. Production uses EventBridge Scheduler for the relay; local development
-# needs this small scheduler so resume.version_confirmed reaches score_resume.
+# Run the local Celery worker and enqueue the transactional outbox relay every
+# two seconds, so an event (resume.version_confirmed -> score_resume, a stub
+# payment callback, ...) is acted on while you are still looking at the screen.
+#
+# Deployed environments run the relay on Celery Beat every 30 seconds, beside
+# the hourly and daily sweeps (app/tasks/schedule.py). This loop runs only the
+# relay: to exercise expiry, renewals, erasure or nudges locally, also run
+#   celery -A app.worker beat --loglevel=info
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -33,8 +38,8 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-# SQS has no reliable countdown/ETA support, so this only sends immediate
-# tasks. The worker drains both the relay and the scoring tasks it publishes.
+# Immediate sends only, as beat does. The worker drains both the relay and the
+# tasks it publishes.
 "$PYTHON_BIN" - <<'PY'
 import time
 

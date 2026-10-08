@@ -6,7 +6,7 @@ Routes only. No business logic, no repository access.
 import-linter enforces the second half of that sentence.
 
 **Never paywalled.** A lapsed subscriber loses access, not their data -- the
-same decision Day 11 took for reading and withdrawing applications, and one
+same rule as reading and withdrawing applications, and one
 the law takes for us here: a right of access that costs a subscription is not
 a right of access.
 

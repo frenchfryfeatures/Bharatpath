@@ -18,7 +18,7 @@ Three rules do that, in order:
      holding fewer than `min_cell_size` students is withheld; and if exactly
      one cell was withheld, the next smallest is withheld too, because a total
      minus every other cell is the withheld one. Zero is shown: it names nobody.
-     **Off by default since 2026-09-30** (client, answers-log 12.1): above the
+     **Off by default** (client, 2026-09-30): above the
      cohort floor a college sees exact numbers, because exact outcomes are what
      it pays for on its students' behalf. `min_cell_size` 1 withholds nothing;
      a config row may still raise it.
@@ -29,7 +29,7 @@ Three rules do that, in order:
 the dashboard, watches one named student accept an invitation, and reads it
 again can see which band moved. Cell suppression narrows that; nothing short
 of delaying or noising every number removes it, and consent to be counted is
-consent to that residual. See `docs/progress.md`, Day 18.
+consent to that residual.
 """
 
 from __future__ import annotations
@@ -55,7 +55,7 @@ class PrivacyFloors:
 
     Loaded from `config_values` key `analytics.privacy`; these defaults apply
     only when no row exists. The cohort floor and the median step are still
-    ours; exact cells (`min_cell_size` 1) are the client's (answers-log 12.1).
+    ours; exact cells (`min_cell_size` 1) are the client's (2026-09-30).
     """
 
     #: Connected students below which nothing but the count is shown.

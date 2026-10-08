@@ -116,7 +116,7 @@ class DsrRequest(Base, UUIDPrimaryKey, Timestamps):
         ),
         # The deletion sweep's query: open deletions, oldest first. Without
         # this it is a sequential scan over every request ever made, growing
-        # forever while the rows it wants stay a handful (Day 20 index review).
+        # forever while the rows it wants stay a handful (`test_index_review.py`).
         Index(
             "ix_dsr_due_deletions",
             "created_at",

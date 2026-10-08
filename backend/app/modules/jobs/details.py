@@ -17,8 +17,8 @@ storage format's.
 **What a posting may not ask for.** No age, no date of birth and no gender,
 in any form -- not a range, not a preference, not a "suitable for". Invariant 5
 forbids age-gating outright (PRD section 3 rule 4), and a gender requirement
-on a job is the same discrimination the questionnaire refuses to ask about
-(`blockers.md` C3). `extra="forbid"` turns either into a 422, and a screening question that
+on a job is the same discrimination the questionnaire refuses to ask about.
+`extra="forbid"` turns either into a 422, and a screening question that
 asks about either is refused by its words. `test_a_job_cannot_ask_for_age_or_gender`
 and `test_a_screening_question_cannot_ask_about_age_or_gender` hold both.
 

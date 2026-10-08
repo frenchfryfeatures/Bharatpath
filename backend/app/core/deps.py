@@ -15,10 +15,7 @@ the wrong thing to do about it.
 **The KYB gate (invariant 8 / R15) is deliberately NOT a dependency here.**
 It cannot be: deciding it means reading `employers.kyb_status`, and
 `app.core` may not import `app.modules` -- the `core-depends-on-nothing`
-contract in `.importlinter`. A `require_kyb_approved` dependency lived here
-as an unimplemented stub that raised unconditionally from Day 4 until
-2026-09-22; nothing ever depended on it, because by Day 10 the check had
-been built where it can actually read the row:
+contract in `.importlinter`. The check lives where the row can be read:
 
   * `jobs.service.publish_job`        - invariant 8, re-checked on resume
   * `discovery.service._verified_employer` - search and the reveal (SRS 1.14.1)
@@ -157,7 +154,7 @@ async def current_user(
     if membership is None:
         # A verified business identity with no active membership: invited but
         # not yet added, just revoked, or a member of a suspended organisation
-        # (Day 19) -- who is told so, because "you belong nowhere" would send
+        # -- who is told so, because "you belong nowhere" would send
         # them to their owner rather than to us.
         if await membership_lookup.in_suspended_tenant(session, user.id):
             raise PermissionDeniedError(code="tenant_suspended")
@@ -176,7 +173,7 @@ async def current_user(
 
 
 async def _global_limits(ctx: TenantContext) -> None:
-    """The per-user and per-tenant tier of the global limit (Day 20).
+    """The per-user and per-tenant tier of the global limit.
 
     Here, once, because every authenticated route resolves `current_user`
     exactly once per request -- FastAPI caches a dependency within a request --
@@ -308,7 +305,7 @@ async def require_active_subscription(user: CurrentUser, session: DbSession) -> 
     with the wrong role is told 403 rather than invited to pay for a surface
     they cannot use.
 
-    **The seat limb** (Day 17) is `has_active_college_seat`: a seat held on a
+    **The seat limb** is `has_active_college_seat`: a seat held on a
     live ROSTER consent, at an ACTIVE college, whose own subscription is in
     period. A college that lapses, or a student who disconnects, loses the
     seat's access on the next request.

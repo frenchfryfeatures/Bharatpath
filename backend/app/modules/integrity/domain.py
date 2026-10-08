@@ -6,8 +6,8 @@ No I/O. No database, no HTTP, no clock, no randomness that is not passed in.
 mypy runs in strict mode here and import-linter forbids I/O imports, because
 this is the layer the invariant property tests exercise directly.
 
-The client delegated these rules to us on 2026-09-11 (`answers-log.md` Round
-7.6, "use your best knowledge"), closing blocker B5.
+The client delegated these rules to us on 2026-09-11 ("use your best
+knowledge"), so the thresholds are ours and live in config.
 
 ---
 
@@ -111,9 +111,10 @@ class ResumeClaims:
     skill_evidence: int = 0  # 0-4, the same rating scoring/domain.py consumes
     visible_text: str = ""
     #: Characters present in the file but not visible to a human reader --
-    #: white on white, zero-size, positioned off the page. **The extractor does
-    #: not populate this yet** (`docs/blockers.md` E5); it defaults to empty, so
-    #: the rule is inert rather than wrong until it does.
+    #: white on white, zero-size, positioned off the page. Found by
+    #: `resume/hidden_text.py` at parse time. Empty for a version parsed
+    #: before that detector existed, so the rule is inert there rather than
+    #: wrong.
     hidden_text: str = ""
     #: A BharatPath score the candidate wrote into their own CV.
     claimed_platform_score: int | None = None
@@ -174,7 +175,7 @@ class IntegrityThresholds:
 
     **The numbers are configuration; the rules are code.** The constants above
     are the defaults, and `config_values` key `integrity.thresholds` overrides
-    any of them without a deploy (plan.md Day 9: "changes ship as config").
+    any of them without a deploy.
     The injection patterns and the senior-title vocabulary deliberately stay in
     code: a regular expression edited in a database row is a way to suppress
     every candidate in the country with one typo.
@@ -652,7 +653,7 @@ def suppresses_from_discovery(signals: tuple[Signal, ...]) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# From a Layer 1 extraction to claims (Day 9)
+# From a Layer 1 extraction to claims
 # ---------------------------------------------------------------------------
 # The rules above read `ResumeClaims`. Layer 1 produces a JSON extraction
 # (`scoring/extractor.py`). This is the one translation between the two.
@@ -780,8 +781,7 @@ def claims_from_extraction(
     still run on the roles that *are* dated. Dropping a role can hide an
     overlap; it can never invent one.
 
-    **`hidden_text` is supplied by the parser** as of 2026-09-22 (blockers
-    E5, which this closes). It defaults to empty because that is the honest
+    **`hidden_text` is supplied by the parser.** It defaults to empty because that is the honest
     value for a version parsed before the detector existed, for a document
     the detector could not read, and for a CV with nothing hidden in it --
     and because `domain.py` is pure, so it takes what it is given and does

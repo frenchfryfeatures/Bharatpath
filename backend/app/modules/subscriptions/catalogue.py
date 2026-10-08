@@ -1,8 +1,8 @@
 """The price list, as data.
 
-**These prices are ours, not the client's.** They were produced on 2026-09-11
-under `answers-log.md` Round 7.10 ("create best for now according to your
-knowledge"), closing blocker C2 well enough to build and seed against. They are
+**These prices are ours, not the client's.** The client asked us to "create
+best for now according to your knowledge" (2026-09-11), well enough to build
+and seed against. They are
 benchmarked against what Indian hiring platforms charge and against what the
 audiences can plausibly pay -- they are *not* a margin calculation, because the
 per-candidate cost figure that would drive one does not exist yet
@@ -139,7 +139,7 @@ CANDIDATE_PLANS: Final[tuple[PlanEntry, ...]] = (
 # ---------------------------------------------------------------------------
 # Employers
 # ---------------------------------------------------------------------------
-# Pay monthly, see everyone (client, 2026-08-27, confirmed again in Round 7.8).
+# Pay monthly, see everyone (client, 2026-08-27, confirmed again since).
 # No tiers, no per-unlock pricing, no seat counts -- one subscription is the
 # entitlement, and that is why `subscriptions` alone answers "can this tenant
 # see this candidate".

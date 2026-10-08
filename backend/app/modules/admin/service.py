@@ -570,7 +570,7 @@ async def suspend_tenant(
     What stops: every member's next request (`tenant_suspended`), the
     organisation's jobs on the candidate board and applications to them, and
     -- for a college -- its students' seat-based access, because every check
-    that reads `tenants.status` sees SUSPENDED (blockers E29). What does not:
+    that reads `tenants.status` sees SUSPENDED. What does not:
     any row. Audited; the reason stays on the suspension row.
     """
     row = await identity_service.suspend_tenant(
@@ -1225,9 +1225,10 @@ async def open_hire_dispute(
 ) -> uuid.UUID | None:
     """Put a disputed hire in the queue, as the candidate's dispute (system).
 
-    Day 12 recorded `hire_disputed_at` and nobody read it (blockers E12). This
-    runs on `applications.hire_disputed` and files it **as the candidate**,
-    binding their identity exactly as their own request did, so the row passes
+    A candidate's dispute is only a timestamp on the application
+    (`hire_disputed_at`) until this puts it in front of staff. This runs on
+    `applications.hire_disputed` and files it **as the candidate**, binding
+    their identity exactly as their own request did, so the row passes
     the same policy and guard a raised dispute does. At least once, so
     idempotent by application (`uq_disputes_hire_dispute`). None when it was
     already open.
