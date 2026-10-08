@@ -9,7 +9,10 @@ prefix = "/integrity"
 
 
 def get_router() -> APIRouter | None:
-    """Return this module's router, or None while it is still a stub."""
-    from . import router as _router
+    """None: integrity has no HTTP surface of its own.
 
-    return getattr(_router, "router", None)
+    Signals are raised by a task and resolved by staff through the admin
+    console (`admin.router`), which calls `integrity.service`. A candidate
+    never sees a signal, so there is nothing here to route.
+    """
+    return None
