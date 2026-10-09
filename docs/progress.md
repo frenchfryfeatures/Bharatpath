@@ -9,6 +9,71 @@ states. Newest entries first.
 
 ---
 
+## 2026-10-09 — recommended jobs on the candidate home screen
+
+Asked for by the user, after Naukri's home page: two sections, **jobs like
+the ones you applied for** and **jobs that fit your profile**. Backend only.
+The app teams get the contract in `backend-guide/05` §7.
+
+- `GET /candidate/recommended-jobs/similar-to-applied`: matched on the
+  skills, title words and places of the last 20 applications, ignoring
+  withdrawn ones.
+- `GET /candidate/recommended-jobs/matching-profile`: matched on the career
+  profile's key skills, desired role, current title, role category,
+  preferred locations, city and experience.
+- Both are paywalled like the board. Both show only board jobs (published,
+  PUBLIC) and never one already applied to. Both carry `eligibility` and
+  `matched_skills`, and no threshold or relevance number. `has_basis: false`
+  tells the app to prompt rather than show an empty list.
+- **Deliberately not used:** gender and salary from the profile (salary's
+  unit is not fixed by the form), and the job's threshold in the ordering.
+- **Weights are ours** (skill 3, title word 4, place 2, experience fit 1, in
+  `jobs/domain.py`). No client decision behind them. Tune them by changing
+  that file; no schema or migration is involved.
+- Tests: `tests/unit/test_job_recommendations.py`,
+  `tests/integration/test_job_recommendations.py`.
+
+---
+
+## 2026-10-09 — backend review: comments, dead code, stale claims
+
+Asked for by the manager: make the backend read as production code. Branch
+`chore/backend-production-review`. **No behaviour change**; the suite and
+every CI check pass on a freshly rebuilt database.
+
+- **Comments say why, not when.** About 330 "Day N", "Week N gate", "Round
+  7.x" and closed-blocker references across `app/`, `scripts/`, `tests/` and
+  `.importlinter` were rewritten into the rule and its reason. Client
+  decisions keep their date where the date is the reason; open blocker ids
+  stay. Migration SQL was left alone: it is the record of what ran.
+- **About twenty comments were false, not merely dated**, and were
+  corrected: five periodic tasks claiming EventBridge and "not provisioned"
+  (all on beat); the masked card "cannot hold a name" (it carries
+  `full_name`); the employer subscription gate "lands on Day 15" (it is on
+  every employer route); hidden text "never populated"; interview question
+  sets presented as what candidates are asked; the course described as
+  seeded and assessment-based; employer types "validated against
+  `config_values`" (they are checked against `employer/reference.py`);
+  "deployments use SQS" (Redis, E44).
+- **Dead code removed.** Nine placeholder files from the module scaffold,
+  an empty `integrity/router.py`, an empty `tests/contract/` package, the
+  unused `ASSESSMENT_*` constants, and `app/core/idempotency.py` with its
+  two error classes -- no route ever used it. The six operations it claimed
+  are idempotent through their own state (commit `e945198` lists how).
+  `gen_modules.py --check` now checks registration, not that eight files
+  exist in every module.
+- **`backend/README.md` rewritten**: port 8099, `dev_all.sh` and beat,
+  incremental migrations, RFC 9457 and the second error shape, and an
+  invariant table naming the proving test. `CLAUDE.md` corrected where it
+  had gone stale (E4, E6, E15, E32 closed; `allocate_seats` routed).
+
+**Left for a decision:** the `idempotency_keys` table is unused and kept
+(documented on its model); dropping it is a migration on every shared
+database. The `celery_broker_url` default is still `sqs://`, which fails
+loudly at worker boot if the variable is ever missing.
+
+---
+
 ## 2026-10-07 — business MFA is optional, off by default (closes E37)
 
 The client asked for business users (employers, colleges, staff) to turn
@@ -28,6 +93,30 @@ authenticator-app MFA on or off themselves, off by default.
 - Frontend: sign-in already handles both cases. The settings toggle is new
   and calls Cognito directly -- `docs/signup-and-accounts.md` → _MFA for
   business accounts_.
+
+---
+
+## 2026-10-07 — two seeded test accounts renamed on the deployed stack
+
+The client-facing demo showed a developer's name in two sign-in emails, so the
+seeded employer and institute accounts were moved to neutral addresses
+(requested by Rishabh). Done on the deployed stack (account `335345888157`),
+not locally:
+
+- `vanshadiyora@gmail.com` → `testingemployer@gmail.com`
+- `diyoravansh@gmail.com` → `testinginstitute@gmail.com`
+
+**Both stores had to change.** Sign-in matches the Cognito email, while our
+`users.email` is what the app shows; the rows join on `cognito_sub`, so
+`users.id` and all seeded data were untouched. Cognito: business pool
+`ap-south-1_YlPonHUV6`, `admin-update-user-attributes` with
+`email_verified=true`, run by hand in CloudShell (the host's instance role has
+no `AdminUpdateUserAttributes`, deliberately). Database: one transaction as the
+migrator, one row each.
+
+**These two addresses are not real mailboxes.** An email code sent to them goes
+nowhere; any flow that needs one cannot be completed by the client. Passwords
+are unchanged and are not recorded here.
 
 ---
 
