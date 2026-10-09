@@ -1,4 +1,4 @@
-"""Day 17: the college domain -- referral codes, roster files, invitations, seats.
+"""The college domain -- referral codes, roster files, invitations, seats.
 
 Pure functions, so every rule that decides who can attach themselves to a
 roster, what a college is told about its file, and how many students a
@@ -253,7 +253,7 @@ def test_no_college_facing_schema_names_a_score() -> None:
     """ROSTER consent is counting, not seeing. Nothing about a student's score
     has a field on this surface (invariant 7 walks OpenAPI for the raw one).
 
-    **One exception, by name** (Day 18): `CollegeStudentResponse`, served only
+    **One exception, by name**: `CollegeStudentResponse`, served only
     behind a live INDIVIDUAL consent whose words name the score, with its field
     list fixed by `tests/invariants/test_invariant_09_consent.py`."""
     import inspect

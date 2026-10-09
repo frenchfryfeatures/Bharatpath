@@ -1,4 +1,4 @@
-"""Day 11 at the database layer: what a candidate transaction can read and write.
+"""At the database layer: what a candidate transaction can read and write.
 
 The HTTP tests prove the service behaves. These prove what is left if it does
 not -- a repository called directly on an app-role session, with nothing but

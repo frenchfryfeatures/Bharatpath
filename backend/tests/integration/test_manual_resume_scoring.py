@@ -1,7 +1,7 @@
 """Blocker E6: a CV entered through the form is scored like an upload.
 
 Before this, `score_confirmed_resume` refused any version without free text,
-so a candidate who used the form never got a score -- and since Day 9 an
+so a candidate who used the form never got a score -- and an
 unscored candidate never reaches an employer. The form now renders to text and
 takes the normal Layer 1 path. Layer 1 is stubbed; no test calls a model.
 """

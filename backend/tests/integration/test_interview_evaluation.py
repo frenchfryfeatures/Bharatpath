@@ -1,4 +1,4 @@
-"""Day 17 through HTTP and the database: evaluating a completed mock interview.
+"""Through HTTP and the database: evaluating a completed mock interview.
 
 Evaluation is feedback. What this file holds:
 
@@ -202,7 +202,7 @@ async def test_silence_is_recorded_as_no_speech_and_keeps_its_points(
     assert (
         await _scalar("SELECT points_awarded FROM interview_sessions WHERE id = :s", s=session_id)
         == 20
-    ), "points are for completing (blockers E19)"
+    ), "points are for completing, not for performing"
 
 
 class _Malformed(StubEvaluationProvider):

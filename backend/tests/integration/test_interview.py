@@ -1,4 +1,4 @@
-"""Day 16 through HTTP and the database: the mock interview.
+"""Through HTTP and the database: the mock interview.
 
 Device check before payment, a purchase by verified callback, per-question
 upload with recovery, completion, and **invariant 4' re-verified end to end**:
@@ -408,7 +408,7 @@ async def test_the_database_holds_the_session_rules(
 async def test_four_sessions_move_the_score_by_sixty_and_replay_exactly(
     client: Any, mint_token: Any, fake_s3: FakeS3
 ) -> None:
-    """Invariant 4', re-verified end to end on Day 16 as the plan requires."""
+    """Invariant 4', verified end to end."""
     from tests.integration.test_candidate_marketplace import _candidate as scored_candidate
 
     me = await scored_candidate(mint_token)
@@ -466,7 +466,7 @@ async def test_four_sessions_move_the_score_by_sixty_and_replay_exactly(
 
 
 def test_a_completed_session_routes_to_the_rescore() -> None:
-    """And to its evaluation (Day 17), which is feedback and scores nothing."""
+    """And to its evaluation, which is feedback and scores nothing."""
     from app.tasks.routing import (
         EVALUATE_INTERVIEW_TASK,
         RESCORE_FOR_ADDONS_TASK,

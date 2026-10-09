@@ -9,7 +9,7 @@ prefix = "/employer/kyb"
 
 
 def get_router() -> APIRouter | None:
-    """Return this module's router, or None while it is still a stub."""
+    """Return this module's router."""
     from . import router as _router
 
     return getattr(_router, "router", None)

@@ -1,9 +1,9 @@
-"""Day 19: the relay hands events to the broker (blockers E15).
+"""The relay hands events to the broker.
 
-Until now `_publish` logged. It now enqueues every subscribed task by name,
-and a task name or argument that does not match what a worker registers fails
-only inside that worker -- where nobody is looking. These tests hold the
-routing table, the argument builders and the registered tasks to each other.
+`_publish` enqueues every subscribed task by name, and a task name or argument
+that does not match what a worker registers fails only inside that worker --
+where nobody is looking. These tests hold the routing table, the argument
+builders and the registered tasks to each other.
 """
 
 from __future__ import annotations

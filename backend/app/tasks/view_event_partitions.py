@@ -1,10 +1,9 @@
 """Keep `candidate_view_events` partitioned ahead of the calendar (invariant 7').
 
-Periodic, so it is started by EventBridge Scheduler rather than Celery Beat
-(`app/worker.py`), and **the schedule is not provisioned yet** (blockers E4).
-That is survivable by design: the baseline creates fifteen months of
-partitions, and a month nobody created lands in the DEFAULT partition rather
-than refusing a reveal. Run monthly once scheduling exists.
+Daily, on Celery Beat (`app/tasks/schedule.py`), keeping a rolling window of
+months ahead. A missed run is survivable by design: a month nobody created
+lands in the DEFAULT partition rather than refusing a reveal -- but rows in
+DEFAULT then block creating their month until they are moved.
 
 Idempotent: a partition that exists is left alone, so several workers or a
 retried run create nothing twice.

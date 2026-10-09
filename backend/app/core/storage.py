@@ -232,7 +232,7 @@ async def delete_object(*, bucket: str, key: str) -> None:
 async def put_object(*, bucket: str, key: str, body: bytes, content_type: str) -> None:
     """Write an object the server built itself, **encrypted at rest**.
 
-    Used for data-subject exports (Day 20), which are a whole person's data in
+    Used for data-subject exports, which are a whole person's data in
     one file. `ServerSideEncryption` is set on the request rather than trusted
     to a bucket default, so an export can never land unencrypted because
     somebody changed a bucket in the console. The archive is not additionally

@@ -1,4 +1,4 @@
-"""Week 1 gate, Day 5: tenant A asking for tenant B's resource gets a 404.
+"""Tenant A asking for tenant B's resource gets a 404.
 
 **Every tenant-scoped route that takes an identifier must have a case here, or
 this file fails the build.** The plan asks for "every tenant-scoped endpoint",
@@ -35,7 +35,7 @@ pytestmark = [pytest.mark.invariant, pytest.mark.integration]
 API = "/api/v1"
 #: The surfaces whose routes act on one tenant's data.
 #:
-#: **`/admin` left this list on Day 19, and was not dropped from coverage.**
+#: **`/admin` is not on this list, and is not dropped from coverage.**
 #: A console route crosses tenants by design -- reading any organisation is
 #: what a member of staff is for -- so "tenant A asking for tenant B's
 #: resource is a 404" has no tenant A to ask. The guarantee that replaces it is
@@ -256,7 +256,7 @@ def _shortlist_case(method: str, suffix: str) -> Case:
 
 
 # ---------------------------------------------------------------------------
-# Colleges (Day 17). The employer organisations the runner builds cannot name
+# Colleges. The employer organisations the runner builds cannot name
 # a college's resources, so each case builds a college on each side.
 # ---------------------------------------------------------------------------
 async def _college_pair(client: Any, mint_token: Any) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -330,8 +330,8 @@ def _roster_case(method: str, suffix: str) -> Case:
 
 
 def _other_colleges_student(suffix: str) -> Case:
-    """Day 18. College B's student lets B see them; college A asks by id.
-    2026-09-29: the same for the details and the CV (`suffix`)."""
+    """College B's student lets B see them; college A asks by id. The same
+    for the details and the CV (`suffix`)."""
 
     async def case(client: Any, attacker: dict, victim: dict) -> Any:
         from tests.integration.test_college_consent import _seed_student
@@ -536,7 +536,7 @@ async def test_another_tenants_job_has_no_pipeline_to_list(client: Any, mint_tok
 async def test_college_routes_without_an_id_only_ever_return_the_callers_own(
     client: Any, mint_token: Any
 ) -> None:
-    """Day 17. A college's organisation, team, codes and imports are its own."""
+    """A college's organisation, team, codes and imports are its own."""
     college_a, college_b = await _college_pair(client, mint_token)
     for college in (college_a, college_b):
         await client.post(f"{API}/college/referral-codes", json={}, headers=college["headers"])

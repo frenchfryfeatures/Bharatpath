@@ -169,7 +169,7 @@ def test_stripping_controls_leaves_normalisation_idempotent() -> None:
     assert normalise_pasted_text(once) == once
 
 
-# --- legacy .doc (blockers E3, closed 2026-09-15) -------------------------------
+# --- legacy .doc -----------------------------------------------------------------
 def test_a_legacy_doc_is_refused_at_upload_with_its_own_code() -> None:
     rejection = validate_upload(head=DOC, size_bytes=4096, max_bytes=MAX, allowed=ALLOWED)
     assert rejection is not None and rejection.code == "upload_legacy_doc_unsupported"

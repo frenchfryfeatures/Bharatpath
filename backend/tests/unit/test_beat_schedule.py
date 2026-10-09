@@ -1,11 +1,7 @@
-"""The periodic schedule names real tasks (blockers E4, closed 2026-09-22).
+"""The periodic schedule names real tasks.
 
-Seven sweeps existed from Day 12 and nothing ran any of them, because
-`worker.py` described an EventBridge trigger endpoint that was never built.
-They run on Celery Beat now.
-
-**The failure this guards against is the one that produced E4 in the first
-place: a schedule that looks right and drives nothing.** A misspelt task
+**The failure this guards against is a schedule that looks right and drives
+nothing.** A misspelt task
 name in `BEAT_SCHEDULE` is not an error at import, not an error at boot, and
 not an error when beat publishes it -- it is a message the worker discards
 as unregistered, silently, forever. These tests are the only place that

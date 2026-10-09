@@ -1,11 +1,10 @@
-"""Day 20 index review: no growing table is scanned end to end.
+"""The index review: no growing table is scanned end to end.
 
 Two checks, because each catches what the other misses.
 
 **Every foreign key is indexed, or excused in writing.** An unindexed foreign
 key costs nothing until its parent row is deleted, and then Postgres scans the
-whole child table to check it -- once per parent row. That used to be rare
-here; since Day 20 an erasure deletes a candidate's scores, resume versions,
+whole child table to check it -- once per parent row. An erasure deletes a candidate's scores, resume versions,
 device checks and consents, so every unindexed child of those is now a
 sequential scan inside the erasure transaction, growing with the platform.
 
@@ -49,8 +48,8 @@ GROWING = frozenset(
 )  # fmt: skip
 
 #: Referenced tables whose rows are never deleted, so a foreign key into them
-#: never triggers a child-side check. `users` is on this list because of Day 20
-#: itself: an erasure empties the row and never removes it.
+#: never triggers a child-side check. `users` is on this list because an
+#: erasure empties the row and never removes it.
 NEVER_DELETED_PARENTS = frozenset(
     {
         "users",  # emptied by erase_candidate, never deleted

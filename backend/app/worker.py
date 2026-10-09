@@ -1,20 +1,15 @@
 """Celery application factory.
 
-**Periodic work runs on Celery Beat** (`app/tasks/schedule.py`), as of
-2026-09-22. This docstring previously said the opposite -- that Beat could
-not work here because "SQS has no native ETA/countdown", and that periodic
-work would run via EventBridge Scheduler hitting a trigger endpoint. The
-premise is true and the conclusion does not follow: SQS cannot hold a
-delayed message beyond 15 minutes, so `apply_async(countdown=...)` and
-`eta=...` are indeed unusable on this broker -- but Beat never asks the
-broker to delay anything. It is a clock in its own process that publishes a
-task at the moment it is due, which is an ordinary immediate send.
+**Periodic work runs on Celery Beat** (`app/tasks/schedule.py`). Beat never
+asks the broker to delay anything: it is a clock in its own process that
+publishes a task at the moment it is due, an ordinary immediate send. That is
+why it works on any broker, including SQS, which cannot hold a delayed message
+beyond 15 minutes -- so `apply_async(countdown=...)` and `eta=...` must not be
+used by task code.
 
-The consequence of the mistaken version was that nothing ran the sweeps at
-all (`blockers.md` E4): the EventBridge trigger endpoint it described was
-never built, so from Day 12 until 2026-09-22 no payment settled, no
-notification was dispatched and no accepted deletion request was carried
-out, outside of tests and the dev simulate route.
+Nothing settles a payment, dispatches a notification or carries out an
+accepted deletion until the relay runs, so a deployment without beat is
+silently broken rather than slow.
 
 **Run exactly one beat process.** See `schedule.py`.
 """
@@ -37,8 +32,8 @@ def create_celery() -> Celery:
         backend=settings.celery_result_backend,
         # Every task module, by name. `include=["app.tasks"]` imported the
         # package and none of its modules, so a worker started that way
-        # registered no task at all -- invisible until the relay had a broker
-        # to send through (Day 19). The list lives beside the routing table.
+        # registered no task at all, and the relay's messages were dropped.
+        # The list lives beside the routing table.
         include=list(TASK_MODULES),
     )
     celery.conf.update(

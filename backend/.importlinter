@@ -47,7 +47,7 @@ forbidden_modules =
     app.modules.scoring
 
 ; ---------------------------------------------------------------------------
-; A message never carries the score (Day 19).
+; A message never carries the score.
 ;
 ; An SMS is readable by anyone holding the phone, and the score sits behind a
 ; subscription (R5/R13): "your score is 842" on a lock screen defeats both the
@@ -135,9 +135,8 @@ type = forbidden
 ; `allow_indirect_imports`, for the third time in this file and for the same
 ; reason as `layers` and `resume-internals-are-private`. Without it this also
 ; forbids employer.service -> identity.service -> identity.repository: the
-; path this contract exists to push cross-module traffic INTO. It stayed
-; invisible from Day 1 until Day 9 because no module called identity.service
-; until employer tenancy did. The rule is about the DIRECT import.
+; path this contract exists to push cross-module traffic INTO. The rule is
+; about the DIRECT import.
 allow_indirect_imports = True
 source_modules =
     app.modules.candidate

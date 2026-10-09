@@ -42,8 +42,9 @@ class CandidateProfile(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
-    #: Asked at sign-up (blockers E13). **Never on a masked card**: only the
-    #: reveal, behind the access window and its audit row, selects it.
+    #: Asked at sign-up. The masked card and the reveal both show it -- the
+    #: one identifying field a card may carry (`ALLOWED_IDENTIFYING` in
+    #: `test_masked_candidate.py`). Never guessed from a CV.
     full_name: Mapped[str | None] = mapped_column(String(200))
     city: Mapped[str | None] = mapped_column(String(100))
     #: A code from `app.core.reference.INDIAN_STATES`.

@@ -206,7 +206,7 @@ def test_migration_batches_have_no_forward_foreign_keys() -> None:
         "_create_employer_tables",
         "_create_billing_tables",
         "_create_college_tables",
-        # Day 19: disputes and notifications point at users, tenants,
+        # Disputes and notifications point at users, tenants,
         # applications and roster entries, so they come last.
         "_create_platform_tables",
     ]

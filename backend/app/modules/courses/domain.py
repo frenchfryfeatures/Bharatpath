@@ -6,10 +6,8 @@ No I/O. No database, no HTTP, no clock, no randomness that is not passed in.
 mypy runs in strict mode here and import-linter forbids I/O imports, because
 this is the layer the invariant property tests exercise directly.
 
-**What "completing a course" means was decided by the client on 2026-09-29:
-every lesson watched** (closing `docs/blockers.md` C1). Before that the rule
-here was a provisional "every module and 70% on an assessment", written while
-nobody had answered, and no completion was ever recorded under it.
+**Completing a course means every published lesson watched** (client,
+2026-09-29). There is no assessment.
 
 That matters more than it sounds: a completion moves a real consumer's score by
 up to 30 points, so the rule below is a *scoring* rule wearing the clothes of a
@@ -63,7 +61,7 @@ def evaluate_completion(progress: CourseProgress) -> CompletionDecision:
     is the refund and the review the catalogue exists to prevent.
 
     `reason` is a code, not a sentence -- it is read by an admin drill-down
-    and rendered in the candidate's language (see `docs/blockers.md` C5).
+    and rendered in the candidate's language.
     """
     if progress.lessons_total <= 0:
         return CompletionDecision(False, COMPLETION_RULE_VERSION, "course_has_no_lessons")

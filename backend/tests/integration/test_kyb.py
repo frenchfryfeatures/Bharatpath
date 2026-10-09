@@ -1,9 +1,9 @@
-"""Day 10: KYB end to end, through HTTP, with S3 faked.
+"""KYB end to end, through HTTP, with S3 faked.
 
 The two modes of R15 are both exercised: approval off (the default), where a
 complete submission verifies the organisation at once, and approval on, where it
 waits for a reviewer. **Invariant 8 is tested with the switch on**, so the gate
-is genuinely exercised whatever production is set to (plan.md Day 10).
+is genuinely exercised whatever production is set to.
 
 A `kyb.require_approval` row is global -- it applies to every organisation in
 the database -- so each test that inserts one removes it in a `finally`.
@@ -330,7 +330,7 @@ async def test_with_approval_off_submitting_verifies_the_organisation_and_it_can
     mint_token: Any,
     fake_s3: FakeS3,
 ) -> None:
-    """**The Week 2 gate, end to end.** An employer signs up, completes KYB,
+    """**The employer path, end to end.** An employer signs up, completes KYB,
     and publishes a job -- nothing set behind the API's back."""
     owner = await _organisation(client, mint_token)
     await _ready(client, owner["headers"], fake_s3)

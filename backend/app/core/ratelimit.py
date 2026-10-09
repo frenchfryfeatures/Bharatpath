@@ -1,8 +1,9 @@
 """Fixed-window throttles in Redis, and the one table that names them all.
 
-Deliberately coarse. This is not the primary abuse control for OTP -- Twilio
-Verify owns code generation, expiry, resend limits and carrier-level fraud
-detection, and it is much better at that than we would be. Ours is the outer
+Deliberately coarse. This is not the primary abuse control for phone OTP (off
+unless `AUTH_PHONE_OTP_ENABLED`) -- Twilio Verify owns code generation, expiry,
+resend limits and carrier-level fraud detection, and it is much better at that
+than we would be. Ours is the outer
 throttle: Twilio's limits protect Twilio's spend, and this protects against
 someone walking the phone-number space at our expense (docs/plan.md 5.8).
 
@@ -12,8 +13,8 @@ worst-case leak -- twice the limit across a window boundary -- is irrelevant at
 "5 OTP starts per phone per hour" and would matter only if this were the real
 control, which it is not.
 
-**Day 20: every limit on the platform is in `policies()`.** Three scopes, as
-the plan asks -- per user, per tenant, per IP -- in two tiers:
+**Every limit on the platform is in `policies()`.** Three scopes, as the plan
+asks -- per user, per tenant, per IP -- in two tiers:
 
   * **Global limits** apply to every request. Per IP in middleware, before
     authentication, so an unauthenticated flood never reaches a token check;
@@ -77,7 +78,7 @@ class Policy:
 STATIC_POLICIES: Final[Mapping[str, Policy]] = {
     "resume.preview": Policy("resume:preview", Scope.IP, 30, 3600),
     # Shared across the organisation: the risk is the organisation learning a
-    # score by bisection, not one person asking too often (Day 10).
+    # score by bisection, not one person asking too often.
     "jobs.threshold_preview": Policy("jobs:threshold_preview", Scope.TENANT, 30, 3600),
     # An export is the most expensive read on the platform, and a deletion the
     # most consequential write. The real guard is one open request of each
@@ -86,7 +87,7 @@ STATIC_POLICIES: Final[Mapping[str, Policy]] = {
     # the threshold preview, which must stay the tightest limits we have.
     "privacy.request": Policy("privacy:request", Scope.USER, 60, 3600),
     # A college aggregate is already floored and suppressed, so this is not a
-    # leak control -- it is the cost control the Day 18 notes left owed: an
+    # leak control -- it is a cost control: an
     # overview is several joins over every consenting student, and a dashboard
     # left open in a tab should not run them continuously. Per organisation,
     # because a college's staff share the dashboard.

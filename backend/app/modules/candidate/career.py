@@ -10,6 +10,7 @@ from pydantic import Field, model_validator
 
 from app.core.schemas import ApiSchema
 from app.modules.candidate.domain import normalise_city
+from app.modules.jobs.domain import MatchTerms
 
 Text = Annotated[str, Field(max_length=300)]
 
@@ -139,6 +140,34 @@ def missing_required(details: CareerDetails) -> list[str]:
     ):
         missing.append("experience_years")
     return missing
+
+
+def match_terms(details: CareerDetails, *, city: str | None = None) -> MatchTerms:
+    """What "jobs that fit your profile" matches on (2026-10-09).
+
+    Skills, the roles the candidate names, where they want to work and how
+    long they have worked -- and only those. **Never `gender`**, and nothing
+    else about who someone is: see `jobs.domain` on recommendations. Nor the
+    salary fields, whose unit the form does not fix.
+
+    The desired role comes before the current title, and preferred places
+    before the current city, because `MatchTerms.build` keeps the first terms
+    when it caps them.
+    """
+    if details.work_status == "FRESHER":
+        experience: int | None = 0
+    elif details.work_status == "EXPERIENCED" or (
+        details.experience_years or details.experience_months
+    ):
+        experience = details.experience_years * 12 + details.experience_months
+    else:
+        experience = None
+    return MatchTerms.build(
+        skills=details.key_skills,
+        titles=[details.job_role, details.job_title, details.role_category],
+        locations=[*details.preferred_locations, details.current_city or city or ""],
+        experience_months=experience,
+    )
 
 
 def form_fields() -> list[dict[str, Any]]:

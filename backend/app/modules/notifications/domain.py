@@ -194,7 +194,7 @@ def plan_for(event_type: str, payload: dict[str, object]) -> tuple[Planned, ...]
             Planned(
                 "ROSTER_CONTACT",
                 # Email only. A roster contact given by phone alone hears
-                # nothing until SMS returns (blockers E35).
+                # nothing until SMS returns.
                 ("EMAIL_COLLEGE_INVITATION",),
                 ("college",),
             ),
@@ -314,7 +314,7 @@ def delivery_decision(
 
 
 # ---------------------------------------------------------------------------
-# What a roster invitation can actually reach (blockers E35)
+# What a roster invitation can actually reach
 # ---------------------------------------------------------------------------
 #: Channel -> the roster column that can carry it.
 _CONTACT_FIELD_FOR_CHANNEL: Final[dict[str, str]] = {"SMS": "phone", "EMAIL": "email"}
@@ -326,10 +326,10 @@ ROSTER_INVITATION_EVENT: Final = "college.invitation_sent"
 def roster_invitation_contact_fields() -> frozenset[str]:
     """Which roster columns an invitation can actually be delivered to.
 
-    `{"email"}` today. A roster row needs a phone *or* an email, and an
-    invitation used to go to both -- but with SMS deferred (2026-09-18) a
-    phone-only row is recorded SKIPPED `NO_CONTACT` and the student never
-    hears anything, while the college has no way of knowing (blockers E35).
+    `{"email"}` today. A roster row needs a phone *or* an email, but with SMS
+    deferred (client, 2026-09-18) a phone-only row is recorded SKIPPED
+    `NO_CONTACT` and the student never hears anything -- which the college
+    would not otherwise know.
     `college.service` uses this to say so at preview time, before they
     commit.
 

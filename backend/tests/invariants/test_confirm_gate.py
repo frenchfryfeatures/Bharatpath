@@ -5,10 +5,10 @@ a phone photo, a two-column layout: each produces text that is plausible and
 wrong in ways only the candidate can see. Attaching a number to that without
 showing it to them first is the failure this rule exists to prevent.
 
-**Scoring is Day 8, so most of this file is a tripwire rather than a check on
-existing code.** That is deliberate and it is the point: these assertions are
-written now, while the shape of the gate is fresh, so that the Day 8 mistake
-that would silently bypass it fails the build instead of shipping.
+**Much of this file is a tripwire on scoring's wiring.** The mistake that
+would bypass the gate -- scoring on the creation event instead of the
+confirmation -- leaves the gate function intact and the rest of the suite
+green, so it has to fail the build here instead of shipping.
 """
 
 from __future__ import annotations
@@ -138,7 +138,7 @@ async def test_confirming_is_the_only_thing_that_opens_the_gate(
 
 
 # ---------------------------------------------------------------------------
-# The Day 8 tripwire: scoring must consume the right event
+# The tripwire: scoring must consume the right event
 # ---------------------------------------------------------------------------
 def _module_source(name: str) -> str:
     return (RESUME / name).read_text(encoding="utf-8")
@@ -181,7 +181,7 @@ def test_scoring_is_not_wired_to_the_version_created_event() -> None:
     other test in the suite still passes, because the gate function is intact
     and simply never called.
 
-    Day 8 must consume `resume.version_confirmed`. If a deliberate reason to
+    Scoring must consume `resume.version_confirmed`. If a deliberate reason to
     reference the creation event in scoring ever appears, this test is where
     it has to be argued for.
     """
@@ -204,8 +204,8 @@ def test_the_subscription_table_routes_scoring_to_the_confirmed_event() -> None:
 
     The source scan above proves scoring does not *name* the creation event.
     This proves the trigger names the right one — which is the thing that
-    actually decides what gets scored, and the thing a Day 15/16 author adding
-    a re-score trigger will edit.
+    actually decides what gets scored, and the thing anyone adding a re-score
+    trigger will edit.
     """
     from app.tasks.routing import SCORE_RESUME_TASK, tasks_for
 
@@ -249,7 +249,7 @@ def test_the_routed_task_name_is_one_a_worker_actually_registers() -> None:
 
 
 def test_confirmation_still_emits_an_event_for_scoring_to_consume() -> None:
-    """The other half. A gate nothing announces would leave Day 8 with no
+    """The other half. A gate nothing announces would leave scoring with no
     trigger, and the obvious fix would be to reach for the creation event."""
     assert CONFIRMED_EVENT.split(".", 1)[1] in _module_source("service.py")
 

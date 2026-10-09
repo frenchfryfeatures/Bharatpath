@@ -99,7 +99,7 @@ class Score(Base, UUIDPrimaryKey):
     #: -- the response is on this row, which is the whole point of storing it
     #: -- but it is the **only** link from a person to the extraction cache,
     #: and without it an erasure cannot reach the cached reading of their CV
-    #: (Day 20). The cache is content-addressed and shared, so the erasure
+    #: The cache is content-addressed and shared, so the erasure
     #: deletes a key only when no other candidate's score still names it.
     extraction_cache_key: Mapped[str | None] = mapped_column(String(64), index=True)
 
@@ -129,7 +129,7 @@ class Score(Base, UUIDPrimaryKey):
 # user_id, computed_at DESC, id DESC` inside the discovery visibility CTE, which
 # every masked search runs. `ix_scores_user_computed` is ascending on
 # `computed_at` and lacks `id`, so it cannot serve that order; this one matches
-# it exactly (Day 13).
+# it exactly.
 Index("ix_scores_user_latest", Score.user_id, Score.computed_at.desc(), Score.id.desc())
 
 

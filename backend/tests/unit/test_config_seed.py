@@ -1,8 +1,8 @@
 """`scripts/seed_config.py` writes documents the application will accept.
 
-Eight tunables steer things a customer feels, and until 2026-09-22 none of
-them had a row anywhere -- so production ran on defaults that were invisible
-unless you read the source.
+Eight tunables steer things a customer feels. Without a row each falls back
+to a default in code, invisible unless you read the source, so every
+environment is seeded.
 
 **The dangerous failure is not a missing row, it is a bad one.** Every reader
 is deliberately strict: an unknown key or an out-of-range number raises

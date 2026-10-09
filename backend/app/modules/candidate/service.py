@@ -10,7 +10,7 @@ transaction closes.
 a lapsed subscriber loses access, not the ability to keep their own details
 right.
 
-**An employer opening a profile is assembled here** (Day 14), because it needs
+**An employer opening a profile is assembled here**, because it needs
 three modules' answers and `discovery` may not import `scoring`: discovery
 decides whether the reveal happens and writes its log and audit row, scoring
 supplies the stored score, and resume the declared name.
@@ -35,6 +35,8 @@ from app.modules.candidate.schemas import (
 )
 from app.modules.discovery import service as discovery_service
 from app.modules.discovery.schemas import ProfileView
+from app.modules.jobs import service as jobs_service
+from app.modules.jobs.schemas import RecommendedJobs
 from app.modules.resume import service as resume_service
 from app.modules.scoring import service as scoring_service
 from app.modules.scoring.domain import display_value
@@ -119,6 +121,21 @@ async def profile_views(
     view log and decides what of it the candidate sees."""
     _candidate(ctx)
     return await discovery_service.profile_views(session, ctx=ctx, cursor=cursor, limit=limit)
+
+
+async def jobs_similar_to_applied(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    limit: int | None = None,
+    eligible_only: bool = False,
+) -> RecommendedJobs:
+    """The home screen's "similar to what you applied for". The jobs module
+    owns applications' jobs and the matching; this is its door from here."""
+    _candidate(ctx)
+    return await jobs_service.similar_to_applied(
+        session, ctx=ctx, limit=limit, eligible_only=eligible_only
+    )
 
 
 async def reveal_to_employer(

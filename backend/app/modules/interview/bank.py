@@ -1,6 +1,10 @@
-"""Mock-interview question sets and the evaluation rubric.
+"""The mock-interview evaluation rubric, and the question sets older sessions used.
 
-Produced 2026-09-11 under `answers-log.md` Round 7.10, closing blocker C4.
+**Candidates are not asked these question sets.** Every question is drafted by
+the model for the session (`questions.py`) and stored in
+`interview_session_questions`; `domain.bank_questions_for` reads a set below
+only for a session created before questions were stored. The rubric and the
+timings are live.
 
 **Completing a session is what awards points, not performing well in it.** A
 finished session contributes +20, capped at +60 across all sessions
@@ -16,9 +20,9 @@ see or contest it. The client has already confirmed the score is never
 explained; adding a second hidden grade would compound that rather than balance
 it.
 
-**Three sessions, three different question sets.** Three is the cap, so a
-candidate who buys all three and gets the same six questions each time has been
-sold the same thing three times.
+**No question is repeated across a candidate's sessions** -- for the sets
+below, by giving each session number its own set; for drafted questions, by
+`questions.parse_drafted_question` refusing a repeat.
 
 ---
 

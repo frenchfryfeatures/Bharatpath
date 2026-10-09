@@ -1,4 +1,4 @@
-"""The placeholder content produced under Round 7.10, and the rules it obeys.
+"""The placeholder content we wrote for the client, and the rules it obeys.
 
 None of this content is the client's yet. What these tests protect is not the
 wording -- it is the set of properties that make the content *replaceable*
@@ -600,7 +600,7 @@ def test_the_college_form_records_that_consent_is_the_students_to_give() -> None
 
 
 def test_the_student_consent_text_is_still_ours_rather_than_counsels() -> None:
-    """Day 17. The words a student agrees to when linking to a college are a
+    """The words a student agrees to when linking to a college are a
     placeholder, versioned so that replacing them re-asks rather than silently
     rebinding consent given to other words. Flipping this is counsel's call."""
     from app.modules.college.domain import CONSENT_VERSION, ROSTER_CONSENT_TEXT
@@ -612,7 +612,7 @@ def test_the_student_consent_text_is_still_ours_rather_than_counsels() -> None:
 
 
 def test_the_individual_visibility_text_is_ours_and_names_what_the_college_sees() -> None:
-    """Day 18. Versioned separately from the roster text, and a placeholder
+    """Versioned separately from the roster text, and a placeholder
     like it. The words must name every field the college's view returns, so
     widening the view without changing them fails here and in invariant 9.
 

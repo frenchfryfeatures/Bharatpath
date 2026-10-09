@@ -143,9 +143,9 @@ def test_a_few_stray_invisible_characters_are_ignored() -> None:
     assert "HIDDEN_TEXT" not in ids(claims)
 
 
-def test_hidden_text_is_inert_until_the_extractor_populates_it() -> None:
-    """It defaults to empty, so today the rule never fires rather than firing
-    on a field nothing fills. See docs/blockers.md E5."""
+def test_hidden_text_defaults_to_empty() -> None:
+    """Empty for a version parsed before the detector existed, so the rule
+    stays silent there rather than firing on data we never collected."""
     assert ResumeClaims().hidden_text == ""
 
 

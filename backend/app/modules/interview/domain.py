@@ -149,7 +149,7 @@ def purchase_earns_points(*, sessions_held: int) -> bool:
 #: Sessions a candidate is still recording.
 OPEN_STATES: Final = frozenset({"CREATED", "IN_PROGRESS"})
 #: Sessions that were completed, and so carry a contribution. FAILED is an
-#: evaluation that could not produce feedback (Day 17): the session was still
+#: evaluation that could not produce feedback: the session was still
 #: completed, and points are for completing (`bank.py`), so it keeps them.
 COMPLETED_STATES: Final = frozenset({"COMPLETED", "EVALUATED", "FAILED"})
 SESSION_STATES: Final = OPEN_STATES | COMPLETED_STATES | {"ABANDONED"}
@@ -236,7 +236,7 @@ def validate_answer(*, head: bytes, size_bytes: int, duration_ms: int) -> Answer
 
 
 # ---------------------------------------------------------------------------
-# Evaluation (Day 17) -- feedback, never a number
+# Evaluation -- feedback, never a number
 # ---------------------------------------------------------------------------
 #: Stored on every evaluation. **Bump when the report's shape or the level
 #: thresholds change**, so an old report can still be read as it was written.

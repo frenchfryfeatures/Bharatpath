@@ -321,6 +321,58 @@ has, plus `description`):
 closed job, and "doesn't exist at all" are all indistinguishable from
 outside, on purpose.
 
+### Home screen: recommended jobs (two sections)
+
+Like Naukri's home page: **"Jobs similar to the ones you applied for"** and
+**"Jobs that fit your profile"**. Both are board jobs (published, listed
+PUBLIC only), so both need what the board needs.
+
+| Section | Endpoint | Matched on |
+|---|---|---|
+| Similar to applied | `GET /candidate/recommended-jobs/similar-to-applied` | Skills, title words and places of the candidate's last 20 applications (withdrawn ones ignored) |
+| Fits your profile | `GET /candidate/recommended-jobs/matching-profile` | The career profile from `PUT /candidate/profile/details`: `key_skills`, `job_role`, `job_title`, `role_category`, `preferred_locations`, `current_city`, experience |
+
+**Auth required:** `CANDIDATE` role + active subscription (402
+`subscription_required` otherwise; an employer gets 403).
+
+**Query params:** `limit` (1-50, default 10), `eligible_only` (as on the
+board). **Not paginated.** A section is a short list, and "see all" goes
+to `GET /candidate/jobs`.
+
+**Response** (`RecommendedJobs`). Best match first. Each item is a
+`BoardJobSummary` plus `matched_skills`, the job's skills the candidate
+shares (in the job's spelling), for a "Matches: Python, SQL" line:
+```json
+{
+  "items": [
+    {
+      "id": "...", "title": "Data Engineer", "employer_name": "Acme Pvt Ltd",
+      "skills": ["Python", "SQL", "Spark"], "location": "Pune", "work_mode": "HYBRID",
+      "experience_min_months": 12,
+      "salary_min_minor": 8000000, "salary_max_minor": 15000000, "salary_disclosed": true,
+      "published_at": "...", "eligibility": "ELIGIBLE",
+      "matched_skills": ["Python", "SQL"]
+    }
+  ],
+  "has_basis": true
+}
+```
+
+- **`has_basis: false`** means there is nothing to match on yet: no
+  applications, or a profile with no skill and no role. Draw a prompt
+  ("Apply to a job" / "Add your skills") instead of an empty list. An
+  empty `items` with `has_basis: true` means nothing on the board matches
+  right now.
+- **Jobs already applied to never appear**, in either section.
+- **No relevance number** is returned. The order is the ranking, and a
+  number beside a job would read as a second score.
+- **What it never uses:** gender, salary, or anything else about who
+  someone is, and never the job's threshold. Eligibility is shown exactly
+  as on the board but plays no part in the order.
+- A job must share a skill or a title word to appear. Location and
+  experience only raise a job that already matches. Weights are in
+  `jobs/domain.py`: skill 3, title word 4, place 2, experience fit 1.
+
 ---
 
 ## 8. `GET /employer/discovery/candidates` — masked search

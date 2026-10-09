@@ -1,4 +1,4 @@
-"""Day 17 through HTTP and the database: roster import and invitations.
+"""Through HTTP and the database: roster import and invitations.
 
 A roster is previewed before anything happens (SRS 2.25.3), committed
 idempotently, and its invitations are found by the student from their own
@@ -410,7 +410,7 @@ async def test_declined_and_expired_invitations_link_nobody(client: Any, mint_to
 
 
 # ===========================================================================
-# Rows nobody can reach (blockers E35)
+# Rows nobody can reach
 # ===========================================================================
 # A roster row needs a phone *or* an email. With SMS deferred (2026-09-18) a
 # phone-only row is valid, is committed, raises its invitation event, and is

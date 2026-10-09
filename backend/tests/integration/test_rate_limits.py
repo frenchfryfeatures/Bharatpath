@@ -1,4 +1,4 @@
-"""Day 20: the global rate-limit tier, switched on.
+"""The global rate-limit tier, switched on.
 
 The suite runs with `RATE_LIMIT_GLOBAL_ENABLED=false` because its single test
 "IP" makes more requests a minute than any person could. These tests switch

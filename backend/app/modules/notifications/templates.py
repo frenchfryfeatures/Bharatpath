@@ -8,9 +8,6 @@ email and to the in-app inbox: `domain.plan_for` names no SMS template, and
 The SMS drafts below are kept, unregistered, so that switching SMS back on is
 a registration and a routing change rather than a rewrite.
 
-Produced 2026-09-11 under `answers-log.md` Round 7.10, closing the drafting half
-of blocker C6.
-
 **Writing the words is the easy half.** Every SMS body below must be registered
 on a TRAI DLT portal against the client's registered entity and sender header
 before a single message reaches an Indian number. Registration returns a
@@ -210,7 +207,7 @@ CANDIDATE_TEMPLATES: Final[tuple[MessageTemplate, ...]] = (
         (),
         "SERVICE_IMPLICIT",
     ),
-    # Day 19. An invitation from a roster import goes to a contact who may
+    # An invitation from a roster import goes to a contact who may
     # have no account yet, so it names no code: the student accepts from the
     # app, signed in with the number or address the college uploaded.
     MessageTemplate(
@@ -222,7 +219,7 @@ CANDIDATE_TEMPLATES: Final[tuple[MessageTemplate, ...]] = (
         ("college",),
         "SERVICE_IMPLICIT",
     ),
-    # Day 19, R9. **SERVICE_EXPLICIT, not IMPLICIT**: a reminder to someone
+    # R9. **SERVICE_EXPLICIT, not IMPLICIT**: a reminder to someone
     # who has not used the service yet is only deliverable to a DND number
     # with their recorded consent, and registering it as implicit to get
     # round that is the compliance breach the category exists to catch.
@@ -510,7 +507,7 @@ EMAIL_TEMPLATES: Final[tuple[MessageTemplate, ...]] = (
 )
 
 # ---------------------------------------------------------------------------
-# In-app (Day 19)
+# In-app
 # ---------------------------------------------------------------------------
 # The inbox. No DLT, no provider and nothing leaves our database, so this is
 # the channel that always works -- which is exactly why it must obey the same
@@ -582,7 +579,7 @@ IN_APP_TEMPLATES: Final[tuple[MessageTemplate, ...]] = (
         "in_app.interview_feedback_ready",
         "The feedback on your practice interview is ready.",
     ),
-    # **Neither college message names the student** (blockers E28). A college
+    # **Neither college message names the student.** A college
     # can read its dashboard before and after this arrives; a name beside
     # that would tell it whose band just left the distribution.
     MessageTemplate(

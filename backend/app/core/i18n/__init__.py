@@ -1,8 +1,5 @@
 """Locale bundles and lookup.
 
-Produced 2026-09-11 under `answers-log.md` Round 7.10, closing the plumbing half
-of blocker C5.
-
 **Read this before shipping any of it.** The strings in `locales/*.json` were
 written by us, not by native speakers. They are correct enough to build, demo
 and test against, and they give a translator a source file to correct rather
@@ -11,15 +8,15 @@ what makes a product look untrustworthy to the audience it is aimed at, and
 this product asks people for money and their CV. **Every non-English bundle
 needs a native-speaker pass before launch.**
 
-Nine locales. The client named six on 2026-09-22 -- English, Hindi, Bengali,
-Kannada, Marathi and Punjabi -- and those are `PRIORITY_LOCALES`, held to
-full coverage by a test. Gujarati, Tamil and Telugu predate that list and are
-kept, with the core strings only; every other key falls back to English.
+Nine locales. The client named six -- English, Hindi, Bengali, Kannada,
+Marathi and Punjabi -- and those are `PRIORITY_LOCALES`, held to full coverage
+by a test. Gujarati, Tamil and Telugu are kept with the core strings only;
+every other key falls back to English.
 
-**Punjabi had no file at all until 2026-09-22.** It was not in
-`SUPPORTED_LOCALES` either, so `load_bundle("pa")` returned `{}` and every
-string fell back to English without complaint -- which is the failure mode
-this module was built to avoid, one level up.
+**A language is supported only if it is in `SUPPORTED_LOCALES` and has a
+bundle.** A code missing from either makes `load_bundle` return `{}`, and
+every string falls back to English without complaint -- a language that
+looks supported and translates nothing.
 
 ---
 
@@ -81,9 +78,9 @@ LOCALE_CODES: Final[frozenset[str]] = frozenset(loc.code for loc in SUPPORTED_LO
 #: tidy-up -- but they carry the core strings only, and fall back to English
 #: per key for the rest. `missing_keys(locale)` says exactly what is absent.
 #:
-#: Punjabi is new here. It had no bundle at all until 2026-09-22, so asking
-#: for it returned an empty dict and every string fell back to English
-#: silently -- a supported-looking language that translated nothing.
+#: A code here needs both a bundle and a `SUPPORTED_LOCALES` entry; without
+#: either, asking for it returns an empty dict and every string falls back to
+#: English silently -- a supported-looking language that translates nothing.
 PRIORITY_LOCALES: Final[tuple[str, ...]] = ("en", "hi", "bn", "kn", "mr", "pa")
 
 #: Bundles carry a `_meta` object that is documentation, not a string: who
