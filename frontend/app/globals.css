@@ -173,6 +173,8 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: "General Sans", sans-serif;
+  /* User-entered names, descriptions and URLs can contain no spaces. */
+  overflow-wrap: anywhere;
 }
 
 /* Custom sleek scrollbar */

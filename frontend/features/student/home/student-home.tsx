@@ -1,12 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { ArrowRight, BookOpen, Briefcase, ChevronRight, Mic2, TrendingDown, TrendingUp } from "lucide-react";
+import { BookOpen, ChevronRight, Mic2, TrendingDown, TrendingUp } from "lucide-react";
 
 import {
   useGetInterviewOfferQuery,
   useGetStudentCoursesQuery,
-  useGetStudentJobsQuery,
   useGetStudentProfileQuery,
   useGetStudentScoreQuery,
   useGetStudentScoreScaleQuery,
@@ -14,15 +13,8 @@ import {
 import { getApiErrorMessage } from "@/lib/api/error-message";
 import { Skeleton } from "@/components/common/loading";
 import { bandLabel, firstName } from "@/features/student/formatters";
-import {
-  CommerceBadge,
-  EmptyState,
-  JobCard,
-  ScoreBandBar,
-  ScoreScaleUnavailable,
-  SectionEyebrow,
-} from "@/features/student/components";
-import { StudentJobGridSkeleton } from "@/features/student/loading";
+import { CommerceBadge, ScoreBandBar, ScoreScaleUnavailable } from "@/features/student/components";
+import { MatchingProfileJobs, SimilarToAppliedJobs } from "@/features/student/jobs/recommended-jobs";
 import { StudentPage } from "@/features/student/shell";
 import { StudentStreakCard } from "@/features/student/streak";
 import { useAppSelector } from "@/store/hooks";
@@ -35,13 +27,8 @@ export function StudentHome() {
   const userId = useAppSelector((state) => state.auth.user?.id);
   const scoreChange = useScoreChange(userId, score.data);
   const scale = useGetStudentScoreScaleQuery();
-  const jobs = useGetStudentJobsQuery({ eligibleOnly: true, limit: 3 });
   const interview = useGetInterviewOfferQuery();
   const courses = useGetStudentCoursesQuery();
-
-  const jobsError = jobs.error
-    ? getApiErrorMessage(jobs.error, "Could not load jobs.")
-    : null;
 
   const interviewPrice =
     !interview.data?.onSale || interview.data.priceMinor == null
@@ -196,49 +183,8 @@ export function StudentHome() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-3">
-          <SectionEyebrow
-            icon={<Briefcase size={12} />}
-            action={
-              <button
-                type="button"
-                onClick={() => router.push("/student/jobs")}
-                className="flex items-center gap-1 rounded-full px-2 py-1 text-[13px] font-semibold text-[#0A1931] transition-colors hover:bg-[#F1EAF7] hover:text-[#4A3E8F]"
-              >
-                All jobs
-                <ChevronRight size={12} />
-              </button>
-            }
-          >
-            Jobs you qualify for
-          </SectionEyebrow>
-
-          {jobs.isLoading ? (
-            <StudentJobGridSkeleton />
-          ) : jobsError ? (
-            <EmptyState title="Jobs unavailable" message={jobsError} />
-          ) : jobs.data?.items.length ? (
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {jobs.data.items.map((job) => (
-                <JobCard key={job.id} job={job} />
-              ))}
-            </div>
-          ) : (
-            <EmptyState
-              title="No eligible jobs yet"
-              message="New roles will appear here when they match your profile."
-            />
-          )}
-
-          <button
-            type="button"
-            onClick={() => router.push("/student/jobs")}
-            className="flex items-center justify-center gap-2 self-start rounded-full border border-[#DDD6C7] bg-white px-5 py-3 text-[14px] font-semibold text-[#0A1931] transition-all hover:border-[#CFC6B4] hover:bg-[#F7F4EC] active:scale-[.98]"
-          >
-            See all jobs
-            <ArrowRight size={15} />
-          </button>
-        </div>
+        <SimilarToAppliedJobs />
+        <MatchingProfileJobs />
       </div>
     </StudentPage>
   );

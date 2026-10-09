@@ -37,7 +37,7 @@ export const studentNavItems: StudentNavItem[] = [
 /** Whether a nav item is active for the current pathname. */
 export function isNavItemActive(href: string, pathname: string): boolean {
   if (href === "/student") {
-    return pathname === "/student";
+    return pathname === "/student" || pathname.startsWith("/student/recommended-jobs/");
   }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
