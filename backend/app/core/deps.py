@@ -236,8 +236,8 @@ async def current_business_identity(
 
     **Self-registration is open (2026-09-18).** The client decided employers
     and colleges sign themselves up, as R15 said, so the business Cognito pool
-    is no longer admin-create-only and this dependency now admits strangers:
-    anyone can register, verify their email, and reach these
+    is not admin-create-only and this dependency admits strangers: anyone can
+    register, verify their email, and reach these
     routes. That is acceptable only because they stay this narrow -- what a
     new organisation can *do* is still gated on KYB and payment (R15).
     """

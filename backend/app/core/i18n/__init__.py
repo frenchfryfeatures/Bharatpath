@@ -78,9 +78,9 @@ LOCALE_CODES: Final[frozenset[str]] = frozenset(loc.code for loc in SUPPORTED_LO
 #: tidy-up -- but they carry the core strings only, and fall back to English
 #: per key for the rest. `missing_keys(locale)` says exactly what is absent.
 #:
-#: Punjabi is new here. It had no bundle at all until 2026-09-22, so asking
-#: for it returned an empty dict and every string fell back to English
-#: silently -- a supported-looking language that translated nothing.
+#: A code here needs both a bundle and a `SUPPORTED_LOCALES` entry; without
+#: either, asking for it returns an empty dict and every string falls back to
+#: English silently -- a supported-looking language that translates nothing.
 PRIORITY_LOCALES: Final[tuple[str, ...]] = ("en", "hi", "bn", "kn", "mr", "pa")
 
 #: Bundles carry a `_meta` object that is documentation, not a string: who

@@ -2,11 +2,11 @@
 
 Employer tenant, team members, roles.
 
-`employer_type` and `industry` are new since 2026-08-27 ("Employer - MNC,
-Industry"). Both are **enumerated and config-seeded**, not free text, or they
-cannot back a filter. The client still owes us the two lists, so the values
-are validated against `config_values` rather than a database enum - that way
-the list can be extended without a migration.
+`employer_type` and `industry` (client, 2026-08-27: "Employer - MNC,
+Industry") are **enumerated**, not free text, or they cannot back a filter.
+The lists are the client-confirmed ones in `employer/reference.py`, checked by
+the request schema rather than by a database enum, so a code can be added or
+retired without a migration.
 """
 
 from __future__ import annotations
@@ -34,8 +34,8 @@ class Employer(Base, Timestamps):
     )
     legal_name: Mapped[str] = mapped_column(String(255), nullable=False)
 
-    # Validated against config_values, not a DB enum - the client owes us both
-    # lists and they will change.
+    # Validated by the schema against `employer/reference.py`, not a DB enum,
+    # so the lists can change without a migration.
     employer_type: Mapped[str | None] = mapped_column(String(64))
     industry: Mapped[str | None] = mapped_column(String(64))
 

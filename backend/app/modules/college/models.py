@@ -12,8 +12,8 @@ Institution tenant, roster, invites, consent, referral codes.
 * **Revocation is a timestamp, never a deletion.** You must be able to prove
   what was visible to whom on a given date.
 
-**Referral codes are new since 2026-08-27** and run *alongside* the invite
-flow, not instead of it - invites still cover students with no account yet.
+**Referral codes** (client, 2026-08-27) run *alongside* the invite flow, not
+instead of it - invites still cover students with no account yet.
 Three decisions we took, all in the schema, and approved by the client:
 
   1. Entering a code **is** the consent act (`granted_via = REFERRAL_CODE`).

@@ -342,8 +342,9 @@ is where a third one would have to be argued for.
 - **The integrity task reads a score and never writes one** (SRS 1.4.5). It
   lives in `app/tasks/` because `integrity` may not import `scoring`, and a test
   fails the build if it names a scoring write path.
-- **Manual-form resumes currently never score, so they never appear to
-  employers.** `docs/blockers.md` E6.
+- **Manual-form resumes score like uploads**: a structured version is
+  rendered to text (without the name or graduation year) and goes through
+  Layer 1 (E6, fixed).
 
 ## KYB and jobs — Day 10
 
@@ -394,8 +395,8 @@ is where a third one would have to be argued for.
   `fk_applications_job_tenant`, not by a policy.
 - **`require_active_subscription` is real now** and reads live. Put a role guard
   before it. Tests seed `plans` + `subscriptions` as the migrator
-  (`_subscribe` in `test_candidate_marketplace.py`). The seat limb is not built:
-  `college_seats` has no per-student row yet (Day 17).
+  (`_subscribe` in `test_candidate_marketplace.py`). Its seat limb is
+  `has_active_college_seat` -- see _Colleges, seats_ below.
 - **Never return `min_score` to a candidate.** Beside their own score it is the
   gap, which is the explanation R11 forbids. `eligibility` is the answer.
 - **Applying follows the discovery rule** (`is_candidate_visible`), or a CV held
@@ -435,7 +436,7 @@ is where a third one would have to be argued for.
   than defaulting. A proposed hire never expires. The sweep binds each tenant
   from the `tenants` table (`identity.service.employer_tenant_ids`), **the one
   place a tenant id does not come from a membership**, and is system-only.
-  Nothing schedules it yet (blockers E4).
+  Beat runs it hourly.
 - **The application names nobody; its `candidate` block does** (narrowed
   2026-10-05). See _Applicants and the shortlist_ below.
 
@@ -593,14 +594,14 @@ SUPPORT_AGENT).
   `config_values` key `discovery.limits` (strict; a bad row is a 500, never
   the defaults), and the defaults are ours, not the client's.
 - **Alerts are crossings, not levels**: one `candidate_view_anomaly_flagged`
-  audit row plus an outbox event per threshold crossed. They block nothing,
-  and nobody can read them yet (blockers E10).
+  audit row plus an outbox event per threshold crossed. They block nothing;
+  staff see them on the admin console's employer drill-down.
 - **`candidate_view_events` is partitioned by month.** Its key is
   `(id, viewed_at)`. Partitions are revoked from the app role, because RLS on
   the parent does not cover a query naming a partition. The baseline creates
   fifteen months plus DEFAULT; `ensure_candidate_view_partitions` (SECURITY
-  DEFINER) adds more, via `app/tasks/view_event_partitions.py`, unscheduled
-  (E4). Rows in DEFAULT block creating their month — move them first.
+  DEFINER) adds more, via `app/tasks/view_event_partitions.py`, daily on
+  beat. Rows in DEFAULT block creating their month — move them first.
 - **`RevealedCandidate` has `score` (display) and no raw field**, and
   `full_name` from `candidate_profiles` (asked at sign-up, `PUT
 /candidate/profile/name`), else the structured form's; never guessed from a
@@ -633,13 +634,14 @@ SUPPORT_AGENT).
   default `none` answers checkout with 503; `Settings` refuses the stub in
   staging and prod.
 - **Callbacks are verified and stored by the route, and settled by a task** via
-  the outbox, **which has no broker yet** (Day 19, blockers E15). In a running
-  API nothing is granted; use `POST /billing/dev/payments/{id}/simulate`.
+  the outbox, so nothing is granted until the relay runs (worker + beat, or
+  `dev_all.sh` locally). `POST /billing/dev/payments/{id}/simulate` settles
+  synchronously and needs neither.
 - **Access is the clock, the state machine is the record.** GRACE exists only
   for auto-renew and moves `current_period_end` to the end of grace
   (`grace_from` keeps the paid end). LAPSED and CANCELLED rows are never revived
   by a purchase — a new tenure row is. The renewal sweep
-  (`app/tasks/subscription_renewals.py`) is unscheduled (E4).
+  (`app/tasks/subscription_renewals.py`) runs hourly on beat.
 - **Nothing debits a payer who was not told**: a debit needs a NOTIFIED
   `mandate_debit_notices` row whose `debit_not_before` passed, for the notified
   amount. Config `subscriptions.renewal` refuses a notice period under 24h.
@@ -719,8 +721,8 @@ SUPPORT_AGENT).
   releases the seat by trigger. The seat limb of `require_active_subscription`
   is `candidate_has_college_seat` — seat, consent, ACTIVE college, college
   subscription in period — read live.
-- **`allocate_seats` has no route** (E10/E23) and refuses above the live
-  plan's `seat_allowance`. Tests call it as PLATFORM_ADMIN on the app role;
+- **`allocate_seats` is routed only by the admin console** and refuses above
+  the live plan's `seat_allowance`. Tests call it as PLATFORM_ADMIN on the app role;
   seed a COLLEGE subscription with `_subscribe_college` (`test_college.py`).
 - **A college never learns who has an account.** No roster column says a
   contact matched; a student finds invitations from their own verified phone
@@ -892,17 +894,15 @@ bouncing off `current_user`.
   NULL, a token issued before the erasure finds no row and sign-in _creates a
   new account from the erased person's credential_. `_by_subject` matches the
   hash and returns the DELETED row, so the answer is `account_inactive`. The
-  Cognito user itself is not deleted yet (blockers E32).
+  Cognito user is deleted too (`directory.delete_user`), *before* the cascade,
+  which destroys the subject it is deleted by.
 - **Objects before rows.** The S3 keys live on the rows the cascade destroys,
   so deleting rows first orphans the CV. A failure leaves the request RECEIVED
   and the rows in place for the retry. **An export archive this person already
   took is one of those objects** -- it is their whole record in one file, and
   leaving it to the expiry sweep leaves a complete copy of somebody just
   erased. The pointers on the retained request rows are cleared afterwards, in
-  Python, because the cascade may not touch a retained table. **An export archive this person already
-  took is one of those objects** — it is their whole record in one file, and
-  leaving it for the expiry sweep leaves a complete copy of somebody we have
-  just erased.
+  Python, because the cascade may not touch a retained table.
 - **The export carries the score and not the breakdown.** R11/Q12 — the score
   is never explained, and an export is another door to the same room.
   `EXPORT_FORBIDDEN_FIELDS` is stripped at any depth as a second lock.
