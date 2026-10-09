@@ -15,6 +15,7 @@ from app.modules.candidate.career import (
     CareerDetails,
     CareerResponse,
     CareerSaveRequest,
+    match_terms,
     missing_required,
 )
 from app.modules.candidate.domain import normalise_city
@@ -22,6 +23,8 @@ from app.modules.candidate.extraction import extract_career
 from app.modules.candidate.models import CandidateProfile
 from app.modules.candidate.schemas import NameRequest
 from app.modules.candidate.service import _candidate, set_full_name
+from app.modules.jobs import service as jobs_service
+from app.modules.jobs.schemas import RecommendedJobs
 from app.modules.resume import service as resume_service
 from app.modules.resume.schemas import (
     ManualEducation,
@@ -56,6 +59,24 @@ def _response(profile: CandidateProfile | None) -> CareerResponse:
 async def get_details(session: AsyncSession, *, ctx: TenantContext) -> CareerResponse:
     _candidate(ctx)
     return _response(await repository.get_profile(session, user_id=ctx.user_id))
+
+
+async def jobs_matching_profile(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    limit: int | None = None,
+    eligible_only: bool = False,
+) -> RecommendedJobs:
+    """Board jobs that fit the candidate's career profile. The profile is read
+    as saved, finished or not: a half-filled form with skills in it is
+    already something to match on."""
+    _candidate(ctx)
+    profile = await repository.get_profile(session, user_id=ctx.user_id)
+    terms = match_terms(_response(profile).details, city=profile.city if profile else None)
+    return await jobs_service.recommend(
+        session, ctx=ctx, terms=terms, limit=limit, eligible_only=eligible_only
+    )
 
 
 async def save_details(

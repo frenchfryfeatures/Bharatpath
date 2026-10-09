@@ -124,6 +124,8 @@ Covered in [05-jobs-and-discovery-apis.md §10](05-jobs-and-discovery-apis.md#10
 |---|---|---|
 | ✅ | GET | `/candidate/jobs` |
 | ✅ | GET | `/candidate/jobs/{job_id}` |
+| ✅ | GET | `/candidate/recommended-jobs/similar-to-applied` |
+| ✅ | GET | `/candidate/recommended-jobs/matching-profile` |
 
 ## Candidate — applying (`applications`, prefix `/candidate/applications`)
 

@@ -229,6 +229,8 @@ ahead of `/{job_id}` to avoid a path collision.
 | POST | `/employer/jobs/{job_id}/close` | OWNER/RECRUITER + active subscription | path | `JobResponse` | Terminal |
 | GET | `/candidate/jobs` | CANDIDATE + active subscription | `q, location, work_mode, skill, min_salary_minor, eligible_only, cursor, limit` | `Page[BoardJobSummary]` | Published jobs only; `eligibility` is computed against the candidate's **stored** score — the threshold number itself is never shown |
 | GET | `/candidate/jobs/{job_id}` | CANDIDATE + active subscription | path | `BoardJobDetail` | 404 for anything not currently on the board |
+| GET | `/candidate/recommended-jobs/similar-to-applied` | CANDIDATE + active subscription | `limit` (≤50, default 10), `eligible_only` | `RecommendedJobs` | Home section: like the last 20 applications. Served by the `candidate` module, matched by `jobs` |
+| GET | `/candidate/recommended-jobs/matching-profile` | CANDIDATE + active subscription | `limit`, `eligible_only` | `RecommendedJobs` | Home section: fits the career profile. `has_basis: false` until it names a skill or role |
 
 ## applications — `/candidate/applications` (+ extra router at `/employer/applications`)
 

@@ -55,7 +55,16 @@ from app.modules.discovery import service as discovery_service
 from app.modules.employer import service as employer_service
 from app.modules.jobs import repository
 from app.modules.jobs.details import check_against_columns, for_candidate, parse_stored
-from app.modules.jobs.domain import coarse_count, eligibility, is_editable, refuse_transition
+from app.modules.jobs.domain import (
+    RECOMMENDATIONS_DEFAULT,
+    RECOMMENDATIONS_MAX,
+    MatchTerms,
+    coarse_count,
+    eligibility,
+    is_editable,
+    match,
+    refuse_transition,
+)
 from app.modules.jobs.events import MODULE
 from app.modules.jobs.schemas import (
     ApplicationStageCounts,
@@ -64,6 +73,8 @@ from app.modules.jobs.schemas import (
     CreateJobRequest,
     JobListItem,
     JobResponse,
+    RecommendedJob,
+    RecommendedJobs,
     UpdateJobRequest,
 )
 from app.modules.scoring import service as scoring_service
@@ -75,6 +86,15 @@ logger = get_logger(__name__)
 #: The number lives in `app.core.ratelimit.STATIC_POLICIES`, beside
 #: every other limit, so it can be held as one of the two tightest.
 THRESHOLD_PREVIEWS_PER_HOUR: Final = STATIC_POLICIES["jobs.threshold_preview"].limit
+
+#: How many of the newest matching jobs are ranked. Generous beside the
+#: section's length, and what bounds the work one request costs.
+RECOMMENDATION_POOL: Final = 300
+#: How many recent applications "similar to what you applied for" learns from.
+RECENT_APPLICATIONS: Final = 20
+#: A withdrawal says "not for me", so it is not a reason to show more of the
+#: same. Every other outcome, rejection included, still says what they want.
+NOT_A_PREFERENCE: Final = ("WITHDRAWN",)
 
 
 class JobNotFoundError(NotFoundError):
@@ -515,3 +535,89 @@ async def jobs_for_candidate(
         session, tenant_ids=list({job.tenant_id for job in jobs})
     )
     return {job.id: (job.title, names.get(job.tenant_id)) for job in jobs}
+
+
+async def recommend(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    terms: MatchTerms,
+    limit: int | None = None,
+    eligible_only: bool = False,
+) -> RecommendedJobs:
+    """Board jobs ranked by `domain.match` against `terms`, best first.
+
+    The candidate's home screen has two sections built on this: jobs like
+    the ones they applied to (`similar_to_applied`, below) and jobs that fit
+    their career profile (assembled by `candidate.service`, which owns the
+    profile). Jobs already applied to are left out of both.
+
+    `eligible_only` filters as the board's does. It never orders: see the
+    note on recommendations in `domain`.
+    """
+    user_id = await bind_candidate(session, ctx)
+    if terms.is_empty:
+        return RecommendedJobs(items=[], has_basis=False)
+    size = min(limit or RECOMMENDATIONS_DEFAULT, RECOMMENDATIONS_MAX)
+    score = await current_score(session, user_id=user_id)
+    pool = await repository.recommendation_pool(
+        session, candidate_id=user_id, terms=terms, pool=RECOMMENDATION_POOL
+    )
+    ranked: list[tuple[int, Any, tuple[str, ...]]] = []
+    for job in pool:
+        if eligible_only and eligibility(min_score=job.min_score, score=score) != "ELIGIBLE":
+            continue
+        found = match(
+            terms,
+            title=job.title,
+            skills=job.skills,
+            location=job.location,
+            experience_min_months=job.experience_min_months,
+        )
+        if found is not None:
+            ranked.append((found.relevance, job, found.matched_skills))
+    # The pool is newest first and the sort is stable, so equal relevance
+    # keeps the newer job first.
+    ranked.sort(key=lambda entry: entry[0], reverse=True)
+    top = ranked[:size]
+    names = await employer_service.public_names(
+        session, tenant_ids=list({job.tenant_id for _, job, _ in top})
+    )
+    return RecommendedJobs(
+        items=[
+            RecommendedJob(
+                **_summary(job, employer_name=names.get(job.tenant_id), score=score),
+                matched_skills=list(matched),
+            )
+            for _, job, matched in top
+        ],
+        has_basis=True,
+    )
+
+
+async def similar_to_applied(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    limit: int | None = None,
+    eligible_only: bool = False,
+) -> RecommendedJobs:
+    """Jobs like the ones the candidate recently applied to.
+
+    The applied jobs' skills, title words and places are the terms. They are
+    read through `jobs_by_id`, so a job that has since closed still says what
+    the candidate was looking for. Experience is not a term here: an
+    application says what someone wants, not what they have done.
+    """
+    user_id = await bind_candidate(session, ctx)
+    job_ids = await repository.recently_applied_job_ids(
+        session, candidate_id=user_id, exclude_stages=NOT_A_PREFERENCE, limit=RECENT_APPLICATIONS
+    )
+    by_id = {job.id: job for job in await repository.jobs_by_id(session, job_ids=job_ids)}
+    applied = [by_id[job_id] for job_id in job_ids if job_id in by_id]
+    terms = MatchTerms.build(
+        skills=[skill for job in applied for skill in job.skills],
+        titles=[job.title for job in applied],
+        locations=[job.location for job in applied if job.location],
+    )
+    return await recommend(session, ctx=ctx, terms=terms, limit=limit, eligible_only=eligible_only)
