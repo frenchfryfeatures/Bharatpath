@@ -21,7 +21,7 @@ const money = (amountMinor: number, currency: string) =>
   new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 0, maximumFractionDigits: 2,
   }).format(amountMinor / 100);
 
 export function SimulatedPaymentDialog({

@@ -65,7 +65,7 @@ export function ResumeShowcase({ resume, currentTime, onRefresh }: ResumeShowcas
             <h3 className="text-[14px] font-semibold text-[#172033]">Resume details</h3>
             <p className="mt-0.5 text-[11px] text-[#687182]">{confirmedAt && !Number.isNaN(confirmedAt.getTime()) ? `Confirmed ${confirmedAt.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}` : "Candidate resume"}</p>
           </div>
-          <span className="rounded-full bg-[#eef3fb] px-2.5 py-1 text-[10px] font-bold text-[#315c9f]">{humanise(resume.source)}</span>
+          <span className="rounded-full bg-[#eef3fb] px-2.5 py-1 text-[10px] font-bold text-[#315c9f]">Source: {humanise(resume.source)}</span>
         </div>
         <div className="flex flex-wrap gap-2">
           {resume.file_url && !isExpired && (

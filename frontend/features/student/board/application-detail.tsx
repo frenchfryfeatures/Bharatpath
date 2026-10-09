@@ -86,7 +86,7 @@ export function ApplicationDetail() {
           <StudentCard>
             <div className="flex flex-wrap items-end justify-between gap-2">
               <div><span className="text-[15px] font-semibold text-[#0A1931]">Where things stand</span><p className="mt-1 text-[12px] text-[#778197]">Follow your application through each stage.</p></div>
-              <span className="rounded-full bg-[#F3F0FB] px-2.5 py-1 text-[11px] font-semibold text-[#5F4DB2]">{timeline.filter((step) => step.reached).length} of {timeline.length} stages</span>
+              {item.stage === "WITHDRAWN" || item.stage === "REJECTED" || item.stage === "EXPIRED" ? null : <span className="rounded-full bg-[#F3F0FB] px-2.5 py-1 text-[11px] font-semibold text-[#5F4DB2]">{timeline.filter((step) => step.reached).length} of {timeline.length} stages</span>}
             </div>
             <ol className="mt-5 flex flex-col">
               {timeline.map((step, index) => (
@@ -115,7 +115,7 @@ export function ApplicationDetail() {
                     className="flex justify-between gap-3 text-[12px]"
                   >
                     <span className="text-[#3A4761]">
-                      {stageLabel(event.toStage)}
+                      {event.kind === "HIRE_PROPOSED" ? "Hire proposed" : event.kind === "HIRE_DISPUTED" ? "Hire disputed" : stageLabel(event.toStage)}
                     </span>
                     <span className="text-[#5F6B80]">
                       {formatDateTime(event.occurredAt)}
@@ -138,7 +138,9 @@ export function ApplicationDetail() {
                 variant="secondary"
                 className="mt-4 w-full !text-[#3A4761]"
                 disabled={withdrawState.isLoading}
-                onClick={() => void withdraw(item.id)}
+                onClick={() => {
+                  if (window.confirm("Withdraw this application? The employer will be notified.")) void withdraw(item.id);
+                }}
               >
                 {withdrawState.isLoading ? "Withdrawing…" : "Withdraw application"}
               </PillButton>
@@ -227,7 +229,9 @@ export function ApplicationDetail() {
               <PillButton
                 className="w-full"
                 disabled={confirmState.isLoading}
-                onClick={() => void confirmHire(item.id)}
+                onClick={() => {
+                  if (window.confirm("Confirm that you were hired? This confirms the hire for both sides.")) void confirmHire(item.id);
+                }}
               >
                 Confirm hire
               </PillButton>

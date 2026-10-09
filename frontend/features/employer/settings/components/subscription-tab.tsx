@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSessionIdentity } from "@/lib/auth/use-session-identity";
 import { CancelSubscriptionDialog } from "@/components/billing/cancel-subscription-dialog";
 
 import { useCancelEmployerSubscriptionMutation, useCheckoutEmployerSubscriptionMutation, useCreateEmployerMandateMutation, useGetEmployerPlansQuery, useGetEmployerSubscriptionQuery, usePreviewEmployerDiscountMutation } from "@/store/employer/billing";
@@ -49,6 +50,7 @@ function SubscriptionTabSkeleton() {
 }
 
 export function SubscriptionTab() {
+  const isOwner = useSessionIdentity().user?.backendRole === "EMPLOYER_OWNER";
   const { data: subscription, isLoading, refetch: refetchSubscription } = useGetEmployerSubscriptionQuery();
   const { data: plans = [], isLoading: plansLoading } = useGetEmployerPlansQuery();
   const [checkout, checkoutState] = useCheckoutEmployerSubscriptionMutation();
@@ -74,9 +76,14 @@ export function SubscriptionTab() {
       // Surfaced through the billing error banner below.
     }
   };
+  const [mandateNotice, setMandateNotice] = useState<string | null>(null);
   const mandate = async () => {
     try {
       const result = await createMandate().unwrap();
+      if (isStubPaymentUrl(result.authorisation_url)) {
+        setMandateNotice("UPI AutoPay is not available yet. Your plan stays as it is.");
+        return;
+      }
       window.location.assign(result.authorisation_url);
     } catch {
       // Surfaced through the billing error banner below.
@@ -94,12 +101,14 @@ export function SubscriptionTab() {
         <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
           <strong>{subscription?.state ?? "NONE"}</strong>
           <span className={subscription?.has_access ? "text-[#13875e]" : "text-[#b42318]"}>{subscription?.has_access ? "Employer access active" : "Employer access inactive"}</span>
-          {subscription?.current_period_end && <span className="text-[#718096]">Until {new Date(subscription.current_period_end).toLocaleDateString("en-IN")}</span>}
+          {subscription?.current_period_end && <span className="text-[#718096]">Until {new Date(subscription.current_period_end).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>}
         </div>
-        {subscription?.cancel_at && <p role="status" className="mt-3 text-xs text-[#718096]">Renewal cancelled. Access continues until {new Date(subscription.cancel_at).toLocaleDateString("en-IN")}.</p>}
+        {subscription?.cancel_at && <p role="status" className="mt-3 text-xs text-[#718096]">Renewal cancelled. Access continues until {new Date(subscription.cancel_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}.</p>}
+        {mandateNotice ? <p role="status" className="mt-3 text-xs text-[#718096]">{mandateNotice}</p> : null}
+        {!isOwner ? <p className="mt-3 text-xs text-[#718096]">Only the organisation owner can change the plan.</p> : null}
         <div className="mt-4 flex gap-2">
-          {subscription?.has_access && !subscription.cancel_at && <button disabled={cancelState.isLoading} onClick={() => setCancelOpen(true)} className="rounded-lg border px-3 py-2 text-xs font-semibold">Cancel renewal</button>}
-          {subscription?.has_access && !subscription.cancel_at && !subscription.renews_automatically && <button disabled={mandateState.isLoading} onClick={() => confirm({
+          {isOwner && subscription?.has_access && subscription.renews_automatically && !subscription.cancel_at && <button disabled={cancelState.isLoading} onClick={() => setCancelOpen(true)} className="rounded-lg border px-3 py-2 text-xs font-semibold">Cancel renewal</button>}
+          {isOwner && subscription?.has_access && !subscription.cancel_at && !subscription.renews_automatically && <button disabled={mandateState.isLoading} onClick={() => confirm({
             title: "Enable UPI AutoPay?",
             description: "You will be taken to your UPI app to authorise recurring payments. You are notified before every debit.",
             confirmLabel: "Continue",
@@ -117,12 +126,12 @@ export function SubscriptionTab() {
           <h3 className="text-sm font-bold">{plan.period}</h3>
           <p className="mt-2 text-2xl font-bold">₹{(plan.price_minor / 100).toLocaleString("en-IN")}</p>
           <p className="mt-1 text-xs text-[#718096]">{plan.months} month{plan.months === 1 ? "" : "s"}{plan.seat_allowance ? ` · ${plan.seat_allowance} seats` : ""}</p>
-          <button disabled={checkoutState.isLoading} onClick={() => confirm({
+          {isOwner ? <button disabled={checkoutState.isLoading} onClick={() => confirm({
             title: `Choose the ${plan.period} plan?`,
             description: `You will be taken to checkout to pay ₹${(plan.price_minor / 100).toLocaleString("en-IN")} for ${plan.months} month${plan.months === 1 ? "" : "s"} of employer access. You can apply a discount code at payment.`,
             confirmLabel: "Go to checkout",
             onConfirm: () => buy(plan.code),
-          })} className="mt-4 w-full rounded-lg bg-[#5b4ed0] px-3 py-2 text-xs font-bold text-white">Choose plan</button>
+          })} className="mt-4 w-full rounded-lg bg-[#5b4ed0] px-3 py-2 text-xs font-bold text-white">Choose plan</button> : null}
           </section>)}
         </div>
       )}

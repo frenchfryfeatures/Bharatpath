@@ -80,13 +80,19 @@ async function resolveSession(
     // inactive account) must still error.
     if (meResponse.status === 403 && (!options.signup || isBusiness)) {
       let code: string | undefined;
-      if (options.signup) {
-        try {
-          const body = (await meResponse.json()) as { code?: string };
-          code = body.code;
-        } catch {
-          /* fall through to error below */
-        }
+      try {
+        const body = (await meResponse.clone().json()) as { code?: string };
+        code = body.code;
+      } catch {
+        /* fall through to error below */
+      }
+
+      if (code === "tenant_suspended") {
+        throw new ApiError(
+          "Your organisation's access is suspended. Contact support.",
+          403,
+          code,
+        );
       }
 
       if (!options.signup || code === "no_active_membership") {

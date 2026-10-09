@@ -1,13 +1,14 @@
 /*
  * The job form's minimum-score threshold.
  *
- * The slider runs from 0 to 1000, but candidate scores start at 700, so any
+ * The slider runs from 690 to 990 (the real scale is 700-990), so any
  * threshold below 700 filters nobody out. Such a value is sent to the API as
  * `null` (no threshold), which the backend requires: `min_score` must be null
  * or between 700 and 990. Slider values above 990 use the API's maximum.
  */
-export const THRESHOLD_MIN = 0;
-export const THRESHOLD_MAX = 1000;
+/** One step under the floor means "no minimum". */
+export const THRESHOLD_MIN = 690;
+export const THRESHOLD_MAX = 990;
 const API_THRESHOLD_MAX = 990;
 /** The threshold preview only accepts multiples of this step. */
 export const THRESHOLD_STEP = 10;

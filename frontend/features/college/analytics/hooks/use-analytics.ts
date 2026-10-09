@@ -71,22 +71,22 @@ function metricsFrom(
     {
       id: "median-score",
       label: "Median cohort score",
-      value: overview?.medianScore ?? 0,
+      value: overview?.medianScore ?? "—",
     },
     {
       id: "applications",
       label: "Applications sent",
-      value: overview?.applications ?? 0,
+      value: overview?.applications ?? "—",
     },
     {
       id: "interviews",
       label: "Interviews scheduled",
-      value: overview?.interviews ?? 0,
+      value: overview?.interviews ?? "—",
     },
     {
       id: "hired",
       label: "Hired via platform",
-      value: overview?.platformHires ?? 0,
+      value: overview?.platformHires ?? "—",
     },
   ];
 }

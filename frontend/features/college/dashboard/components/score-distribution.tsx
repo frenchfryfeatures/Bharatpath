@@ -48,7 +48,7 @@ export function ScoreDistribution({
         </div>
 
         <span className="text-xl font-semibold text-[#151b2b]">
-          {medianScore ?? 0}{" "}
+          {medianScore ?? "—"}{" "}
           <span className="text-xs font-normal text-[#8a91a0]">
             median
           </span>

@@ -7,6 +7,7 @@ import {
   BookOpen,
   User,
   CreditCard,
+  GraduationCap,
   type LucideIcon,
 } from "lucide-react";
 
@@ -30,6 +31,7 @@ export const studentNavItems: StudentNavItem[] = [
   { key: "board", label: "Board", href: "/student/board", icon: ListChecks },
   { key: "interview", label: "Interview", href: "/student/interview", icon: MicVocal },
   { key: "courses", label: "Courses", href: "/student/courses", icon: BookOpen },
+  { key: "college", label: "College", href: "/student/college", icon: GraduationCap },
   { key: "subscription", label: "Subscription", href: "/student/subscription", icon: CreditCard },
   { key: "profile", label: "Profile", href: "/student/profile", icon: User },
 ];

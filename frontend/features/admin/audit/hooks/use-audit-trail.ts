@@ -23,7 +23,7 @@ function auditView(item: AuditEventRow): AuditItem {
     id: String(item.id),
     description: `${item.action.replaceAll("_", " ")} · ${item.target_type}`,
     operator: item.actor_role,
-    timestamp: new Date(item.occurred_at).toLocaleString(),
+    timestamp: new Date(item.occurred_at).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }),
     icon,
   };
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { humanizeCode } from "@/lib/format/labels";
 import { useState } from "react";
 import { CancelSubscriptionDialog } from "@/components/billing/cancel-subscription-dialog";
 
@@ -20,7 +21,7 @@ function formatCurrency(amountMinor: number, currency: string) {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: currency || "INR",
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 0, maximumFractionDigits: 2,
   }).format(amountMinor / 100);
 }
 
@@ -235,7 +236,7 @@ function SubscriptionBlock({
         <div className="flex items-center justify-between">
           <dt className="text-[#64748b]">Current plan</dt>
           <dd className="font-semibold text-[#131A26]">
-            {subscription?.planCode ?? "-"}
+            {subscription?.planCode ? humanizeCode(subscription.planCode) : "-"}
           </dd>
         </div>
 

@@ -21,7 +21,7 @@ import { Skeleton } from "@/components/common/loading";
 
 import { StudentAudioPlayer, StudentErrorState } from "@/features/student/components";
 import { StudentPage } from "@/features/student/shell";
-import { useSimulatePaymentMutation } from "@/store/api/payment.api";
+import { SimulatedPaymentDialog } from "@/components/billing/simulated-payment-dialog";
 import { useGetInterviewOfferQuery } from "@/store/student";
 import {
   useCheckoutInterviewMutation,
@@ -77,7 +77,7 @@ export default function StudentInterviewPage() {
   });
   const [check, checking] = useCheckInterviewDeviceMutation();
   const [checkout, buying] = useCheckoutInterviewMutation();
-  const [simulatePayment, simulatingPayment] = useSimulatePaymentMutation();
+  const [simulated, setSimulated] = useState<{ id: string; amountMinor: number; currency: string } | null>(null);
   const [start, starting] = useStartInterviewMutation();
   const [audioConfirmed, setAudioConfirmed] = useState(false);
   const [quietConfirmed, setQuietConfirmed] = useState(false);
@@ -98,7 +98,7 @@ export default function StudentInterviewPage() {
       : new Intl.NumberFormat("en-IN", {
           style: "currency",
           currency: offerData.currency,
-          maximumFractionDigits: 0,
+          minimumFractionDigits: 0, maximumFractionDigits: 2,
         }).format(offerData.priceMinor / 100);
 
   async function deviceCheck() {
@@ -150,17 +150,7 @@ export default function StudentInterviewPage() {
 
       if (payment.redirect_url) {
         if (new URL(payment.redirect_url).hostname === "stub-payments.invalid") {
-          const simulated = await simulatePayment({
-            paymentId: payment.payment_id,
-            outcome: "SUCCEEDED",
-          }).unwrap();
-
-          if (simulated.status !== "SUCCEEDED") {
-            throw new Error("The development payment was not completed.");
-          }
-
-          await Promise.all([offer.refetch(), history.refetch()]);
-          setPaymentComplete(true);
+          setSimulated({ id: payment.payment_id, amountMinor: payment.amount_minor, currency: payment.currency });
           return;
         }
 
@@ -467,18 +457,17 @@ export default function StudentInterviewPage() {
                   onClick={() => void buy()}
                   disabled={
                     buying.isLoading ||
-                    simulatingPayment.isLoading ||
-                    paymentPending ||
+                                        paymentPending ||
                     !offerData.onSale ||
                     !hasPassedCheck ||
                     (offerData.requiresAcknowledgement && !acknowledged)
                   }
                   className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#5F4DB2] px-4 py-3 text-[12px] font-bold text-white shadow-sm transition-colors hover:bg-[#4A3E8F] disabled:cursor-not-allowed disabled:bg-[#C9BEEB] disabled:text-[#4A3E8F]"
                 >
-                  {buying.isLoading || simulatingPayment.isLoading
+                  {buying.isLoading
                     ? "Opening secure checkout…"
                     : "Continue to payment"}
-                  {!buying.isLoading && !simulatingPayment.isLoading && (
+                  {!buying.isLoading && (
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   )}
                 </button>
@@ -651,6 +640,19 @@ export default function StudentInterviewPage() {
           )}
         </section>
       </div>
+      {simulated ? (
+        <SimulatedPaymentDialog
+          paymentId={simulated.id}
+          amountMinor={simulated.amountMinor}
+          currency={simulated.currency}
+          title="Mock interview session"
+          onComplete={async () => {
+            await Promise.all([offer.refetch(), history.refetch()]);
+            setPaymentComplete(true);
+          }}
+          onClose={() => setSimulated(null)}
+        />
+      ) : null}
     </StudentPage>
   );
 }

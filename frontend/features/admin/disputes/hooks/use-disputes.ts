@@ -39,7 +39,7 @@ function disputeView(item: DisputeRow): Dispute {
     title: `${item.kind[0]}${item.kind.slice(1).toLowerCase()} dispute`,
     parties: `${item.party} · ${item.tenant_id ?? item.raised_by}`,
     status: status(item.state),
-    raised: new Date(item.created_at).toLocaleDateString(),
+    raised: new Date(item.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
     age: age(item.created_at),
     claim: "Open this dispute to view the submitted claim.",
     evidence: [],

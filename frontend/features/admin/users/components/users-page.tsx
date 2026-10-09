@@ -122,7 +122,7 @@ export function UsersPage() {
             onChange={(event) =>
               setSearch(event.target.value)
             }
-            placeholder="Name, ID or GSTIN"
+            placeholder="Search by name"
             className="w-full bg-transparent text-[12px] text-[#172033] outline-none placeholder:text-[#7b8494]"
           />
         </label>

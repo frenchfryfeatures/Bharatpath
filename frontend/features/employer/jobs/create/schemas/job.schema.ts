@@ -12,9 +12,16 @@ export type JobValidationErrors = Partial<Record<string, string>>;
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const CHOICE = new Set(["SINGLE_CHOICE", "MULTIPLE_CHOICE"]);
 
+/** Mirrors the server's wording rule; the server stays the authority. */
+const PERSONAL_WORDS =
+  /\b(age|aged|ages|how\s+old|years?\s+old|birth\w*|born|d\.?o\.?b|gender|sex|male|males|female|females|woman|women|transgender|umar|umr|umra|ladka|ladki)\b/i;
+
 export function screeningQuestionError(question: ScreeningQuestion): string | null {
   if (question.question.trim().length < 3) {
     return "Write the question (at least 3 characters).";
+  }
+  if ([question.question, ...question.options].some((text) => PERSONAL_WORDS.test(text))) {
+    return "Screening questions can't ask about age or gender.";
   }
   const options = question.options.map((option) => option.trim()).filter(Boolean);
   if (CHOICE.has(question.type)) {

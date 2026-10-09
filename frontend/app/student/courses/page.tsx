@@ -12,7 +12,7 @@ function priceLabel(amountMinor: number, currency: string) {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 0, maximumFractionDigits: 2,
   }).format(amountMinor / 100);
 }
 

@@ -113,7 +113,7 @@ export function StudentHome() {
                       {score.data.value}
                     </span>
                     <span className="text-[14px] font-semibold text-[#E0DBF4] sm:text-[18px]">
-                      / 1000
+                      / 990
                     </span>
                     {scoreChange != null ? (
                       <span

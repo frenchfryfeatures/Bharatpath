@@ -40,6 +40,7 @@ import {
   type CompanyProfile,
   type EditableCompanyField,
 } from "@/store/employer/settings";
+import { useSessionIdentity } from "@/lib/auth/use-session-identity";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 
 const inputClass =
@@ -186,6 +187,7 @@ function CompanyTabSkeleton() {
 }
 
 export function CompanyTab() {
+  const isOwner = useSessionIdentity().user?.backendRole === "EMPLOYER_OWNER";
   const dispatch = useAppDispatch();
   const company = useAppSelector(selectCompanyProfile);
   const pendingTab = useAppSelector(selectPendingTab);
@@ -200,7 +202,7 @@ export function CompanyTab() {
     data: kyb,
     isError: isKybError,
     isLoading: isKybLoading,
-  } = useGetEmployerKybQuery();
+  } = useGetEmployerKybQuery(undefined, { skip: !isOwner });
 
   const { data: reference } = useGetEmployerReferenceQuery();
   const [updateOrganisation, { isLoading: isSaving }] =
@@ -925,7 +927,7 @@ export function CompanyTab() {
           ) : null}
           <button
             type="button"
-            disabled={!isDirty || isSaving}
+            disabled={!isDirty || isSaving || !isOwner}
             onClick={() => void handleSave()}
             className={`inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-lg px-5 text-xs font-semibold shadow-sm transition ${
               isDirty && !isSaving

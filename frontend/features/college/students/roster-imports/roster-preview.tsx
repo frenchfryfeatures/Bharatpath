@@ -1,5 +1,7 @@
 "use client";
 
+import { humanizeCode } from "@/lib/format/labels";
+
 import React, { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
@@ -108,7 +110,7 @@ export function RosterPreview({ importId }: Readonly<RosterPreviewProps>) {
           </span>
           {row.issues.length > 0 && (
             <span className="text-[10px] text-[#9a6b18]">
-              {row.issues.join(", ")}
+              {row.issues.map(humanizeCode).join(", ")}
             </span>
           )}
         </span>

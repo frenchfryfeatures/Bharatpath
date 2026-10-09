@@ -24,8 +24,8 @@ import { CollegeErrorState } from "../../components/college-error-state";
 import { seatStat } from "../../seat-stat";
 import { ScoreDistribution } from "./score-distribution";
 
-function formatMetric(value: number | null): number {
-  return value ?? 0;
+function formatMetric(value: number | null): number | string {
+  return value ?? "—";
 }
 
 export function CollegeDashboard() {
@@ -192,7 +192,7 @@ function CohortFunnel({
               {row.label}
             </span>
             <span className="text-[15px] font-semibold text-[#151b2b]">
-              {row.value ?? 0}
+              {row.value ?? "—"}
             </span>
           </div>
         ))}
@@ -353,7 +353,7 @@ function ReferralCode({
       <div className="flex gap-[10px] border-t border-[#eef0f3] pt-3">
         <QuickAction
           icon={Ticket}
-          label="Issue a referral code"
+          label="View referral codes"
           href="/college/students#referral-codes"
         />
 

@@ -1,3 +1,4 @@
+import { humanizeCode } from "@/lib/format/labels";
 import {
   BriefcaseBusiness,
   CalendarDays,
@@ -307,7 +308,7 @@ function JobDescriptionCard({ job, t }: { job: JobDescriptionData; t: Tone }) {
 
   const roleFacts: Array<[string, string | null]> = [
     ["Role", job.title],
-    ["Industry type", basics.industry || null],
+    ["Industry type", basics.industry ? humanizeCode(basics.industry) : null],
     ["Department", basics.department || null],
     ["Job category", basics.category || null],
     ["Job type", labelOf(JOB_TYPE_LABELS, basics.job_type)],
