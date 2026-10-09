@@ -1,4 +1,4 @@
-"""plan.md Day 13: the masked card cannot hold a phone, an email or the score.
+"""The masked card cannot hold a phone, an email or the score.
 
 It held no name either until 2026-10-06, when the product decision was to
 show the candidate's name on search cards (`full_name`). That one field is

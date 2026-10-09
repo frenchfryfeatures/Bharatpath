@@ -1,4 +1,4 @@
-"""Day 14 through HTTP: opening a profile, the view caps, the alerts, and the view log.
+"""Through HTTP: opening a profile, the view caps, the alerts, and the view log.
 
 The invariants have their own files (`test_invariant_07_access_window.py`,
 `test_invariant_07_prime_reveal_audit.py`). This holds everything around them:
@@ -395,7 +395,7 @@ async def test_the_partition_function_refuses_a_silly_range() -> None:
             )
 
 
-# --- the name given at sign-up (blockers E13) ------------------------------------
+# --- the name given at sign-up ---------------------------------------------------
 async def test_the_name_given_at_sign_up_is_shown_on_the_card_and_the_reveal(
     client: Any, mint_token: Any
 ) -> None:

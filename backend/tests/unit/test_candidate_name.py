@@ -1,4 +1,4 @@
-"""The candidate's name, asked at sign-up (blockers E13): what counts as one."""
+"""The candidate's name, asked at sign-up: what counts as one."""
 
 from __future__ import annotations
 

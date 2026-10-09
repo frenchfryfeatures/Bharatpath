@@ -1,4 +1,4 @@
-"""Day 17: interview evaluation -- the evaluator's output, the report, the stubs.
+"""Interview evaluation -- the evaluator's output, the report, the stubs.
 
 The report is feedback, never a number: `parse_evaluation` refuses anything
 that does not fit the rubric exactly, and `assemble_report` turns ratings into

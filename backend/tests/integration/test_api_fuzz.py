@@ -1,8 +1,8 @@
 """Property-based fuzzing of every documented endpoint (schemathesis).
 
-The Week 3 gate listed this and it was never met: `schemathesis` has been a
-declared dependency since Day 15 and **no test used it**, so the box stayed
-unticked while the dependency sat in `pyproject.toml` looking like coverage.
+Excluded from the default run (`-m 'not contract'` in `pyproject.toml`) and
+not yet green -- `docs/blockers.md` E43. A full run takes about fifteen
+minutes.
 
 ---
 
@@ -63,9 +63,7 @@ from schemathesis.specs.openapi.checks import (
     status_code_conformance,
 )
 
-# `contract` was registered in `pyproject.toml` on Day 15 -- "fuzzes the
-# generated OpenAPI schema" -- and nothing ever carried it. Now something
-# does. Run this alone with `pytest -m contract`.
+# Run this alone with `pytest -m contract`.
 pytestmark = [pytest.mark.integration, pytest.mark.contract]
 
 #: Per operation. See the module docstring.

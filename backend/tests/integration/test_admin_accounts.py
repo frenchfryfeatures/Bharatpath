@@ -542,7 +542,7 @@ async def test_an_owner_adding_a_new_colleague_sends_the_cognito_invitation(
 async def test_anyone_can_sign_up_as_a_business_and_create_their_organisation(
     client: Any, mint_token: Any
 ) -> None:
-    """Self-registration (closing blockers E7). A new business sign-in belongs
+    """Self-registration. A new business sign-in belongs
     nowhere, is told so, and creates its organisation; nothing was provisioned."""
     headers, _ = mint_token(pool="BUSINESS", email=_email())
     me = await client.get(ME, headers=headers)

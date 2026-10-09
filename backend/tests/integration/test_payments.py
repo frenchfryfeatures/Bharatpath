@@ -1,6 +1,6 @@
-"""Day 15 through HTTP and the database: payments, subscriptions, courses.
+"""Through HTTP and the database: payments, subscriptions, courses.
 
-**The Week 3 gate's two payment clauses live here.** A forged payment callback
+**The two payment guarantees are proved here.** A forged payment callback
 grants nothing; a subscription that lapses stops granting access without
 deleting history.
 
@@ -8,8 +8,8 @@ The gateway is the stub, which signs callbacks with a real HMAC. A test that
 forges a callback signs with the wrong key, or not at all, and goes through
 exactly the route and verification a real gateway's callback would.
 
-Callbacks are processed by calling the service a task would call, because the
-outbox relay has no broker behind it yet (Day 19). The renewal sweep's steps
+Callbacks are processed by calling the service the task would call, so a test
+does not depend on a broker and a worker. The renewal sweep's steps
 take an injected `now`, so a month is crossed without waiting one.
 """
 
@@ -312,7 +312,7 @@ async def test_a_checkout_grants_nothing_until_a_signed_callback_is_processed(
 async def test_a_forged_callback_grants_nothing_and_leaves_no_trace(
     client: Any, mint_token: Any, forgery: str
 ) -> None:
-    """**Week 3 gate.** A callback the gateway did not sign is a 401 before
+    """A callback the gateway did not sign is a 401 before
     anything is read or written."""
     from app.modules.billing.domain import sign
 
@@ -562,7 +562,8 @@ async def test_cancelling_keeps_access_to_the_end_then_ends_it_and_deletes_nothi
 async def test_a_lapsed_subscriber_loses_access_not_history_and_buying_again_opens_a_new_tenure(
     client: Any, mint_token: Any
 ) -> None:
-    """**Week 3 gate.**"""
+    """Lapsing stops access and keeps every row; buying again starts a new
+    tenure rather than reviving the old one."""
     me = await _candidate(mint_token)
     await _subscribe_through_the_api(client, me)
     old = await _subscription(me["id"])

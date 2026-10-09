@@ -1,12 +1,10 @@
 """No route reaches business data without a verified identity.
 
-**Week 1 gate, plan.md section 8 Day 5** -- the "no-anonymous-access" half.
+The "no-anonymous-access" half of tenant isolation.
 
-Enumerating today's endpoints would prove almost nothing: five exist, and the
-twenty modules carrying the actual data arrive in Weeks 2 to 4. So this drives
-every documented route with no `Authorization` header and asserts it refuses.
-Written once now, it keeps holding as every later day adds endpoints -- which is
-the only version of this test still worth having in week four.
+A hand-kept list of endpoints would be out of date the day a route is added.
+So this drives every documented route with no `Authorization` header and
+asserts it refuses, and a new route is covered the moment it exists.
 
 It asks the running application rather than reading its dependency tree. A
 structural check has to reach into FastAPI internals that move between versions,
@@ -53,7 +51,7 @@ PUBLIC: dict[tuple[str, str], str] = {
     ),
     ("POST", "/api/v1/notifications/unsubscribe"): (
         "The RFC 8058 one-click unsubscribe named by the List-Unsubscribe "
-        "header on a nudge email (blockers E30). The caller is somebody who "
+        "header on a nudge email. The caller is somebody who "
         "read an email and wants no more of them; requiring a sign-in to stop "
         "reminders is what makes people press the spam button instead, which "
         "costs the sending domain's reputation and takes every other message "

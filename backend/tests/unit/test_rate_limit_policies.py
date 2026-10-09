@@ -1,6 +1,6 @@
 """Every limit is in one table, and the table keeps its promises.
 
-Plan Day 20: rate limits per user, per tenant and per IP, **tightest on OTP
+The plan asks for rate limits per user, per tenant and per IP, **tightest on OTP
 and the threshold preview**. The last clause is the one that erodes: somebody
 adds a limit for a new route, picks a small number, and the two limits that
 guard money and a score quietly stop being the tightest -- which matters only

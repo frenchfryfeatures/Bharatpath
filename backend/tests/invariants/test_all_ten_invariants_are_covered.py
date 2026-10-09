@@ -1,4 +1,4 @@
-"""The Week 4 gate: all ten invariants have a test, and it is collected.
+"""All ten invariants have a test, and it is collected.
 
 Plan §14 tracks invariant coverage in a table a human maintains. This is the
 machine's copy, and it exists because of how the human one fails: a file is

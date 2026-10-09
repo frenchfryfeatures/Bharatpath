@@ -1,4 +1,4 @@
-"""Day 14 abuse controls, as pure rules: the limits document, the caps, the alerts."""
+"""Reveal abuse controls, as pure rules: the limits document, the caps, the alerts."""
 
 from __future__ import annotations
 

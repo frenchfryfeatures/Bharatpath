@@ -1,4 +1,4 @@
-"""Day 19: the admin console is for our staff, and every look is on the record.
+"""The admin console is for our staff, and every look is on the record.
 
 Two guarantees, both enumerated from the running application so a console
 route added tomorrow is covered without anyone remembering to add it:

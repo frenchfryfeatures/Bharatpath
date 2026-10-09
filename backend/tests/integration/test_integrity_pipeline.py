@@ -1,4 +1,4 @@
-"""Day 9: integrity runs on scored CVs, and suppression lives inside discovery.
+"""Integrity runs on scored CVs, and suppression lives inside discovery.
 
 Against a real Postgres, because the guarantees are enforced there: the unique
 key that makes a check idempotent, the CHECK constraint that keeps a check

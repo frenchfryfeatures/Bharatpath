@@ -1,4 +1,4 @@
-"""Day 13 through HTTP: masked candidate search, its filters and its document.
+"""Through HTTP: masked candidate search, its filters and its document.
 
 Candidates are real: a confirmed resume, a score through the one write path,
 an integrity check -- so who is searchable is decided by the discovery CTE and

@@ -1,4 +1,4 @@
-"""Day 11 through HTTP: the job board, eligibility, apply and withdraw.
+"""Through HTTP: the job board, eligibility, apply and withdraw.
 
 Candidates are real: a confirmed resume, a score persisted through the one
 write path, and an integrity check -- so "visible to employers" is decided by

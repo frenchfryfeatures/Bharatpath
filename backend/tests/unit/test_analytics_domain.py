@@ -1,11 +1,11 @@
-"""Day 18: what an aggregate may show about students who agreed only to be counted.
+"""What an aggregate may show about students who agreed only to be counted.
 
 The floors are the protection, so they are tested as rules rather than as
 numbers: below the cohort floor nothing but the count shows; a small cell is
 withheld and so is its complement, so a published total cannot give it back;
 a config row can raise a floor and never remove one.
 
-**Since 2026-09-30 the default shows exact cells** (client, answers-log 12.1):
+**The default shows exact cells** (client, 2026-09-30):
 `min_cell_size` 1. The suppression rules are still tested with an explicit
 floor of 5, because a config row can switch them back on.
 """
