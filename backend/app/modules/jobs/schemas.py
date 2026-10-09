@@ -191,6 +191,29 @@ class BoardJobDetail(BoardJobSummary):
     can_apply_externally: bool = False
 
 
+class RecommendedJob(BoardJobSummary):
+    """A board job recommended on the candidate's home screen.
+
+    Everything the board shows and nothing more, plus which of the job's
+    skills the candidate shares -- their own information, in the job's
+    spelling. **No relevance number**: the order is the ranking, and a number
+    beside a job reads like a second score.
+    """
+
+    matched_skills: list[str]
+
+
+class RecommendedJobs(_Base):
+    """One home-screen section, best match first. Not paginated: a section is
+    a short list with "see all" going to the board."""
+
+    items: list[RecommendedJob]
+    #: False when there is nothing to match on -- no applications yet, or a
+    #: profile with no skills and no role. A client draws a prompt ("apply to
+    #: a job", "add your skills") rather than an empty list.
+    has_basis: bool
+
+
 class ThresholdPreviewResponse(_Base):
     """How many visible candidates would clear a threshold -- coarsely.
 

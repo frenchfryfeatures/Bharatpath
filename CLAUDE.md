@@ -461,6 +461,23 @@ PUBLIC jobs are listed on the board (`repository._listed`).
   apply -- and are labelled so. `applicant_access`, `allow_referrals` and
   `publish_on` are stored and change nothing, so the composer hides them.
 
+## Recommended jobs — 2026-10-09
+
+The candidate home screen's two sections, `/candidate/recommended-jobs/
+similar-to-applied` and `/matching-profile` (`backend-guide/05` §7).
+
+- **One rule, two sources of terms.** `jobs.domain.match` ranks; the
+  `candidate` module serves the routes because only it reads the career
+  profile, and `jobs` may not import `candidate` (`candidate.service ->
+  applications.service -> jobs.service` is already a chain).
+- **`MatchTerms` is skills, title words, places, experience, and nothing
+  else.** No gender, no salary. A unit test holds the field list. Never let
+  `min_score` or eligibility order the list: jobs a score clears sorted
+  above ones it does not is the gap R11 forbids, drawn as a list.
+- The database only narrows: published, `_listed()`, shares a skill or a
+  title word, not applied to, newest 300. The ranking is Python. No
+  relevance number leaves the server.
+
 ## Masked search — Day 13
 
 - **`MaskedCandidate` has no field for contact or the score**, and

@@ -21,6 +21,7 @@ from app.core.deps import (
     DbSession,
     get_request_id,
     require_active_access_window,
+    require_active_subscription,
     require_role,
 )
 from app.core.pagination import MAX_PAGE_SIZE, Page
@@ -33,6 +34,8 @@ from app.modules.candidate.schemas import (
     RevealedCandidate,
 )
 from app.modules.discovery.schemas import ProfileView
+from app.modules.jobs.domain import RECOMMENDATIONS_DEFAULT, RECOMMENDATIONS_MAX
+from app.modules.jobs.schemas import RecommendedJobs
 
 router = APIRouter()
 #: Mounted at `/employer/discovery`, beside masked search (`__init__.py`).
@@ -132,6 +135,61 @@ async def profile_views(
     and no count of opens. Not paywalled. A bad cursor is 422
     `invalid_cursor`."""
     return await service.profile_views(session, ctx=user, cursor=cursor, limit=limit)
+
+
+# ---------------------------------------------------------------------------
+# Recommended jobs, the home screen's two sections (2026-10-09)
+# ---------------------------------------------------------------------------
+# Paywalled like the board they are drawn from (R13), role guard first so an
+# employer hears 403 rather than "pay us".
+PayingCandidate = [CandidateOnly, Depends(require_active_subscription)]
+SectionLength = Annotated[
+    int | None,
+    Query(ge=1, le=RECOMMENDATIONS_MAX, description=f"Default {RECOMMENDATIONS_DEFAULT}"),
+]
+
+
+@router.get(
+    "/recommended-jobs/similar-to-applied",
+    response_model=RecommendedJobs,
+    dependencies=PayingCandidate,
+    summary="Jobs like the ones the candidate recently applied to",
+)
+async def jobs_similar_to_applied(
+    user: CurrentUser,
+    session: DbSession,
+    limit: SectionLength = None,
+    eligible_only: bool = False,
+) -> RecommendedJobs:
+    """Matched on the skills, title words and places of the candidate's
+    latest applications (withdrawn ones aside). Best match first; jobs
+    already applied to never appear. `has_basis: false` with no
+    applications yet. Each job carries `eligibility` as on the board, and
+    never the threshold."""
+    return await service.jobs_similar_to_applied(
+        session, ctx=user, limit=limit, eligible_only=eligible_only
+    )
+
+
+@router.get(
+    "/recommended-jobs/matching-profile",
+    response_model=RecommendedJobs,
+    dependencies=PayingCandidate,
+    summary="Jobs that fit the candidate's career profile",
+)
+async def jobs_matching_profile(
+    user: CurrentUser,
+    session: DbSession,
+    limit: SectionLength = None,
+    eligible_only: bool = False,
+) -> RecommendedJobs:
+    """Matched on the profile's key skills, desired role, current title,
+    preferred locations and experience (`PUT /candidate/profile/details`).
+    Best match first; jobs already applied to never appear. `has_basis:
+    false` until the profile names a skill or a role."""
+    return await career_service.jobs_matching_profile(
+        session, ctx=user, limit=limit, eligible_only=eligible_only
+    )
 
 
 @employer_router.get(

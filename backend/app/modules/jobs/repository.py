@@ -23,11 +23,27 @@ from collections.abc import Sequence
 from datetime import datetime
 from typing import Any, Final
 
-from sqlalchemy import String, column, false, func, literal, or_, select, table, text, tuple_
+from sqlalchemy import (
+    DateTime,
+    String,
+    Text,
+    bindparam,
+    column,
+    false,
+    func,
+    literal,
+    or_,
+    select,
+    table,
+    text,
+    tuple_,
+)
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.applications.domain import STAGES
+from app.modules.jobs.domain import MatchTerms
 from app.modules.jobs.models import JOB_STATES, Job
 
 #: The fields an edit may change. `status`, `published_at` and `closed_at` are
@@ -147,6 +163,8 @@ _applications = table(
     column("tenant_id", PGUUID(as_uuid=True)),
     column("job_id", PGUUID(as_uuid=True)),
     column("stage", String),
+    column("candidate_id", PGUUID(as_uuid=True)),
+    column("created_at", DateTime(timezone=True)),
 )
 
 #: Every stage at zero. A stage missing from the map would leave a caller
@@ -345,3 +363,76 @@ async def jobs_by_id(session: AsyncSession, *, job_ids: list[uuid.UUID]) -> list
         return []
     result = await session.execute(select(Job).where(Job.id.in_(job_ids)))
     return list(result.scalars().all())
+
+
+# ---------------------------------------------------------------------------
+# Recommendations
+# ---------------------------------------------------------------------------
+# Same binding and same policy as the board above. The database narrows the
+# board to jobs sharing a skill or a title word; `domain.match` ranks what
+# comes back. Ranking in Python keeps the rule pure and tested in one place,
+# and the pool bound keeps it cheap: the board is bounded by how many jobs are
+# live, and the newest `pool` of the matching ones are the ones worth showing.
+
+
+def _shares_a_term(terms: MatchTerms) -> Any:
+    """The job asks for one of the skills, or its title has one of the words.
+
+    The words are letters and digits only (`domain.title_words`), so they go
+    inside the word-boundary pattern without escaping.
+    """
+    clauses: list[Any] = []
+    if terms.skills:
+        clauses.append(
+            text(
+                "EXISTS (SELECT 1 FROM jsonb_array_elements_text(jobs.skills) AS s(name) "
+                "WHERE lower(btrim(s.name)) = ANY(:rec_skills))"
+            ).bindparams(bindparam("rec_skills", sorted(terms.skills), type_=ARRAY(Text)))
+        )
+    if terms.title_words:
+        pattern = r"\m(" + "|".join(sorted(terms.title_words)) + r")\M"
+        clauses.append(func.lower(Job.title).regexp_match(pattern))
+    return or_(*clauses) if clauses else false()
+
+
+async def recommendation_pool(
+    session: AsyncSession,
+    *,
+    candidate_id: uuid.UUID,
+    terms: MatchTerms,
+    pool: int,
+) -> list[Job]:
+    """Listed, published jobs that share a term, newest first, leaving out
+    every job the candidate already applied to -- whatever became of it."""
+    applied = select(_applications.c.job_id).where(
+        _applications.c.candidate_id == candidate_id,
+        _applications.c.job_id == Job.id,
+    )
+    stmt = (
+        select(Job)
+        .where(Job.status == "PUBLISHED", _listed(), _shares_a_term(terms), ~applied.exists())
+        .order_by(Job.published_at.desc(), Job.id.desc())
+        .limit(pool)
+    )
+    result = await session.execute(stmt)
+    return list(result.scalars().all())
+
+
+async def recently_applied_job_ids(
+    session: AsyncSession, *, candidate_id: uuid.UUID, exclude_stages: Sequence[str], limit: int
+) -> list[uuid.UUID]:
+    """The jobs behind the candidate's latest applications, newest first.
+
+    The `candidate_id` predicate is belt and braces beside
+    `applications_candidate_read`, as the tenant predicates are above.
+    """
+    rows = await session.execute(
+        select(_applications.c.job_id)
+        .where(
+            _applications.c.candidate_id == candidate_id,
+            _applications.c.stage.not_in(list(exclude_stages)),
+        )
+        .order_by(_applications.c.created_at.desc())
+        .limit(limit)
+    )
+    return list(rows.scalars().all())
