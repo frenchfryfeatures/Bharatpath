@@ -80,6 +80,7 @@ export interface ProfileScreenProps {
   onInterviewReportPress?: () => void;
   onCoursesPress?: () => void;
   onLanguagePress?: () => void;
+  onChangePasswordPress?: () => void;
   onWhoHasSeenMePress?: () => void;
   onDownloadDataPress?: () => void;
   onLogoutPress?: () => void;
@@ -110,6 +111,7 @@ export function ProfileScreen({
   onInterviewReportPress,
   onCoursesPress,
   onLanguagePress,
+  onChangePasswordPress,
   onWhoHasSeenMePress,
   onDownloadDataPress,
   onLogoutPress,
@@ -341,6 +343,21 @@ export function ProfileScreen({
               <LockKey size={12} color="#A87C17" weight="bold" />
               <Text style={styles.sectionEyebrowText}>PRIVACY AND DATA</Text>
             </View>
+
+            {/* Change password */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuItem,
+                pressed && styles.cardPressed,
+              ]}
+              onPress={onChangePasswordPress}
+              accessibilityRole="button"
+              accessibilityLabel="Change password"
+            >
+              <LockKey size={20} color={Colors.navy} weight="duotone" />
+              <Text style={styles.menuItemTitle}>Change password</Text>
+              <CaretRight size={16} color="#5F6B80" weight="bold" />
+            </Pressable>
 
             {/* Who has seen me */}
             <Pressable

@@ -34,7 +34,7 @@ export interface SectionEditModalProps {
   sectionIndex: number | null;
   isSubmitting?: boolean;
   onClose: () => void;
-  onSave: (updatedSection: { kind: SectionKind; heading?: string | null; body: string }) => void;
+  onSave: (updatedSection: { kind: SectionKind; heading?: string | null; body: string }) => void | Promise<void>;
   onDelete?: () => void;
 }
 
@@ -180,7 +180,7 @@ export function SectionEditModal({
     setEditingChipIndex(null);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (isSubmitting) return;
     setErrorMsg(null);
 
@@ -202,11 +202,16 @@ export function SectionEditModal({
       return;
     }
 
-    onSave({
-      kind: section.kind,
-      heading: isHeader ? null : (heading.trim() || section.heading || null),
-      body: finalBody,
-    });
+    try {
+      await onSave({
+        kind: section.kind,
+        heading: isHeader ? null : (heading.trim() || section.heading || null),
+        body: finalBody,
+      });
+    } catch (err: any) {
+      const msg = typeof err === 'string' ? err : err?.message || 'Could not save section changes.';
+      setErrorMsg(msg);
+    }
   };
 
   const handleDeletePress = () => {

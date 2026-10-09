@@ -157,12 +157,33 @@ export function structuredResumeSections(
   }
   for (const other of resume.other_sections ?? []) {
     const body = bodyForItems(other.items);
-    if (body)
+    if (body) {
+      const heading = other.heading || 'Other';
+      const lower = heading.toLowerCase();
+      let kind: ResumeSection['kind'] = 'activities';
+      if (lower.includes('summary') || lower.includes('profile') || lower.includes('objective')) {
+        kind = 'summary';
+      } else if (lower.includes('skill') || lower.includes('technology') || lower.includes('technologies')) {
+        kind = 'skills';
+      } else if (lower.includes('project')) {
+        kind = 'projects';
+      } else if (lower.includes('certif') || lower.includes('license')) {
+        kind = 'certifications';
+      } else if (lower.includes('language')) {
+        kind = 'languages';
+      } else if (lower.includes('education') || lower.includes('academic')) {
+        kind = 'education';
+      } else if (lower.includes('experience') || lower.includes('employment') || lower.includes('work')) {
+        kind = 'experience';
+      } else if (lower.includes('achievement') || lower.includes('award') || lower.includes('honor')) {
+        kind = 'achievements';
+      }
       sections.push({
-        kind: 'activities',
-        heading: other.heading || 'Other',
+        kind,
+        heading: kind === 'activities' ? 'Other' : heading,
         body,
       });
+    }
   }
   return sections;
 }

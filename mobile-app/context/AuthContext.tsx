@@ -5,6 +5,7 @@ import {
   getCandidateProfile,
   getCurrentSession,
   signOut as apiSignOut,
+  onSessionChange,
 } from '@/services/api/auth';
 import { bandIndex, CandidateScoreResponse, getMyScore, SCORE_BANDS } from '@/services/api/scoring';
 import { UserProfile } from '@/types/user';
@@ -145,6 +146,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [refreshScore]);
 
+  useEffect(() => {
+    const unsubscribe = onSessionChange((newSession) => {
+      if (!newSession) {
+        setSession(null);
+        setProfile(null);
+        setCandidateFullName(null);
+        setCandidateScore(null);
+      } else {
+        setSession(newSession);
+      }
+    });
+    return unsubscribe;
+  }, []);
+
   const rememberCandidate = useCallback((
     nextSession: AuthSession,
     candidateProfile?: CandidateProfileResponse | null,
@@ -154,15 +169,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       (fullName && fullName.trim()) ||
       (candidateProfile?.full_name && candidateProfile.full_name.trim()) ||
       null;
-    setSession(nextSession);
-    saveStoredSession(nextSession);
+    const mergedSession: AuthSession = {
+      ...session,
+      ...nextSession,
+      refreshToken: nextSession.refreshToken || session?.refreshToken,
+      idToken: nextSession.idToken || session?.idToken,
+      expiresAt: nextSession.expiresAt || session?.expiresAt,
+    };
+    setSession(mergedSession);
+    saveStoredSession(mergedSession);
     if (resolved) {
       setCandidateFullName(resolved);
       saveStoredCandidateName(resolved);
       setProfile((current) => ({
-        id: nextSession.userId,
+        id: mergedSession.userId,
         fullName: resolved,
-        email: nextSession.email,
+        email: mergedSession.email,
         city: candidateProfile?.city || current?.city,
         state: candidateProfile?.state_code || current?.state,
         preferredLanguage: current?.preferredLanguage || 'en',
@@ -173,7 +195,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         readinessBand: current?.readinessBand ?? 1,
       }));
     }
-  }, []);
+  }, [session]);
 
   const updateCandidateScore = useCallback((score: number, band?: string | number | null, computedAt?: string | null) => {
     let numericBand = 1;

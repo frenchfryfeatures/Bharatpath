@@ -73,20 +73,45 @@ export function getBaseUrl(): string {
   return 'http://localhost:8099/api/v1';
 }
 
+export type TokenRefreshHandler = (force?: boolean) => Promise<string | null>;
+
+let tokenRefreshHandler: TokenRefreshHandler | null = null;
+
+export function registerTokenRefreshHandler(handler: TokenRefreshHandler | null): void {
+  tokenRefreshHandler = handler;
+}
+
+export interface ApiRequestOptions {
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  body?: any;
+  headers?: Record<string, string>;
+  token?: string;
+  skipAuthRefresh?: boolean;
+  _isRetry?: boolean;
+}
+
 export async function apiRequest<T>(
   endpoint: string,
-  options: {
-    method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-    body?: any;
-    headers?: Record<string, string>;
-    token?: string;
-  } = {}
+  options: ApiRequestOptions = {}
 ): Promise<T> {
   const baseUrl = getBaseUrl();
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const url = `${baseUrl}${cleanEndpoint}`;
 
-  const token = options.token || currentAccessToken;
+  // 1. Proactive freshness check: if using global session token and refresh is enabled,
+  // ensure we have a fresh token before making the request.
+  let token = options.token || currentAccessToken;
+  if (!options.token && !options.skipAuthRefresh && tokenRefreshHandler) {
+    try {
+      const freshToken = await tokenRefreshHandler(false);
+      if (freshToken) {
+        token = freshToken;
+      }
+    } catch (refreshErr) {
+      console.warn('[API Client] Proactive token freshness check failed:', refreshErr);
+    }
+  }
+
   const requestId = generateRequestId();
 
   const headers: Record<string, string> = {
@@ -136,6 +161,25 @@ export async function apiRequest<T>(
       code: 'network_error',
       params: { url, originalError: netErr?.message || String(netErr) },
     });
+  }
+
+  // 2. Reactive 401 handling: If server returns 401 Unauthorized (e.g. invalid/expired token),
+  // silently refresh via Cognito refresh token and retry the request once.
+  if (response.status === 401 && !options._isRetry && !options.skipAuthRefresh && tokenRefreshHandler) {
+    console.log(`[API Client] Received 401 on ${cleanEndpoint}. Refreshing session token and retrying once...`);
+    try {
+      const renewedToken = await tokenRefreshHandler(true);
+      if (renewedToken) {
+        console.log(`[API Client] Successfully renewed token. Retrying ${cleanEndpoint}...`);
+        return await apiRequest<T>(endpoint, {
+          ...options,
+          token: renewedToken,
+          _isRetry: true,
+        });
+      }
+    } catch (refreshErr) {
+      console.warn('[API Client] Reactive 401 refresh failed:', refreshErr);
+    }
   }
 
   // Check if response is JSON
