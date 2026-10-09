@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.employer.models import Employer
 
 #: The columns an owner may change. KYB status is deliberately absent: it
-#: moves only through the KYB state machine (Day 10), never through a profile
+#: moves only through the KYB state machine, never through a profile
 #: edit, or invariant 8 would be one PATCH away from bypassed.
 _EDITABLE: Final[frozenset[str]] = frozenset(
     {

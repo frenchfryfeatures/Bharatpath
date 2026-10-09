@@ -1,4 +1,4 @@
-"""Day 12, the pure half: the stage machine, interviews, hire confirmation, expiry."""
+"""The hiring pipeline, pure: the stage machine, interviews, hire confirmation, expiry."""
 
 from __future__ import annotations
 

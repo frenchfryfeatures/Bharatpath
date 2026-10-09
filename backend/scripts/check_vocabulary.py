@@ -15,10 +15,9 @@ codebase is part of what would be examined.
 provably raise the number (R1), the score sits behind a paywall (R5/R13), and
 the candidate is never told how it was reached (R11). An unexplained
 three-digit score that rises when you pay is close to the worst possible shape
-for the concern this rule exists to prevent. See docs/plan.md, "Legal - raise
-before Day 8".
+for the concern this rule exists to prevent. See docs/plan.md, "Legal".
 
-Runs in CI from Day 1. Costs an hour, runs forever.
+Runs in CI on every push.
 
     python scripts/check_vocabulary.py
 """

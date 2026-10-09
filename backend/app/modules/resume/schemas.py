@@ -175,7 +175,7 @@ class ResumeVersionResponse(_Base):
 
 
 # ---------------------------------------------------------------------------
-# Day 7: review, edit, confirm (SRS 1.4.4)
+# Review, edit, confirm (SRS 1.4.4)
 # ---------------------------------------------------------------------------
 class ResumeVersionSummary(_Base):
     """One entry in the version history. No content -- the list is a chain

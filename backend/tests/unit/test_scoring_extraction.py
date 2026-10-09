@@ -1,6 +1,6 @@
 """Layer 2, content addressing, bands and the display floor.
 
-All pure. These are the parts of Day 8 that decide what a score *is* before
+All pure. These are the parts of scoring that decide what a score *is* before
 any database is involved, so they are cheap to pin exhaustively — including
 the malformed-extraction cases that only arise years later, when a stored
 extraction outlives the schema that validated it.

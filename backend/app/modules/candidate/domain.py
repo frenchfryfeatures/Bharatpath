@@ -24,9 +24,10 @@ MAX_NAME_LENGTH: Final = 200
 def normalise_full_name(value: str) -> str:
     """A person's name, whitespace collapsed. Raises `ValueError` on anything else.
 
-    Asked at sign-up (client, 2026-09-15, closing blockers E13) because nothing
-    else stores one: a CV is kept as text and a name is never guessed from it.
-    Shown only on a revealed profile, never on a masked card.
+    Asked at sign-up (client, 2026-09-15) because nothing else stores one: a
+    CV is kept as text and a name is never guessed from it. It is the one
+    identifying field an employer sees on a masked card; contact, the CV and
+    the score still cost a reveal.
 
     The same alphabet as a city -- letters in any script, combining marks,
     spaces and `. ' -` -- so "S. Ramaswamy", "D'Souza" and "राहुल शर्मा" are

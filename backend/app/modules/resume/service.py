@@ -266,7 +266,7 @@ async def get_file_status(
 
 
 # ---------------------------------------------------------------------------
-# Day 7: review, edit, confirm (SRS 1.4.4)
+# Review, edit, confirm (SRS 1.4.4)
 # ---------------------------------------------------------------------------
 #: How much history one candidate can read back. Generous -- a candidate with
 #: more corrections than this still gets the newest ones, which is what the
@@ -447,7 +447,7 @@ async def declared_name(
 ) -> str | None:
     """The name the candidate typed on the structured form, or None.
 
-    For a profile an employer has opened (Day 14). **Only the form carries a
+    For a profile an employer has opened. **Only the form carries a
     name.** Uploaded and pasted CVs are stored as text, and a name guessed
     from a first line would put the wrong name in front of an employer, so
     none is guessed. The version passed is the one a score was computed from,
@@ -620,7 +620,7 @@ async def profile_resume_preview(
 async def users_with_any_resume(
     session: AsyncSession, *, user_ids: list[uuid.UUID]
 ) -> set[uuid.UUID]:
-    """For the incomplete-profile sweep (Day 19): who has started a profile at
+    """For the incomplete-profile sweep: who has started a profile at
     all -- an upload, a paste or the form, confirmed or not. **Not a scoring
     read**: it says whether a version exists, never what one holds, so it does
     not go near the confirm gate."""

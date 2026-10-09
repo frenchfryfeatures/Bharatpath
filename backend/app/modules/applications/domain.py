@@ -213,7 +213,8 @@ def candidate_dispute(
     A dispute does not reject or withdraw anything. It leaves the application
     at DECISION with the proposal standing, so it closes one of three ways:
     the candidate confirms after all, the employer rejects, or the candidate
-    withdraws. Deciding who was right is a human's job (blockers E10).
+    withdraws. Deciding who was right is a human's job (the admin console's
+    dispute queue).
     """
     if stage != "DECISION" or not employer_confirmed:
         return "REFUSE"

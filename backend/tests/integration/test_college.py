@@ -1,4 +1,4 @@
-"""Day 17 through HTTP and the database: the college tenant, seats, referral codes.
+"""Through HTTP and the database: the college tenant, seats, referral codes.
 
 What this file holds, in order:
 
@@ -113,7 +113,7 @@ async def _lapse(subscription_id: uuid.UUID) -> None:
 
 
 async def _allocate(tenant_id: str, seats: int) -> college_service.Allocation:
-    """What the admin console will do (Day 19), through the service, as the app role."""
+    """What the admin console does, through the service, as the app role."""
     async with sessions(APP_URL)() as session, session.begin():
         return await college_service.allocate_seats(
             session,
@@ -605,7 +605,7 @@ async def test_the_seat_cap_is_held_by_the_database(client: Any, mint_token: Any
     grown = await _allocate(college["tenant_id"], 2)
     assert (grown.used, grown.filled) == (2, 1), "growing the allowance seats who was waiting"
 
-    # Revoking consent releases the seat it paid for (Day 18 builds the route).
+    # Revoking consent releases the seat it paid for.
     async with sessions(_seed_url())() as session, session.begin():
         await session.execute(
             text("UPDATE student_consents SET revoked_at = now() WHERE candidate_id = :c"),

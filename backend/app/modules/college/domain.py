@@ -7,7 +7,7 @@ mypy runs in strict mode here and import-linter forbids I/O imports, because
 this is the layer the invariant property tests exercise directly.
 
 **Four sets of rules live here**, each with a twin below the service where one
-is needed (the baseline migration, Day 17):
+is needed (the baseline migration):
 
   1. **Referral codes are credentials** (R16). Sixty bits from a CSPRNG, an
      alphabet with no look-alike characters, a mandatory expiry, revocable,
@@ -52,7 +52,7 @@ ROSTER_CONSENT_TEXT: Final = (
     "to that. You can disconnect at any time."
 )
 
-#: What seeing a student as a person means (Day 18). **A separate grant, made
+#: What seeing a student as a person means. **A separate grant, made
 #: separately** (PRD 3.8): nothing on the linking path offers it, and it is
 #: versioned apart from the roster text because the two change independently.
 #: Placeholder words, ours, not counsel's, like the roster text above.

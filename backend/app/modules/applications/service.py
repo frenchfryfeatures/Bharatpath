@@ -6,7 +6,7 @@ Services own the transaction. They never touch `Request`, and anything that
 reveals private data writes its audit row on the same session before the
 transaction closes.
 
-**Day 11 is the candidate's side: apply, read, withdraw.** Four rules decide
+**The candidate's side: apply, read, withdraw.** Four rules decide
 whether an application can be made, checked in this order:
 
   1. **An active application already exists** -> return it. Applying is
@@ -20,7 +20,7 @@ whether an application can be made, checked in this order:
      Applying puts a candidate in front of an employer, so it passes the same
      rule as discovery -- the one CTE. Without this, a CV held back by a HIGH
      integrity signal would reach employers through the apply button, which
-     is the bypass Day 9 closed for search.
+     is the same bypass the CTE closes for search.
   4. **The stored score meets the threshold** -> otherwise
      `eligibility_below_threshold`, with no number attached (R11).
 
@@ -29,7 +29,7 @@ keeps their account and their history (R13): reading, withdrawing, and
 confirming or disputing a hire stay open, because an outcome someone cannot
 answer without paying is their data held in an employer's pipeline for a fee.
 
-**Day 12 is the pipeline.** The employer moves an application forward, books
+**The employer's side: the pipeline.** The employer moves an application forward, books
 an interview and proposes a hire; the candidate confirms or disputes it; the
 clock expires what an employer has abandoned. Every change locks the row first
 and appends to `application_events` on the same transaction, so a withdrawal
@@ -246,7 +246,8 @@ def _interview(row: Any) -> InterviewDetails | None:
 
 
 def _payload(row: Any, **extra: str) -> dict[str, Any]:
-    """Identifiers only. The candidate id is here so Day 19 can notify them."""
+    """Identifiers only. The candidate id is here so notifications can reach
+    them; names and contacts are resolved at dispatch."""
     return {
         "tenant_id": str(row.tenant_id),
         "job_id": str(row.job_id),
@@ -499,7 +500,7 @@ async def confirm_hire(
 
     The confirmation and HIRED are written in one statement: the CHECK on the
     table refuses either one without the other. `HIRE_CONFIRMED` is the final
-    hire event; nothing is billed on it (`answers-log.md` 0.8).
+    hire event; nothing is billed on it (deferred by the client).
     """
     now = now or datetime.now(UTC)
     row = await _mine(session, ctx, application_id, for_update=True)

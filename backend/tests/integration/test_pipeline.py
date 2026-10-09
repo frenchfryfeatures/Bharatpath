@@ -1,4 +1,4 @@
-"""Day 12 through HTTP: the employer's pipeline, interviews, the two-sided hire, expiry.
+"""Through HTTP: the employer's pipeline, interviews, the two-sided hire, expiry.
 
 Candidates are real -- scored, integrity-checked, paying -- and apply through
 the API, exactly as in `test_candidate_marketplace.py`, whose helpers these
@@ -107,10 +107,9 @@ async def _live_expiry_version() -> str:
     and which applies depends on whether `scripts/seed_config.py` has run --
     which it now does on every deploy and in `reset_local_db.sh`.
 
-    Asserting the literal `code-v1` (as this file did until 2026-09-22) was
-    really asserting "no config row exists anywhere", i.e. that the platform
-    runs on defaults that live only in code. That stopped being true the day
-    the defaults became rows, which is the point of seeding them.
+    Asserting the literal `code-v1` would really be asserting "no config row
+    exists anywhere", i.e. that the platform runs on defaults that live only
+    in code -- which seeding exists to make untrue.
 
     Deliberately raw SQL rather than the service's own reader, so this is an
     independent check: it proves the sweep stamped the version of the row it

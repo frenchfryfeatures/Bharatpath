@@ -1,4 +1,4 @@
-"""Day 12 at the database layer: the pipeline with the service out of the way.
+"""At the database layer: the pipeline with the service out of the way.
 
 The HTTP tests prove the service behaves. These prove what is left if it does
 not: `guard_application_write` and the CHECKs on `applications`, against the

@@ -1,4 +1,4 @@
-"""The Week 1 gate, proven against a real Postgres.
+"""Tenant isolation, row-level security and grants, proven against a real Postgres.
 
 Never SQLite. RLS, `SET LOCAL`, partial indexes and JSONB all behave
 differently there, and those are precisely what these tests exercise - a

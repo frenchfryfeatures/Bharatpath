@@ -1,4 +1,4 @@
-"""Day 8 end to end: extraction cache, persistence, replay, re-score.
+"""End to end: extraction cache, persistence, replay, re-score.
 
 Against a real Postgres, because the guarantees being tested are enforced
 there: the CHECK constraints that hold the scale, the append-only grant, and

@@ -124,8 +124,8 @@ class CandidateSearchDocument(Base):
     copied. Nor is anything a CV says about who someone is: skills, summed
     experience and add-on badges, and that is all.
 
-    **Indexed deliberately**, because this is the query that gets slow first
-    (plan.md Day 13): GIN over the skill keys, badges and the text vector, and
+    **Indexed deliberately**, because this is the query that gets slow first:
+    GIN over the skill keys, badges and the text vector, and
     the band ordering as a btree the keyset pagination walks.
     """
 

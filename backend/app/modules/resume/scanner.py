@@ -2,7 +2,7 @@
 
 **This is a seam, not a scanner.** `NullDocumentScanner` performs no malware
 detection whatsoever. It exists so the call site, the `scan_status` column and
-the refusal path are all real and exercised from Day 6, rather than being
+the refusal path are all real and exercised now, rather than being
 retrofitted around working code later -- retrofitting a gate is how a gate ends
 up with something already past it.
 

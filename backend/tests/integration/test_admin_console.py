@@ -1,4 +1,4 @@
-"""Day 19: the admin console -- staff tenancy, suspension, seats, KYB and
+"""The admin console -- staff tenancy, suspension, seats, KYB and
 integrity queues, drill-downs, disputes, audit search.
 
 Staff are provisioned the way `scripts/create_platform_staff.py` does it, as
@@ -94,7 +94,7 @@ async def _find(client: Any, url: str, headers: dict, wanted: str, **params: Any
     return None
 
 
-# --- staff tenancy (blockers E10) --------------------------------------------------------
+# --- staff tenancy -----------------------------------------------------------------------
 async def test_staff_share_one_platform_tenant_and_reach_the_console(
     client: Any, mint_token: Any
 ) -> None:
@@ -274,7 +274,7 @@ async def test_only_a_platform_admin_can_stop_an_organisation(
     assert response.status_code == 403
 
 
-# --- seats (blockers E23) -----------------------------------------------------------------
+# --- seats ---------------------------------------------------------------------------------
 async def test_an_admin_sets_a_colleges_seats_within_its_plan(client: Any, mint_token: Any) -> None:
     admin = await _staff(mint_token)
     college = await _college(client, mint_token, seats_paid=40)

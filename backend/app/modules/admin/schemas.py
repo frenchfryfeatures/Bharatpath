@@ -322,7 +322,7 @@ class EmployerDrilldown(_Base):
     applications_by_stage: dict[str, int]
     subscription: SubscriptionSummary | None
     suspension: SuspensionSummary | None
-    #: Distinct candidates opened, not opens (Day 14 counts caps the same way).
+    #: Distinct candidates opened, not opens (the view caps count the same way).
     candidates_viewed_last_day: int
     candidates_viewed_last_30_days: int
     view_anomaly_flags_last_30_days: int

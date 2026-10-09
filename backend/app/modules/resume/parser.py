@@ -39,7 +39,7 @@ logger = get_logger(__name__)
 #: not when an unrelated line moves. Library versions are appended
 #: automatically, so a pypdf upgrade is already visible without touching this.
 #:
-#: 2 (2026-09-22): hidden-text analysis added (blockers E5). **`text` is
+#: 2: hidden-text analysis added. **`text` is
 #: unchanged**, so this is not a re-score -- the bump records that the
 #: extractor now produces a field older extractions do not have, which is
 #: what lets a reader tell "analysed, clean" from "never analysed".
@@ -47,8 +47,8 @@ EXTRACTOR_REVISION: Final = "2"
 
 #: A CV is a handful of pages. A document past this is either not a CV (a
 #: book, a thesis) or an attempt to burn worker time and a model call, and it
-#: is **refused, not truncated** (2026-10-02). It used to be cut to its first
-#: 40 pages and scored, so a whole book reached employers as a 700.
+#: is **refused, not truncated**. Truncating would score the first pages of a
+#: book as if they were a CV and send that number to employers.
 #:
 #: Refusing changes no accepted document's text -- anything within the limit
 #: was always read in full -- so this is not a re-score and
@@ -114,7 +114,7 @@ class ExtractedDocument:
     page_count: int
     parser: str
     parser_version: str
-    #: Text the document renders but a reader cannot see (blockers E5).
+    #: Text the document renders but a reader cannot see.
     #:
     #: **Additive, and `text` above is unchanged by it.** pypdf's ordinary
     #: extraction returns hidden and visible text alike -- it has no notion of
@@ -181,9 +181,9 @@ class LocalResumeParser:
         elif mime == DOCX:
             text, pages, hidden = self._docx(content)
         elif mime == "application/msword":
-            # Legacy OLE2 .doc. Refused at upload since 2026-09-15 (blockers
-            # E3); this branch remains for files accepted before that, so they
-            # fail with the same actionable code rather than a generic one.
+            # Legacy OLE2 .doc. Refused at upload; this branch remains for
+            # files accepted before that rule, so they fail with the same
+            # actionable code rather than a generic one.
             raise LegacyDocUnsupportedError()
         else:
             raise UnsupportedDocumentError(params={"mime": mime})

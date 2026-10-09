@@ -208,7 +208,7 @@ async def create_candidate_user(session: AsyncSession, *, email: str) -> User:
 
 
 # ---------------------------------------------------------------------------
-# Day 19 -- platform staff, suspension, contacts
+# Platform staff, suspension, contacts
 # ---------------------------------------------------------------------------
 async def get_tenant(session: AsyncSession, *, tenant_id: uuid.UUID) -> Tenant | None:
     result = await session.execute(select(Tenant).where(Tenant.id == tenant_id))

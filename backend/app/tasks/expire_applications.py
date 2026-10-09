@@ -1,10 +1,8 @@
 """Expire applications an employer has abandoned (SRS 1.9.3).
 
-Periodic, so it is started by EventBridge Scheduler rather than Celery Beat
-(`app/worker.py`). **The schedule itself is not provisioned yet** -- it lands
-with the rest of the deployment infrastructure (`docs/blockers.md` E4). Until
-then nothing expires on its own, which is the safe direction: an application
-left open is a candidate kept waiting, not a candidate wrongly released.
+Hourly, on Celery Beat (`app/tasks/schedule.py`). If beat is not running
+nothing expires on its own, which is the safe direction: an application left
+open is a candidate kept waiting, not a candidate wrongly released.
 
 **One transaction per employer.** Each binds that tenant, so the sweep reads
 and writes under the same Row-Level Security policy as every request, can only

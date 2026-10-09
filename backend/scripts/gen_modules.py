@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
-"""Generate the seven-file skeleton for every module.
+"""Scaffold a module, and check that every module is registered.
 
-Twenty modules with an identical shape is a template you fill, not twenty
-designs. Generating them means the rest of the sprint is spent in `domain.py`
-and `service.py`, which is where the actual thinking lives.
+Every module has the same layered shape (router -> service -> repository,
+with a pure `domain.py`), so a new one starts from the template below rather
+than from a blank directory. Add it to MODULES and run the script: missing
+files are created and `app/modules/__init__.py` is regenerated. An existing
+file is never overwritten.
 
-Idempotent: an existing file is never overwritten, so this is safe to re-run
-after adding a module to MODULES below.
+A layer a module does not need may be deleted after scaffolding -- an empty
+file is noise, not structure. `--check` therefore requires only what the
+application depends on: each module's package (`__init__.py`, which carries
+`name`, `prefix` and `get_router()`) and its entry in the registry.
 
-    python scripts/gen_modules.py           # create anything missing
-    python scripts/gen_modules.py --check   # exit non-zero if missing (CI)
+    python scripts/gen_modules.py           # scaffold anything missing
+    python scripts/gen_modules.py --check   # exit non-zero on drift (CI)
 """
 
 from __future__ import annotations
@@ -30,8 +34,8 @@ class ModuleSpec:
     summary: str
 
 
-# The modules from docs/plan.md section 4: the original twenty, plus
-# `engagement` (streaks, added 2026-09-13 -- docs/streaks.md).
+# Every module in the monolith (docs/plan.md section 4). The registry in
+# `app/modules/__init__.py` is generated from this tuple.
 MODULES: tuple[ModuleSpec, ...] = (
     ModuleSpec("identity", "/auth", "Users, sessions, Cognito linkage, memberships."),
     ModuleSpec("candidate", "/candidate", "Candidate profile, settings, language preference."),
@@ -92,6 +96,7 @@ MODULES: tuple[ModuleSpec, ...] = (
     ),
 )
 
+#: What a new module is scaffolded with.
 FILES = (
     "__init__.py",
     "router.py",
@@ -114,7 +119,7 @@ prefix = "{prefix}"
 
 
 def get_router() -> APIRouter | None:
-    """Return this module's router, or None while it is still a stub."""
+    """Return this module's router."""
     from . import router as _router
 
     return getattr(_router, "router", None)
@@ -132,8 +137,6 @@ LAYERS: dict[str, tuple[str, str, str]] = {
 from fastapi import APIRouter
 
 router = APIRouter()
-
-# Endpoints land on the day this module is scheduled in docs/plan.md section 8.
 """,
     ),
     "schemas.py": (
@@ -234,35 +237,47 @@ def write_registry() -> None:
     (MODULES_DIR / "__init__.py").write_text("\n".join(lines), encoding="utf-8")
 
 
+def check() -> list[str]:
+    """Every module has a package, and the registry lists exactly MODULES."""
+    problems = [
+        f"{(MODULES_DIR / m.name / '__init__.py').relative_to(ROOT)} is missing"
+        for m in MODULES
+        if not (MODULES_DIR / m.name / "__init__.py").exists()
+    ]
+    registry = (MODULES_DIR / "__init__.py").read_text(encoding="utf-8")
+    problems += [
+        f"app/modules/__init__.py does not register {m.name}"
+        for m in MODULES
+        if f"    {m.name},\n" not in registry
+    ]
+    return problems
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true", help="Exit non-zero if files are missing.")
     args = parser.parse_args()
 
-    created: list[str] = []
-    missing: list[str] = []
+    if args.check:
+        problems = check()
+        if problems:
+            print(f"{len(problems)} problem(s). Run: python scripts/gen_modules.py")
+            for problem in problems[:20]:
+                print(f"  {problem}")
+            return 1
+        print(f"All {len(MODULES)} modules present and registered.")
+        return 0
 
+    created: list[str] = []
     for m in MODULES:
         directory = MODULES_DIR / m.name
+        if (directory / "__init__.py").exists():
+            continue  # an existing module keeps the layers it chose
+        directory.mkdir(parents=True, exist_ok=True)
         for filename in FILES:
             path = directory / filename
-            if path.exists():
-                continue
-            if args.check:
-                missing.append(str(path.relative_to(ROOT)))
-                continue
-            directory.mkdir(parents=True, exist_ok=True)
             path.write_text(render(m, filename), encoding="utf-8")
             created.append(str(path.relative_to(ROOT)))
-
-    if args.check:
-        if missing:
-            print(f"{len(missing)} module file(s) missing. Run: python scripts/gen_modules.py")
-            for path_str in missing[:20]:
-                print(f"  {path_str}")
-            return 1
-        print(f"All {len(MODULES)} modules present.")
-        return 0
 
     write_registry()
     print(f"Created {len(created)} file(s) across {len(MODULES)} modules.")

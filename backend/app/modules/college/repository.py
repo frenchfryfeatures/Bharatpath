@@ -578,13 +578,13 @@ async def send_pending(
 async def unreachable_valid_rows(
     session: AsyncSession, *, import_id: uuid.UUID, contact_fields: frozenset[str]
 ) -> int:
-    """Valid rows an invitation could not be delivered to (blockers E35).
+    """Valid rows an invitation could not be delivered to.
 
     A roster row needs a phone *or* an email. With SMS deferred a phone-only
     row is perfectly valid, is committed, raises its event, and is then
-    recorded SKIPPED `NO_CONTACT` -- and until 2026-09-22 the college had no
-    way of knowing. This is what the preview reports so they can go and get
-    email addresses before committing rather than after.
+    recorded SKIPPED `NO_CONTACT`, which the college would never see. This is
+    what the preview reports so they can go and get email addresses before
+    committing rather than after.
 
     `contact_fields` comes from `notifications.domain`, so when SMS returns
     this counts zero on its own.
@@ -620,7 +620,7 @@ async def invitation_rows(
     return [(state, sent_at) for state, sent_at in result.tuples()]
 
 
-# --- consent: granting INDIVIDUAL and revoking (candidate transaction, Day 18) --
+# --- consent: granting INDIVIDUAL and revoking (candidate transaction) --------
 async def live_consents(
     session: AsyncSession, *, tenant_id: uuid.UUID, candidate_id: uuid.UUID
 ) -> list[StudentConsent]:
@@ -687,7 +687,7 @@ async def has_any_consent(
     return bool(result.scalar_one())
 
 
-# --- students who let their college see them (college transaction, Day 18) ----
+# --- students who let their college see them (college transaction) -----------
 @dataclass(frozen=True, slots=True)
 class VisibleStudentRow:
     candidate_id: uuid.UUID

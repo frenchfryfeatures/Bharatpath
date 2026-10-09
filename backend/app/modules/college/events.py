@@ -19,7 +19,7 @@ ORGANISATION_CREATED: Final = f"{MODULE}.organisation_created"
 SEATS_ALLOCATED: Final = f"{MODULE}.seats_allocated"
 
 #: A student linked to a college by code or invitation: a ROSTER consent was
-#: granted. For analytics (Day 18) and notifications (Day 19).
+#: granted. For analytics and notifications.
 STUDENT_LINKED: Final = f"{MODULE}.student_linked"
 
 ROSTER_IMPORT_COMMITTED: Final = f"{MODULE}.roster_import_committed"
@@ -33,6 +33,6 @@ INDIVIDUAL_VISIBILITY_GRANTED: Final = f"{MODULE}.individual_visibility_granted"
 #: named "X disconnected" beside a dashboard that just changed is X's band.
 CONSENT_REVOKED: Final = f"{MODULE}.consent_revoked"
 
-#: One invitation to send. For notifications (Day 19), which read the contact
-#: from the roster row; routed to nothing until then.
+#: One invitation to send. Notifications read the contact from the roster row
+#: at dispatch; the payload carries ids only.
 INVITATION_SENT: Final = f"{MODULE}.invitation_sent"

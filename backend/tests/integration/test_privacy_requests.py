@@ -1,4 +1,4 @@
-"""Day 20 through HTTP: data-subject requests, the export, and the erasure.
+"""Through HTTP: data-subject requests, the export, and the erasure.
 
 The erasure test builds a candidate who has touched most of the platform --
 a scored CV, an integrity check, a profile, an application with its history,
@@ -520,7 +520,7 @@ async def test_erase_candidate_refuses_business_accounts_and_no_policy(
 
 
 # ===========================================================================
-# The sign-in itself (blockers E32, closed 2026-09-22)
+# The sign-in itself
 # ===========================================================================
 # Before this, an erasure emptied the `users` row and left the Cognito user
 # standing. `cognito_sub` is replaced by its SHA-256 rather than nulled, so a

@@ -1,6 +1,6 @@
 """INVARIANT 6 - no financial or lending framing (PRD section 3 rule 5).
 
-Lands Day 1. Stated in the PRD as a legal requirement rather than a style
+Stated in the PRD as a legal requirement rather than a style
 preference, and the risk sharpened in v4-v6: the product now sells items that
 raise the number, the number sits behind a paywall, and it is never explained.
 """

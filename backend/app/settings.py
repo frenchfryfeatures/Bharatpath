@@ -111,7 +111,7 @@ class Settings(BaseSettings):
 
     presigned_url_ttl_seconds: int = 900
 
-    # -- resume intake (plan.md section 8, Day 6) --------------------------
+    # -- resume intake --------------------------------------------------------
     # 10 MB. A CV that does not fit is a scanned photo album, and Textract
     # bills per page. The cap is enforced twice: declared to the client when
     # the upload is presigned, and re-checked server-side from S3 metadata
@@ -122,9 +122,9 @@ class Settings(BaseSettings):
     # Sniffed from the first bytes of the object, never from the filename or
     # the client-declared Content-Type. Both are attacker-controlled.
     #
-    # **No legacy `.doc`** (client, 2026-09-15, closing blockers E3): no
-    # maintained pure-Python reader exists, so it was accepted and then failed
-    # at parse. It is now refused at upload with its own code, so the app can
+    # **No legacy `.doc`** (client, 2026-09-15): no maintained pure-Python
+    # reader exists, so it would be accepted and then fail at parse. It is
+    # refused at upload with its own code instead, so the app can
     # tell the candidate to save as PDF or .docx.
     resume_allowed_mime_types: list[str] = [
         "application/pdf",
@@ -232,7 +232,7 @@ class Settings(BaseSettings):
     # two purchases.
     payments_checkout_reuse_minutes: int = 30
 
-    # -- interview evaluation (Day 17) ---------------------------------------
+    # -- interview evaluation -------------------------------------------------
     # `openai` evaluates (with Sarvam transcribing, below). The default gives no
     # feedback: a completed session stays COMPLETED and its report reads PENDING. There
     # is no heuristic fallback -- see `interview/evaluation.py`. `stub` hears
@@ -255,7 +255,7 @@ class Settings(BaseSettings):
     # Pinned snapshot, never the bare alias; the one the evaluator uses.
     interview_question_model_id: str = "gpt-5.4-mini-2026-03-17"
 
-    # -- notifications (Day 19) -----------------------------------------------
+    # -- notifications --------------------------------------------------------
     # Nothing is wired by default: SMS and email are recorded as SKIPPED
     # `PROVIDER_UNCONFIGURED` and the in-app inbox still works. `stub` records
     # what would have been sent and is refused in staging and production.
@@ -269,9 +269,9 @@ class Settings(BaseSettings):
     twilio_messaging_service_sid: str | None = None
     notifications_email_from: str | None = None
 
-    # -- unsubscribe (blockers E30) -----------------------------------------
-    # A nudge is the only message a person may reasonably not want, and until
-    # 2026-09-22 an email carried no way to stop them without signing in.
+    # -- unsubscribe ----------------------------------------------------------
+    # A nudge is the only message a person may reasonably not want, so its
+    # email carries a one-click way to stop them without signing in.
     #
     # **Both must be set or no link is offered**, which is the honest failure:
     # a `List-Unsubscribe` header pointing at a URL we cannot serve, or a
@@ -284,6 +284,11 @@ class Settings(BaseSettings):
     public_api_base_url: str = ""
 
     # -- celery ------------------------------------------------------------
+    # Every environment sets this; the deployed host and local development
+    # both use Redis. The `sqs://` default does not work as configured -- kombu
+    # looks for a queue named `celery` rather than the Terraform-made one
+    # (docs/blockers.md E44) -- so a deployment that forgets the variable fails
+    # at worker boot rather than quietly running on the wrong broker.
     celery_broker_url: str = "sqs://"
     celery_result_backend: str | None = None
 
@@ -351,7 +356,7 @@ class Settings(BaseSettings):
     otp_start_per_phone_per_hour: int = 5
     otp_start_per_ip_per_hour: int = 20
 
-    # The global tier (Day 20, `app/core/ratelimit.py`). Generous on purpose:
+    # The global tier (`app/core/ratelimit.py`). Generous on purpose:
     # a guard against a runaway client or a scraper, set well above what a
     # person clicking can reach. Per tenant is higher than per user because an
     # organisation's staff share it. Off in tests, whose one "IP" makes more

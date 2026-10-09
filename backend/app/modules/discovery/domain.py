@@ -6,7 +6,7 @@ No I/O. No database, no HTTP, no clock, no randomness that is not passed in.
 mypy runs in strict mode here and import-linter forbids I/O imports, because
 this is the layer the invariant property tests exercise directly.
 
-**What a masked card may say** (plan.md Day 13, SRS 1.14.1, 2.9.6): a band,
+**What a masked card may say** (SRS 1.14.1, 2.9.6): a band,
 roughly how much experience, which skills, where, and which add-ons were
 completed, and since 2026-10-06 the name the candidate gave. Never a phone
 number, an email or the score itself. Most of that is kept out by the card
@@ -33,7 +33,7 @@ from app.modules.candidate.domain import STATE_CODES, normalise_city
 #:
 #: The questionnaire has no badge, deliberately: a badge here means an add-on
 #: folded into the score, and the questionnaire is worth nothing. Its answers
-#: reaching employers is a filter decision, not a badge (progress.md, Day 16).
+#: reaching employers would be a filter decision, not a badge.
 BADGE_FOR_ADDON_KIND: Final[dict[str, str]] = {
     "course": "COURSE_COMPLETED",
     "interview": "MOCK_INTERVIEW_COMPLETED",
@@ -104,7 +104,7 @@ def experience_years(months: int) -> int:
 
 
 # ---------------------------------------------------------------------------
-# Abuse controls (Day 14)
+# Abuse controls
 # ---------------------------------------------------------------------------
 #
 # One payment buys the whole candidate database (R14), and KYB approves itself
@@ -130,7 +130,7 @@ class DiscoveryLimits:
     #: Profile requests per person per minute, re-opens included. A burst
     #: limit in Redis, ahead of the database.
     reveals_per_minute: int = 20
-    #: Masked search pages per organisation per hour (Day 13's floor).
+    #: Masked search pages per organisation per hour.
     search_pages_per_hour: int = 300
     #: One person opening this many distinct candidates inside this many
     #: minutes is flagged for a human.

@@ -1,4 +1,4 @@
-"""Day 10: jobs through HTTP -- composing, the lifecycle, and invariant 8.
+"""Jobs through HTTP -- composing, the lifecycle, and invariant 8.
 
 Organisations are created through the API, so they start at KYB `DRAFT` exactly
 as a real one does. Approval is set directly as the migrator here; the KYB

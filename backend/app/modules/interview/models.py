@@ -22,7 +22,7 @@ a refund request, and disputes cost more than the sale.
 **Bought like a course, not through `entitlements`.** A session is bought by a
 verified payment (`interview_purchases`, held by `guard_interview_purchase`)
 and consumed by starting one (`interview_sessions.purchase_id`, unique). That
-is the Day 15 shape for courses, and it keeps the purchase, its notice and the
+is the same shape as course purchases, and it keeps the purchase, its notice and the
 session it became in one module rather than split across billing.
 """
 
@@ -365,7 +365,7 @@ class InterviewAnswer(Base, UUIDPrimaryKey):
 
 
 class InterviewTranscript(Base, UUIDPrimaryKey):
-    """What a speech model heard in one stored answer (Day 17).
+    """What a speech model heard in one stored answer.
 
     **Insert-only, one per answer.** Transcription is paid per minute, so a
     re-run of the evaluation reads this rather than transcribing again, and a
@@ -375,7 +375,7 @@ class InterviewTranscript(Base, UUIDPrimaryKey):
     words, and the report was built from these.
 
     A candidate's own words: personal data, never shown to an employer or a
-    college, and kept no longer than the audio it came from (blockers E22).
+    college, and kept no longer than the audio it came from.
     """
 
     __tablename__ = "interview_transcripts"
@@ -408,7 +408,7 @@ class InterviewTranscript(Base, UUIDPrimaryKey):
 
 
 class InterviewEvaluation(Base, UUIDPrimaryKey):
-    """The outcome of evaluating one completed session (Day 17). Insert-only.
+    """The outcome of evaluating one completed session. Insert-only.
 
     **Feedback, not a contribution.** Nothing here reaches `scoring`, and the
     session's +20 was frozen at completion; `guard_interview_session_write`

@@ -1,4 +1,4 @@
-"""Day 19: who hears about what, the gates a message passes, and the nudge rules."""
+"""Who hears about what, the gates a message passes, and the nudge rules."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""The pure half of Day 7: version-chain rules and edit provenance.
+"""Resume versions, pure: version-chain rules and edit provenance.
 
 No database. These are the rules the integration tests then exercise through
 HTTP, kept here as pure functions so every branch is cheap to pin -- including

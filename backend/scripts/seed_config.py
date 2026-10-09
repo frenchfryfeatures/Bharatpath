@@ -81,44 +81,43 @@ def _tunables() -> tuple[Tunable, ...]:
             key="discovery.limits",
             document=lambda: _asdict(discovery.DiscoveryLimits()),
             verify=discovery.limits_from_config,
-            note="Per-organisation reach into the candidate pool (Day 14). Ours; "
+            note="Per-organisation reach into the candidate pool. Ours; "
             "the client accepted them as defaults 2026-09-15.",
         ),
         Tunable(
             key="analytics.privacy",
             document=lambda: _asdict(analytics.PrivacyFloors()),
             verify=analytics.floors_from_config,
-            note="Cohort and cell floors for college analytics (Day 18). Cohort floor "
+            note="Cohort and cell floors for college analytics. Cohort floor "
             "and median step ours; exact cells (min_cell_size 1) the client's, "
-            "2026-09-30 (answers-log 12.1). A row may raise them (blockers E27).",
+            "2026-09-30. A row may raise them.",
         ),
         Tunable(
             key="applications.expiry",
             document=lambda: {"inactive_days": applications.DEFAULT_EXPIRY_RULES.inactive_days},
             verify=lambda d: applications.expiry_rules_from_config(d, version="seed"),
             note="Days of employer silence before an application is released "
-            "(Day 12). 30 accepted by the client 2026-09-15.",
+            "(30 accepted by the client 2026-09-15).",
         ),
         Tunable(
             key="notifications.nudges",
             document=lambda: _asdict(notifications.DEFAULT_NUDGE_RULES),
             verify=notifications.nudge_rules_from_config,
-            note="Incomplete-profile nudges: spacing, cap and IST sending hours "
-            "(R9, Day 19). Ours (blockers E31).",
+            note="Incomplete-profile nudges: spacing, cap and IST sending hours (R9). Ours.",
         ),
         Tunable(
             key="subscriptions.renewal",
             document=lambda: _asdict(subscriptions.RenewalPolicy(version="x"), drop=VERSION),
             verify=lambda d: subscriptions.policy_from_config(d, version="seed"),
-            note="Grace, notice periods and the UPI mandate ceiling (R17, Day 15). "
+            note="Grace, notice periods and the UPI mandate ceiling (R17). "
             "mandate_max_amount_minor is our reading of the RBI limit (blockers E16).",
         ),
         Tunable(
             key="integrity.thresholds",
             document=lambda: _asdict(integrity.IntegrityThresholds(version="x"), drop=VERSION),
             verify=lambda d: integrity.thresholds_from_config(d, version="seed"),
-            note="Tolerances for the eight dishonest-CV rules (Day 9). Delegated "
-            "to us by the client in Round 7.6. Severity policy is NOT config.",
+            note="Tolerances for the eight dishonest-CV rules. Delegated "
+            "to us by the client 2026-09-11. Severity policy is NOT config.",
         ),
         Tunable(
             key="engagement.streak_rules",

@@ -1,4 +1,4 @@
-"""The pure half of Day 20: dates, the request machine, and the archive."""
+"""Data-subject requests, pure: dates, the request machine, and the archive."""
 
 from __future__ import annotations
 

@@ -58,8 +58,8 @@ class EmailProvider(Protocol):
     async def send(
         self, *, to: str, subject: str, body: str, headers: dict[str, str] | None = None
     ) -> str:
-        """`headers` carries RFC 8058 unsubscribe headers on a nudge
-        (blockers E30). Optional, so a provider that cannot set headers is
+        """`headers` carries RFC 8058 unsubscribe headers on a nudge.
+        Optional, so a provider that cannot set headers is
         still a valid implementation -- it sends the message without them
         rather than refusing to send it."""
         ...

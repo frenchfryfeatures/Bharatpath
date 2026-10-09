@@ -29,9 +29,10 @@ SubscriberType = Literal["USER", "TENANT"]
 #: access. **The clock decides, not a sweep**: a period that ended a second ago
 #: grants nothing even if no job has moved the row to LAPSED yet.
 #:
-#: GRACE grants access only while `current_period_end` is in the future. Day 15
-#: defines grace; when it does, entering GRACE must set the end of the grace
-#: period, or a GRACE row will grant nothing -- the safe direction to be wrong.
+#: GRACE grants access only while `current_period_end` is in the future:
+#: entering GRACE moves that column to the end of grace (`grace_from` keeps the
+#: paid end). A GRACE row that did not would grant nothing -- the safe
+#: direction to be wrong.
 _ACTIVE_SUBSCRIPTION: Final = text(
     """
     SELECT EXISTS (

@@ -2,10 +2,8 @@
 """Export openapi.json.
 
 The OpenAPI schema is a deliverable, not a side effect. Four client teams -
-one mobile, three web - generate their clients from it, so it is exported on
-every merge to main and published from Day 2 with stub endpoints. In a
-four-week sprint with parallel client teams, an unpublished schema is a
-blocked team.
+one mobile, three web - generate their clients from it, so CI exports it on
+every merge to main and publishes it as a build artifact.
 """
 
 from __future__ import annotations

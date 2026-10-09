@@ -102,7 +102,7 @@ async def evaluate_version(
     resume_version_id: uuid.UUID,
     extracted: dict[str, Any],
     visible_text: str,
-    #: Text the CV renders and a reader cannot see (blockers E5). Empty for
+    #: Text the CV renders and a reader cannot see. Empty for
     #: versions parsed before the detector existed -- which reads as "nothing
     #: hidden", deliberately: a rule that fired on our own missing data would
     #: suppress candidates for a reason that is nothing to do with them.
@@ -205,9 +205,8 @@ async def resolve_signal(
     """A human's decision on one signal. Audited on the same transaction.
 
     **Only CLEARED restores visibility.** CONFIRMED means a reviewer agrees
-    the CV is dishonest, and discovery keeps that candidate suppressed; the
-    route that exposes this lands with the reviewer queue on Day 19, behind
-    `INTEGRITY_REVIEWER`.
+    the CV is dishonest, and discovery keeps that candidate suppressed. Staff
+    call this from the admin console's integrity queue.
 
     The note goes on the signal row and never into the audit metadata: it is
     free text a reviewer typed, and an audit table carrying CV details is a

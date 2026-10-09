@@ -1,4 +1,4 @@
-"""Day 9: employer organisations, the three roles, and the team.
+"""Employer organisations, the three roles, and the team.
 
 Through HTTP, the real `current_user`, the real token verifier and the real
 membership lookup -- because the guarantees here are about which requests get

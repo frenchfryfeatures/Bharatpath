@@ -2,15 +2,12 @@
 
 Nine tasks sweep rather than subscribe, because what triggers them is the
 passage of time and not an event: a subscription lapses because a date
-passed, not because anybody did anything. From Day 12 to 2026-09-22 nothing
-ran any of them (`blockers.md` E4), which meant a deletion request was
+passed, not because anybody did anything. Without them a deletion request is
 accepted, shown with its due date, and never carried out -- a promise not
 kept rather than a feature missing.
 
-**Celery Beat, not EventBridge Scheduler.** `worker.py` and
-`outbox_relay.py` both used to say Beat could not work on an SQS broker
-because "SQS has no native ETA/countdown". That conflates two different
-things. It is true of `apply_async(countdown=...)` and `eta=...`, which ask
+**Celery Beat, not EventBridge Scheduler.** "SQS has no native ETA/countdown"
+does not rule Beat out. It is true of `apply_async(countdown=...)` and `eta=...`, which ask
 the *broker* to hold a message and which SQS cannot do beyond its 15-minute
 delay ceiling. Beat does not ask the broker for anything: it is a clock in a
 separate process that publishes a task the moment it is due, exactly as the
@@ -75,9 +72,8 @@ BEAT_SCHEDULE: Final[dict[str, dict[str, object]]] = {
         "schedule": crontab(minute="15"),
         "options": {"expires": 3000.0},
     },
-    # The erasure sweep. Until this ran, `blockers.md` E4's "promise not being
-    # kept" was this row: a 24h cooling-off period that expired and nothing
-    # destroyed anything.
+    # The erasure sweep: carries out deletions whose 24h cooling-off period
+    # has passed.
     "privacy-erase-due": {
         "task": "privacy.erase_due",
         "schedule": crontab(minute="25"),
@@ -100,7 +96,7 @@ BEAT_SCHEDULE: Final[dict[str, dict[str, object]]] = {
         "schedule": crontab(minute="45"),
         "options": {"expires": 3000.0},
     },
-    # Messages a crashed worker decided and never sent (blockers E30). The
+    # Messages a crashed worker decided and never sent. The
     # rows it recovers are ones no redelivery will ever pick up -- a nudge's
     # sequence number is already claimed, so the nudge sweep will not
     # generate it a second time. Hourly is ample: `ORPHAN_AFTER_MINUTES` is
