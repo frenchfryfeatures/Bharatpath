@@ -21,6 +21,9 @@ import { ScoreRing } from "@/features/student/components/score-ring";
 import { bandLabel } from "@/features/student/formatters";
 import { StudentPage, StudentTopBar } from "@/features/student/shell";
 
+/** The scale is shown out of 1000 in the UI, whatever the API's top score is. */
+const UI_SCORE_MAX = 1000;
+
 export function ScoreReveal() {
   const router = useRouter();
   const score = useGetStudentScoreQuery();
@@ -61,7 +64,7 @@ export function ScoreReveal() {
               <ScoreRing
                 value={score.data.value}
                 min={scale.data.lowest}
-                max={scale.data.highest}
+                max={UI_SCORE_MAX}
               />
             ) : (
               <span className="py-10 text-[64px] font-extrabold leading-none tracking-[-0.045em] text-white">

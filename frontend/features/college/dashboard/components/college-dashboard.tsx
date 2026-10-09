@@ -24,8 +24,8 @@ import { CollegeErrorState } from "../../components/college-error-state";
 import { seatStat } from "../../seat-stat";
 import { ScoreDistribution } from "./score-distribution";
 
-function formatMetric(value: number | null): number | string {
-  return value ?? "—";
+function formatMetric(value: number | null): number {
+  return value ?? 0;
 }
 
 export function CollegeDashboard() {
@@ -192,7 +192,7 @@ function CohortFunnel({
               {row.label}
             </span>
             <span className="text-[15px] font-semibold text-[#151b2b]">
-              {row.value ?? "—"}
+              {row.value ?? 0}
             </span>
           </div>
         ))}

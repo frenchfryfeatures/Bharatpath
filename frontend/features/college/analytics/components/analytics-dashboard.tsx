@@ -199,7 +199,7 @@ function funnelProgress(rows: FunnelCount[]) {
     id: row.id,
     label: row.label,
     value: row.value == null ? 0 : Math.round((row.value / max) * 100),
-    display: row.value == null ? "—" : String(row.value),
+    display: String(row.value ?? 0),
     tone: "info" as const,
   }));
 }
