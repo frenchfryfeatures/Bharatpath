@@ -461,7 +461,7 @@ export function SearchFiltersPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <label className="flex h-9 min-w-64 flex-1 items-center gap-2 rounded-lg border border-[#e2e5eb] bg-white px-3 focus-within:border-[#315c9f]">
+        <label className="flex h-9 min-w-0 flex-1 basis-full items-center gap-2 rounded-lg border border-[#e2e5eb] bg-white px-3 focus-within:border-[#315c9f] sm:basis-auto">
           <Search className="h-4 w-4 text-[#687182]" />
           <input
             type="search"

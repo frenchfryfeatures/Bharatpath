@@ -133,8 +133,8 @@ export function DiscountCodesPage() {
 
   return (
     <div className="min-w-0 space-y-0">
-      <div className="flex items-center justify-between gap-3 py-4">
-        <div className="w-[220px]">
+      <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="w-full sm:w-[220px]">
           <SelectDropdown
             value={audience}
             onChange={(value) => {
@@ -151,7 +151,7 @@ export function DiscountCodesPage() {
           <button
             type="button"
             onClick={() => setCreateOpen(true)}
-            className="inline-flex h-[38px] shrink-0 cursor-pointer items-center gap-2 rounded-lg bg-[#151b2b] px-4 text-[12px] font-semibold text-white transition-colors hover:bg-[#20283d]"
+            className="inline-flex h-[38px] cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#151b2b] px-4 text-[12px] font-semibold text-white transition-colors hover:bg-[#20283d]"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
             Create code

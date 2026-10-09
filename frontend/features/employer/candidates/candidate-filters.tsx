@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, Plus, Search } from "lucide-react";
+import { ChevronRight, Plus, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { useDebouncedSearch } from "@/lib/hooks/use-debounced-value";
@@ -54,6 +54,8 @@ function narrowWhileTyping<T extends { label: string }>(
 }
 
 interface CandidateFiltersProps {
+  mobileOpen?: boolean;
+  onClose?: () => void;
   filters: CandidateFiltersState;
   /** What is in the search box now; the query only hears it once settled. */
   search: string;
@@ -67,6 +69,8 @@ interface CandidateFiltersProps {
 }
 
 export function CandidateFilters({
+  mobileOpen = false,
+  onClose,
   filters,
   search,
   onSearch,
@@ -183,7 +187,12 @@ export function CandidateFilters({
   );
 
   return (
-    <aside className="flex h-full w-[268px] shrink-0 flex-col border-l border-[#e7eaef] bg-white">
+    <aside
+      id="candidate-filters"
+      data-scroll-lock-root
+      aria-label="Candidate filters"
+      className={`${mobileOpen ? "flex" : "hidden"} fixed inset-y-0 right-0 z-[60] w-[min(320px,90vw)] flex-col border-l border-[#e7eaef] bg-white shadow-2xl lg:static lg:z-auto lg:flex lg:h-full lg:w-[268px] lg:shrink-0 lg:shadow-none`}
+    >
       {/* =================================================
           FILTER CONTENT
           ================================================= */}
@@ -195,6 +204,14 @@ export function CandidateFilters({
           <span className="text-[14px] font-semibold leading-[18px] text-[#182132]">
             Filters
           </span>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close filters"
+            className="ml-auto grid h-8 w-8 place-items-center rounded-lg text-[#5d6673] hover:bg-[#f3f4f7] lg:hidden"
+          >
+            <X size={18} />
+          </button>
           {panelFetching ? (
             <div role="status" aria-busy="true">
               <span className="sr-only">

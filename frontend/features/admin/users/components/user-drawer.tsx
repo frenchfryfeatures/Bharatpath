@@ -196,7 +196,7 @@ export function UserDrawer() {
 }
 
 function Detail({ label, value }: { label: string; value: string }) {
-  return <div><p className="text-[11px] uppercase text-[#7b8494]">{label}</p><p className="mt-1 font-semibold text-[#172033]">{value}</p></div>;
+  return <div className="min-w-0"><p className="text-[11px] uppercase text-[#7b8494]">{label}</p><p className="mt-1 break-words font-semibold text-[#172033]">{value}</p></div>;
 }
 
 function CandidateDetails({

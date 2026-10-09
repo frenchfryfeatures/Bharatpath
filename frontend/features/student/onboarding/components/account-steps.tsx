@@ -423,6 +423,7 @@ export function AccountStep({
                 setWorkStatus(value);
               }}
               ariaLabel="Work status"
+              variant="student"
               options={[
                 { value: "", label: "Select work status" },
                 { value: "EXPERIENCED", label: "I'm experienced" },
@@ -682,7 +683,7 @@ interface LocationStepProps {
 }
 
 const selectClass =
-  "[&>button]:h-[54px] [&>button]:rounded-[16px] [&>button]:border-[1.5px] [&>button]:border-[#E7E0D4] [&>button]:bg-white [&>button]:px-4 [&>button>span]:text-[16px] [&>button>span]:font-medium [&>button>span]:text-[#0A1931] [&_[role=option]]:text-[13px]";
+  "[&>button]:h-[54px] [&>button]:rounded-[16px] [&>button]:border-[1.5px] [&>button]:px-4 [&>button>span]:font-medium";
 
 export function LocationStep({
   initial,
@@ -782,6 +783,7 @@ export function LocationStep({
             ]}
             placeholder="Select a state"
             ariaLabel="State"
+            variant="student"
             className={selectClass}
             searchable
             searchPlaceholder="Search states"

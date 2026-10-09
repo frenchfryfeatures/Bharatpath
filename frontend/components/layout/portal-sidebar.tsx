@@ -7,6 +7,7 @@ import { useState } from "react";
 import {
   ArrowLeftToLine,
   LogOut,
+  X,
 } from "lucide-react";
 
 import {
@@ -50,12 +51,18 @@ interface PortalSidebarProps {
   collapsed: boolean;
   onToggle: () => void;
   portal: "college" | "employer" | "student" | "admin";
+  mobile?: boolean;
+  onNavigate?: () => void;
+  onClose?: () => void;
 }
 
 export function PortalSidebar({
   collapsed,
   onToggle,
   portal,
+  mobile = false,
+  onNavigate,
+  onClose,
 }: Readonly<PortalSidebarProps>) {
   const pathname = usePathname();
   const router = useRouter();
@@ -197,8 +204,8 @@ export function PortalSidebar({
 
   return (
     <aside
-      className="
-        hidden
+      className={`
+        ${mobile ? "flex" : "hidden lg:flex"}
         h-full
         shrink-0
         flex-col
@@ -207,10 +214,9 @@ export function PortalSidebar({
         bg-white
         transition-all
         duration-200
-        lg:flex
-      "
+      `}
       style={{
-        width: collapsed ? 64 : 232,
+        width: mobile ? "100%" : collapsed ? 64 : 232,
       }}
     >
       {/* =========================================================
@@ -240,6 +246,7 @@ export function PortalSidebar({
 
             <Link
               href={basePath}
+              onClick={onNavigate}
               aria-label="Go to dashboard"
               className="
                 absolute
@@ -299,6 +306,7 @@ export function PortalSidebar({
 
             <Link
               href={basePath}
+              onClick={onNavigate}
               aria-label="Go to dashboard"
               className="
                 h-8
@@ -349,7 +357,16 @@ export function PortalSidebar({
                 COLLAPSE BUTTON
             ====================================================== */}
 
-            <button
+            {mobile ? (
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close menu"
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[#5d6673] hover:bg-[#f3f4f7]"
+              >
+                <X size={18} />
+              </button>
+            ) : <button
               type="button"
               onClick={onToggle}
               aria-label="Collapse sidebar"
@@ -372,7 +389,7 @@ export function PortalSidebar({
                     "var(--ink-muted)",
                 }}
               />
-            </button>
+            </button>}
           </>
         )}
       </div>
@@ -457,6 +474,7 @@ export function PortalSidebar({
               <Link
                 key={item.key}
                 href={href}
+                onClick={onNavigate}
                 title={
                   collapsed
                     ? item.label

@@ -68,7 +68,7 @@ export function StudentStreakPage() {
           onRetry={() => void streak.refetch()}
         />
       ) : (
-        <div className="grid gap-5 xl:grid-cols-12">
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-12">
           <StreakHero streak={streak.data} />
           <WeeklyActivity streak={streak.data} />
           <NextMilestone streak={streak.data} />
@@ -89,7 +89,7 @@ function StreakHero({ streak }: { streak: StudentStreak }) {
   const dayLabel = streak.currentStreak === 1 ? "day" : "days";
 
   return (
-    <section className="flex flex-col gap-6 rounded-[24px] border border-[#E7E0D4] bg-white p-5 shadow-[0_5px_18px_rgba(10,25,49,0.06)] sm:p-6 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(340px,.8fr)] lg:items-center xl:col-span-12">
+    <section className="flex min-w-0 flex-col gap-6 rounded-[24px] border border-[#E7E0D4] bg-white p-5 shadow-[0_5px_18px_rgba(10,25,49,0.06)] sm:p-6 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(340px,.8fr)] lg:items-center xl:col-span-12">
       <div className="flex flex-col gap-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <SectionEyebrow icon={<Flame size={13} />}>
@@ -163,7 +163,7 @@ function StatTile({
   detail: string;
 }) {
   return (
-    <div className="rounded-[20px] border border-[#E7E0D4] bg-[#F7F4EC] p-4 sm:p-5">
+    <div className="min-w-0 rounded-[20px] border border-[#E7E0D4] bg-[#F7F4EC] p-4 sm:p-5">
       <div className="flex items-center gap-2 text-[#B9891A]">
         {icon}
         <span className="text-[10px] font-bold uppercase tracking-[0.13em] text-[#5F6B80]">
@@ -229,7 +229,7 @@ function WeeklyActivity({ streak }: { streak: StudentStreak }) {
   }, [calendar.data, streak]);
 
   return (
-    <section className="flex flex-col gap-3 xl:col-span-7">
+    <section className="flex min-w-0 flex-col gap-3 xl:col-span-7">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <SectionEyebrow icon={<Flame size={13} />}>
           {view === "week" ? "This week's activity" : view === "month" ? "This month's activity" : "This year's activity"}
@@ -329,6 +329,7 @@ function WeeklyActivity({ streak }: { streak: StudentStreak }) {
               { value: "year", label: "Year" },
             ]}
             ariaLabel="View activity by"
+            variant="student-compact"
             menuPlacement="top"
             className="w-[100px] shrink-0"
           />
@@ -428,13 +429,13 @@ function ActivityHeatmap({
   }, [today]);
 
   return (
-    <div className="flex h-full min-w-0 flex-col justify-center overflow-hidden">
+    <div className="flex h-full w-full min-w-0 flex-col justify-center overflow-hidden">
       <p className="text-[11px] font-semibold text-[#5F6B80]">
         {year}
       </p>
       <div
         ref={scrollRef}
-        className="bp-scrollbar h-[116px] shrink-0 overflow-x-auto overflow-y-hidden pb-1"
+        className="bp-scrollbar h-[116px] w-full min-w-0 shrink-0 overflow-x-auto overflow-y-hidden overscroll-x-contain pb-1"
       >
         <div className="flex w-max gap-[3px]">
           {weeks.map((week, index) => {

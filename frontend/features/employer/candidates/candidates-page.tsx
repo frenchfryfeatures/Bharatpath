@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { SlidersHorizontal } from "lucide-react";
 
 import { CursorPagination } from "@/components/ui";
 import { EmployerErrorState } from "@/features/employer/components/employer-error-state";
 import { usePageHeader } from "@/components/layout/header-context";
 import { useDebouncedSearch } from "@/lib/hooks/use-debounced-value";
+import { useScrollLock } from "@/hooks/use-scroll-lock";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   goToNextCandidatePage,
@@ -52,6 +54,26 @@ export function CandidatesPage() {
   // The box is local; the store (and with it the query and its cursor
   // reset) only hears the text once typing has settled.
   const [searchInput, setSearchInput] = useState(filters.search);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  useScrollLock(mobileFiltersOpen);
+
+  useEffect(() => {
+    if (!mobileFiltersOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileFiltersOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [mobileFiltersOpen]);
+
+  useEffect(() => {
+    const desktopLayout = window.matchMedia("(min-width: 1024px)");
+    const closeOnResize = (event: MediaQueryListEvent) => {
+      if (event.matches) setMobileFiltersOpen(false);
+    };
+    desktopLayout.addEventListener("change", closeOnResize);
+    return () => desktopLayout.removeEventListener("change", closeOnResize);
+  }, []);
   const debouncedSearch = useDebouncedSearch(searchInput);
   const committedSearch = filters.search;
 
@@ -145,9 +167,19 @@ export function CandidatesPage() {
                 : `Showing ${candidates.length} candidates`}
           </div>
 
-          <span className="text-[11px] text-[#697385]">
+          <span className="hidden text-[11px] text-[#697385] sm:block">
             Ordered by match band
           </span>
+          <button
+            type="button"
+            onClick={() => setMobileFiltersOpen(true)}
+            aria-label="Open candidate filters"
+            aria-controls="candidate-filters"
+            aria-expanded={mobileFiltersOpen}
+            className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#d7dce5] bg-white px-3 text-[12px] font-semibold text-[#172033] lg:hidden"
+          >
+            <SlidersHorizontal size={15} /> Filters
+          </button>
         </div>
 
         {/* -------------------------------------------------
@@ -215,7 +247,7 @@ export function CandidatesPage() {
           }}
           onPageSizeChange={(size) => dispatch(setCandidatePageSize(size))}
           itemLabel={candidates.length === 1 ? "candidate" : "candidates"}
-          className="h-[58px] shrink-0 px-4"
+          className="min-h-[58px] shrink-0 px-4"
         />
       </main>
 
@@ -223,7 +255,17 @@ export function CandidatesPage() {
           FILTER SIDEBAR
           ================================================= */}
 
+      {mobileFiltersOpen && (
+        <button
+          type="button"
+          aria-label="Close filters"
+          onClick={() => setMobileFiltersOpen(false)}
+          className="fixed inset-0 z-[55] bg-[#0a1931]/40 lg:hidden"
+        />
+      )}
       <CandidateFilters
+        mobileOpen={mobileFiltersOpen}
+        onClose={() => setMobileFiltersOpen(false)}
         filters={filters}
         search={searchInput}
         onSearch={setSearchInput}

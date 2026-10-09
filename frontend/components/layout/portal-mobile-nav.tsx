@@ -54,7 +54,7 @@ export function PortalMobileNav({
         : "/college";
 
   return (
-    <div className="shrink-0 overflow-x-auto border-b border-[#e7e9ee] bg-white lg:hidden">
+    <div className="hidden shrink-0 overflow-x-auto border-b border-[#e7e9ee] bg-white md:block lg:hidden">
       <nav className="flex min-w-max gap-1 p-2">
         {navigation.filter((item) => portal !== "admin" || (user && canAccessPortalPath(user, "admin", item.href))).map((item) => {
           /*
