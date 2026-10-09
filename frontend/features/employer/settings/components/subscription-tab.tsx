@@ -122,8 +122,8 @@ export function SubscriptionTab() {
         </p>
       ) : (
         <div className="grid gap-3 md:grid-cols-3">
-          {plans.map((plan) => <section key={plan.code} className="rounded-xl border border-[#e0e4e9] bg-white p-5">
-          <h3 className="text-sm font-bold">{plan.period}</h3>
+          {plans.map((plan) => { const current = Boolean(subscription?.has_access) && subscription?.plan_code === plan.code; return <section key={plan.code} className={`rounded-xl border bg-white p-5 ${current ? "border-[#5b4ed0] ring-2 ring-[#5b4ed0]/20" : "border-[#e0e4e9]"}`}>
+          <div className="flex items-center justify-between gap-2"><h3 className="text-sm font-bold">{plan.period}</h3>{current ? <span className="rounded-full bg-[#5b4ed0] px-2 py-0.5 text-[10px] font-bold uppercase text-white">Current plan</span> : null}</div>
           <p className="mt-2 text-2xl font-bold">₹{(plan.price_minor / 100).toLocaleString("en-IN")}</p>
           <p className="mt-1 text-xs text-[#718096]">{plan.months} month{plan.months === 1 ? "" : "s"}{plan.seat_allowance ? ` · ${plan.seat_allowance} seats` : ""}</p>
           {isOwner ? <button disabled={checkoutState.isLoading} onClick={() => confirm({
@@ -131,8 +131,8 @@ export function SubscriptionTab() {
             description: `You will be taken to checkout to pay ₹${(plan.price_minor / 100).toLocaleString("en-IN")} for ${plan.months} month${plan.months === 1 ? "" : "s"} of employer access. You can apply a discount code at payment.`,
             confirmLabel: "Go to checkout",
             onConfirm: () => buy(plan.code),
-          })} className="mt-4 w-full rounded-lg bg-[#5b4ed0] px-3 py-2 text-xs font-bold text-white">Choose plan</button> : null}
-          </section>)}
+          })} className="mt-4 w-full rounded-lg bg-[#5b4ed0] px-3 py-2 text-xs font-bold text-white">{current ? "Extend plan" : "Choose plan"}</button> : null}
+          </section>; })}
         </div>
       )}
       {(checkoutState.isError || cancelState.isError || mandateState.isError) && <EmployerErrorState variant="inline" error={checkoutState.error || cancelState.error || mandateState.error} fallback="The billing request could not be completed." />}

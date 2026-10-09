@@ -58,12 +58,12 @@ export default function CandidateSubscriptionPage() {
     {subscription?.has_access ? <p className="text-xs text-[#5F6B80]">Buying a plan while one is active adds its length to your current end date.</p> : null}
 
     {plansLoading ? <div role="status" aria-label="Loading subscription plans" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 4 }).map((_, index) => <section key={index} className="rounded-[20px] border border-[#E7E0D4] bg-white p-4 sm:p-5"><Skeleton width={92} height={14} radius={6} /><Skeleton className="mt-4" width={130} height={34} radius={8} /><Skeleton className="mt-2" width={76} height={16} radius={6} /><Skeleton className="mt-5" width="100%" height={42} radius={9} /></section>)}</div> : <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      {plans.map((plan) => <section key={plan.code} className="rounded-[20px] border border-[#E7E0D4] bg-white p-4 sm:p-5">
-        <p className="text-xs font-semibold uppercase text-[#5F6B80]">{plan.period}</p>
+      {plans.map((plan) => { const current = Boolean(subscription?.has_access) && subscription?.plan_code === plan.code; return <section key={plan.code} className={`relative rounded-[20px] border bg-white p-4 sm:p-5 ${current ? "border-[#5F4DB2] ring-2 ring-[#5F4DB2]/20" : "border-[#E7E0D4]"}`}>
+        <div className="flex items-center justify-between gap-2"><p className="text-xs font-semibold uppercase text-[#5F6B80]">{plan.period}</p>{current ? <span className="rounded-full bg-[#5F4DB2] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">Current plan</span> : null}</div>
         <p className="mt-2 text-3xl font-bold text-[#0A1931]">{money(plan.price_minor)}</p>
         <p className="mt-1 text-sm text-[#5F6B80]">{plan.months} month{plan.months === 1 ? "" : "s"}</p>
-        <button type="button" disabled={checkoutState.isLoading} onClick={() => void buy(plan.code)} className="mt-4 w-full rounded-lg bg-[#5F4DB2] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#4A3E8F] disabled:opacity-50">{checkoutState.isLoading ? "Starting checkout…" : `Continue · ${money(plan.price_minor)}`}</button>
-      </section>)}
+        <button type="button" disabled={checkoutState.isLoading} onClick={() => void buy(plan.code)} className="mt-4 w-full rounded-lg bg-[#5F4DB2] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#4A3E8F] disabled:opacity-50">{checkoutState.isLoading ? "Starting checkout…" : `${current ? "Extend" : "Continue"} · ${money(plan.price_minor)}`}</button>
+      </section>; })}
     </div>}
     {simulatedCheckout && selectedPlanCode ? <SimulatedPaymentDialog paymentId={simulatedCheckout.payment_id} amountMinor={simulatedCheckout.amount_minor} currency={simulatedCheckout.currency} title="BharatPath membership" checkoutContent={<DiscountCodeField tone="student" planCode={selectedPlanCode} preview={(args) => preview(args).unwrap()} onChange={(code) => createCheckout(selectedPlanCode, code ?? undefined)} />} onComplete={() => refetchSubscription()} onClose={() => { setSimulatedCheckout(null); setSelectedPlanCode(null); }} /> : null}
   </div></StudentPage>;
