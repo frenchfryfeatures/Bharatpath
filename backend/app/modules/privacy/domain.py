@@ -360,9 +360,9 @@ ERASURE_PLAN: Final[Mapping[str, TablePlan]] = {
     "idempotency_keys": TablePlan(
         Disposition.SELF_EXPIRING,
         None,
-        "A stored response body can quote a name. Rows carry `expires_at` and "
-        "are swept, so they destroy themselves within the TTL without anybody "
-        "asking, and an erased account's tokens stop authenticating at once.",
+        "Unused: nothing writes this table (see `app.core.models.IdempotencyKey`). "
+        "Classified for the day it is either dropped or used: a stored "
+        "response body could quote a name, so rows would have to expire.",
     ),
 }
 

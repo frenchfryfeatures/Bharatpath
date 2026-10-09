@@ -124,18 +124,6 @@ class RateLimitedError(AppError):
     title = "Too many requests"
 
 
-class IdempotencyKeyReuseError(AppError):
-    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
-    code = "idempotency_key_reuse"
-    title = "Idempotency key reused with a different payload"
-
-
-class OperationInProgressError(AppError):
-    status_code = status.HTTP_409_CONFLICT
-    code = "operation_in_progress"
-    title = "An identical operation is already in progress"
-
-
 async def app_error_handler(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, AppError)
     body: dict[str, Any] = {
