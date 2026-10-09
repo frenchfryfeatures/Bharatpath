@@ -9,32 +9,6 @@ states. Newest entries first.
 
 ---
 
-## 2026-10-09 — recommended jobs on the candidate home screen
-
-Asked for by the user, after Naukri's home page: two sections, **jobs like
-the ones you applied for** and **jobs that fit your profile**. Backend only.
-The app teams get the contract in `backend-guide/05` §7.
-
-- `GET /candidate/recommended-jobs/similar-to-applied`: matched on the
-  skills, title words and places of the last 20 applications, ignoring
-  withdrawn ones.
-- `GET /candidate/recommended-jobs/matching-profile`: matched on the career
-  profile's key skills, desired role, current title, role category,
-  preferred locations, city and experience.
-- Both are paywalled like the board. Both show only board jobs (published,
-  PUBLIC) and never one already applied to. Both carry `eligibility` and
-  `matched_skills`, and no threshold or relevance number. `has_basis: false`
-  tells the app to prompt rather than show an empty list.
-- **Deliberately not used:** gender and salary from the profile (salary's
-  unit is not fixed by the form), and the job's threshold in the ordering.
-- **Weights are ours** (skill 3, title word 4, place 2, experience fit 1, in
-  `jobs/domain.py`). No client decision behind them. Tune them by changing
-  that file; no schema or migration is involved.
-- Tests: `tests/unit/test_job_recommendations.py`,
-  `tests/integration/test_job_recommendations.py`.
-
----
-
 ## 2026-10-09 — backend review: comments, dead code, stale claims
 
 Asked for by the manager: make the backend read as production code. Branch
