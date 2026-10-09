@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { ArrowRight, BookOpen, Briefcase, ChevronRight, Mic2 } from "lucide-react";
+import { ArrowRight, BookOpen, Briefcase, ChevronRight, Mic2, TrendingDown, TrendingUp } from "lucide-react";
 
 import {
   useGetInterviewOfferQuery,
@@ -25,11 +25,15 @@ import {
 import { StudentJobGridSkeleton } from "@/features/student/loading";
 import { StudentPage } from "@/features/student/shell";
 import { StudentStreakCard } from "@/features/student/streak";
+import { useAppSelector } from "@/store/hooks";
+import { useScoreChange } from "./use-score-change";
 
 export function StudentHome() {
   const router = useRouter();
   const profile = useGetStudentProfileQuery();
   const score = useGetStudentScoreQuery();
+  const userId = useAppSelector((state) => state.auth.user?.id);
+  const scoreChange = useScoreChange(userId, score.data);
   const scale = useGetStudentScoreScaleQuery();
   const jobs = useGetStudentJobsQuery({ eligibleOnly: true, limit: 3 });
   const interview = useGetInterviewOfferQuery();
@@ -117,13 +121,26 @@ export function StudentHome() {
               </span>
               {score.data?.status === "READY" && score.data.value != null ? (
                 <>
-                  <span className="flex items-baseline gap-2">
-                    <span className="text-[52px] font-extrabold leading-none tracking-[-0.045em] text-white sm:text-[64px]">
+                  <span className="flex flex-wrap items-baseline gap-x-2 gap-y-2">
+                    <span className="text-[46px] font-extrabold leading-none tracking-[-0.045em] text-white sm:text-[64px]">
                       {score.data.value}
                     </span>
-                    <span className="text-[16px] font-semibold text-[#E0DBF4] sm:text-[18px]">
+                    <span className="text-[14px] font-semibold text-[#E0DBF4] sm:text-[18px]">
                       / 1000
                     </span>
+                    {scoreChange != null ? (
+                      <span
+                        aria-label={`Score ${scoreChange > 0 ? "increased" : "decreased"} by ${Math.abs(scoreChange)} points since last seen on this device`}
+                        className="inline-flex items-center gap-1 self-center rounded-full bg-white/20 px-2 py-1 text-[12px] font-bold leading-none text-white sm:text-[14px]"
+                      >
+                        {scoreChange > 0 ? (
+                          <TrendingUp size={14} aria-hidden="true" />
+                        ) : (
+                          <TrendingDown size={14} aria-hidden="true" />
+                        )}
+                        {scoreChange > 0 ? "+" : "−"}{Math.abs(scoreChange)}
+                      </span>
+                    ) : null}
                   </span>
                   {scale.isLoading ? (
                     <span

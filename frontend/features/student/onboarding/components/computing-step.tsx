@@ -9,9 +9,10 @@ import { useGetStudentScoreQuery } from "@/store/student";
 import { COMPUTE_STATUS, SCORE_CATEGORIES } from "../constants";
 import { Card, DoneDot, PillButton, StepHeader } from "./ui";
 
-/** After this long without a score, stop implying it is seconds away. */
+/** Stop checking after this long; scoring can continue in the background. */
 const PATIENCE_SECONDS = 90;
 const TICK_MS = 2200;
+const SCORE_POLL_MS = 10_000;
 
 interface ComputingStepProps {
   /**
@@ -29,11 +30,12 @@ interface ComputingStepProps {
 export function ComputingStep({ confirmedAt, onShowScore, onGoHome }: Readonly<ComputingStepProps>) {
   const [ready, setReady] = useState(false);
   const [locked, setLocked] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
   const [ticks, setTicks] = useState(0);
 
   const score = useGetStudentScoreQuery(undefined, {
-    pollingInterval: ready || locked ? 0 : 3000,
-    skipPollingIfUnfocused: false,
+    pollingInterval: ready || locked || timedOut ? 0 : SCORE_POLL_MS,
+    skipPollingIfUnfocused: true,
     refetchOnMountOrArgChange: true,
   });
 
@@ -57,11 +59,17 @@ export function ComputingStep({ confirmedAt, onShowScore, onGoHome }: Readonly<C
 
   useEffect(() => {
     if (ready || locked) return;
-    const timer = window.setInterval(() => setTicks((count) => count + 1), TICK_MS);
-    return () => window.clearInterval(timer);
+    const timeout = window.setTimeout(() => setTimedOut(true), PATIENCE_SECONDS * 1000);
+    return () => window.clearTimeout(timeout);
   }, [ready, locked]);
 
-  const slow = !ready && !locked && (ticks * TICK_MS) / 1000 >= PATIENCE_SECONDS;
+  useEffect(() => {
+    if (ready || locked || timedOut) return;
+    const timer = window.setInterval(() => setTicks((count) => count + 1), TICK_MS);
+    return () => window.clearInterval(timer);
+  }, [ready, locked, timedOut]);
+
+  const slow = !ready && !locked && timedOut;
   const current = ticks % SCORE_CATEGORIES.length;
   const status = ready
     ? "Your score is ready"

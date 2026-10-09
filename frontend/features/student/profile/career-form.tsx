@@ -599,7 +599,8 @@ export function CareerForm({
                   ariaLabel={field.label}
                   menuPlacement="auto"
                   portal
-                  className={`[&>button]:h-[54px] [&>button]:rounded-[16px] [&>button]:border-[1.5px] [&>button]:border-[#E7E0D4] [&>button]:bg-white [&>button]:px-4 [&>button]:text-[16px] [&>button>span]:text-[16px] [&>button>span]:font-medium [&>button]:font-medium [&>button]:text-[#0A1931] ${editing ? "lg:[&>button]:h-[48px] lg:[&>button]:text-[15px] lg:[&>button>span]:text-[15px]" : ""}`}
+                  variant="student"
+                  className={`[&>button]:h-[54px] [&>button]:rounded-[16px] [&>button]:border-[1.5px] [&>button]:px-4 [&>button>span]:font-medium ${editing ? "lg:[&>button]:h-[48px]" : ""}`}
                 />
               ) : field.key === "preferred_locations" ? (
                 <div className="space-y-3">

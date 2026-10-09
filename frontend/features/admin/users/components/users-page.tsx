@@ -70,8 +70,8 @@ export function UsersPage() {
       {/* SEGMENT TABS                                                     */}
       {/* ================================================================ */}
 
-      <div className="border-b border-[#e7e9ee]">
-        <div className="flex items-center gap-1">
+      <div className="overflow-x-auto border-b border-[#e7e9ee]">
+        <div className="flex min-w-max items-center gap-1">
           {(
             [
               ["candidates", "Candidates"],
@@ -112,8 +112,8 @@ export function UsersPage() {
       {/* SEARCH                                                            */}
       {/* ================================================================ */}
 
-      <div className="flex items-center justify-between gap-3 py-4">
-        <label className="flex h-[38px] w-[246px] items-center gap-2 rounded-lg border border-[#e2e5eb] bg-white px-3 transition-colors focus-within:border-[#315c9f]">
+      <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <label className="flex h-[38px] w-full min-w-0 items-center gap-2 rounded-lg border border-[#e2e5eb] bg-white px-3 transition-colors focus-within:border-[#315c9f] sm:w-[246px]">
           <Search className="h-4 w-4 shrink-0 text-[#667085]" />
 
           <input
@@ -127,18 +127,18 @@ export function UsersPage() {
           />
         </label>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => setDrawerMode("invite")}
-            className="inline-flex h-[38px] shrink-0 cursor-pointer items-center gap-2 rounded-lg border border-[#d7dce5] bg-white px-4 text-[12px] font-semibold text-[#172033] transition-colors hover:bg-[#f7f8fa]"
+            className="inline-flex h-[38px] min-w-0 flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#d7dce5] bg-white px-3 text-[12px] font-semibold text-[#172033] transition-colors hover:bg-[#f7f8fa] sm:flex-none sm:px-4"
           >
             Invite {segment === "candidates" ? "candidate" : segment === "employers" ? "employer" : "institution"}
           </button>
           <button
             type="button"
             onClick={() => setDrawerMode("create")}
-            className="inline-flex h-[38px] shrink-0 cursor-pointer items-center gap-2 rounded-lg bg-[#151b2b] px-4 text-[12px] font-semibold text-white transition-colors hover:bg-[#20283d]"
+            className="inline-flex h-[38px] min-w-0 flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#151b2b] px-3 text-[12px] font-semibold text-white transition-colors hover:bg-[#20283d] sm:flex-none sm:px-4"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
             Create {segment === "candidates" ? "candidate" : segment === "employers" ? "employer" : "institution"}

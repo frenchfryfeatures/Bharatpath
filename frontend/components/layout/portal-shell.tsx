@@ -1,7 +1,8 @@
 "use client";
 
-import { ReactNode, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import { useScrollLock } from "@/hooks/use-scroll-lock";
 
 import { PortalSidebar } from "./portal-sidebar";
 import { PortalHeader } from "./portal-header";
@@ -22,7 +23,28 @@ export function PortalShell({
   onDemoStateClick,
 }: PortalShellProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  useScrollLock(mobileOpen);
+
   const pathname = usePathname();
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [mobileOpen]);
+
+  useEffect(() => {
+    const desktopLayout = window.matchMedia("(min-width: 768px)");
+    const closeOnResize = (event: MediaQueryListEvent) => {
+      if (event.matches) setMobileOpen(false);
+    };
+    desktopLayout.addEventListener("change", closeOnResize);
+    return () => desktopLayout.removeEventListener("change", closeOnResize);
+  }, []);
 
   const isSettingsPage = pathname.startsWith(
     `/${portal}/settings`,
@@ -60,6 +82,33 @@ export function PortalShell({
           onToggle={() => setCollapsed((value) => !value)}
         />
 
+        {mobileOpen && (
+          <div data-scroll-lock-root className="fixed inset-0 z-50 md:hidden">
+            <button
+              type="button"
+              aria-label="Close menu"
+              onClick={() => setMobileOpen(false)}
+              className="absolute inset-0 bg-[#0a1931]/40"
+            />
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Navigation menu"
+              id="portal-mobile-menu"
+              className="relative h-full w-72 max-w-[82vw] shadow-2xl"
+            >
+              <PortalSidebar
+                portal={portal}
+                collapsed={false}
+                onToggle={() => {}}
+                mobile
+                onNavigate={() => setMobileOpen(false)}
+                onClose={() => setMobileOpen(false)}
+              />
+            </div>
+          </div>
+        )}
+
         {/* =================================================
             MAIN CONTENT AREA
             ================================================= */}
@@ -70,6 +119,8 @@ export function PortalShell({
           <PortalHeader
             portal={portal}
             onDemoStateClick={onDemoStateClick}
+            onOpenMenu={() => setMobileOpen(true)}
+            menuOpen={mobileOpen}
           />
 
           {/* =================================================

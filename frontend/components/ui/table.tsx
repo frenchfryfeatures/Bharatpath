@@ -248,7 +248,7 @@ export function TablePagination({
 
   return (
     <div
-      className={`flex items-center justify-between border-t border-[#e7e9ee] px-6 py-3 bg-white ${className}`}
+      className={`flex flex-wrap items-center justify-between gap-3 border-t border-[#e7e9ee] bg-white px-3 py-3 sm:px-6 ${className}`}
       style={{ fontFamily: "'General Sans', sans-serif" }}
     >
       {/* SHOWING X–Y of Z label */}
@@ -257,7 +257,7 @@ export function TablePagination({
         {itemLabel ? ` ${itemLabel}` : ""}
       </span>
 
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-3 sm:gap-4">
         <div className="flex items-center gap-2 whitespace-nowrap text-[13px] text-[#777f90]">
           <span>Rows per page</span>
           <AppSelect
@@ -340,14 +340,14 @@ export function CursorPagination({
 }: Readonly<CursorPaginationProps>) {
   return (
     <div
-      className={`flex items-center justify-between border-t border-[#e7e9ee] bg-white px-6 py-3 ${className}`}
+      className={`flex flex-wrap items-center justify-between gap-3 border-t border-[#e7e9ee] bg-white px-3 py-3 sm:px-6 ${className}`}
       style={{ fontFamily: "'General Sans', sans-serif" }}
     >
       <span className="text-[13px] text-[#777f90]">
         Page {currentPage} · {itemCount} {itemLabel}
       </span>
 
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-3 sm:gap-4">
         {onPageSizeChange && (
           <div className="flex items-center gap-2 whitespace-nowrap text-[13px] text-[#777f90]">
             <span>Rows per page</span>

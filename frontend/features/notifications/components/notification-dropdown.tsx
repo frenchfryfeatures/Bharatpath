@@ -375,7 +375,7 @@ export function NotificationDropdown() {
         position: "absolute",
         right: 0,
         top: 44,
-        width: 320,
+        width: "min(320px, calc(100vw - 32px))",
         background: "rgb(255, 255, 255)",
         border: "1px solid var(--border-card)",
         borderRadius: 12,

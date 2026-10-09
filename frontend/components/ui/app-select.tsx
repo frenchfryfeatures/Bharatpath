@@ -22,6 +22,7 @@ interface AppSelectProps {
   disabled?: boolean;
   className?: string;
   menuClassName?: string;
+  variant?: "default" | "student" | "student-compact";
   menuPlacement?: "top" | "bottom" | "auto";
   /** Render outside clipping and scrolling ancestors, positioned at the trigger. */
   portal?: boolean;
@@ -56,6 +57,7 @@ export function AppSelect({
   disabled = false,
   className = "",
   menuClassName = "",
+  variant = "default",
   menuPlacement = "bottom",
   portal = false,
   placeholder = "Select",
@@ -71,6 +73,8 @@ export function AppSelect({
   onLoadMoreOptions,
   isLoadingMoreOptions = false,
 }: Readonly<AppSelectProps>) {
+  const isStudent = variant !== "default";
+  const studentTextSize = variant === "student-compact" ? "text-[13px]" : "text-[16px]";
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 
@@ -249,8 +253,8 @@ export function AppSelect({
   const menuContents = (
     <>
       {searchable && (
-        <div className="mb-1 flex items-center gap-2 rounded-[7px] bg-[#f5f6f9] px-2.5 py-1.5">
-          <Search size={13} className="shrink-0 text-[#98a1b0]" />
+        <div className={`mb-1 flex items-center gap-2 rounded-[7px] px-2.5 py-1.5 ${isStudent ? "bg-[#F7F4EC]" : "bg-[#f5f6f9]"}`}>
+          <Search size={13} className={`shrink-0 ${isStudent ? "text-[#5F6B80]" : "text-[#98a1b0]"}`} />
           <input
             ref={searchInputRef}
             type="text"
@@ -258,7 +262,7 @@ export function AppSelect({
             onChange={(event) => handleSearchChange(event.target.value)}
             placeholder={searchPlaceholder}
             aria-label={searchPlaceholder}
-            className="w-full bg-transparent text-[11px] text-[#283247] outline-none placeholder:text-[#98a1b0]"
+            className={`w-full bg-transparent outline-none ${isStudent ? `${studentTextSize} text-[#0A1931] placeholder:text-[#5F6B80]` : "text-[11px] text-[#283247] placeholder:text-[#98a1b0]"}`}
           />
         </div>
       )}
@@ -268,7 +272,7 @@ export function AppSelect({
         className="bp-scrollbar max-h-[min(14rem,45vh)] overflow-y-auto overscroll-contain"
       >
         {isSearching ? (
-          <p role="status" className="flex items-center gap-2 px-2.5 py-2 text-[11px] text-[#687386]">
+          <p role="status" className={`flex items-center gap-2 px-2.5 py-2 ${isStudent ? `${studentTextSize} text-[#5F6B80]` : "text-[11px] text-[#687386]"}`}>
             <Loader2 aria-hidden="true" size={13} className="animate-spin" />
             {loadingMessage}
           </p>
@@ -282,10 +286,14 @@ export function AppSelect({
                 role="option"
                 aria-selected={selected}
                 onClick={() => handleSelect(option)}
-                className={`flex w-full items-center rounded-[7px] px-2.5 py-2 text-left text-[11px] transition-colors ${
+                className={`flex w-full items-center rounded-[7px] px-2.5 py-2 text-left transition-colors ${isStudent ? studentTextSize : "text-[11px]"} ${
                   selected
-                    ? "bg-[#f2f0ff] font-semibold text-[#51449a]"
-                    : "font-medium text-[#4f5969] hover:bg-[#f7f8fa]"
+                    ? isStudent
+                      ? "bg-[#F1EAF7] font-semibold text-[#4A3E8F]"
+                      : "bg-[#f2f0ff] font-semibold text-[#51449a]"
+                    : isStudent
+                      ? "font-medium text-[#0A1931] hover:bg-[#F7F4EC]"
+                      : "font-medium text-[#4f5969] hover:bg-[#f7f8fa]"
                 }`}
               >
                 {option.label}
@@ -293,10 +301,10 @@ export function AppSelect({
             );
           })
         ) : (
-          <p className="px-2.5 py-2 text-[11px] text-[#98a1b0]">{noOptionsMessage}</p>
+          <p className={`px-2.5 py-2 ${isStudent ? `${studentTextSize} text-[#5F6B80]` : "text-[11px] text-[#98a1b0]"}`}>{noOptionsMessage}</p>
         )}
         {isLoadingMoreOptions ? (
-          <p role="status" className="flex items-center gap-2 px-2.5 py-2 text-[11px] text-[#687386]">
+          <p role="status" className={`flex items-center gap-2 px-2.5 py-2 ${isStudent ? `${studentTextSize} text-[#5F6B80]` : "text-[11px] text-[#687386]"}`}>
             <Loader2 aria-hidden="true" size={13} className="animate-spin" />
             Loading more...
           </p>
@@ -329,28 +337,19 @@ export function AppSelect({
             onOpenChange?.(true);
           }
         }}
-        className="
-          flex h-[36px] w-full
-          items-center justify-between
-          gap-2
-          rounded-[8px]
-          border border-[#e1e5ea]
-          bg-white
-          px-3
-          text-left
-          transition-colors
-          hover:bg-[#f8f9fb]
-          focus:outline-none
-          disabled:cursor-not-allowed disabled:opacity-60
-        "
+        className={`flex h-[36px] w-full items-center justify-between gap-2 rounded-[8px] border bg-white px-3 text-left transition-colors focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 ${
+          isStudent
+            ? "border-[#E7E0D4] hover:bg-[#FFFCF7] focus-visible:border-[#5F4DB2] focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/20"
+            : "border-[#e1e5ea] hover:bg-[#f8f9fb]"
+        }`}
       >
-        <span className="truncate text-[11px] font-semibold text-[#283247]">
+        <span className={`truncate font-semibold ${isStudent ? `${studentTextSize} text-[#0A1931]` : "text-[11px] text-[#283247]"}`}>
           {selectedOption?.label ?? placeholder}
         </span>
 
         <ChevronDown
           size={14}
-          className={`shrink-0 text-[#687386] transition-transform duration-150 ${
+          className={`shrink-0 transition-transform duration-150 ${isStudent ? "text-[#5F4DB2]" : "text-[#687386]"} ${
             open ? "rotate-180" : ""
           }`}
         />
@@ -368,7 +367,7 @@ export function AppSelect({
                   ref={menuRef}
                   role="listbox"
                   style={{ ...menuPosition, position: "fixed" }}
-                  className={`z-[120] min-w-[140px] overflow-hidden rounded-[10px] border border-[#e1e5ea] bg-white p-1 shadow-[0_8px_24px_rgba(19,26,38,0.10)] ${menuClassName}`}
+                  className={`z-[120] min-w-[140px] overflow-hidden rounded-[10px] border bg-white p-1 ${isStudent ? "border-[#E7E0D4] shadow-[0_8px_24px_rgba(10,25,49,0.10)]" : "border-[#e1e5ea] shadow-[0_8px_24px_rgba(19,26,38,0.10)]"} ${menuClassName}`}
                 >
                   {menuContents}
                 </div>,
@@ -379,7 +378,7 @@ export function AppSelect({
               <div
                 ref={menuRef}
                 role="listbox"
-                className={`absolute right-0 ${inlinePlacement === "top" ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+6px)]"} z-[120] w-full min-w-[140px] overflow-hidden rounded-[10px] border border-[#e1e5ea] bg-white p-1 shadow-[0_8px_24px_rgba(19,26,38,0.10)] ${menuClassName}`}
+                className={`absolute right-0 ${inlinePlacement === "top" ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+6px)]"} z-[120] w-full min-w-[140px] overflow-hidden rounded-[10px] border bg-white p-1 ${isStudent ? "border-[#E7E0D4] shadow-[0_8px_24px_rgba(10,25,49,0.10)]" : "border-[#e1e5ea] shadow-[0_8px_24px_rgba(19,26,38,0.10)]"} ${menuClassName}`}
               >
                 {menuContents}
               </div>

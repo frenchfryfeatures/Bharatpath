@@ -3,6 +3,7 @@
 import {
   Armchair,
   ChevronRight,
+  Menu,
   // FlaskConical, // kept for the temporarily disabled DEMO STATE control
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
@@ -28,6 +29,8 @@ import { useHeaderContent } from "./header-context";
 
 interface PortalHeaderProps {
   portal: "college" | "employer" | "student" | "admin";
+  onOpenMenu?: () => void;
+  menuOpen?: boolean;
 
   /**
    * Called when the DEMO STATE control is clicked.
@@ -45,9 +48,14 @@ const PORTAL_BADGE_LABEL: Record<PortalType, string> = {
   [PORTAL_TYPES.ADMIN]: "DEMO STATE",
 };
 
+const createJobButtonClassName =
+  "h-[36px] shrink-0 items-center gap-[7px] rounded-[8px] bg-[#5B4FCF] px-[14px] text-[13px] font-[600] text-white transition-colors hover:bg-[#5044C0] active:bg-[#483cb2]";
+
 export function PortalHeader({
   portal: currentPortal,
   onDemoStateClick,
+  onOpenMenu,
+  menuOpen = false,
 }: PortalHeaderProps) {
   /*
    * ==========================================
@@ -189,12 +197,24 @@ export function PortalHeader({
           bg-white
           px-[16px]
           py-[10px]
+          max-md:flex-wrap
+          max-md:gap-y-2
         "
         style={{
           fontFamily:
             "'General Sans', sans-serif",
         }}
       >
+        <button
+          type="button"
+          onClick={onOpenMenu}
+          aria-label="Open menu"
+          aria-controls="portal-mobile-menu"
+          aria-expanded={menuOpen}
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-[#151b2b] hover:bg-[#f3f4f7] md:hidden"
+        >
+          <Menu size={20} />
+        </button>
         {/* ==========================================
             TITLE + SUBTITLE
             ========================================== */}
@@ -206,6 +226,7 @@ export function PortalHeader({
             flex-1
             flex-col
             gap-[2px]
+            max-md:order-1
           "
         >
           {breadcrumbs && breadcrumbs.length > 0 ? (
@@ -346,11 +367,31 @@ export function PortalHeader({
             ========================================== */}
 
         {isEmployer && (
-          <SubscriptionStatusButton
-            subscription={subscription}
-            isLoading={isSubscriptionLoading}
-            onClick={handleOpenBilling}
-          />
+          <>
+            <div className="hidden md:block">
+              <SubscriptionStatusButton
+                subscription={subscription}
+                isLoading={isSubscriptionLoading}
+                onClick={handleOpenBilling}
+              />
+            </div>
+            <div className={`order-3 flex w-full flex-wrap items-center gap-2 md:hidden ${isEmployerJobsPage ? "justify-between" : "justify-end"}`}>
+              {isEmployerJobsPage && (
+                <button
+                  type="button"
+                  onClick={handleCreateJob}
+                  className={`inline-flex ${createJobButtonClassName}`}
+                >
+                  Create job
+                </button>
+              )}
+              <SubscriptionStatusButton
+                subscription={subscription}
+                isLoading={isSubscriptionLoading}
+                onClick={handleOpenBilling}
+              />
+            </div>
+          </>
         )}
 
         {/* ==========================================
@@ -374,6 +415,8 @@ export function PortalHeader({
               bg-white
               px-[10px]
               pl-[6px]
+              max-md:order-3
+              max-md:basis-full
             "
           >
             <span className="sr-only">Loading seat usage…</span>
@@ -412,6 +455,8 @@ export function PortalHeader({
               px-[10px]
               pl-[6px]
               transition-colors
+              max-md:order-3
+              max-md:basis-full
               ${
                 stat.warning
                   ? "border-[#f2d3a0] bg-[#fff8ec] hover:bg-[#fff1d9]"
@@ -508,6 +553,7 @@ export function PortalHeader({
               flex
               shrink-0
               items-center
+              max-md:order-4
             "
           >
             {action}
@@ -518,7 +564,9 @@ export function PortalHeader({
             NOTIFICATIONS
             ========================================== */}
 
-        <NotificationCenter />
+        <div className="shrink-0 max-md:order-2">
+          <NotificationCenter />
+        </div>
 
         {/* ==========================================
             CREATE JOB
@@ -529,22 +577,7 @@ export function PortalHeader({
           <button
             type="button"
             onClick={handleCreateJob}
-            className="
-              inline-flex
-              h-[36px]
-              shrink-0
-              items-center
-              gap-[7px]
-              rounded-[8px]
-              bg-[#5B4FCF]
-              px-[14px]
-              text-[13px]
-              font-[600]
-              text-white
-              transition-colors
-              hover:bg-[#5044C0]
-              active:bg-[#483cb2]
-            "
+            className={`hidden md:inline-flex ${createJobButtonClassName}`}
           >
             Create job
           </button>
