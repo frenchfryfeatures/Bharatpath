@@ -94,7 +94,7 @@ export function QueueDrawer() {
 
   const documents = (kybDetail.data?.documents ?? []).map((document) => ({
     name: document.doc_type.replaceAll("_", " "),
-    meta: `${document.mime ?? "Document"} · ${new Date(document.uploaded_at).toLocaleDateString()}`,
+    meta: `${document.mime ?? "Document"} · ${new Date(document.uploaded_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`,
   }));
 
   const submitDecision = async (

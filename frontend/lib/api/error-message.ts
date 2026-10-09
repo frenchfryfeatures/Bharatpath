@@ -161,10 +161,36 @@ export function getApiErrorStatus(
   return problem ? problem.status : undefined;
 }
 
+/**
+ * FastAPI's 422 body: `{"detail": [{"loc": [...], "msg": "..."}]}`. Returns the
+ * server's reasons as readable sentences, or an empty list when there are none.
+ */
+export function getApiValidationMessages(error: unknown): string[] {
+  const data = isFetchBaseQueryError(error) ? error.data : undefined;
+  const detail = (data as { detail?: unknown } | undefined)?.detail;
+  if (!Array.isArray(detail)) return [];
+  return detail.flatMap((item) => {
+    if (typeof item !== "object" || item === null) return [];
+    const { loc, msg } = item as { loc?: unknown[]; msg?: unknown };
+    if (typeof msg !== "string") return [];
+    const field = Array.isArray(loc)
+      ? loc.filter((part) => typeof part === "string" && part !== "body").pop()
+      : undefined;
+    const reason = msg.replace(/^Value error, /, "");
+    const label = typeof field === "string" ? field.replace(/_/g, " ") : "";
+    return [label ? `${label}: ${reason}` : reason];
+  });
+}
+
 function messageFromFetchError(
   error: FetchBaseQueryError,
   fallback: string,
 ): string {
+  if (error.status === 422) {
+    const reasons = getApiValidationMessages(error);
+    if (reasons.length) return reasons.slice(0, 2).join(" · ");
+  }
+
   if (typeof error.status === "number") {
     return STATUS_MESSAGES[error.status] ?? fallback;
   }

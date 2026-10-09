@@ -153,4 +153,9 @@ export const SUCCESS_MESSAGES: Record<string, SuccessMessage> = {
   disputeStudentHire: "Hire disputed. Our team will review it.",
   saveQuestionnaireAnswers: "Answers saved.",
   submitQuestionnaire: "Attribute check submitted.",
+  linkStudentCollegeByReferral: null,
+  acceptCollegeInvitation: null,
+  declineCollegeInvitation: null,
+  grantCollegeIndividualVisibility: null,
+  revokeCollegeConsent: null,
 };

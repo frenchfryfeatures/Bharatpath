@@ -150,7 +150,7 @@ function formatTime(timestamp: string) {
     return `${days}d ago`;
   }
 
-  return date.toLocaleDateString();
+  return date.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
 export function NotificationDropdown() {

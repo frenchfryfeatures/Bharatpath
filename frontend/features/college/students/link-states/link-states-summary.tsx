@@ -35,7 +35,7 @@ export function LinkStatesSummary({
           Link states
         </h3>
         <p className="mt-1 text-[13px] text-[#777f90] leading-relaxed">
-          Where your roster stands right now.
+          Where your imported roster stands right now. Students who joined with a referral code are counted on your dashboard but are not listed here, because they never appear on a roster.
         </p>
 
         {/* 3 STAT CARDS */}

@@ -684,7 +684,29 @@ export const studentApi = baseApi.injectEndpoints({
         revokedAt: link.revoked_at,
         seatHeld: link.seat_held,
       }),
+      invalidatesTags: [{ type: "Student", id: "COLLEGES" }, { type: "Billing" }],
+    }),
+    getCollegeInvitations: builder.query<CollegeInvitation[], void>({
+      query: () => "/candidate/colleges/invitations",
+      transformResponse: (response: { id: string; college_name: string; sent_at: string; expires_at: string }[]) =>
+        response.map((item) => ({ id: item.id, collegeName: item.college_name, sentAt: item.sent_at, expiresAt: item.expires_at })),
+      providesTags: [{ type: "Student", id: "COLLEGE_INVITATIONS" }],
+    }),
+    acceptCollegeInvitation: builder.mutation<void, { id: string; consentVersion: string }>({
+      query: ({ id, consentVersion }) => ({ url: `/candidate/colleges/invitations/${id}/accept`, method: "POST", body: { consent_version: consentVersion } }),
+      invalidatesTags: [{ type: "Student", id: "COLLEGES" }, { type: "Student", id: "COLLEGE_INVITATIONS" }, { type: "Billing" }],
+    }),
+    declineCollegeInvitation: builder.mutation<void, string>({
+      query: (id) => ({ url: `/candidate/colleges/invitations/${id}/decline`, method: "POST" }),
+      invalidatesTags: [{ type: "Student", id: "COLLEGE_INVITATIONS" }],
+    }),
+    grantCollegeIndividualVisibility: builder.mutation<void, { collegeId: string; consentVersion: string }>({
+      query: ({ collegeId, consentVersion }) => ({ url: `/candidate/colleges/${collegeId}/individual-visibility`, method: "POST", body: { consent_version: consentVersion } }),
       invalidatesTags: [{ type: "Student", id: "COLLEGES" }],
+    }),
+    revokeCollegeConsent: builder.mutation<void, { collegeId: string; scope: "ROSTER" | "INDIVIDUAL" }>({
+      query: ({ collegeId, scope }) => ({ url: `/candidate/colleges/${collegeId}/revoke`, method: "POST", body: { scope } }),
+      invalidatesTags: [{ type: "Student", id: "COLLEGES" }, { type: "Billing" }],
     }),
   }),
   overrideExisting: false,
@@ -720,4 +742,16 @@ export const {
   useGetStudentCollegeLinksQuery,
   useGetCollegeConsentTermsQuery,
   useLinkStudentCollegeByReferralMutation,
+  useGetCollegeInvitationsQuery,
+  useAcceptCollegeInvitationMutation,
+  useDeclineCollegeInvitationMutation,
+  useGrantCollegeIndividualVisibilityMutation,
+  useRevokeCollegeConsentMutation,
 } = studentApi;
+
+export interface CollegeInvitation {
+  id: string;
+  collegeName: string;
+  sentAt: string;
+  expiresAt: string;
+}

@@ -255,6 +255,19 @@ export function validateSection(
     }
   }
 
+  // Characters 3-12 of a GSTIN are the holder's PAN.
+  const pan = String(answers.pan ?? "").trim().toUpperCase();
+  const gstin = String(answers.gstin ?? "").trim().toUpperCase();
+  if (
+    section.fields.some((field) => field.code === "gstin") &&
+    !errors.gstin &&
+    pan.length === 10 &&
+    gstin.length === 15 &&
+    gstin.slice(2, 12) !== pan
+  ) {
+    errors.gstin = "This GSTIN belongs to a different PAN. Check both numbers.";
+  }
+
   return errors;
 }
 

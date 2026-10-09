@@ -12,8 +12,8 @@ import {
   Eye,
   FileText,
   KeyRound,
+  ClipboardList,
   Languages,
-  MapPin,
   Mic2,
   type LucideIcon,
 } from "lucide-react";
@@ -28,7 +28,6 @@ import {
 import { formatDateTime } from "@/features/student/formatters";
 import {
   interactiveCardClass,
-  NoteStrip,
   StudentCard,
   StudentErrorState,
 } from "@/features/student/components";
@@ -73,16 +72,16 @@ export function StudentProfile() {
               />
               <StatTile
                 value={String(
-                  applications.data?.total ??
-                    applications.data?.items.length ??
-                    0,
+                  applications.data?.items.filter(
+                    (item) => !["WITHDRAWN", "REJECTED", "EXPIRED"].includes(item.stage),
+                  ).length ?? 0,
                 )}
-                label="Applications"
+                label="Active applications"
                 onClick={() => router.push("/student/board")}
               />
               <StatTile
-                value={String(courses.data?.length ?? 0)}
-                label="Add-ons"
+                value={String(courses.data?.filter((course) => course.completed).length ?? 0)}
+                label="Courses done"
                 onClick={() => router.push("/student/courses")}
               />
             </div>
@@ -123,6 +122,13 @@ export function StudentProfile() {
                   detail={`${courses.data?.length ?? 0} available · ${courses.data?.filter((course) => course.completed).length ?? 0} completed`}
                   tone="blue"
                   onClick={() => router.push("/student/courses")}
+                />
+                <ProfileAction
+                  icon={ClipboardList}
+                  title="Attribute check"
+                  detail="12 short questions about how you work"
+                  tone="blue"
+                  onClick={() => router.push("/student/attribute")}
                 />
                 <ProfileAction
                   icon={Languages}
@@ -180,10 +186,6 @@ export function StudentProfile() {
                   aria-hidden="true"
                 />
               </button>
-              <NoteStrip icon={<MapPin size={16} />}>
-                Only your city and state are used for job discovery. Do not
-                enter a street address.
-              </NoteStrip>
             </section>
           </div>
         </CareerOverview>

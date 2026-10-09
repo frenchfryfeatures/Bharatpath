@@ -26,6 +26,7 @@ import {
   useGetEmployerTeamQuery,
 } from "@/store/employer/settings";
 import type { TeamMember } from "@/store/employer/settings";
+import { useSessionIdentity } from "@/lib/auth/use-session-identity";
 import { MoreVertical, Search, UserPlus } from "lucide-react";
 
 const EMPTY_TEAM: TeamMember[] = [];
@@ -54,6 +55,7 @@ function initials(name: string) {
 }
 
 export function TeamTab() {
+  const isOwner = useSessionIdentity().user?.backendRole === "EMPLOYER_OWNER";
   const dispatch = useAppDispatch();
   const members = useAppSelector(selectTeamMembers);
   const {
@@ -127,14 +129,14 @@ export function TeamTab() {
           </p>
         </div>
 
-        <button
+        {isOwner ? <button
           type="button"
           className="inline-flex min-h-9 shrink-0 cursor-pointer items-center gap-2 rounded-lg border border-[#5a4bd1] bg-[#5b4ed0] px-3.5 text-xs font-bold text-white hover:bg-[#4f43bd]"
           onClick={() => dispatch(openInviteModal())}
         >
           <UserPlus className="h-3.5 w-3.5" strokeWidth={2} />
           Invite member
-        </button>
+        </button> : null}
       </div>
 
       <div className="mb-3 flex flex-wrap items-center gap-2">

@@ -32,7 +32,7 @@ import {
   loginSchema,
 } from "@/features/auth/schemas/login.schema";
 import { authService } from "@/features/auth/services/auth.service";
-import { MIN_PASSWORD_LENGTH, passwordError } from "@/features/auth/hooks/use-signup-flow";
+import { minPasswordLength, passwordError } from "@/features/auth/hooks/use-signup-flow";
 import {
   CognitoPoolType,
   confirmNewPasswordCognito,
@@ -95,6 +95,7 @@ export function LoginForm() {
 
   // Challenge states
   const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [totpCode, setTotpCode] = useState("");
   const [confirmationCode, setConfirmationCode] = useState("");
   const [totpSecret, setTotpSecret] = useState("");
@@ -268,6 +269,10 @@ export function LoginForm() {
     const validationError = passwordError(newPassword, pool);
     if (validationError) {
       setServerError(validationError);
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setServerError("The two passwords do not match.");
       return;
     }
 
@@ -735,8 +740,26 @@ export function LoginForm() {
               </button>
             </div>
             <p className="mt-1 text-[11px] text-[#6b7280]">
-              Must include at least {pool === "CANDIDATE" ? 8 : 12} characters, uppercase, lowercase, number and symbol.
+              Must include at least {minPasswordLength(pool)} characters, uppercase, lowercase, number{pool === "BUSINESS" ? " and symbol" : ""}.
             </p>
+          </div>
+
+          <div>
+            <label
+              htmlFor="confirmNewPassword"
+              className="mb-1.5 block text-sm font-medium text-[#303747]"
+            >
+              Confirm new password
+            </label>
+            <input
+              id="confirmNewPassword"
+              type={showNewPassword ? "text" : "password"}
+              autoComplete="new-password"
+              placeholder="Re-enter the new password"
+              value={confirmNewPassword}
+              onChange={(e) => setConfirmNewPassword(e.target.value)}
+              className="h-11 w-full rounded-lg border border-[#dfe2e8] bg-white px-3 text-sm text-[#17233a] outline-none transition placeholder:text-[#a0a6b1] focus:border-[#3566b8] focus:ring-2 focus:ring-[#3566b8]/10"
+            />
           </div>
 
           <div className="flex gap-2">
@@ -1111,7 +1134,7 @@ export function LoginForm() {
               </button>
             </div>
             <p className="mt-1 text-[11px] text-[#6b7280]">
-              Must include at least {MIN_PASSWORD_LENGTH} characters, uppercase, lowercase, number
+              Must include at least {minPasswordLength(pool)} characters, uppercase, lowercase, number
               {pool === "BUSINESS" ? " and symbol." : "."}
             </p>
           </div>

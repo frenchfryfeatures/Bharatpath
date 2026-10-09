@@ -107,7 +107,7 @@ export function formatCognitoError(error: unknown): string {
     case "UserNotFoundException":
       return "No account was found for this email and account type. Please check your selection or sign up.";
     case "NotAuthorizedException":
-      return "Incorrect email or password. Please verify your credentials.";
+      return "Incorrect email or password. If you are sure they are right, check that you picked the matching account type (Student, Employer or College).";
     case "UsernameExistsException":
       return "An account with this email already exists. Sign in instead.";
     case "InvalidPasswordException":

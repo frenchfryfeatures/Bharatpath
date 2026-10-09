@@ -353,7 +353,7 @@ function ReferralCode({
       <div className="flex gap-[10px] border-t border-[#eef0f3] pt-3">
         <QuickAction
           icon={Ticket}
-          label="Issue a referral code"
+          label="View referral codes"
           href="/college/students#referral-codes"
         />
 

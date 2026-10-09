@@ -92,7 +92,7 @@ export function useUsers() {
           [candidate.city, candidate.state_code].filter(Boolean).join(", ") ||
           "Candidate",
         state: candidateState(candidate.status),
-        joined: new Date(candidate.created_at).toLocaleDateString(),
+        joined: new Date(candidate.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
       }))
     : (tenantsQuery.data?.items ?? []).map((tenant) => ({
         id: tenant.id,
@@ -113,7 +113,7 @@ export function useUsers() {
         state: `${tenant.status[0]}${tenant.status
           .slice(1)
           .toLowerCase()}` as UserState,
-        joined: new Date(tenant.created_at).toLocaleDateString(),
+        joined: new Date(tenant.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
       }));
 
   const setSegment = (

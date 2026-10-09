@@ -45,43 +45,15 @@ const initialState: EmployerSettingsState = {
   // Team membership is loaded from GET /employer/team when the Team tab opens.
   team: [],
 
-  paymentMethods: [
-    {
-      id: "pm1",
-      type: "UPI",
-      label: "UPI · sterling@upi",
-      value: "sterling@upi",
-      isDefault: true,
-      status: "Verified",
-    },
-  ],
+  paymentMethods: [],
 
-  creditBalance: 8,
+  creditBalance: 0,
 
-  creditPacks: [
-    { id: "p1", credits: 10, price: 999, perUnit: 99.9 },
-    { id: "p2", credits: 50, price: 3999, perUnit: 80, popular: true },
-    { id: "p3", credits: 150, price: 9999, perUnit: 66.7 },
-  ],
+  creditPacks: [],
 
-  selectedCreditPackId: "p2",
+  selectedCreditPackId: null,
 
-  invoices: [
-    {
-      id: "i1",
-      description: "50-credit pack",
-      date: "12 Aug 2026",
-      amount: 3999,
-      status: "Paid",
-    },
-    {
-      id: "i2",
-      description: "10-credit pack",
-      date: "2 Jul 2026",
-      amount: 999,
-      status: "Paid",
-    },
-  ],
+  invoices: [],
 
   inviteModalOpen: false,
   paymentModalOpen: false,

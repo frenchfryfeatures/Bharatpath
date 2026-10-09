@@ -1,4 +1,5 @@
 "use client";
+import { useStudentHasAccess } from "@/features/student/onboarding/use-student-access";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, Mail, Phone, Plus, User, X } from "lucide-react";
 import { StudentBackButton } from "@/features/student/components/student-back-button";
@@ -80,6 +81,7 @@ export function CareerForm({
   onSectionChange?: (section: number) => void;
 }) {
   const fields = useGetCareerFieldsQuery();
+  const { hasAccess } = useStudentHasAccess(editing);
   const identity = useGetStudentProfileQuery();
   const email = useAppSelector((state) => state.auth.user?.email ?? "");
   const account = useGetCareerIdentityQuery();
@@ -734,7 +736,9 @@ export function CareerForm({
           {editing || step === sections.length - 1
             ? editing
               ? "Save profile"
-              : "Save and continue to membership"
+              : hasAccess
+                ? "Save and continue"
+                : "Save and continue to membership"
             : "Save and continue"}
         </PillButton>
       </div>
