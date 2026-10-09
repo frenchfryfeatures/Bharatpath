@@ -278,13 +278,14 @@ export function CollegePage() {
                 <GraduationCap size={14} aria-hidden="true" /> Campus link
               </span>
               <h1 className="mt-4 text-[30px] font-extrabold leading-[1.08] tracking-[-0.035em] text-[#0A1931] sm:text-[38px]">
-                Your college,
+                Connect with your college
                 <br />
-                <span className="text-[#5F4DB2]">on your terms.</span>
+                <span className="text-[#5F4DB2]">and choose what it sees.</span>
               </h1>
               <p className="mt-3 max-w-[460px] text-[14px] leading-6 text-[#5F6B80]">
-                Connect with the code your college gave you, answer their invitations, and decide how much of you they
-                can see. You can step back at any time.
+                Use the code your college gave you or accept their invitation. Linking lets your college count you in its
+                totals; seeing your profile by name is a separate choice you can switch on or off, and you can disconnect
+                at any time.
               </p>
             </div>
             <dl className="grid grid-cols-3 gap-3">

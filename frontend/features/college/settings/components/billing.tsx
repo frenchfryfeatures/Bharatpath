@@ -288,11 +288,17 @@ function PlanRow({
       className={[
         "grid items-center gap-3 px-5 py-4 md:grid-cols-[minmax(0,1fr)_auto_auto]",
         divided ? "border-t border-[#eef0f3]" : "",
+        isCurrent ? "bg-[#f4f2ff] shadow-[inset_3px_0_0_#5a4bd6]" : "",
       ].join(" ")}
     >
       <div className="flex min-w-0 flex-1 flex-col gap-[2px]">
         <span className="text-[13px] font-semibold leading-[17px] text-[#131A26]">
-          {plan.code}
+          {humanizeCode(plan.code)}
+          {isCurrent ? (
+            <span className="ml-2 rounded-full bg-[#5a4bd6] px-2 py-0.5 text-[10px] font-bold uppercase text-white">
+              Current plan
+            </span>
+          ) : null}
         </span>
         <span className="text-[11px] font-normal leading-[14px] text-[#64748b]">
           {plan.period.toLowerCase()} ·{" "}
