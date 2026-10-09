@@ -163,7 +163,7 @@ def normalise_pasted_text(raw: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Day 7 - the version chain: review, edit, confirm
+# The version chain: review, edit, confirm
 # ---------------------------------------------------------------------------
 #: What an upload's parse can be, and the whole of it.
 #:

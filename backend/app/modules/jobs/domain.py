@@ -46,7 +46,7 @@ def is_editable(status: str) -> bool:
 #: Thresholds are previewed in steps of ten, and counts are reported to the
 #: nearest ten below with anything under ten reported as "fewer than ten".
 #:
-#: **This endpoint is a leak vector** (plan.md Day 10). An employer who could
+#: **This endpoint is a leak vector.** An employer who could
 #: preview any threshold and see an exact count could binary-search for the
 #: score of the one candidate whose presence changes the count by one. Steps of
 #: ten on the input and rounding on the output mean one person moving in or out

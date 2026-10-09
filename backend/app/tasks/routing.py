@@ -32,11 +32,11 @@ RESCORE_FOR_ADDONS_TASK: Final = "scoring.rescore_for_addons"
 DETECT_INTEGRITY_TASK: Final = "integrity.detect"
 PROCESS_PAYMENT_CALLBACK_TASK: Final = "billing.process_callback"
 EVALUATE_INTERVIEW_TASK: Final = "interview.evaluate_session"
-#: Day 19. Notifications consume every event in `NOTIFYING_EVENTS`, and a
+#: Notifications consume every event in `NOTIFYING_EVENTS`, and a
 #: disputed hire is filed in the console's queue.
 NOTIFY_TASK: Final = "notifications.dispatch"
 OPEN_HIRE_DISPUTE_TASK: Final = "admin.open_hire_dispute"
-#: Day 20. An export is built when it is asked for. Erasure is a sweep, not a
+#: An export is built when it is asked for. Erasure is a sweep, not a
 #: subscription: it must wait out its grace period (`privacy/events.py`).
 BUILD_EXPORT_TASK: Final = "privacy.build_export"
 #: An uploaded CV is parsed out of band. The endpoint returns 202 and emits
@@ -67,11 +67,11 @@ _SUBSCRIPTIONS: Final[dict[str, tuple[str, ...]]] = {
     # Layers 2 and 3 over the stored extraction, so a completion costs no
     # model call and cannot drift the resume-derived part of the number.
     #
-    # A course completion (Day 15) and a completed interview session (Day 16).
+    # A course completion and a completed interview session.
     # Both are read back by `scoring.service.addons_for`, which applies the
     # caps; the questionnaire is worth nothing and routes nowhere near here.
     #
-    # A completed session is also evaluated (Day 17). That is feedback for the
+    # A completed session is also evaluated. That is feedback for the
     # candidate and nothing else: the +20 was recorded at completion, and the
     # evaluation task imports nothing that scores.
     "courses.completion_recorded": (RESCORE_FOR_ADDONS_TASK,),
@@ -89,8 +89,8 @@ _SUBSCRIPTIONS: Final[dict[str, tuple[str, ...]]] = {
     # extraction to read, and an integrity check against nothing would record
     # a clean result for a CV nobody has read.
     "scoring.score_computed": (DETECT_INTEGRITY_TASK,),
-    # Day 12 recorded a disputed hire and nobody read it (blockers E12). It is
-    # now filed as the candidate's dispute, for our staff to work.
+    # A disputed hire is filed as the candidate's dispute, for our staff to
+    # work.
     "applications.hire_disputed": (OPEN_HIRE_DISPUTE_TASK,),
     "privacy.export_requested": (BUILD_EXPORT_TASK,),
 }

@@ -1,4 +1,4 @@
-"""Day 18 through HTTP and the database: consent after linking.
+"""Through HTTP and the database: consent after linking.
 
 What this file holds, in order:
 

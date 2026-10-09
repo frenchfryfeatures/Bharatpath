@@ -250,7 +250,7 @@ class CandidateInvitationResponse(_Base):
     expires_at: datetime
 
 
-# --- consent after linking (Day 18) -----------------------------------------------
+# --- consent after linking ------------------------------------------------------
 class GrantIndividualVisibilityRequest(_Base):
     consent_version: str = Field(
         min_length=1,
@@ -277,7 +277,7 @@ class RevokeConsentResponse(_Base):
     revoked_at: datetime | None
 
 
-# --- students who let their college see them (Day 18) ------------------------------
+# --- students who let their college see them -------------------------------------
 class VisibleStudentResponse(_Base):
     candidate_id: uuid.UUID | None = Field(
         description="Present only after the student grants individual visibility."

@@ -1,9 +1,8 @@
 """Renew by mandate, and close periods that have ended.
 
-Periodic, so started by EventBridge Scheduler rather than Celery Beat
-(`app/worker.py`). **The schedule is not provisioned yet** (blockers E4).
-Until it is, no pre-debit notice goes out and nothing moves to GRACE, LAPSED
-or CANCELLED on its own. **Access is unaffected either way**: it is read from
+Hourly, on Celery Beat (`app/tasks/schedule.py`). If beat is not running, no
+pre-debit notice goes out and nothing moves to GRACE, LAPSED or CANCELLED on
+its own. **Access is unaffected either way**: it is read from
 the clock (`app.core.entitlements`), so a period that has ended grants nothing
 whether or not this has run.
 

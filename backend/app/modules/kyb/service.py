@@ -453,7 +453,7 @@ async def submit(session: AsyncSession, *, ctx: TenantContext) -> KybSubmissionR
 async def submission_for_review(
     session: AsyncSession, *, tenant_id: uuid.UUID, submission_id: uuid.UUID
 ) -> KybSubmissionResponse:
-    """One submission, answers and documents included, for a reviewer (Day 19).
+    """One submission, answers and documents included, for a reviewer.
 
     Like `review`, takes the tenant explicitly: the console found it from the
     submission, and a reviewer belongs to no employer. The caller audits the
@@ -479,7 +479,7 @@ async def review(
     reason: str | None = None,
 ) -> KybSubmissionResponse:
     """A human decision, used when the switch is on. Routed by the admin
-    console (Day 19): `POST /admin/kyb/submissions/{id}/decision`.
+    console: `POST /admin/kyb/submissions/{id}/decision`.
 
     Takes the tenant id explicitly because a reviewer belongs to no employer:
     the console reads it from the submission, never from a request body.

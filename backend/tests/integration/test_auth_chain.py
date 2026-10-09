@@ -1,7 +1,7 @@
 """The authentication chain, end to end, against a real database.
 
-Day 5's gate asks four things of the spine. This file proves the ones that are
-about identity; `test_rls_and_grants.py` proves the ones that are about rows.
+The authentication spine is held to four things. This file proves the ones
+that are about identity; `test_rls_and_grants.py` proves the ones that are about rows.
 
 Every test here goes through the real `current_user` dependency, the real
 token verifier, and the real membership lookup. Nothing is patched. A test

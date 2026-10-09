@@ -23,7 +23,7 @@ is how a seated student gets access at all; putting it behind a subscription
 would ask them to pay for the thing their college has paid for. Granting and
 revoking consent are the student's, and never wait on anyone's payment.
 
-**Day 18.** `/college/students` combines names from the college's own roster
+**Students by name.** `/college/students` combines names from the college's own roster
 with individually visible candidates. A candidate id and profile open are
 available only behind live INDIVIDUAL consent, read on every request. List
 pages and profile opens are audited and paywalled like the analytics beside
@@ -718,7 +718,7 @@ async def revoke_consent(
 
 
 # ===========================================================================
-# The college's view of students who allow it (Day 18)
+# The college's view of students who allow it
 # ===========================================================================
 @router.get(
     "/students",

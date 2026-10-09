@@ -1,10 +1,9 @@
-"""Stopping the nudges without signing in (blockers E30).
+"""Stopping the nudges without signing in.
 
-A nudge is the only message we send that a person may reasonably not want,
-and until 2026-09-22 an email carried no way to stop them: the preference
-existed (`notification_preferences.nudges_enabled`) and the only way to reach
-it was to sign in, which is precisely what somebody ignoring three reminders
-is not going to do. The alternative available to them was the spam button,
+A nudge is the only message we send that a person may reasonably not want.
+The preference (`notification_preferences.nudges_enabled`) is reachable by
+signing in, which is precisely what somebody ignoring three reminders is not
+going to do. The alternative available to them is the spam button,
 which costs the sending domain's reputation and takes every other message
 down with it.
 

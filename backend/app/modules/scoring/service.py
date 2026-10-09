@@ -164,7 +164,7 @@ async def persist(
     `extraction_cache_key` is optional only for callers holding an extraction
     that never came from the cache (tests seeding a score directly). Both
     production paths pass it, because a score without it is a score whose
-    cached reading an erasure cannot reach (Day 20).
+    cached reading an erasure cannot reach.
     """
     addons = addons or AddOnContributions()
 

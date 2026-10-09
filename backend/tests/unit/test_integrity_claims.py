@@ -1,7 +1,7 @@
 """From a Layer 1 extraction to integrity claims. Pure, no database.
 
-The rules in `integrity/domain.py` were built and tested on Day 8 against
-hand-made `ResumeClaims`. What is new is the translation from what Layer 1
+The rules in `integrity/domain.py` are tested elsewhere against hand-made
+`ResumeClaims`. This file tests the translation from what Layer 1
 actually produces -- and that translation is where a false signal would be
 manufactured, by guessing a date the CV never stated.
 """

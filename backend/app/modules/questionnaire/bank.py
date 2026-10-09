@@ -1,7 +1,5 @@
 """The optional attribute questionnaire.
 
-Produced 2026-09-11 under `answers-log.md` Round 7.10, closing blocker C3.
-
 **This questionnaire is worth zero points, and that is load-bearing.** The
 arithmetic is 700 + 200 resume + 30 course + 60 interviews = 990 exactly; there
 is no room in it for a questionnaire, and import-linter forbids this module from

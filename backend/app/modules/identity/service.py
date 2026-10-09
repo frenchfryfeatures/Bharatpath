@@ -95,13 +95,13 @@ async def revoke_membership(
 
 
 # ---------------------------------------------------------------------------
-# Tenants and teams (Day 9)
+# Tenants and teams
 # ---------------------------------------------------------------------------
 EMPLOYER_OWNER_ROLE = "EMPLOYER_OWNER"
 EMPLOYER_TEAM_ROLES: frozenset[str] = frozenset(
     {"EMPLOYER_OWNER", "EMPLOYER_RECRUITER", "EMPLOYER_VIEWER"}
 )
-#: A college's team (Day 17). The admin plays the owner's part: it runs the
+#: A college's team. The admin plays the owner's part: it runs the
 #: team, the subscription and the referral codes; staff import rosters.
 COLLEGE_ADMIN_ROLE = "COLLEGE_ADMIN"
 COLLEGE_TEAM_ROLES: frozenset[str] = frozenset({"COLLEGE_ADMIN", "COLLEGE_STAFF"})
@@ -452,7 +452,7 @@ async def remove_team_member(
 
 
 # ---------------------------------------------------------------------------
-# Day 19 -- platform staff, tenants for the console, suspension
+# Platform staff, tenants for the console, suspension
 # ---------------------------------------------------------------------------
 class TenantNotFoundError(NotFoundError):
     code = "identity_tenant_not_found"

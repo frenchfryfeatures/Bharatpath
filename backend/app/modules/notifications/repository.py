@@ -87,7 +87,7 @@ async def orphaned_pending(
     not**: its sequence number is already claimed
     (`uq_profile_nudges_sequence`), so the sweep will not generate it again
     and nothing will ever pick the row up. This is the only path back for
-    those (blockers E30).
+    those.
 
     `cutoff` keeps the sweep away from messages a live worker is mid-way
     through: a row decided seconds ago is far more likely to be in flight

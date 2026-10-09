@@ -11,11 +11,10 @@ Two surfaces, one module:
     subscription (R13); reading, withdrawing and answering a hire are not,
     because a lapsed subscriber loses access, not their data. Another
     candidate's application is a 404.
-  * **`/employer/applications`** -- the organisation's pipeline (Day 12). Owners
+  * **`/employer/applications`** -- the organisation's pipeline. Owners
     and recruiters move applications, book interviews and propose hires;
-    viewers read. Another organisation's application is a 404. The employer
-    subscription gate lands on these with the other employer routes on
-    Day 15, when a subscription can be bought.
+    viewers read. Another organisation's application is a 404. Every route
+    needs a live employer subscription (R15).
   * **`/employer/dashboard`** -- the same pipeline, counted, for the portal's
     landing page, and its recent activity across every job. Every role that
     reads the pipeline reads this; payment gates it like the pipeline.

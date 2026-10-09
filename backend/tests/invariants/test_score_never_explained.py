@@ -1,6 +1,6 @@
 """The score is never explained to the candidate.
 
-Client, 2026-08-27, re-confirmed 2026-09-11 (Round 7.3): no breakdown screen,
+Client, 2026-08-27, re-confirmed 2026-09-11: no breakdown screen,
 no category detail, no improvement suggestions. The breakdown is still
 computed and stored — admin drill-down and dispute handling need it — but no
 candidate-facing schema may expose it.
@@ -75,8 +75,8 @@ def _response_models() -> list[type[BaseModel]]:
 
     All of them, not a candidate-facing subset — because there is no reliable
     way to tell from a class name who will end up reading it. The admin
-    drill-down view therefore does not belong in this module when it lands on
-    Day 19; it belongs in `admin`, behind the role guard that makes it lawful.
+    drill-down view therefore does not belong in this module; it belongs in
+    `admin`, behind the role guard that makes it lawful.
     """
     return [
         obj

@@ -1,4 +1,4 @@
-"""Turn one published event into the messages it causes (Day 19).
+"""Turn one published event into the messages it causes.
 
 Triggered by every event in `notifications.domain.NOTIFYING_EVENTS`. Decides
 in one transaction, then sends each message in its own: see

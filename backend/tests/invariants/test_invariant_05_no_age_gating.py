@@ -1,6 +1,6 @@
 """INVARIANT 5 - no age-gating (PRD section 3 rule 4).
 
-Lands Day 1. Two layers: the repository-wide scan must pass, and the scan
+Two layers: the repository-wide scan must pass, and the scan
 itself must be capable of failing - a guard that cannot fail is not a guard.
 """
 

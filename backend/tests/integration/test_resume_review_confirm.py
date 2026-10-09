@@ -1,7 +1,7 @@
-"""Day 7 end to end: versions, review, edit, the confirm gate, and polling.
+"""End to end: versions, review, edit, the confirm gate, and polling.
 
-The service layer against a real Postgres, because most of what Day 7 promises
-is enforced by the database rather than by Python: the chain cannot fork
+The service layer against a real Postgres, because most of what the confirm
+gate promises is enforced by the database rather than by Python: the chain cannot fork
 because of a unique index, and `confirmed_at` is a latch because of a
 conditional UPDATE. Testing either against a mock would prove the mock.
 """

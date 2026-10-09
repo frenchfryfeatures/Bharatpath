@@ -1,4 +1,4 @@
-"""Day 16 through HTTP: save progress, submit, the supplementary report."""
+"""Through HTTP: save progress, submit, the supplementary report."""
 
 from __future__ import annotations
 

@@ -13,7 +13,7 @@ The failure mode this guards is not malice - it is a developer adding a
 validator checking `>= 18` because that is the habit. So the check is
 structural: no column, no field, no validator, no constant.
 
-Runs in CI from Day 1.
+Runs in CI on every push.
 
     python scripts/check_no_age_fields.py
 """

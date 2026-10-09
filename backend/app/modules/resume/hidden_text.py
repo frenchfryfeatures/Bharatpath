@@ -1,8 +1,8 @@
 """Text a CV renders but a human reading it cannot see.
 
-Closes `docs/blockers.md` **E5**, open since Day 9. `ResumeClaims.hidden_text`
-defaulted to `""` and nothing ever populated it, so `_rule_hidden_text` —
-one of only two rules that may reach HIGH severity — could not fire at all.
+Populates `ResumeClaims.hidden_text`, which `_rule_hidden_text` -- one of
+only two integrity rules that may reach HIGH severity -- reads. Without this
+module that rule could never fire.
 
 ---
 

@@ -20,10 +20,9 @@ reaches the college tables through the narrow functions in the baseline.
      versioned form; nobody reviews them, because a college is a deal someone
      has already spoken to.
   2. **A subscription** -- `/college/subscription`, one payment per period
-     for up to N students (Q10, Round 7.7).
-  3. **Seats** (`allocate_seats`) -- set by our staff, never above what the
-     live plan pays for. **No route yet**: nobody can hold a platform role
-     (blockers E10); Day 19's console is the caller.
+     for up to N students.
+  3. **Seats** (`allocate_seats`) -- set by our staff through the admin
+     console, never above what the live plan pays for.
   4. **Students**, by referral code (`link_by_code`) or by roster invitation
      (`answer_invitation`). Either way the student's own act is the consent,
      it is **ROSTER scope only**, and a free seat is taken for them at once.
@@ -822,7 +821,7 @@ async def link_by_code(
     request_id: str | None = None,
 ) -> Link:
     """A student enters their college's code. **Entering it is the consent**
-    (R16, approved in Round 7.9), for ROSTER scope and nothing more.
+    (R16, client-approved), for ROSTER scope and nothing more.
 
     Rate-limited per student and per address before the code is looked at,
     and every refusal is the same `referral_code_invalid`. Idempotent: a
@@ -952,8 +951,8 @@ class ImportView:
     record: RosterImport
     invitations: dict[str, int]
     created: bool = False
-    #: Valid rows no invitation can reach, given what is deliverable today
-    #: (blockers E35). Phone-only rows while SMS is deferred.
+    #: Valid rows no invitation can reach, given what is deliverable today.
+    #: Phone-only rows while SMS is deferred.
     unreachable_rows: int = 0
 
 
@@ -1222,8 +1221,8 @@ async def send_invitations(
     """Send every pending invitation in a committed import. Idempotent: a
     second call sends nothing.
 
-    **Sending is an outbox event per invitation**, consumed by notifications
-    (Day 19). SMS stays DLT-gated (blockers D1) and email waits on SES
+    **Sending is an outbox event per invitation**, consumed by notifications.
+    SMS stays DLT-gated (blockers D1) and email waits on SES
     production access, so today an invitation is marked SENT and recorded,
     and the student finds it in the app from their own verified contact.
     """
@@ -1272,7 +1271,7 @@ class InvitationRecipient:
 async def invitation_recipient(
     session: AsyncSession, *, tenant_id: uuid.UUID, entry_id: uuid.UUID
 ) -> InvitationRecipient | None:
-    """Where to deliver one sent invitation (Day 19). **System only.**
+    """Where to deliver one sent invitation. **System only.**
 
     The tenant comes from the `college.invitation_sent` event our own service
     wrote, not from a request -- the same footing as the expiry sweep binding
@@ -1289,7 +1288,7 @@ async def invitation_recipient(
 
 
 # ---------------------------------------------------------------------------
-# 5. Consent after linking -- the student's side (Day 18)
+# 5. Consent after linking -- the student's side
 # ---------------------------------------------------------------------------
 class CollegeLinkNotFoundError(NotFoundError):
     """The student has no live link to that college, or never had one."""
@@ -1450,7 +1449,7 @@ async def revoke_consent(
 
 
 # ---------------------------------------------------------------------------
-# 6. Students who let their college see them -- the college's side (Day 18)
+# 6. Students who let their college see them -- the college's side
 # ---------------------------------------------------------------------------
 class CollegeStudentNotFoundError(NotFoundError):
     """No live INDIVIDUAL consent to this college: never given, revoked, or
@@ -1469,7 +1468,7 @@ async def _name(
     resume_version_id: uuid.UUID | None,
 ) -> str | None:
     """The name given at sign-up, else the one typed on the structured CV
-    form, else none. Never guessed from a CV, as for an employer (Day 14)."""
+    form, else none. Never guessed from a CV, as for an employer."""
     if full_name or resume_version_id is None:
         return full_name
     return await resume_service.declared_name(

@@ -1,4 +1,4 @@
-"""Day 1 smoke tests: the app builds, every module is registered, health works."""
+"""Smoke tests: the app builds, every module is registered, health works."""
 
 from __future__ import annotations
 
@@ -10,10 +10,8 @@ from app.modules import ALL_MODULES
 def test_all_modules_registered() -> None:
     """Every module in the registry exposes a name, a prefix and a router hook.
 
-    plan.md section 4 promises the client teams a publishable openapi.json from
-    Day 2. That only holds if every module is wired on Day 1, even empty.
-
-    Twenty from the plan, plus `engagement` (streaks, 2026-09-13).
+    The client teams generate their code from openapi.json, which only lists
+    what is mounted. Twenty modules from the plan, plus `engagement` (streaks).
     """
     assert len(ALL_MODULES) == 21
     for module in ALL_MODULES:

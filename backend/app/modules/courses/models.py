@@ -76,7 +76,7 @@ class CoursePurchase(Base, UUIDPrimaryKey):
     refuses a row whose payment is not this user's SUCCEEDED, signature-verified
     payment for this course. So a forged callback cannot reach this table even
     through a direct repository call. A seat that covers add-ons would change
-    that, and is an open question (answers-log Round 8).
+    that, and is an open question for the client.
     """
 
     __tablename__ = "course_purchases"

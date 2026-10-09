@@ -1,10 +1,6 @@
-"""Remind people who signed up and never started a profile (R9, Day 19).
+"""Remind people who signed up and never started a profile (R9).
 
-Periodic, so started by EventBridge Scheduler rather than Celery Beat
-(`app/worker.py`). **The schedule is not provisioned** (blockers E4): until it
-is, nobody is nudged, which is the safe direction for a reminder.
-
-Hourly is the intended cadence. The rules decide who is due, so running it
+Hourly, on Celery Beat (`app/tasks/schedule.py`). The rules decide who is due, so running it
 more often sends nothing extra: a person's next nudge is numbered, and the
 number is claimed before any message is written.
 """

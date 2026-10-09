@@ -1,8 +1,8 @@
 """Cross-cutting tables that belong to no single module.
 
-Module-owned tables live in `app/modules/<name>/models.py`. These four are
-infrastructure: the audit trail, the idempotency store, the transactional
-outbox, and versioned configuration.
+Module-owned tables live in `app/modules/<name>/models.py`. These are
+infrastructure: the audit trail, the transactional outbox and versioned
+configuration -- plus `idempotency_keys`, which nothing uses (see its class).
 """
 
 from __future__ import annotations
@@ -62,11 +62,15 @@ class AuditEvent(Base):
 
 
 class IdempotencyKey(Base):
-    """The row itself is the lock - INSERT ... ON CONFLICT DO NOTHING.
+    """**Unused: nothing reads or writes this table.** Kept only because
+    dropping it is a migration on every shared database.
 
-    SRS 2.24.4 names six operations. Five of the original six survive (R14
-    deleted the unlock), and subscription purchase/renewal takes the freed
-    slot, because a double-charged renewal is the same failure in a new coat.
+    It was built for a generic `Idempotency-Key` header that no route ever
+    adopted. The operations SRS 2.24.4 names are idempotent through their own
+    state instead: a repeated checkout inside the reuse window returns the
+    first payment, a second application is 409 `already_applied`, publishing a
+    published job is a refused transition, hire confirmation is a latch under a
+    row lock, and committing a committed roster import returns it unchanged.
     """
 
     __tablename__ = "idempotency_keys"

@@ -1,8 +1,7 @@
 """The employer onboarding and KYB form.
 
-Produced 2026-09-11 under `answers-log.md` Round 7.10, closing the employer half
-of blocker C8. The employer type and industry lists it references were confirmed
-by the client in Round 7.5 and live in `employer/reference.py`.
+The employer type and industry lists it references were confirmed by the client
+and live in `employer/reference.py`.
 
 ---
 

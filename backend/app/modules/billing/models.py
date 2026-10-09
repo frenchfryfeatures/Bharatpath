@@ -205,8 +205,8 @@ class Entitlement(Base, UUIDPrimaryKey, Timestamps):
 
     **Nothing writes this table yet.** Employer database access is NOT an
     entitlement row - it is the subscription window itself - a course is
-    `course_purchases`, and a mock interview session is `interview_purchases`
-    (Day 16), each held by its own database guard beside the thing it buys.
+    `course_purchases`, and a mock interview session is `interview_purchases`,
+    each held by its own database guard beside the thing it buys.
     """
 
     __tablename__ = "entitlements"
@@ -224,8 +224,8 @@ class Entitlement(Base, UUIDPrimaryKey, Timestamps):
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     __table_args__ = (
-        # Consumed entitlements too: the erasure's predicate (Day 20 index
-        # review). `ix_entitlements_usable` covers only the unconsumed.
+        # Consumed entitlements too: the erasure's predicate
+        # (`test_index_review.py`). `ix_entitlements_usable` covers only the unconsumed.
         Index("ix_entitlements_user", "user_id"),
         Index(
             "ix_entitlements_usable",

@@ -120,7 +120,7 @@ DISPUTE_PARTIES: Final = ("CANDIDATE", "EMPLOYER", "COLLEGE")
 DISPUTE_STATES: Final = ("OPEN", "IN_REVIEW", "RESOLVED", "REJECTED")
 CLOSED_DISPUTE_STATES: Final = frozenset({"RESOLVED", "REJECTED"})
 #: How a dispute arrived. `HIRE_DISPUTE` is opened for the candidate when they
-#: say a hire did not happen (Day 12's dispute, which until now nobody read).
+#: say a hire did not happen (`applications.hire_disputed`).
 DISPUTE_SOURCES: Final = ("RAISED", "HIRE_DISPUTE")
 
 DisputeKind = Literal["HIRE", "PAYMENT", "ACCOUNT", "OTHER"]

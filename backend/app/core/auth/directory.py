@@ -1,25 +1,25 @@
 """Creating a sign-in on somebody's behalf: the one write we make to Cognito.
 
-Added 2026-09-18 for admin-created accounts and team invitations
+Used by admin-created accounts and team invitations
 (`docs/signup-and-accounts.md`). Staff create a candidate, an employer or a
 college in the console; an owner adds a colleague. Either way the person has
 no Cognito user yet, so we ask Cognito to make one: `AdminCreateUser` with the
 address as the username, **which emails a temporary password**. The person
 signs in with it, Cognito forces a new password (MFA is optional and off
-until they turn it on, since 2026-10-07), and on their first API call
+until they turn it on), and on their first API call
 `app.core.auth.users._adopt_unlinked` links that identity to the row we
 created here by email -- so the organisation and role are waiting for them.
 
 **What this is not.** It is not authorisation, and it holds no credential:
 Cognito generates and sends the password, and we never see it. This module can
-ask for an account to exist, ask for the invitation to be sent again, and --
-as of 2026-09-22 -- ask for an account to be destroyed.
+ask for an account to exist, ask for the invitation to be sent again, and ask
+for an account to be destroyed.
 
-**`delete_user` is the erasure's last act on the identity** (blockers E32).
-Before it existed, an erasure emptied our `users` row and left the Cognito
-user standing, so a person who was erased and later signed in with the same
-address presented a subject whose hash we still held and was refused forever
-rather than starting fresh. It is called *before* the database cascade
+**`delete_user` is the erasure's last act on the identity.** Without it an
+erasure would empty our `users` row and leave the Cognito user standing, so a
+person who was erased and later signed in with the same address would present
+a subject whose hash we still hold, and be refused forever rather than
+starting fresh. It is called *before* the database cascade
 deliberately: the cascade replaces `cognito_sub` with its SHA-256, so after
 it runs there is no identifier left to delete by.
 
@@ -72,7 +72,7 @@ class AccountDirectory(Protocol):
         ...
 
     async def delete_user(self, *, pool: Pool, subject: str) -> None:
-        """Destroy the sign-in itself, as part of an erasure (blockers E32).
+        """Destroy the sign-in itself, as part of an erasure.
 
         **Idempotent.** A subject Cognito does not have is success, not an
         error: the erasure sweep retries a failed run, and the second attempt

@@ -1,4 +1,4 @@
-"""Day 11, the pure half: eligibility, withdrawal, and what a candidate can be shown."""
+"""The candidate marketplace, pure: eligibility, withdrawal, and what a candidate sees."""
 
 from __future__ import annotations
 

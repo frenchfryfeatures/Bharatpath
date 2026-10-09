@@ -38,7 +38,7 @@ CollegeReaders = [
     Depends(require_role(COLLEGE_ADMIN, COLLEGE_STAFF)),
     Depends(require_active_subscription),
     # Per organisation, not per member: a dashboard left open in a tab is the
-    # thing being bounded, and a college's staff share one (Day 20).
+    # thing being bounded, and a college's staff share one.
     Depends(rate_limit("analytics.read")),
 ]
 

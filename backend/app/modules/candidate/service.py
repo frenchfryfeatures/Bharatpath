@@ -10,7 +10,7 @@ transaction closes.
 a lapsed subscriber loses access, not the ability to keep their own details
 right.
 
-**An employer opening a profile is assembled here** (Day 14), because it needs
+**An employer opening a profile is assembled here**, because it needs
 three modules' answers and `discovery` may not import `scoring`: discovery
 decides whether the reveal happens and writes its log and audit row, scoring
 supplies the stored score, and resume the declared name.

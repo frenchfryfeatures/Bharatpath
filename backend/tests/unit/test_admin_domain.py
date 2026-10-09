@@ -1,4 +1,4 @@
-"""Day 19: the console's permission table, the dispute machine, staff tenancy."""
+"""The console's permission table, the dispute machine, staff tenancy."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Day 19: notification fan-out off the outbox, the inbox and preferences,
+"""Notification fan-out off the outbox, the inbox and preferences,
 suppression, and incomplete-profile nudges.
 
 Events are produced the real way -- through the routes that emit them -- and
@@ -357,7 +357,7 @@ async def test_a_bad_nudge_rule_stops_the_sweep_rather_than_defaulting() -> None
 
 
 # ===========================================================================
-# Stopping the nudges from the email itself (blockers E30)
+# Stopping the nudges from the email itself
 # ===========================================================================
 @pytest.fixture
 def unsubscribable(monkeypatch: pytest.MonkeyPatch) -> None:

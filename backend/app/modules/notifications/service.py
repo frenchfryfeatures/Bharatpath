@@ -113,7 +113,7 @@ class Outgoing:
     body: str
     dlt_template_id: str | None
     #: Who it is for and what kind, so `send` can attach RFC 8058 unsubscribe
-    #: headers to a nudge (blockers E30). A nudge is the only message a person
+    #: headers to a nudge. A nudge is the only message a person
     #: may reasonably not want; a transactional one carries no unsubscribe,
     #: because "your payment failed" is not something to opt out of.
     user_id: uuid.UUID | None = None
@@ -702,7 +702,7 @@ async def suppress(
 
 
 # ---------------------------------------------------------------------------
-# Messages a crashed worker left behind (blockers E30)
+# Messages a crashed worker left behind
 # ---------------------------------------------------------------------------
 #: How long a message must sit PENDING before the sweep treats it as
 #: abandoned rather than in flight. `send_all` works through a batch one short
@@ -778,7 +778,7 @@ async def orphaned_messages(
 
 
 async def unsubscribe_by_token(session: AsyncSession, *, token: str) -> bool:
-    """Turn nudges off for whoever this token names (blockers E30).
+    """Turn nudges off for whoever this token names.
 
     **Nudges only, and only off.** The token cannot turn anything on, cannot
     touch another preference, and cannot read anything. The worst a stolen

@@ -403,7 +403,7 @@ async def mark_stored(
     return answer
 
 
-# --- evaluation (Day 17) --------------------------------------------------------
+# --- evaluation -----------------------------------------------------------------
 async def get_session_by_id(
     session: AsyncSession, *, session_id: uuid.UUID, lock: bool = False
 ) -> InterviewSession | None:

@@ -174,7 +174,7 @@ def test_the_funnel_says_nothing_below_the_cohort_floor() -> None:
 
 
 def test_the_funnel_is_exact_by_default_and_counts_what_was_reached() -> None:
-    """Exact above the cohort floor (client, 2026-09-30, answers-log 12.1); a
+    """Exact above the cohort floor (client, 2026-09-30); a
     raised `min_cell_size` withholds small cells with a partner again."""
     from app.modules.analytics.domain import (
         APPLICATION_STAGES,

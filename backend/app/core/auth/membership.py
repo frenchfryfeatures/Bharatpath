@@ -51,7 +51,7 @@ async def resolve(session: AsyncSession, user_id: uuid.UUID) -> Membership | Non
     A candidate has no membership row -- they belong to no tenant -- so None
     is the ordinary answer for the largest class of user, not an error.
 
-    **A tenant under change is never answered from the cache** (Day 19). See
+    **A tenant under change is never answered from the cache.** See
     `mark_tenant_changed` for why deleting the cached rows is not enough on
     its own.
     """

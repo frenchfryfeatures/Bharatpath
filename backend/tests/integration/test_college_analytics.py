@@ -1,4 +1,4 @@
-"""Day 18 through HTTP: cohort analytics and platform-sourced placements.
+"""Through HTTP: cohort analytics and platform-sourced placements.
 
 A college sees counts over the students linked to it **right now**, behind a
 cohort floor; above it, exact numbers (client, 2026-09-30; a config row can

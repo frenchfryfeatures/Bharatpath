@@ -1,19 +1,20 @@
-"""The course, as a structure with a syllabus and no videos in it.
+"""The course: its identity, and the syllabus we propose for it.
 
-Produced 2026-09-11 under `answers-log.md` Round 7.10, closing the *buildable*
-half of blocker C1. Read the two halves separately:
+Two different things live here:
 
-- **The structure is real** and can be built against today: modules, lessons,
-  durations, an assessment, and a completion rule that already exists in
-  `domain.py`.
-- **The media does not exist.** Every lesson carries `asset_key = None`, which
-  is the honest representation of "nobody has recorded this". The seeder marks
-  the course inactive for exactly that reason, so it cannot be sold.
+- **`COURSE_CODE` and `COURSE_TITLE` are live.** `service.sync_catalogue`
+  writes the versioned `courses` row from them, and every purchase,
+  completion and lesson is keyed on the code.
+- **`MODULES` is a proposal, not the course.** The course a candidate buys is
+  whatever staff build in the admin console (`course_modules`,
+  `course_lessons`), and it goes on sale only when they publish it with a
+  playable lesson. Nothing in the application reads `MODULES`; it is the
+  outline handed to whoever records the lessons. Every lesson here has
+  `asset_key = None` and `HAS_MEDIA` is False, and a test holds both, so this
+  draft cannot be mistaken for recorded content.
 
-**The syllabus is ours, the content is not.** A client may well want a different
-course; this one exists so that Day 15's purchase and completion flows, and
-Day 8's need for an add-on completion event, are built against something with a
-shape rather than against `TODO`.
+**The syllabus is ours, the content is not.** The client may well want a
+different course.
 
 ---
 
@@ -21,8 +22,8 @@ shape rather than against `TODO`.
 
 Completing this course adds up to +30 to a number, so there is an obvious
 temptation to build it as "how to score well on BharatPath". That would be
-wrong twice over. The client confirmed twice that the score is never explained
-(Round 7.3), so a course that explained it would contradict the product. And a
+wrong twice over. The client confirmed twice that the score is never explained,
+so a course that explained it would contradict the product. And a
 course that taught rubric-gaming would inflate every score without improving a
 single candidate, which destroys the thing employers are paying for.
 
@@ -49,10 +50,10 @@ COURSE_TITLE: Final = "Presenting Your Work"
 #: stores a rule version for the same reason.
 SYLLABUS_VERSION: Final = "placeholder-1-2026-09-11"
 
-#: False until someone has actually recorded the lessons. The catalogue
-#: endpoint refuses to list a course whose media is missing -- a candidate who
-#: pays for empty lessons is a refund and a review, and the +30 would be
-#: awarded for watching nothing.
+#: False: none of the proposed lessons below has been recorded. What is sold
+#: is decided by the console's publish step, which refuses a course with no
+#: playable lesson -- a candidate who pays for empty lessons is a refund and a
+#: review, and the +30 would be awarded for watching nothing.
 HAS_MEDIA: Final = False
 
 
@@ -62,8 +63,8 @@ class Lesson:
     title: str
     minutes: int
     #: What the learner should be able to *do* afterwards. Written as an
-    #: outcome because that is what makes an assessment question writable --
-    #: "understands X" cannot be tested, "can rewrite X as Y" can.
+    #: outcome because "understands X" cannot be checked and "can rewrite X
+    #: as Y" can.
     outcome: str
     #: S3 key of the recorded lesson. `None` everywhere today.
     asset_key: str | None = None
@@ -227,24 +228,12 @@ MODULES: Final[tuple[Module, ...]] = (
     ),
 )
 
-#: `evaluate_completion` requires all modules plus 70% on this. Twenty
-#: questions is the smallest bank where 70% is not one lucky guess away from
-#: 65%: each question is worth five points, so the pass line falls between
-#: fourteen and fifteen correct rather than on a boundary.
-ASSESSMENT_QUESTION_COUNT: Final = 20
-ASSESSMENT_PASS_FRACTION: Final = 0.7
-
-#: Drawn at random from a larger bank per attempt, so a retake is not the same
-#: paper. The bank itself is written alongside the questionnaire bank.
-ASSESSMENT_BANK_MINIMUM: Final = 60
-
 
 def total_minutes() -> int:
     return sum(module.minutes for module in MODULES)
 
 
 def module_count() -> int:
-    """What `CourseProgress.modules_total` is seeded from."""
     return len(MODULES)
 
 
@@ -253,11 +242,7 @@ def lesson_count() -> int:
 
 
 def missing_media() -> tuple[str, ...]:
-    """Lesson codes with no recorded asset. Everything, today.
-
-    The catalogue endpoint calls this rather than trusting `HAS_MEDIA`, so a
-    half-recorded course cannot be listed by flipping one flag.
-    """
+    """Lesson codes in the proposed syllabus with no recorded asset."""
     return tuple(
         lesson.code for module in MODULES for lesson in module.lessons if lesson.asset_key is None
     )

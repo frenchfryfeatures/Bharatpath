@@ -1,7 +1,5 @@
 """Role x guard permission matrix, across every role in SRS 1.2.
 
-**Week 1 gate, plan.md section 8 Day 5.**
-
 These call the dependency callables directly with a constructed
 `TenantContext`, so the matrix is exhaustive and needs no database: N roles
 against N guards is N^2 assertions, and at ten roles that is a hundred round

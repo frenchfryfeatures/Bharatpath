@@ -460,7 +460,7 @@ async def test_an_infected_file_is_never_parsed(candidate: uuid.UUID, fake_s3: F
     assert versions == 0, "an infected file was parsed"
 
 
-# --- 202 and status polling (Day 7) ---------------------------------------
+# --- 202 and status polling ---------------------------------------------
 async def _status(user_id: uuid.UUID, file_id: uuid.UUID) -> tuple[Any, Any]:
     from app.modules.resume import service
 

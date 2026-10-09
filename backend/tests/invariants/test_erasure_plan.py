@@ -123,8 +123,8 @@ async def test_the_carve_out_is_never_deleted() -> None:
     body = await _erasure_sql()
     for table in tables_with_disposition(Disposition.RETAIN):
         assert not re.search(rf"DELETE FROM {table}\b", body), (
-            f"{table} is retained under the financial/audit carve-out (answers-log 7.4, "
-            "Round 10.2) and must never be deleted by an erasure"
+            f"{table} is retained under the financial/audit carve-out the client "
+            "confirmed, and must never be deleted by an erasure"
         )
         assert not re.search(rf"UPDATE {table}\b", body), f"{table} is retained whole"
     # The anchor is emptied, never dropped.

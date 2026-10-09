@@ -1,4 +1,4 @@
-"""Transcribe and evaluate a completed mock-interview session (Day 17).
+"""Transcribe and evaluate a completed mock-interview session.
 
 Triggered by `interview.session_completed`, beside the re-score. **Feedback
 only**: the +20 was recorded at completion, before this runs, and nothing here

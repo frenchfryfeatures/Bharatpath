@@ -4,8 +4,8 @@
 so four client teams can read the schema. A candidate hitting an `/employer/*`
 route is rejected by the role dependency, never by the routing.
 
-Every module's router is registered here at Day 1 so `openapi.json` is
-publishable from Day 2 and the mobile and web teams are never blocked on us.
+Modules are mounted from the registry (`app.modules.ALL_MODULES`), so a new
+module appears in `openapi.json` without editing this file.
 """
 
 from __future__ import annotations

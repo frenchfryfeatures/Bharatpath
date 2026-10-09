@@ -1,4 +1,4 @@
-"""Day 13 as pure rules: what a masked card may say, and what a city may be.
+"""Masked search as pure rules: what a card may say, and what a city may be.
 
 The card's field list is an invariant (`tests/invariants/test_masked_candidate.py`).
 These are the rules for the free text that still reaches it -- skills from a
