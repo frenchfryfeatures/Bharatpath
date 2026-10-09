@@ -179,7 +179,7 @@ export function AuditTrail({
                   </span>
 
                   <span className="flex flex-wrap items-center gap-2">
-                    <span className="whitespace-nowrap rounded-full bg-[#f0f2f5] px-2.5 py-1 text-[11px] font-semibold leading-[14px] text-[#172033]">
+                    <span className="max-w-full rounded-full bg-[#f0f2f5] px-2.5 py-1 text-[11px] font-semibold leading-[14px] text-[#172033]">
                       {item.operator}
                     </span>
 

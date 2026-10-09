@@ -115,7 +115,7 @@ export function StudentAppShell({ children }: { children: ReactNode }) {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <StudentHeader onOpenDrawer={() => setMobileOpen(true)} />
 
-        <main className="bp-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+        <main className="bp-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
           {children}
         </main>
       </div>

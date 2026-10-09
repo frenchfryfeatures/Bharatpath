@@ -17,7 +17,7 @@ import {
 
 import { interactiveCardClass, MonogramTile, StatusChip } from "./primitives";
 
-export function JobCard({ job }: { job: JobListing }) {
+export function JobCard({ job, matchedSkills }: { job: JobListing; matchedSkills?: string[] }) {
   const router = useRouter();
   const open = () => router.push(`/student/jobs/${job.id}`);
 
@@ -61,6 +61,12 @@ export function JobCard({ job }: { job: JobListing }) {
           {workModeLabel(job.workMode)}
         </span>
       </div>
+
+      {matchedSkills && matchedSkills.length > 0 ? (
+        <p className="text-[12px] leading-4 text-[#4A3E8F]">
+          <span className="font-semibold">Matches:</span> {matchedSkills.join(", ")}
+        </p>
+      ) : null}
 
       <div className="flex items-center gap-2 border-t border-[#F0EBDF] pt-3">
         <Clock size={14} className="text-[#5F6B80]" />

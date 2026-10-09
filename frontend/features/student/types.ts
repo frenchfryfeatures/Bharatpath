@@ -144,6 +144,15 @@ export interface JobListing {
   eligibility: JobEligibility;
 }
 
+export interface RecommendedJob extends JobListing {
+  matchedSkills: string[];
+}
+
+export interface RecommendedJobs {
+  items: RecommendedJob[];
+  hasBasis: boolean;
+}
+
 export type ApplicationStatus =
   | "SUBMITTED"
   | "VIEWED"

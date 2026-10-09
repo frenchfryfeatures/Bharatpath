@@ -138,7 +138,7 @@ export function JobDescriptionView({
         <JobDescriptionCard job={job} t={t} />
       </div>
 
-      {aside ? <aside className="flex flex-col gap-4">{aside}</aside> : null}
+      {aside ? <aside className="flex min-w-0 flex-col gap-4">{aside}</aside> : null}
     </div>
   );
 }
@@ -172,7 +172,7 @@ function JobHeaderCard({
   const posted = formatJobDate(job.postedAt);
 
   return (
-    <section className={t.card}>
+    <section className={`min-w-0 ${t.card}`}>
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h1 className={t.title}>{job.title}</h1>
@@ -290,7 +290,7 @@ function JobHighlights({ job, t }: { job: JobDescriptionData; t: Tone }) {
   if (!highlights.length) return null;
 
   return (
-    <section className={t.card}>
+    <section className={`min-w-0 ${t.card}`}>
       <h2 className={`mb-3 ${t.heading}`}>Job highlights</h2>
       <BulletList items={highlights} t={t} />
     </section>
@@ -340,7 +340,7 @@ function JobDescriptionCard({ job, t }: { job: JobDescriptionData; t: Tone }) {
   ].filter((item): item is string => Boolean(item));
 
   return (
-    <section className={t.card}>
+    <section className={`min-w-0 ${t.card}`}>
       <h2 className={`mb-3 ${t.heading}`}>Job description</h2>
 
       <p className={`whitespace-pre-line ${t.body}`}>
@@ -472,11 +472,11 @@ function Fact({
   children: ReactNode;
 }) {
   return (
-    <span className="inline-flex items-center gap-2">
+    <span className="inline-flex min-w-0 max-w-full items-center gap-2">
       <span className={t.icon} aria-hidden="true">
         {icon}
       </span>
-      <span>{children}</span>
+      <span className="min-w-0">{children}</span>
     </span>
   );
 }
@@ -492,7 +492,7 @@ function Badge({
 }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 text-[10px] font-bold uppercase leading-3 tracking-[0.06em] ${className}`}
+      className={`inline-flex max-w-full items-center gap-1 rounded-full px-2.5 py-1.5 text-[10px] font-bold uppercase leading-3 tracking-[0.06em] ${className}`}
     >
       {icon}
       {children}
@@ -509,7 +509,7 @@ function Chip({
 }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-[13px] font-medium leading-4 ${className}`}
+      className={`inline-flex max-w-full items-center gap-1.5 rounded-full px-3 py-2 text-[13px] font-medium leading-4 ${className}`}
     >
       {children}
     </span>
@@ -566,9 +566,9 @@ function FactSection({
       {title ? <h3 className={`mb-2 ${t.subheading}`}>{title}</h3> : null}
       <dl className={`grid gap-1.5 ${t.body}`}>
         {present.map(([label, value]) => (
-          <div key={label} className="flex flex-wrap gap-x-1.5">
+          <div key={label} className="flex min-w-0 flex-wrap gap-x-1.5">
             <dt className={t.label}>{label}:</dt>
-            <dd>{value}</dd>
+            <dd className="min-w-0">{value}</dd>
           </div>
         ))}
       </dl>

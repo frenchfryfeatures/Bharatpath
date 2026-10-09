@@ -29,6 +29,12 @@ function sectionFor(pathname: string): Section {
   if (pathname === "/student") {
     return { title: "Home", subtitle: "Your job search at a glance" };
   }
+  if (pathname.startsWith("/student/recommended-jobs/similar-to-applied")) {
+    return { title: "Similar jobs", subtitle: "Based on your recent applications" };
+  }
+  if (pathname.startsWith("/student/recommended-jobs/matching-profile")) {
+    return { title: "Jobs for you", subtitle: "Based on your career profile" };
+  }
   if (pathname.startsWith("/student/jobs")) {
     return { title: "Jobs", subtitle: "Roles matched to your score" };
   }

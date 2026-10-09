@@ -12,6 +12,7 @@ import type {
   Page,
   ProfileView,
   QuestionnaireView,
+  RecommendedJobs,
   ScoreScale,
   StreakCalendar,
   StreakCalendarDayStatus,
@@ -113,6 +114,11 @@ interface JobResponse {
   can_apply_externally?: boolean;
   published_at: string;
   eligibility: JobListing["eligibility"];
+}
+
+interface RecommendedJobsResponse {
+  items: Array<JobResponse & { matched_skills: string[] }>;
+  has_basis: boolean;
 }
 
 interface ApplicationResponse {
@@ -272,6 +278,16 @@ function mapJob(response: JobResponse): JobListing {
     canApplyExternally: response.can_apply_externally ?? false,
     publishedAt: response.published_at,
     eligibility: response.eligibility,
+  };
+}
+
+function mapRecommendedJobs(response: RecommendedJobsResponse): RecommendedJobs {
+  return {
+    items: response.items.map((job) => ({
+      ...mapJob(job),
+      matchedSkills: job.matched_skills,
+    })),
+    hasBasis: response.has_basis,
   };
 }
 
@@ -480,6 +496,29 @@ export const studentApi = baseApi.injectEndpoints({
       }),
       providesTags: [{ type: "Job", id: "STUDENT_LIST" }],
     }),
+    getJobsSimilarToApplied: builder.query<RecommendedJobs, { limit: number; eligibleOnly?: boolean }>({
+      query: ({ limit, eligibleOnly }) => ({
+        url: "/candidate/recommended-jobs/similar-to-applied",
+        params: { limit, eligible_only: eligibleOnly },
+      }),
+      transformResponse: mapRecommendedJobs,
+      providesTags: [
+        { type: "Job", id: "RECOMMENDED_SIMILAR" },
+        { type: "Application", id: "STUDENT_LIST" },
+      ],
+    }),
+    getJobsMatchingProfile: builder.query<RecommendedJobs, { limit: number; eligibleOnly?: boolean }>({
+      query: ({ limit, eligibleOnly }) => ({
+        url: "/candidate/recommended-jobs/matching-profile",
+        params: { limit, eligible_only: eligibleOnly },
+      }),
+      transformResponse: mapRecommendedJobs,
+      providesTags: [
+        { type: "Job", id: "RECOMMENDED_PROFILE" },
+        { type: "Student", id: "CAREER" },
+        { type: "Application", id: "STUDENT_LIST" },
+      ],
+    }),
     getStudentJob: builder.query<JobListing, string>({
       query: (jobId) => `/candidate/jobs/${jobId}`,
       transformResponse: mapJob,
@@ -662,6 +701,8 @@ export const {
   useGetStudentStreakCalendarQuery,
   useGetStudentProfileViewsQuery,
   useGetStudentJobsQuery,
+  useGetJobsSimilarToAppliedQuery,
+  useGetJobsMatchingProfileQuery,
   useLazyGetStudentJobsQuery,
   useGetStudentJobQuery,
   useGetStudentApplicationsQuery,

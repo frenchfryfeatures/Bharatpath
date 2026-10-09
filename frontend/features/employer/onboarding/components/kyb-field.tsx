@@ -92,7 +92,7 @@ export function renderFieldLabel(
       return (
         <>
           {mainPart}{" "}
-          <span className="whitespace-nowrap">
+          <span>
             {lastWord}
             <span className={`ml-0.5 ${asteriskColor}`} aria-hidden="true">
               *
@@ -102,7 +102,7 @@ export function renderFieldLabel(
       );
     }
     return (
-      <span className="whitespace-nowrap">
+      <span>
         {trimmed}
         <span className={`ml-0.5 ${asteriskColor}`} aria-hidden="true">
           *
@@ -118,7 +118,7 @@ export function renderFieldLabel(
       return (
         <>
           {mainPart}{" "}
-          <span className="whitespace-nowrap">
+          <span>
             {lastWord}
             <span className="ml-1 text-[11px] font-normal text-[#8790a0]">
               {optionalText}
@@ -128,7 +128,7 @@ export function renderFieldLabel(
       );
     }
     return (
-      <span className="whitespace-nowrap">
+      <span>
         {trimmed}
         <span className="ml-1 text-[11px] font-normal text-[#8790a0]">
           {optionalText}
