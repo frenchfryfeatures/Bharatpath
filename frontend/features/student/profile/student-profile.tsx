@@ -13,6 +13,7 @@ import {
   FileText,
   KeyRound,
   ClipboardList,
+  GraduationCap,
   Languages,
   Mic2,
   type LucideIcon,
@@ -122,6 +123,13 @@ export function StudentProfile() {
                   detail={`${courses.data?.length ?? 0} available · ${courses.data?.filter((course) => course.completed).length ?? 0} completed`}
                   tone="blue"
                   onClick={() => router.push("/student/courses")}
+                />
+                <ProfileAction
+                  icon={GraduationCap}
+                  title="College"
+                  detail="Link a college, answer invitations, manage consent"
+                  tone="blue"
+                  onClick={() => router.push("/student/college")}
                 />
                 <ProfileAction
                   icon={ClipboardList}
