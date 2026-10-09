@@ -32,6 +32,7 @@ export function StudentOnboardingGate({ children }: { children: ReactNode }) {
       router.replace("/login");
       return;
     }
+    if (isResolving) return;
     if (user?.backendRole === "NO_ACTIVE_MEMBERSHIP") {
       router.replace("/signup/student");
       return;

@@ -57,12 +57,22 @@ export function identityDisplayLabel(
 let pending: Promise<boolean> | null = null;
 
 /**
+ * Signup stores a provisional user (no membership yet, or no role at all).
+ * Once onboarding finishes the membership exists but the slice still holds
+ * that provisional user, so it has to be read again from `/auth/me`.
+ */
+function isProvisional(user: AuthUser | null): boolean {
+  return Boolean(user) && (!user?.backendRole || user.backendRole === "NO_ACTIVE_MEMBERSHIP");
+}
+
+/**
  * The signed-in person. Sign-in stores them in the auth slice; after a page
  * reload the slice is empty, so it is filled once from the backend's
  * `/auth/me`, resolved from the bearer token kept in localStorage rather
- * than from anything the browser remembered. `isResolving` is false once
- * there is an answer either way, so callers never wait on a session that
- * cannot be read.
+ * than from anything the browser remembered. A provisional user left by
+ * signup is re-read once per mount for the same reason. `isResolving` is
+ * false once there is an answer either way, so callers never wait on a
+ * session that cannot be read.
  */
 export function useSessionIdentity(): {
   user: AuthUser | null;
@@ -71,9 +81,11 @@ export function useSessionIdentity(): {
   const dispatch = useAppDispatch();
   const user = useAppSelector((state) => state.auth.user);
   const [failed, setFailed] = useState(false);
+  const [refreshed, setRefreshed] = useState(false);
+  const provisional = isProvisional(user);
 
   useEffect(() => {
-    if (user) {
+    if (user && (!provisional || refreshed)) {
       return;
     }
 
@@ -90,15 +102,15 @@ export function useSessionIdentity(): {
       });
 
     void pending.then((resolved) => {
-      if (active && !resolved) {
-        setFailed(true);
-      }
+      if (!active) return;
+      if (user) setRefreshed(true);
+      else if (!resolved) setFailed(true);
     });
 
     return () => {
       active = false;
     };
-  }, [dispatch, user]);
+  }, [dispatch, user, provisional, refreshed]);
 
-  return { user, isResolving: !user && !failed };
+  return { user, isResolving: (!user && !failed) || (provisional && !refreshed) };
 }
