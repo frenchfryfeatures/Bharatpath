@@ -2,7 +2,7 @@
 
 Event to channel fan-out, templates.
 
-Four tables, none of them tenant-scoped: a message belongs to the person it
+Six tables, none of them tenant-scoped: a message belongs to the person it
 was addressed to, and every read filters on that person.
 
 * `notifications` -- **every message we decided to send, sent or not.** One
@@ -17,6 +17,9 @@ was addressed to, and every read filters on that person.
 * `profile_nudges` -- one row per incomplete-profile nudge, numbered per
   person. The unique number is what makes two sweeps at once send one nudge,
   and the count is the cadence cap. Insert-only.
+* `push_devices` -- each installed app's Expo token, associated with its
+  current account and disabled on sign-out or invalid-token receipts.
+* `push_deliveries` -- one attempted device delivery per inbox message.
 """
 
 from __future__ import annotations
@@ -131,6 +134,49 @@ class NotificationPreference(Base):
     nudges_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class PushDevice(Base, UUIDPrimaryKey):
+    __tablename__ = "push_devices"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    token: Mapped[str] = mapped_column(String(256), nullable=False, unique=True)
+    platform: Mapped[str] = mapped_column(String(8), nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        CheckConstraint("platform IN ('android', 'ios')", name="ck_push_devices_platform"),
+    )
+
+
+class PushDelivery(Base):
+    __tablename__ = "push_deliveries"
+
+    notification_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("notifications.id", ondelete="CASCADE"), primary_key=True
+    )
+    device_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("push_devices.id", ondelete="CASCADE"), primary_key=True
+    )
+    state: Mapped[str] = mapped_column(String(16), nullable=False, default="PENDING")
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    ticket_id: Mapped[str | None] = mapped_column(String(128))
+    failure_code: Mapped[str | None] = mapped_column(String(64))
+    attempted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    receipt_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        CheckConstraint("state IN ('PENDING', 'SENT', 'FAILED')", name="ck_push_deliveries_state"),
+        Index("ix_push_deliveries_pending", "attempted_at", postgresql_where="state = 'PENDING'"),
     )
 
 

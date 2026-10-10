@@ -38,7 +38,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import {
   ArrowLeft,
-  ShareNetwork,
   SealCheck,
   CheckCircle,
   CurrencyInr,
@@ -160,7 +159,6 @@ export interface JobDetailScreenProps {
   onBack?: () => void;
   /** Called after a successful apply, with the employer name. */
   onApplied?: (employerName: string) => void;
-  onShare?: () => void;
   /** Called when the job is gone (404) - usually navigate back. */
   onJobGone?: () => void;
   /** Called when subscription is required (402). */
@@ -178,7 +176,6 @@ export function JobDetailScreen({
   alreadyApplied = false,
   onBack,
   onApplied,
-  onShare,
   onJobGone,
   onSubscriptionRequired,
 }: JobDetailScreenProps) {
@@ -318,17 +315,13 @@ export function JobDetailScreen({
     onSubscriptionRequired,
   ]);
 
-  const handleShare = () => {
-    onShare?.();
-    AppAlert.alert('Share Job', `Sharing ${job.title} at ${employerName}.`);
-  };
-
   return (
     <View style={styles.root}>
       <StatusBar style="light" animated />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Dark Navy Hero Section */}
         <View style={styles.navyHero}>
@@ -346,20 +339,6 @@ export function JobDetailScreen({
               >
                 <ArrowLeft size={16} color="#FFFFFF" weight="bold" />
               </Pressable>
-
-              <View style={styles.navRightActions}>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.navCircleBtn,
-                    pressed && styles.buttonPressed,
-                  ]}
-                  onPress={handleShare}
-                  accessibilityRole="button"
-                  accessibilityLabel="Share job"
-                >
-                  <ShareNetwork size={17} color="#FFFFFF" weight="bold" />
-                </Pressable>
-              </View>
             </View>
 
             {/* Role & Company Header */}

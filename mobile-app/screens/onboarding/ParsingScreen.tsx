@@ -106,23 +106,34 @@ export function ParsingScreen({
     useState<ResumeVersionDetailResponse | null>(null);
 
   const hasStartedRef = useRef(false);
+  const inProgressRef = useRef(false);
+  // A retry after intake succeeds must reuse that version. Submitting again
+  // creates another resume and can supersede the one the user was editing.
+  const createdVersionRef = useRef<string | null>(null);
 
   const executeParsing = async () => {
+    if (inProgressRef.current) return;
+    inProgressRef.current = true;
     setErrorMsg(null);
     setCurrentStepIndex(0);
     setProgressPercent(20);
     setIsCompleted(false);
 
     try {
-      let createdVersionId: string | null = null;
+      let createdVersionId: string | null = createdVersionRef.current;
 
       // 1. Process according to source
-      if (payload?.source === 'paste' && payload.pastedText) {
+      if (createdVersionId) {
+        setCurrentStepIndex(4);
+        setProgressPercent(90);
+      } else if (payload?.source === 'paste' && payload.pastedText) {
         // Step 1: Submit pasted text to backend
         setCurrentStepIndex(0);
         setProgressPercent(25);
         const res = await submitPastedText(payload.pastedText);
         createdVersionId = res.resume_version_id;
+        if (!createdVersionId) throw new Error('The server did not return a resume version. Please try again.');
+        createdVersionRef.current = createdVersionId;
 
         // Step 2-4: Simulated visual progress while fetching
         setCurrentStepIndex(1);
@@ -142,6 +153,8 @@ export function ParsingScreen({
         setProgressPercent(25);
         const res = await submitManualResume(payload.manualData);
         createdVersionId = res.resume_version_id;
+        if (!createdVersionId) throw new Error('The server did not return a resume version. Please try again.');
+        createdVersionRef.current = createdVersionId;
 
         // Step 2-4: Simulated visual progress
         setCurrentStepIndex(1);
@@ -174,6 +187,8 @@ export function ParsingScreen({
           const currentProfile = await getCareerProfile();
           const created = await intakeCareerResume(selectedFile);
           createdVersionId = created.resume_version_id;
+          if (!createdVersionId) throw new Error('The server did not return a resume version. Please try again.');
+          createdVersionRef.current = createdVersionId;
           if (initialDetails) {
             try {
               await saveCareerProfile(
@@ -204,7 +219,7 @@ export function ParsingScreen({
         const details = await getResumeVersionDetails(createdVersionId);
         const structured = readyStructuredResume(details);
         const structuredStatus =
-          details.structured_status ?? details.parsed?.structured_status;
+          details?.structured_status ?? details?.parsed?.structured_status;
         if (structured) {
           const currentProfile = await getCareerProfile();
           const mappedDetails = structuredResumeCareerDetails(
@@ -276,6 +291,8 @@ export function ParsingScreen({
             'Network error while parsing resume. Please try again.',
         );
       }
+    } finally {
+      inProgressRef.current = false;
     }
   };
 

@@ -184,28 +184,28 @@ export default function FoundationPreview() {
   };
 
   const restoreOnboarding = async () => {
-    const [versions, profile] = await Promise.all([listResumeVersions(), getCareerProfile()]);
-    const latest = versions.find((version) => !version.superseded);
-    setOnboardingSection(0);
-    setOnboardingDraft(null);
-    setIntakePayload(undefined);
-    setFileMeta(undefined);
-    setResumeVersionId(latest?.resume_version_id);
-    const destination = onboardingDestination(profile, latest);
-    if (destination === 'home') {
+    try {
+      const [versions, profile] = await Promise.all([listResumeVersions(), getCareerProfile()]);
+      const latest = versions.find((version) => !version.superseded);
+      setOnboardingSection(0);
+      setOnboardingDraft(null);
+      setIntakePayload(undefined);
+      setFileMeta(undefined);
+      setResumeVersionId(latest?.resume_version_id);
+      
       refreshScore().catch(() => undefined);
       router.replace('/home');
-    } else {
-      setStep(destination);
-    }
-    // Resume detail rendering is helpful later, but it must never block an
-    // existing confirmed candidate from reaching Home.
-    if (latest) {
-      getResumeVersionDetails(latest.resume_version_id)
-        .then(setResumeVersionDetails)
-        .catch(() => setResumeVersionDetails(null));
-    } else {
-      setResumeVersionDetails(null);
+
+      if (latest) {
+        getResumeVersionDetails(latest.resume_version_id)
+          .then(setResumeVersionDetails)
+          .catch(() => setResumeVersionDetails(null));
+      } else {
+        setResumeVersionDetails(null);
+      }
+    } catch {
+      refreshScore().catch(() => undefined);
+      router.replace('/home');
     }
   };
 
@@ -215,11 +215,9 @@ export default function FoundationPreview() {
         onFinish={async () => {
           const activeSession = session || (await getCurrentSession());
           if (activeSession) {
-            try {
-              await restoreOnboarding();
-            } catch {
-              setStep('review');
-            }
+            refreshScore().catch(() => undefined);
+            router.replace('/home');
+            restoreOnboarding().catch(() => undefined);
             return;
           }
           setStep('intro');

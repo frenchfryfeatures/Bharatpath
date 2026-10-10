@@ -36,6 +36,7 @@ async def run(event_id: str) -> dict[str, int]:
         outgoing = await service.dispatch_event(session, event_id=uuid.UUID(event_id))
 
     outcomes = await send_all(outgoing)
+    await run_push()
     logger.info("notifications_task_done", to_send=len(outgoing), **outcomes)
     return {"to_send": len(outgoing), **outcomes}
 
@@ -84,3 +85,30 @@ async def run_orphaned() -> dict[str, int]:
     if outgoing:
         logger.info("notifications_orphan_sweep", recovered=len(outgoing), **outcomes)
     return {"recovered": len(outgoing), **outcomes}
+
+
+@celery_app.task(name="notifications.push_pending", bind=True, max_retries=3)
+def push_pending(self: Any) -> dict[str, int]:
+    return run_async(run_push())
+
+
+async def run_push() -> dict[str, int]:
+    from app.core.db import get_session_factory
+    from app.modules.notifications import push
+
+    factory = get_session_factory()
+    async with factory() as session, session.begin():
+        queued = await push.queue(session)
+    counts = {"queued": queued, "sent": 0, "failed": 0}
+    for _ in range(100):
+        async with factory() as session, session.begin():
+            outcome = await push.send_one(session)
+        if outcome == "EMPTY":
+            break
+        if outcome == "SENT":
+            counts["sent"] += 1
+        elif outcome == "FAILED":
+            counts["failed"] += 1
+    async with factory() as session, session.begin():
+        counts["receipts_checked"] = await push.check_receipts(session)
+    return counts

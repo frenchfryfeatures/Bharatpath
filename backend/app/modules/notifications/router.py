@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Response, status
 
 from app.core.deps import CurrentUser, DbSession
 from app.modules.notifications import service
@@ -23,12 +23,32 @@ from app.modules.notifications.schemas import (
     InboxItem,
     InboxPage,
     PreferencesResponse,
+    PushDeviceDeleteRequest,
+    PushDeviceRequest,
     UnsubscribeRequest,
     UnsubscribeResponse,
     UpdatePreferencesRequest,
 )
 
 router = APIRouter()
+
+
+@router.post("/devices", status_code=status.HTTP_204_NO_CONTENT)
+async def register_device(
+    payload: PushDeviceRequest, user: CurrentUser, session: DbSession
+) -> Response:
+    await service.register_push_device(
+        session, ctx=user, token=payload.token, platform=payload.platform
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("/devices", status_code=status.HTTP_204_NO_CONTENT)
+async def unregister_device(
+    payload: PushDeviceDeleteRequest, user: CurrentUser, session: DbSession
+) -> Response:
+    await service.unregister_push_device(session, ctx=user, token=payload.token)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("", response_model=InboxPage, summary="My in-app messages, newest first")

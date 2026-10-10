@@ -251,6 +251,8 @@ ERASURE_PLAN: Final[Mapping[str, TablePlan]] = {
     "interview_evaluations": _erase("session_id", "Feedback written about them."),
     "interview_checkout_notices": _erase("user_id", "What they were told before paying."),
     "notifications": _erase("user_id", "Messages addressed to them, with what was rendered."),
+    "push_deliveries": _erase("notification_id", "Attempts to alert their registered phones."),
+    "push_devices": _erase("user_id", "Their phone push tokens and installation records."),
     "application_messages": _erase(
         "application_id",
         "An employer's messages to them about an application (2026-09-29): invitations "

@@ -15,7 +15,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Eye, ChatCircleText, Target } from 'phosphor-react-native';
 import { Colors, Radii, Spacing } from '@/theme/tokens';
 import { updatePushPreference } from '@/services/api/notifications';
-import { isExpoGo, requestDeviceNotificationPermission } from '@/services/notifications/device';
+import { enablePushNotifications, isExpoGo } from '@/services/notifications/device';
 
 export interface NotificationPermissionScreenProps {
   onAllow?: () => void;
@@ -36,12 +36,11 @@ export function NotificationPermissionScreen({
     setShowSettings(false);
 
     try {
-      const result = await requestDeviceNotificationPermission();
+      const result = await enablePushNotifications();
 
       if (result.status === 'unsupported') {
         // Not a failure the candidate can act on, so the preference is still
         // saved and onboarding continues.
-        await updatePushPreference(true).catch(() => undefined);
         onAllow?.();
         return;
       }
@@ -57,8 +56,6 @@ export function NotificationPermissionScreen({
         return;
       }
 
-      // OS permission and the server preference are separate. Both must agree.
-      await updatePushPreference(true);
       onAllow?.();
     } catch (error) {
       console.warn('[Notification permission]', error);
@@ -90,6 +87,7 @@ export function NotificationPermissionScreen({
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {/* Header Title & Subtitle */}
           <View style={styles.headingSection}>

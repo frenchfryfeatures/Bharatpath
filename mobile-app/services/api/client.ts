@@ -73,20 +73,45 @@ export function getBaseUrl(): string {
   return 'http://localhost:8099/api/v1';
 }
 
+export type TokenRefreshHandler = (force?: boolean) => Promise<string | null>;
+
+let tokenRefreshHandler: TokenRefreshHandler | null = null;
+
+export function registerTokenRefreshHandler(handler: TokenRefreshHandler | null): void {
+  tokenRefreshHandler = handler;
+}
+
+export interface ApiRequestOptions {
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  body?: any;
+  headers?: Record<string, string>;
+  token?: string;
+  skipAuthRefresh?: boolean;
+  _isRetry?: boolean;
+}
+
 export async function apiRequest<T>(
   endpoint: string,
-  options: {
-    method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-    body?: any;
-    headers?: Record<string, string>;
-    token?: string;
-  } = {}
+  options: ApiRequestOptions = {}
 ): Promise<T> {
   const baseUrl = getBaseUrl();
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const url = `${baseUrl}${cleanEndpoint}`;
 
-  const token = options.token || currentAccessToken;
+  // 1. Proactive freshness check: if using global session token and refresh is enabled,
+  // ensure we have a fresh token before making the request.
+  let token = options.token || currentAccessToken;
+  if (!options.token && !options.skipAuthRefresh && tokenRefreshHandler) {
+    try {
+      const freshToken = await tokenRefreshHandler(false);
+      if (freshToken) {
+        token = freshToken;
+      }
+    } catch (refreshErr) {
+      console.warn('[API Client] Proactive token freshness check failed:', refreshErr);
+    }
+  }
+
   const requestId = generateRequestId();
 
   const headers: Record<string, string> = {
@@ -112,6 +137,13 @@ export async function apiRequest<T>(
     cache: 'no-store',
   };
 
+  const controller = new AbortController();
+  fetchOptions.signal = controller.signal;
+  const timeout = setTimeout(
+    () => controller.abort(),
+    options.body instanceof FormData ? 120_000 : 30_000,
+  );
+
   if (options.body) {
     fetchOptions.body =
       options.body instanceof FormData ? options.body : JSON.stringify(options.body);
@@ -128,23 +160,55 @@ export async function apiRequest<T>(
           )) as unknown as Response)
         : await fetch(url, fetchOptions);
   } catch (netErr: any) {
-    console.error(`[API Network Error] ${options.method || 'GET'} ${url}:`, netErr);
+    console.warn(`[API Network Error] ${options.method || 'GET'} ${cleanEndpoint}`);
     throw new ApiError({
       type: 'https://bharatpath.example/problems/network_error',
-      title: `Cannot reach backend at ${url}. Please verify the backend API is running.`,
+      title: controller.signal.aborted
+        ? 'The request timed out. Check your connection and try again.'
+        : 'Cannot reach the service. Check your connection and try again.',
       status: 0,
-      code: 'network_error',
-      params: { url, originalError: netErr?.message || String(netErr) },
+      code: controller.signal.aborted ? 'request_timeout' : 'network_error',
     });
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  // 2. Reactive 401 handling: If server returns 401 Unauthorized (e.g. invalid/expired token),
+  // silently refresh via Cognito refresh token and retry the request once.
+  if (response.status === 401 && !options._isRetry && !options.skipAuthRefresh && tokenRefreshHandler) {
+    console.log(`[API Client] Received 401 on ${cleanEndpoint}. Refreshing session token and retrying once...`);
+    try {
+      const renewedToken = await tokenRefreshHandler(true);
+      if (renewedToken) {
+        console.log(`[API Client] Successfully renewed token. Retrying ${cleanEndpoint}...`);
+        return await apiRequest<T>(endpoint, {
+          ...options,
+          token: renewedToken,
+          _isRetry: true,
+        });
+      }
+    } catch (refreshErr) {
+      console.warn('[API Client] Reactive 401 refresh failed:', refreshErr);
+    }
   }
 
   // Check if response is JSON
   const contentType = response.headers.get('content-type') || '';
   const isJson = contentType.includes('application/json') || contentType.includes('application/problem+json');
-  const data = isJson ? await response.json() : await response.text();
+  let data: any;
+  try {
+    data = isJson ? await response.json() : await response.text();
+  } catch {
+    throw new ApiError({
+      type: 'https://bharatpath.example/problems/invalid_response',
+      title: 'The service returned an unreadable response. Please try again.',
+      status: response.status,
+      code: 'invalid_response',
+    });
+  }
 
   if (!response.ok) {
-    console.warn(`[API Error ${response.status}] ${options.method || 'GET'} ${url}:`, JSON.stringify(data));
+    console.warn(`[API Error ${response.status}] ${options.method || 'GET'} ${cleanEndpoint}`);
     if (isJson && data && typeof data === 'object') {
       const detailMsg = Array.isArray(data.detail)
         ? data.detail.map((d: any) => `${d.loc ? d.loc.filter((p: any) => p !== 'body').join('.') : 'field'}: ${d.msg}`).join(', ')

@@ -93,6 +93,18 @@ class NotificationNotFoundError(NotFoundError):
     title = "Notification not found"
 
 
+async def register_push_device(
+    session: AsyncSession, *, ctx: TenantContext, token: str, platform: str
+) -> None:
+    await repository.register_push_device(
+        session, user_id=ctx.user_id, token=token, platform=platform
+    )
+
+
+async def unregister_push_device(session: AsyncSession, *, ctx: TenantContext, token: str) -> None:
+    await repository.unregister_push_device(session, user_id=ctx.user_id, token=token)
+
+
 class NudgeRulesInvalidError(AppError):
     """A bad `notifications.nudges` row stops the sweep. Falling back to the
     defaults would nudge people on rules nobody chose."""

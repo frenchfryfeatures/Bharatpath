@@ -72,6 +72,9 @@ assert.equal(
   }),
   null,
 );
+assert.equal(readyStructuredResume({ structured_status: 'READY', structured_resume: { skills: 'not an array' } }), null);
+assert.equal(readyStructuredResume({ structured_status: 'READY', structured_resume: { experience: [null] } }), null);
+assert.equal(readyStructuredResume({ structured_status: 'READY', structured_resume: { other_sections: [{ heading: 'Other', items: null }] } }), null);
 
 const sections = structuredResumeSections(structured);
 assert.match(sections.find((section) => section.kind === 'header').body, /sameer@example.com/);

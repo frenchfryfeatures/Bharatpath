@@ -70,7 +70,7 @@ export function CareerDetailsScreen({
   resumeFilename?: string;
   onboarding?: boolean;
   onBack: () => void;
-  onDone: (profile: CareerProfile) => void;
+  onDone: (profile: CareerProfile) => void | Promise<void>;
   initialSection?: number;
 }) {
   const { candidateFullName, session, rememberCandidate } = useAuthContext();
@@ -367,8 +367,11 @@ export function CareerDetailsScreen({
       setProfile(saved);
       setActiveVersionId(saved.resume_version_id);
       if (step === groups.length - 1) {
-        onDone(saved);
-      } else setStep(step + 1);
+        await onDone(saved);
+      } else {
+        setStep(step + 1);
+        scrollRef.current?.scrollTo({ y: 0, animated: true });
+      }
     } catch (failure) {
       setError(
         failure instanceof Error
@@ -396,6 +399,30 @@ export function CareerDetailsScreen({
     }
   };
 
+  if (fields.length === 0 && busy) {
+    return (
+      <SafeAreaView style={styles.screen}>
+        <View style={styles.header}>
+          <Pressable
+            accessibilityLabel="Back"
+            disabled={true}
+            onPress={goBack}
+            style={[styles.back, styles.backDisabled]}
+          >
+            <ArrowLeft size={22} color="#9AA1AE" />
+          </Pressable>
+          <Text style={styles.title}>
+            {onboarding ? 'Create your profile' : 'Profile details'}
+          </Text>
+        </View>
+        <View style={styles.centerLoading}>
+          <ActivityIndicator size="large" color="#5F4DB2" />
+          <Text style={styles.centerLoadingText}>Loading profile details…</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.screen}>
       <View style={styles.header}>
@@ -403,9 +430,9 @@ export function CareerDetailsScreen({
           accessibilityLabel="Back"
           disabled={busy}
           onPress={goBack}
-          style={styles.back}
+          style={[styles.back, busy && styles.backDisabled]}
         >
-          <ArrowLeft size={22} color="#0A1931" />
+          <ArrowLeft size={22} color={busy ? '#9AA1AE' : '#0A1931'} />
         </Pressable>
         <Text style={styles.title}>
           {onboarding ? 'Create your profile' : 'Profile details'}
@@ -419,6 +446,7 @@ export function CareerDetailsScreen({
         <ScrollView
           ref={scrollRef}
           key={`${editing}-${step}`}
+          pointerEvents={busy ? 'none' : 'auto'}
           contentContainerStyle={[
             styles.content,
             { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 120 : 60 },
@@ -427,16 +455,6 @@ export function CareerDetailsScreen({
           keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
         >
-        {busy && (
-          <View style={styles.loading}>
-            <ActivityIndicator color="#5F4DB2" />
-            <Text style={styles.help}>
-              {onboarding && !profile
-                ? 'Reading your resume. Scoring starts after membership payment.'
-                : 'Please wait…'}
-            </Text>
-          </View>
-        )}
         {!!error && (
           <Text accessibilityRole="alert" style={styles.error}>
             {error}
@@ -642,23 +660,42 @@ export function CareerDetailsScreen({
               <Pressable
                 disabled={busy}
                 onPress={goBack}
-                style={styles.back}
+                style={[styles.back, busy && styles.backDisabled]}
               >
-                <ArrowLeft size={18} color="#0A1931" />
-                <Text style={styles.label}>Back</Text>
+                <ArrowLeft size={18} color={busy ? '#9AA1AE' : '#0A1931'} />
+                <Text style={[styles.label, busy && styles.labelDisabled]}>Back</Text>
               </Pressable>
               <Pressable
                 disabled={busy}
                 onPress={() => void save()}
-                style={[styles.primary, { flex: 1 }]}
+                style={[
+                  styles.primary,
+                  { flex: 1 },
+                  busy && styles.primaryDisabled,
+                ]}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: busy, busy }}
               >
-                <Text style={styles.primaryText}>
-                  {step === 3
-                    ? onboarding
-                      ? 'Save and continue'
-                      : 'Save & update score'
-                    : 'Save and continue'}
-                </Text>
+                {busy ? (
+                  <View style={styles.buttonLoadingRow}>
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <Text style={styles.primaryText}>
+                      {step === groups.length - 1
+                        ? onboarding
+                          ? 'Saving profile…'
+                          : 'Updating score…'
+                        : 'Saving…'}
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={styles.primaryText}>
+                    {step === 3
+                      ? onboarding
+                        ? 'Save and continue to membership'
+                        : 'Save & update score'
+                      : 'Save and continue'}
+                  </Text>
+                )}
               </Pressable>
             </View>
           </>
@@ -811,4 +848,32 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   selectedText: { color: '#5F4DB2' },
+  buttonLoadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  primaryDisabled: {
+    opacity: 0.75,
+  },
+  backDisabled: {
+    opacity: 0.5,
+    borderColor: '#E7E0D4',
+  },
+  labelDisabled: {
+    color: '#9AA1AE',
+  },
+  centerLoading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+    padding: 24,
+  },
+  centerLoadingText: {
+    fontFamily: 'GeneralSans-Medium',
+    fontSize: 15,
+    color: '#5F6B80',
+  },
 });

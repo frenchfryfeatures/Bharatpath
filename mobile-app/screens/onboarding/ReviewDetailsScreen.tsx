@@ -57,8 +57,11 @@ export interface ReviewDetailsScreenProps {
   subtitle?: string;
   confirmButtonText?: string;
   showReadyBadge?: boolean;
-  onConfirm?: (confirmedVersionId?: string, confirmedAt?: string) => void;
-  onFixField?: (field: string) => void;
+  onConfirm?: (
+    confirmedVersionId?: string,
+    confirmedAt?: string,
+    alreadyConfirmed?: boolean
+  ) => void;
   candidateName?: string;
   candidateEmail?: string;
   manualData?: ManualResumeData;
@@ -70,6 +73,8 @@ export interface ReviewDetailsScreenProps {
   ) => void;
   onUploadNewResume?: () => void;
   onRequireSubscription?: () => void;
+  requireEditToSave?: boolean;
+  initialHasEdited?: boolean;
 }
 
 // Parse header lines into structured basics
@@ -129,9 +134,22 @@ export function ReviewDetailsScreen({
   onVersionUpdated,
   onUploadNewResume,
   onRequireSubscription,
+  requireEditToSave = false,
+  initialHasEdited = false,
 }: ReviewDetailsScreenProps) {
   const [activeVersionId, setActiveVersionId] = useState(versionId);
   const [details, setDetails] = useState(versionDetails);
+  const [hasEdited, setHasEdited] = useState(initialHasEdited);
+
+  const initialVersionIdRef = React.useRef(versionId);
+
+  useEffect(() => {
+    if (versionId && initialVersionIdRef.current && versionId !== initialVersionIdRef.current) {
+      setHasEdited(true);
+    }
+  }, [versionId]);
+
+  const canSave = !requireEditToSave || hasEdited || !details?.confirmed;
 
   // Modals state
   const [editingSectionIndex, setEditingSectionIndex] = useState<number | null>(null);
@@ -249,6 +267,7 @@ export function ReviewDetailsScreen({
     const newDetails = await getResumeVersionDetails(newVersionId);
     setActiveVersionId(newVersionId);
     setDetails(newDetails);
+    setHasEdited(true);
     onVersionUpdated?.(newVersionId, newDetails);
   };
 
@@ -463,7 +482,7 @@ export function ReviewDetailsScreen({
       try {
         setIsConfirming(true);
         const res = await confirmResumeVersion(activeVersionId);
-        onConfirm?.(activeVersionId, res?.confirmed_at);
+        onConfirm?.(activeVersionId, res?.confirmed_at, res?.already_confirmed);
       } catch (error) {
         if (isSubscriptionRequiredError(error)) {
           onRequireSubscription?.();
@@ -512,6 +531,7 @@ export function ReviewDetailsScreen({
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {/* Header Title & Subtitle */}
           <View style={styles.titleSection}>
@@ -978,11 +998,11 @@ export function ReviewDetailsScreen({
           <Pressable
             style={({ pressed }) => [
               styles.confirmButton,
-              isConfirming && styles.buttonDisabled,
-              pressed && !isConfirming && styles.buttonPressed,
+              (isConfirming || (requireEditToSave && !canSave)) && styles.buttonDisabled,
+              pressed && !isConfirming && (!requireEditToSave || canSave) && styles.buttonPressed,
             ]}
             onPress={confirmCurrentVersion}
-            disabled={isConfirming}
+            disabled={isConfirming || (requireEditToSave && !canSave)}
           >
             {isConfirming ? (
               <View style={styles.buttonLoadingRow}>

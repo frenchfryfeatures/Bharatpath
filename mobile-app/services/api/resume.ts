@@ -221,6 +221,59 @@ export interface ResumeVersionSummary {
   created_at: string;
 }
 
+const record = (value: unknown): Record<string, unknown> | null =>
+  value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+
+const textOrEmpty = (value: unknown): string =>
+  typeof value === 'string' ? value : '';
+
+/** Keep incomplete parser output renderable without trusting its JSON shape. */
+export function normalizeResumeVersionDetails(value: unknown): ResumeVersionDetailResponse {
+  const detail = record(value);
+  if (!detail || typeof detail.resume_version_id !== 'string' || !detail.resume_version_id) {
+    throw new Error('The server returned incomplete resume details. Please try again.');
+  }
+  const parsed = record(detail.parsed) ?? {};
+  const sections = Array.isArray(detail.sections)
+    ? detail.sections.flatMap((entry): ResumeSection[] => {
+        const section = record(entry);
+        if (!section || typeof section.kind !== 'string') return [];
+        return [{
+          kind: section.kind as SectionKind,
+          heading: typeof section.heading === 'string' ? section.heading : null,
+          body: textOrEmpty(section.body),
+          items: Array.isArray(section.items)
+            ? section.items.flatMap((item): ResumeSectionItem[] => {
+                const data = record(item);
+                return data && typeof data.text === 'string'
+                  ? [{ text: data.text, unclear: data.unclear === true,
+                      suggestion: typeof data.suggestion === 'string' ? data.suggestion : null }]
+                  : [];
+              })
+            : null,
+        }];
+      })
+    : null;
+  return {
+    ...detail,
+    resume_version_id: detail.resume_version_id,
+    parsed: {
+      ...parsed,
+      raw_text: textOrEmpty(parsed.raw_text),
+      full_name: textOrEmpty(parsed.full_name),
+      headline: textOrEmpty(parsed.headline),
+      experience: Array.isArray(parsed.experience) ? parsed.experience.filter(record) : [],
+      education: Array.isArray(parsed.education) ? parsed.education.filter(record) : [],
+      skills: Array.isArray(parsed.skills) ? parsed.skills.filter((v): v is string => typeof v === 'string') : [],
+    },
+    sections,
+    confirmed: detail.confirmed === true,
+    superseded: detail.superseded === true,
+  } as ResumeVersionDetailResponse;
+}
+
 /**
  * 1. Issue a presigned PUT URL for uploading a CV document
  */
@@ -399,9 +452,10 @@ export async function submitManualResume(
 export async function getResumeVersionDetails(
   versionId: string,
 ): Promise<ResumeVersionDetailResponse> {
-  return await apiRequest<ResumeVersionDetailResponse>(
+  const details = await apiRequest<unknown>(
     `/candidate/resume/versions/${versionId}`,
   );
+  return normalizeResumeVersionDetails(details);
 }
 
 /**
@@ -438,5 +492,8 @@ export async function confirmResumeVersion(
  * 10. List all resume versions for the authenticated candidate
  */
 export async function listResumeVersions(): Promise<ResumeVersionSummary[]> {
-  return await apiRequest<ResumeVersionSummary[]>('/candidate/resume/versions');
+  const versions = await apiRequest<unknown>('/candidate/resume/versions');
+  if (!Array.isArray(versions)) throw new Error('The server returned an invalid resume list. Please try again.');
+  return versions.filter((version): version is ResumeVersionSummary =>
+    !!record(version) && typeof version.resume_version_id === 'string' && !!version.resume_version_id);
 }

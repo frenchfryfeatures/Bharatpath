@@ -16,7 +16,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import func, select, update
+from sqlalchemy import exists, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,7 +26,129 @@ from app.modules.notifications.models import (
     NotificationPreference,
     NotificationSuppression,
     ProfileNudge,
+    PushDelivery,
+    PushDevice,
 )
+
+
+async def register_push_device(
+    session: AsyncSession, *, user_id: uuid.UUID, token: str, platform: str
+) -> None:
+    await session.execute(
+        pg_insert(PushDevice)
+        .values(id=uuid.uuid4(), user_id=user_id, token=token, platform=platform, active=True)
+        .on_conflict_do_update(
+            index_elements=["token"],
+            set_={
+                "user_id": user_id,
+                "platform": platform,
+                "active": True,
+                "created_at": func.now(),
+                "updated_at": func.now(),
+            },
+            where=or_(PushDevice.user_id != user_id, PushDevice.active.is_(False)),
+        )
+    )
+
+
+async def unregister_push_device(session: AsyncSession, *, user_id: uuid.UUID, token: str) -> None:
+    await session.execute(
+        update(PushDevice)
+        .where(PushDevice.user_id == user_id, PushDevice.token == token)
+        .values(active=False, updated_at=func.now())
+    )
+
+
+async def deactivate_push_device(session: AsyncSession, *, device_id: uuid.UUID) -> None:
+    await session.execute(update(PushDevice).where(PushDevice.id == device_id).values(active=False))
+
+
+async def queue_push_deliveries(session: AsyncSession, *, since: datetime, limit: int = 500) -> int:
+    """Queue only messages created while this device was registered and opted in."""
+    missing = ~exists(
+        select(PushDelivery.notification_id).where(
+            PushDelivery.notification_id == Notification.id,
+            PushDelivery.device_id == PushDevice.id,
+        )
+    )
+    suppressed = exists(
+        select(NotificationSuppression.id).where(
+            NotificationSuppression.user_id == Notification.user_id,
+            NotificationSuppression.channel.in_(("PUSH", "ALL")),
+            NotificationSuppression.lifted_at.is_(None),
+        )
+    )
+    rows = (
+        await session.execute(
+            select(Notification.id, PushDevice.id, NotificationPreference.push_enabled, suppressed)
+            .join(PushDevice, PushDevice.user_id == Notification.user_id)
+            .outerjoin(
+                NotificationPreference, NotificationPreference.user_id == Notification.user_id
+            )
+            .where(
+                Notification.channel == "IN_APP",
+                Notification.state == "DELIVERED",
+                Notification.created_at >= since,
+                Notification.read_at.is_(None),
+                PushDevice.active.is_(True),
+                PushDevice.created_at <= Notification.created_at,
+                missing,
+            )
+            .order_by(Notification.created_at)
+            .limit(limit)
+        )
+    ).all()
+    for notification_id, device_id, push_enabled, is_suppressed in rows:
+        enabled = push_enabled is not False and not is_suppressed
+        await session.execute(
+            pg_insert(PushDelivery)
+            .values(
+                notification_id=notification_id,
+                device_id=device_id,
+                state="PENDING" if enabled else "FAILED",
+                failure_code=None if enabled else "suppressed" if is_suppressed else "opted_out",
+            )
+            .on_conflict_do_nothing()
+        )
+    return len(rows)
+
+
+async def pending_push_deliveries(session: AsyncSession, *, before: datetime, limit: int = 100):
+    return (
+        await session.execute(
+            select(PushDelivery, Notification, PushDevice)
+            .join(Notification, Notification.id == PushDelivery.notification_id)
+            .join(PushDevice, PushDevice.id == PushDelivery.device_id)
+            .where(
+                PushDelivery.state == "PENDING",
+                PushDelivery.attempts < 3,
+                or_(PushDelivery.attempted_at.is_(None), PushDelivery.attempted_at < before),
+                PushDevice.active.is_(True),
+                PushDevice.user_id == Notification.user_id,
+                PushDevice.created_at <= Notification.created_at,
+            )
+            .order_by(Notification.created_at)
+            .limit(limit)
+            .with_for_update(skip_locked=True, of=PushDelivery)
+        )
+    ).all()
+
+
+async def unchecked_push_receipts(session: AsyncSession, *, before: datetime, limit: int = 100):
+    return (
+        await session.execute(
+            select(PushDelivery, PushDevice)
+            .join(PushDevice, PushDevice.id == PushDelivery.device_id)
+            .where(
+                PushDelivery.state == "SENT",
+                PushDelivery.ticket_id.is_not(None),
+                PushDelivery.receipt_checked_at.is_(None),
+                PushDelivery.attempted_at < before,
+            )
+            .limit(limit)
+            .with_for_update(skip_locked=True, of=PushDelivery)
+        )
+    ).all()
 
 
 async def current_config(session: AsyncSession, *, key: str, now: datetime) -> ConfigValue | None:

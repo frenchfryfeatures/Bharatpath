@@ -28,6 +28,7 @@ export function HeroScreen({ heroContent, children, style, scrollable = true }: 
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           bounces={true}
         >
           <View style={styles.hero}>

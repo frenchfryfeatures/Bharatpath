@@ -19,7 +19,7 @@
  * - Brand Gold: #B9891A
  * - Fire Orange: #FF6B00
  */
-import React, { useCallback, useEffect, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -44,6 +44,7 @@ import { Colors, Spacing, Radii, Typography } from '@/theme/tokens';
 import { useStreak } from '@/hooks/useStreak';
 import {
   getStreakPointHistory,
+  getStreakCalendar,
   streakStatusLabel,
   streakSubtitle,
   pointsChangeLabel,
@@ -53,6 +54,8 @@ import {
   StreakPointsChange,
   StreakMilestone,
   StreakStatus,
+  StreakCalendarResponse,
+  StreakViewPeriod,
 } from '@/types/streak';
 
 export interface StreakDetailScreenProps {
@@ -116,6 +119,39 @@ function getStatusTheme(status: StreakStatus | undefined) {
   };
 }
 
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+export const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
+
+function parseDateKey(value: string): Date {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+function toDateKey(value: Date): string {
+  return value.toISOString().slice(0, 10);
+}
+
+function addDays(value: Date, days: number): Date {
+  return new Date(value.getTime() + days * DAY_IN_MS);
+}
+
+function calendarArgsFor(
+  period: StreakViewPeriod,
+  today: string,
+): {
+  period?: StreakViewPeriod;
+  date?: string;
+  from?: string;
+  to?: string;
+} {
+  if (period === 'year') {
+    const year = today.slice(0, 4);
+    return { from: `${year}-01-01`, to: `${year}-12-31` };
+  }
+  return { period, date: today };
+}
+
 interface WeekActivityDay {
   dayLabel: string;
   dayNum: number;
@@ -125,83 +161,44 @@ interface WeekActivityDay {
   isFuture: boolean;
 }
 
-/** Computes the 7 days of the current week (Mon-Sun) and their activity status */
-function getWeekActivityDays(
-  todayStr: string | undefined,
-  currentStreak: number,
-  status: StreakStatus | undefined,
-  history: StreakPointsChange[] = [],
-): WeekActivityDay[] {
-  let todayDate = new Date();
-  if (todayStr) {
-    const parts = todayStr.split('-').map(Number);
-    if (parts.length === 3 && !parts.some(Number.isNaN)) {
-      todayDate = new Date(parts[0], parts[1] - 1, parts[2]);
-    }
-  }
-
-  // Get Monday of the current ISO week (Mon = 1, Sun = 0)
-  const dayOfWeek = todayDate.getDay();
-  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-
-  const monday = new Date(todayDate);
-  monday.setDate(todayDate.getDate() + mondayOffset);
-
-  const days: WeekActivityDay[] = [];
-  const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-  const historyActiveDates = new Set<string>();
-  for (const item of history) {
-    if (item.activity_on) {
-      historyActiveDates.add(item.activity_on);
-    }
-  }
-
-  const todayIso = todayStr || todayDate.toISOString().slice(0, 10);
-
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    const dateStr = `${y}-${m}-${day}`;
-
-    const isToday = dateStr === todayIso;
-    const isFuture = dateStr > todayIso;
-
-    let isActive = false;
-    if (isToday) {
-      isActive = status === 'ACTIVE_TODAY';
-    } else if (!isFuture) {
-      const diffMs = todayDate.getTime() - d.getTime();
-      const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
-      if (status === 'ACTIVE_TODAY') {
-        isActive = (diffDays > 0 && diffDays < currentStreak) || historyActiveDates.has(dateStr);
-      } else {
-        isActive = (diffDays > 0 && diffDays <= currentStreak) || historyActiveDates.has(dateStr);
-      }
-    }
-
-    days.push({
-      dayLabel: dayLabels[i],
-      dayNum: d.getDate(),
-      dateStr,
-      isToday,
-      isActive,
-      isFuture,
-    });
-  }
-
-  return days;
-}
-
 export function StreakDetailScreen({ onBack }: StreakDetailScreenProps) {
   const { streak, loading, refreshing, error, refresh } = useStreak();
   const [history, setHistory] = useState<StreakPointsChange[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [checkingIn, setCheckingIn] = useState(false);
+  const [view, setView] = useState<StreakViewPeriod>('week');
+  const [calendarCache, setCalendarCache] = useState<
+    Record<StreakViewPeriod, StreakCalendarResponse | null>
+  >({
+    week: null,
+    month: null,
+    year: null,
+  });
+  const [calendarLoading, setCalendarLoading] = useState(false);
+  const yearScrollRef = useRef<ScrollView>(null);
+
+  const loadCalendar = useCallback(
+    async (period: StreakViewPeriod, todayStr?: string) => {
+      if (!todayStr) return;
+      setCalendarLoading(true);
+      try {
+        const args = calendarArgsFor(period, todayStr);
+        const data = await getStreakCalendar(args);
+        setCalendarCache((prev) => ({ ...prev, [period]: data }));
+      } catch {
+        // Silent - streak data provides fallback
+      } finally {
+        setCalendarLoading(false);
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (streak?.today) {
+      loadCalendar(view, streak.today);
+    }
+  }, [view, streak?.today, loadCalendar]);
 
   const loadHistory = useCallback(async () => {
     try {
@@ -221,7 +218,10 @@ export function StreakDetailScreen({ onBack }: StreakDetailScreenProps) {
   const onRefresh = useCallback(() => {
     refresh();
     loadHistory();
-  }, [refresh, loadHistory]);
+    if (streak?.today) {
+      loadCalendar(view, streak.today);
+    }
+  }, [refresh, loadHistory, streak?.today, view, loadCalendar]);
 
   const handleManualCheckIn = useCallback(async () => {
     if (checkingIn) return;
@@ -230,12 +230,15 @@ export function StreakDetailScreen({ onBack }: StreakDetailScreenProps) {
       await checkIn();
       refresh();
       loadHistory();
+      if (streak?.today) {
+        loadCalendar(view, streak.today);
+      }
     } catch {
       // Non-fatal transient error
     } finally {
       setCheckingIn(false);
     }
-  }, [checkingIn, refresh, loadHistory]);
+  }, [checkingIn, refresh, loadHistory, streak?.today, view, loadCalendar]);
 
   const status = streak?.status;
   const current = streak?.current_streak ?? 0;
@@ -248,9 +251,132 @@ export function StreakDetailScreen({ onBack }: StreakDetailScreenProps) {
   const flameConfig = getHeroFlameConfig(status);
   const statusTheme = getStatusTheme(status);
 
+  const currentCalendar = calendarCache[view];
+
+  const activeDates = useMemo(() => {
+    const days = currentCalendar?.days;
+    if (days && days.length > 0) {
+      return new Set(
+        days
+          .filter((d) => d.status === 'ACTIVE')
+          .map((d) => d.date),
+      );
+    }
+    const set = new Set<string>();
+    if (streak && streak.current_streak > 0 && streak.last_active_on) {
+      const lastActive = parseDateKey(streak.last_active_on);
+      for (let i = 0; i < streak.current_streak; i++) {
+        set.add(toDateKey(addDays(lastActive, -i)));
+      }
+    }
+    for (const h of history) {
+      if (h.activity_on) set.add(h.activity_on);
+    }
+    return set;
+  }, [currentCalendar, streak, history]);
+
   const weekDays = useMemo(() => {
-    return getWeekActivityDays(streak?.today, current, status, history);
-  }, [streak?.today, current, status, history]);
+    const todayIso = streak?.today || toDateKey(new Date());
+    const date = parseDateKey(todayIso);
+    const weekday = date.getUTCDay();
+    const mondayOffset = weekday === 0 ? -6 : 1 - weekday;
+    const monday = addDays(date, mondayOffset);
+
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = addDays(monday, i);
+      const dateStr = toDateKey(d);
+      const isToday = dateStr === todayIso;
+      const isFuture = dateStr > todayIso;
+      const isActive = activeDates.has(dateStr);
+
+      return {
+        dayLabel: WEEKDAY_LABELS[i],
+        dayNum: d.getUTCDate(),
+        dateStr,
+        isToday,
+        isActive,
+        isFuture,
+      };
+    });
+  }, [streak?.today, activeDates]);
+
+  const monthData = useMemo(() => {
+    const todayIso = streak?.today || toDateKey(new Date());
+    const date = parseDateKey(todayIso);
+    const year = date.getUTCFullYear();
+    const month = date.getUTCMonth();
+
+    const firstDay = new Date(Date.UTC(year, month, 1));
+    const lastDay = new Date(Date.UTC(year, month + 1, 0));
+    const firstWeekday = firstDay.getUTCDay();
+    const mondayOffset = firstWeekday === 0 ? -6 : 1 - firstWeekday;
+    const firstMonday = addDays(firstDay, mondayOffset);
+
+    const dayCount = Math.round((lastDay.getTime() - firstMonday.getTime()) / DAY_IN_MS) + 1;
+    const totalGridDays = Math.ceil(dayCount / 7) * 7;
+    const days = Array.from({ length: totalGridDays }, (_, i) => addDays(firstMonday, i));
+
+    const monthName = new Intl.DateTimeFormat('en-IN', {
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'UTC',
+    }).format(date);
+
+    const completedCount = days.filter(
+      (d) => d.getUTCMonth() === month && activeDates.has(toDateKey(d)),
+    ).length;
+
+    return {
+      year,
+      month,
+      monthName,
+      days,
+      completedCount,
+      todayIso,
+    };
+  }, [streak?.today, activeDates]);
+
+  const yearData = useMemo(() => {
+    const todayIso = streak?.today || toDateKey(new Date());
+    const date = parseDateKey(todayIso);
+    const year = date.getUTCFullYear();
+    const start = new Date(Date.UTC(year, 0, 1));
+    const end = new Date(Date.UTC(year, 11, 31));
+
+    const firstWeekday = start.getUTCDay();
+    const mondayOffset = firstWeekday === 0 ? -6 : 1 - firstWeekday;
+    const firstMonday = addDays(start, mondayOffset);
+
+    const dayCount = Math.round((end.getTime() - firstMonday.getTime()) / DAY_IN_MS) + 1;
+    const totalDays = Math.ceil(dayCount / 7) * 7;
+    const allDays = Array.from({ length: totalDays }, (_, i) => addDays(firstMonday, i));
+
+    const weeks = Array.from({ length: allDays.length / 7 }, (_, i) =>
+      allDays.slice(i * 7, i * 7 + 7),
+    );
+
+    const totalOpened = allDays.filter(
+      (d) => d.getUTCFullYear() === year && activeDates.has(toDateKey(d)),
+    ).length;
+
+    return {
+      year,
+      start,
+      end,
+      weeks,
+      totalOpened,
+      todayIso,
+    };
+  }, [streak?.today, activeDates]);
+
+  useEffect(() => {
+    if (view === 'year') {
+      const timer = setTimeout(() => {
+        yearScrollRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [view]);
 
   return (
     <View style={styles.root}>
@@ -273,6 +399,7 @@ export function StreakDetailScreen({ onBack }: StreakDetailScreenProps) {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -408,67 +535,304 @@ export function StreakDetailScreen({ onBack }: StreakDetailScreenProps) {
             </View>
           ) : null}
 
-          {/* 7-Day Activity Heatmap Section */}
+          {/* Activity Calendar / Heatmap Section */}
           <View style={styles.section}>
-            <View style={styles.sectionEyebrowRow}>
-              <Flame size={13} color="#FF6B00" weight="fill" />
-              <Text style={styles.sectionEyebrow}>THIS WEEK'S ACTIVITY</Text>
-            </View>
-            <View style={styles.heatmapCard}>
-              <View style={styles.heatmapWeekRow}>
-                {weekDays.map((day) => (
-                  <View
-                    key={day.dateStr}
-                    style={[styles.dayCol, day.isToday && styles.dayColToday]}
-                  >
-                    <Text
-                      style={[
-                        styles.dayLabelText,
-                        day.isToday && styles.dayLabelTextToday,
-                      ]}
-                    >
-                      {day.dayLabel}
-                    </Text>
-                    <View
-                      style={[
-                        styles.dayCircle,
-                        day.isActive && styles.dayCircleActive,
-                        day.isToday &&
-                          !day.isActive &&
-                          styles.dayCircleTodayPending,
-                        day.isFuture && styles.dayCircleFuture,
-                      ]}
-                    >
-                      {day.isActive ? (
-                        <Flame size={14} color="#FFFFFF" weight="fill" />
-                      ) : day.isToday ? (
-                        <View style={styles.todayPulseDot} />
-                      ) : (
-                        <View
-                          style={[
-                            styles.dayDot,
-                            day.isFuture && styles.dayDotFuture,
-                          ]}
-                        />
-                      )}
-                    </View>
-                    <Text
-                      style={[
-                        styles.dayDateText,
-                        day.isToday && styles.dayDateTextToday,
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {day.dayNum}
-                    </Text>
-                  </View>
-                ))}
+            <View style={styles.sectionHeaderRow}>
+              <View style={styles.sectionEyebrowRow}>
+                <Flame size={13} color="#FF6B00" weight="fill" />
+                <Text style={styles.sectionEyebrow}>
+                  {view === 'week'
+                    ? "THIS WEEK'S ACTIVITY"
+                    : view === 'month'
+                      ? "THIS MONTH'S ACTIVITY"
+                      : "THIS YEAR'S ACTIVITY"}
+                </Text>
               </View>
+
+              {/* View Switcher Tabs: Week | Month | Year */}
+              <View style={styles.segmentContainer}>
+                {(['week', 'month', 'year'] as const).map((period) => {
+                  const isSelected = view === period;
+                  return (
+                    <Pressable
+                      key={period}
+                      onPress={() => setView(period)}
+                      style={[
+                        styles.segmentBtn,
+                        isSelected && styles.segmentBtnActive,
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel={`View streak by ${period}`}
+                    >
+                      <Text
+                        style={[
+                          styles.segmentText,
+                          isSelected && styles.segmentTextActive,
+                        ]}
+                      >
+                        {period.charAt(0).toUpperCase() + period.slice(1)}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Summary statistics row if calendar data is available */}
+            {currentCalendar ? (
+              <View style={styles.calendarStatsRow}>
+                <Text style={styles.calendarStatsText}>
+                  {currentCalendar.active_days} opened · {currentCalendar.missed_days} missed · best run {currentCalendar.longest_run}
+                </Text>
+              </View>
+            ) : null}
+
+            <View style={styles.heatmapCard}>
+              {calendarLoading && !currentCalendar ? (
+                <View style={styles.calendarLoadingContainer}>
+                  <ActivityIndicator size="small" color="#FF6B00" />
+                </View>
+              ) : null}
+
+              {view === 'week' ? (
+                /* Week View */
+                <View style={styles.heatmapWeekRow}>
+                  {weekDays.map((day) => (
+                    <View
+                      key={day.dateStr}
+                      style={[styles.dayCol, day.isToday && styles.dayColToday]}
+                    >
+                      <Text
+                        style={[
+                          styles.dayLabelText,
+                          day.isToday && styles.dayLabelTextToday,
+                        ]}
+                      >
+                        {day.dayLabel}
+                      </Text>
+                      <View
+                        style={[
+                          styles.dayCircle,
+                          day.isActive && styles.dayCircleActive,
+                          day.isToday &&
+                            !day.isActive &&
+                            styles.dayCircleTodayPending,
+                          day.isFuture && styles.dayCircleFuture,
+                        ]}
+                      >
+                        {day.isActive ? (
+                          <Flame size={14} color="#FFFFFF" weight="fill" />
+                        ) : day.isToday ? (
+                          <View style={styles.todayPulseDot} />
+                        ) : (
+                          <View
+                            style={[
+                              styles.dayDot,
+                              day.isFuture && styles.dayDotFuture,
+                            ]}
+                          />
+                        )}
+                      </View>
+                      <Text
+                        style={[
+                          styles.dayDateText,
+                          day.isToday && styles.dayDateTextToday,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {day.dayNum}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ) : view === 'month' ? (
+                /* Month View */
+                <View style={styles.monthContainer}>
+                  <View style={styles.monthHeaderRow}>
+                    <Text style={styles.monthHeaderTitle}>
+                      {monthData.monthName}
+                    </Text>
+                    <View style={styles.monthOpenedPill}>
+                      <Flame size={12} color="#FF6B00" weight="fill" />
+                      <Text style={styles.monthOpenedPillText}>
+                        {currentCalendar?.active_days ?? monthData.completedCount} opened
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Weekday column labels */}
+                  <View style={styles.monthWeekdayRow}>
+                    {WEEKDAY_LABELS.map((label) => (
+                      <Text key={label} style={styles.monthWeekdayText}>
+                        {label}
+                      </Text>
+                    ))}
+                  </View>
+
+                  {/* Calendar days grid */}
+                  <View style={styles.monthGrid}>
+                    {monthData.days.map((day) => {
+                      const key = toDateKey(day);
+                      const inMonth = day.getUTCMonth() === monthData.month;
+                      const isCompleted = inMonth && activeDates.has(key);
+                      const isToday = key === monthData.todayIso;
+                      const isFuture = key > monthData.todayIso;
+
+                      if (!inMonth) {
+                        return (
+                          <View key={key} style={styles.monthCellWrapper}>
+                            <View style={styles.monthCellEmpty} />
+                          </View>
+                        );
+                      }
+
+                      return (
+                        <View key={key} style={styles.monthCellWrapper}>
+                          <View
+                            style={[
+                              styles.monthCell,
+                              isCompleted && styles.monthCellActive,
+                              isToday &&
+                                !isCompleted &&
+                                styles.monthCellTodayPending,
+                              isToday &&
+                                isCompleted &&
+                                styles.monthCellTodayActive,
+                              isFuture && styles.monthCellFuture,
+                              !isCompleted &&
+                                !isToday &&
+                                !isFuture &&
+                                styles.monthCellMissed,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.monthCellText,
+                                isCompleted && styles.monthCellTextActive,
+                                isToday &&
+                                  !isCompleted &&
+                                  styles.monthCellTextTodayPending,
+                                isFuture && styles.monthCellTextFuture,
+                              ]}
+                            >
+                              {day.getUTCDate()}
+                            </Text>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+              ) : (
+                /* Year View */
+                <View style={styles.yearContainer}>
+                  <View style={styles.yearHeaderRow}>
+                    <Text style={styles.yearHeaderTitle}>
+                      {yearData.year} Heatmap
+                    </Text>
+                    <View style={styles.yearOpenedPill}>
+                      <Flame size={12} color="#FF6B00" weight="fill" />
+                      <Text style={styles.yearOpenedPillText}>
+                        {currentCalendar?.active_days ?? yearData.totalOpened} opened
+                      </Text>
+                    </View>
+                  </View>
+
+                  <ScrollView
+                    ref={yearScrollRef}
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.yearScrollContent}
+                  >
+                    <View style={styles.yearHeatmapGrid}>
+                      {yearData.weeks.map((week, weekIdx) => {
+                        const monthStartDay = week.find(
+                          (d) =>
+                            d.getUTCDate() <= 7 &&
+                            d.getUTCDate() >= 1 &&
+                            d.getUTCFullYear() === yearData.year &&
+                            (d.getUTCDate() === 1 || weekIdx === 0),
+                        );
+
+                        const monthLabel = monthStartDay
+                          ? new Intl.DateTimeFormat('en-IN', {
+                              month: 'short',
+                              timeZone: 'UTC',
+                            }).format(monthStartDay)
+                          : null;
+
+                        return (
+                          <View key={weekIdx} style={styles.yearWeekCol}>
+                            <View style={styles.yearMonthHeader}>
+                              {monthLabel ? (
+                                <Text style={styles.yearMonthLabelText}>
+                                  {monthLabel}
+                                </Text>
+                              ) : null}
+                            </View>
+                            {week.map((day) => {
+                              const key = toDateKey(day);
+                              const inYear =
+                                day >= yearData.start && day <= yearData.end;
+                              const isFuture = key > yearData.todayIso;
+                              const isCompleted =
+                                inYear && !isFuture && activeDates.has(key);
+                              const isToday = key === yearData.todayIso;
+
+                              if (!inYear) {
+                                return (
+                                  <View
+                                    key={key}
+                                    style={styles.yearSquareEmpty}
+                                  />
+                                );
+                              }
+
+                              return (
+                                <View
+                                  key={key}
+                                  style={[
+                                    styles.yearSquare,
+                                    isCompleted && styles.yearSquareActive,
+                                    isToday &&
+                                      !isCompleted &&
+                                      styles.yearSquareTodayPending,
+                                    isFuture && styles.yearSquareFuture,
+                                    !isCompleted &&
+                                      !isToday &&
+                                      !isFuture &&
+                                      styles.yearSquareMissed,
+                                  ]}
+                                />
+                              );
+                            })}
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </ScrollView>
+
+                  {/* Heatmap Legend */}
+                  <View style={styles.yearLegendRow}>
+                    <Text style={styles.yearLegendText}>Less</Text>
+                    <View
+                      style={[styles.yearLegendSquare, styles.yearSquareMissed]}
+                    />
+                    <View
+                      style={[styles.yearLegendSquare, styles.yearSquareActive]}
+                    />
+                    <Text style={styles.yearLegendText}>Active</Text>
+                  </View>
+                </View>
+              )}
+
               <View style={styles.heatmapFooter}>
                 <Text style={styles.heatmapFooterText}>
-                  {status === 'ACTIVE_TODAY'
-                    ? '✓ Today completed! Keep up the daily momentum.'
-                    : 'Check in before 11:59 PM IST to keep your streak alive.'}
+                  {view === 'week'
+                    ? status === 'ACTIVE_TODAY'
+                      ? '✓ Today completed! Keep up the daily momentum.'
+                      : 'Check in before 11:59 PM IST to keep your streak alive.'
+                    : 'Colored days are days you opened the app.'}
                 </Text>
               </View>
             </View>
@@ -903,16 +1267,70 @@ const styles = StyleSheet.create({
   section: {
     gap: Spacing.sm + 2,
   },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 2,
+    gap: Spacing.sm,
+  },
   sectionEyebrowRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 2,
+    flexShrink: 1,
   },
   sectionEyebrow: {
     ...Typography.monoEyebrow,
     color: Colors.text.muted,
     fontSize: 11,
+  },
+  segmentContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1ECE2',
+    borderRadius: Radii.pill,
+    padding: 3,
+    borderWidth: 1,
+    borderColor: Colors.surface.border,
+  },
+  segmentBtn: {
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    borderRadius: Radii.pill,
+  },
+  segmentBtnActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#0A1931',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  segmentText: {
+    fontFamily: 'GeneralSans-Medium',
+    fontSize: 11,
+    lineHeight: 14,
+    color: Colors.text.muted,
+  },
+  segmentTextActive: {
+    fontFamily: 'GeneralSans-Semibold',
+    color: Colors.navy,
+  },
+  calendarStatsRow: {
+    paddingHorizontal: 4,
+    marginTop: -2,
+  },
+  calendarStatsText: {
+    fontFamily: 'GeneralSans-Medium',
+    fontSize: 11,
+    lineHeight: 15,
+    color: Colors.text.muted,
+  },
+  calendarLoadingContainer: {
+    paddingVertical: Spacing.xs,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   heatmapCard: {
     backgroundColor: '#FFFFFF',
@@ -1021,6 +1439,229 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     color: Colors.text.muted,
     textAlign: 'center',
+  },
+  monthContainer: {
+    gap: Spacing.sm,
+  },
+  monthHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+    paddingBottom: 2,
+  },
+  monthHeaderTitle: {
+    fontFamily: 'GeneralSans-Bold',
+    fontSize: 15,
+    lineHeight: 20,
+    color: Colors.navy,
+  },
+  monthOpenedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFF3E8',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radii.pill,
+    borderWidth: 1,
+    borderColor: '#FFE0C2',
+  },
+  monthOpenedPillText: {
+    fontFamily: 'GeneralSans-Semibold',
+    fontSize: 11,
+    lineHeight: 14,
+    color: '#FF6B00',
+  },
+  monthWeekdayRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 2,
+    paddingVertical: 4,
+  },
+  monthWeekdayText: {
+    width: '14.28%',
+    textAlign: 'center',
+    fontFamily: 'GeneralSans-Medium',
+    fontSize: 11,
+    lineHeight: 14,
+    color: Colors.text.muted,
+  },
+  monthGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    rowGap: 6,
+  },
+  monthCellWrapper: {
+    width: '14.28%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  monthCell: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  monthCellEmpty: {
+    width: 34,
+    height: 34,
+  },
+  monthCellActive: {
+    backgroundColor: '#FF6B00',
+    borderColor: '#FF8A33',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  monthCellTodayPending: {
+    backgroundColor: '#FFF3E8',
+    borderColor: '#FF6B00',
+    borderWidth: 1.5,
+  },
+  monthCellTodayActive: {
+    backgroundColor: '#FF6B00',
+    borderColor: '#FFFFFF',
+    borderWidth: 2,
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  monthCellMissed: {
+    backgroundColor: Colors.surface.tint,
+    borderColor: Colors.surface.border,
+  },
+  monthCellFuture: {
+    backgroundColor: '#FAF7F0',
+    borderColor: '#EFEAE0',
+    opacity: 0.7,
+  },
+  monthCellText: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 11,
+    lineHeight: 14,
+    color: Colors.text.muted,
+  },
+  monthCellTextActive: {
+    color: '#FFFFFF',
+    fontFamily: 'SpaceMono-Bold',
+  },
+  monthCellTextTodayPending: {
+    color: '#FF6B00',
+    fontFamily: 'SpaceMono-Bold',
+  },
+  monthCellTextFuture: {
+    color: '#B8B1A4',
+  },
+  yearContainer: {
+    gap: Spacing.sm,
+  },
+  yearHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+    paddingBottom: 2,
+  },
+  yearHeaderTitle: {
+    fontFamily: 'GeneralSans-Bold',
+    fontSize: 15,
+    lineHeight: 20,
+    color: Colors.navy,
+  },
+  yearOpenedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFF3E8',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radii.pill,
+    borderWidth: 1,
+    borderColor: '#FFE0C2',
+  },
+  yearOpenedPillText: {
+    fontFamily: 'GeneralSans-Semibold',
+    fontSize: 11,
+    lineHeight: 14,
+    color: '#FF6B00',
+  },
+  yearScrollContent: {
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+  },
+  yearHeatmapGrid: {
+    flexDirection: 'row',
+    gap: 3,
+  },
+  yearWeekCol: {
+    gap: 3,
+    alignItems: 'center',
+  },
+  yearMonthHeader: {
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    width: '100%',
+  },
+  yearMonthLabelText: {
+    fontFamily: 'GeneralSans-Semibold',
+    fontSize: 9,
+    lineHeight: 12,
+    color: Colors.text.muted,
+  },
+  yearSquare: {
+    width: 12,
+    height: 12,
+    borderRadius: 2.5,
+    borderWidth: 1,
+  },
+  yearSquareEmpty: {
+    width: 12,
+    height: 12,
+  },
+  yearSquareActive: {
+    backgroundColor: '#FF6B00',
+    borderColor: '#FF8A33',
+  },
+  yearSquareTodayPending: {
+    backgroundColor: '#FFF3E8',
+    borderColor: '#FF6B00',
+    borderWidth: 1,
+  },
+  yearSquareMissed: {
+    backgroundColor: Colors.surface.tint,
+    borderColor: Colors.surface.border,
+  },
+  yearSquareFuture: {
+    backgroundColor: '#FAF7F0',
+    borderColor: '#EFEAE0',
+  },
+  yearLegendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 6,
+    paddingTop: 4,
+    paddingHorizontal: 4,
+  },
+  yearLegendSquare: {
+    width: 10,
+    height: 10,
+    borderRadius: 2,
+    borderWidth: 1,
+  },
+  yearLegendText: {
+    fontFamily: 'GeneralSans-Medium',
+    fontSize: 10,
+    lineHeight: 13,
+    color: Colors.text.muted,
   },
   nextMilestoneCard: {
     backgroundColor: '#FFFFFF',
