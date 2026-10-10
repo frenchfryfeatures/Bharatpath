@@ -50,10 +50,13 @@ import {
   ArrowUUpLeft,
   Sparkle,
   Warning,
+  CalendarBlank,
+  ArrowSquareOut,
 } from 'phosphor-react-native';
 import { Colors, Layout, Spacing } from '@/theme/tokens';
 import {
   getMyApplication,
+  getApplicationMessages,
   withdrawApplication,
   confirmHire,
   disputeHire,
@@ -64,11 +67,17 @@ import { ApiError } from '@/services/api/client';
 import {
   ApplicationDetailResponse,
   ApplicationStage,
+  CandidateApplicationMessage,
   CandidateHistoryItem,
   isActiveStage,
   stageLabel,
 } from '@/types/application';
-import { getInitials, pickFromString, formatPostedAgo } from '@/utils/helpers';
+import {
+  getInitials,
+  pickFromString,
+  formatPostedAgo,
+  formatMessageDateTime,
+} from '@/utils/helpers';
 
 const MONOGRAM_BG = ['#F1EAF7', '#F7EFD6', '#E6F1EA', '#F4EFE4'] as const;
 const MONOGRAM_FG = ['#4A3E8F', '#7A5C0E', '#1F6B45', '#5F6B80'] as const;
@@ -116,6 +125,7 @@ export function ApplicationDetailScreen({
   onBack,
 }: ApplicationDetailScreenProps) {
   const [app, setApp] = useState<ApplicationDetailResponse | null>(null);
+  const [messages, setMessages] = useState<CandidateApplicationMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionInFlight, setActionInFlight] = useState(false);
@@ -125,8 +135,16 @@ export function ApplicationDetailScreen({
     setLoading(true);
     setError(null);
     try {
-      const detail = await getMyApplication(applicationId);
+      const [detail, msgs] = await Promise.all([
+        getMyApplication(applicationId),
+        getApplicationMessages(applicationId).catch((err) => {
+          // If reading messages fails, don't fail the whole detail view
+          console.warn('Failed to load application messages:', err);
+          return [] as CandidateApplicationMessage[];
+        }),
+      ]);
       setApp(detail);
+      setMessages(msgs || []);
       setChangedNotice(false);
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
@@ -137,6 +155,7 @@ export function ApplicationDetailScreen({
         setError(LOAD_FAILED);
       }
       setApp(null);
+      setMessages([]);
     } finally {
       setLoading(false);
     }
@@ -268,6 +287,7 @@ export function ApplicationDetailScreen({
           ) : app ? (
             <DetailBody
               app={app}
+              messages={messages}
               actionInFlight={actionInFlight}
               onWithdraw={onWithdraw}
               onConfirm={onConfirm}
@@ -286,12 +306,14 @@ export function ApplicationDetailScreen({
 
 function DetailBody({
   app,
+  messages,
   actionInFlight,
   onWithdraw,
   onConfirm,
   onDispute,
 }: {
   app: ApplicationDetailResponse;
+  messages: CandidateApplicationMessage[];
   actionInFlight: boolean;
   onWithdraw: () => void;
   onConfirm: () => void;
@@ -380,6 +402,9 @@ function DetailBody({
 
       {/* Timeline */}
       <TimelineCard history={app.history} currentStage={app.stage} />
+
+      {/* Employer messages */}
+      {messages.length > 0 && <EmployerMessagesCard messages={messages} />}
 
       {/* Withdraw action (active + NONE only) */}
       {isActiveStage(app.stage) && app.hire_confirmation === 'NONE' && (
@@ -722,6 +747,131 @@ function formatInterviewLong(iso: string): string {
   if (dayDiff === 0) return `Today, ${time}`;
   if (dayDiff === 1) return `Tomorrow, ${time}`;
   return `${date}, ${time}`;
+}
+
+// ---------------------------------------------------------------------------
+// Employer messages card
+// ---------------------------------------------------------------------------
+
+async function handleOpenMessageLink(rawUrl: string | null | undefined) {
+  if (!rawUrl) return;
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return;
+  const fullUrl = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    const supported = await Linking.canOpenURL(fullUrl);
+    if (supported) {
+      await Linking.openURL(fullUrl);
+    } else {
+      AppAlert.alert('Cannot open link', 'Invalid URL link provided.');
+    }
+  } catch {
+    AppAlert.alert('Could not open link', 'Unable to open the external link.');
+  }
+}
+
+function EmployerMessagesCard({
+  messages,
+}: {
+  messages: CandidateApplicationMessage[];
+}) {
+  if (!messages || messages.length === 0) return null;
+
+  const countText = `${messages.length} ${
+    messages.length === 1 ? 'update' : 'updates'
+  }`;
+
+  return (
+    <View style={styles.employerMessagesCard}>
+      {/* Header */}
+      <View style={styles.messagesHeader}>
+        <Text style={styles.messagesTitle}>Employer messages</Text>
+        <Text style={styles.messagesCount}>{countText}</Text>
+      </View>
+
+      {/* Messages list */}
+      <View style={styles.messagesList}>
+        {messages.map((message, index) => {
+          const isInterview = message.kind === 'INTERVIEW';
+          const isAssessment = message.kind === 'ASSESSMENT';
+          const label = isInterview
+            ? 'Interview'
+            : isAssessment
+              ? 'Assessment'
+              : 'Message';
+          const isLast = index === messages.length - 1;
+
+          return (
+            <View
+              key={message.id || String(index)}
+              style={[
+                styles.messageItem,
+                isLast && styles.messageItemLast,
+              ]}
+            >
+              {/* Kind badge and date */}
+              <View style={styles.messageMetaRow}>
+                <Text style={styles.messageKindText}>{label}</Text>
+                {message.created_at ? (
+                  <Text style={styles.messageDateText}>
+                    {formatMessageDateTime(message.created_at)}
+                  </Text>
+                ) : null}
+              </View>
+
+              {/* Message body */}
+              {message.body ? (
+                <Text style={styles.messageBodyText}>{message.body}</Text>
+              ) : null}
+
+              {/* Scheduled date */}
+              {message.scheduled_at ? (
+                <View style={styles.scheduledRow}>
+                  <CalendarBlank
+                    size={14}
+                    color="#5F6B80"
+                    weight="regular"
+                  />
+                  <Text style={styles.scheduledText}>
+                    <Text style={styles.scheduledPrefix}>Scheduled: </Text>
+                    {formatMessageDateTime(message.scheduled_at)}
+                  </Text>
+                </View>
+              ) : null}
+
+              {/* Link action */}
+              {message.link ? (
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.messageLinkButton,
+                    pressed && styles.buttonPressed,
+                  ]}
+                  onPress={() => void handleOpenMessageLink(message.link)}
+                  accessibilityRole="link"
+                  accessibilityLabel={
+                    isInterview
+                      ? 'Open invitation'
+                      : isAssessment
+                        ? 'Open assessment'
+                        : 'Open link'
+                  }
+                >
+                  <Text style={styles.messageLinkText}>
+                    {isInterview
+                      ? 'Open invitation'
+                      : isAssessment
+                        ? 'Open assessment'
+                        : 'Open link'}
+                  </Text>
+                  <ArrowSquareOut size={14} color="#5F4DB2" weight="bold" />
+                </Pressable>
+              ) : null}
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -1111,5 +1261,99 @@ const styles = StyleSheet.create({
   buttonPressed: {
     transform: [{ scale: 0.98 }],
     opacity: 0.9,
+  },
+  employerMessagesCard: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E7E0D4',
+    borderRadius: 20,
+    padding: 16,
+    gap: 12,
+  },
+  messagesHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  messagesTitle: {
+    fontFamily: 'GeneralSans-Semibold',
+    fontSize: 15,
+    lineHeight: 20,
+    color: '#0A1931',
+  },
+  messagesCount: {
+    fontFamily: 'GeneralSans-Regular',
+    fontSize: 12,
+    lineHeight: 16,
+    color: '#5F6B80',
+  },
+  messagesList: {
+    borderTopWidth: 1,
+    borderTopColor: '#EEE9F3',
+  },
+  messageItem: {
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEE9F3',
+    gap: 8,
+  },
+  messageItemLast: {
+    borderBottomWidth: 0,
+    paddingBottom: 2,
+  },
+  messageMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  messageKindText: {
+    fontFamily: 'GeneralSans-Semibold',
+    fontSize: 12,
+    lineHeight: 16,
+    color: '#5F4DB2',
+  },
+  messageDateText: {
+    fontFamily: 'GeneralSans-Regular',
+    fontSize: 11,
+    lineHeight: 14,
+    color: '#5F6B80',
+  },
+  messageBodyText: {
+    fontFamily: 'GeneralSans-Regular',
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#3A4761',
+  },
+  scheduledRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  scheduledText: {
+    fontFamily: 'GeneralSans-Medium',
+    fontSize: 12,
+    lineHeight: 16,
+    color: '#3A4761',
+  },
+  scheduledPrefix: {
+    fontFamily: 'GeneralSans-Regular',
+    color: '#5F6B80',
+  },
+  messageLinkButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    marginTop: 4,
+    paddingVertical: 4,
+  },
+  messageLinkText: {
+    fontFamily: 'GeneralSans-Semibold',
+    fontSize: 12,
+    lineHeight: 16,
+    color: '#5F4DB2',
   },
 });

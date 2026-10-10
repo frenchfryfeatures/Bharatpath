@@ -40,9 +40,11 @@ import {
   confirmResumeVersion,
   editResumeVersion,
   getResumeVersionDetails,
+  listResumeVersions,
   ResumeSection,
   ResumeSectionItem,
   ResumeVersionDetailResponse,
+  ResumeVersionResponse,
   SectionKind,
 } from '@/services/api/resume';
 import { ApiError } from '@/services/api/client';
@@ -171,7 +173,22 @@ export function ReviewDetailsScreen({
   useEffect(() => {
     setActiveVersionId(versionId);
     setDetails(versionDetails);
-  }, [versionDetails, versionId]);
+
+    // If the provided version is already superseded, automatically migrate to the newest active version
+    if (versionDetails?.superseded) {
+      listResumeVersions()
+        .then(async (versions) => {
+          const latest = versions.find((v) => !v.superseded);
+          if (latest && latest.resume_version_id !== versionId) {
+            const freshDetails = await getResumeVersionDetails(latest.resume_version_id);
+            setActiveVersionId(latest.resume_version_id);
+            setDetails(freshDetails);
+            onVersionUpdated?.(latest.resume_version_id, freshDetails);
+          }
+        })
+        .catch(() => undefined);
+    }
+  }, [versionDetails, versionId, onVersionUpdated]);
 
   const parsed = details?.parsed;
   const rawText = typeof parsed?.raw_text === 'string' ? parsed.raw_text : '';
@@ -337,6 +354,31 @@ export function ReviewDetailsScreen({
     };
   };
 
+  const executeEditWithRetry = async (
+    performEdit: (targetVersionId: string) => Promise<ResumeVersionResponse>,
+  ): Promise<ResumeVersionResponse> => {
+    if (!activeVersionId) throw new Error('No active resume version to edit.');
+    try {
+      return await performEdit(activeVersionId);
+    } catch (firstErr: any) {
+      const errCode = firstErr?.code || firstErr?.problem?.code || firstErr?.message;
+      const isSuperseded =
+        errCode === 'resume_version_superseded' ||
+        String(firstErr?.message || '').includes('replaced by a newer one') ||
+        firstErr?.status === 409;
+
+      if (isSuperseded) {
+        const freshVersions = await listResumeVersions();
+        const newest = freshVersions.find((v) => !v.superseded) ?? freshVersions[0];
+        if (newest && newest.resume_version_id !== activeVersionId) {
+          setActiveVersionId(newest.resume_version_id);
+          return await performEdit(newest.resume_version_id);
+        }
+      }
+      throw firstErr;
+    }
+  };
+
   // Section-based editing
   const handleSaveSectionEdit = async (updatedSection: {
     kind: SectionKind;
@@ -363,9 +405,11 @@ export function ReviewDetailsScreen({
         return s;
       });
 
-      const res = await editResumeVersion(activeVersionId, {
-        sections: sanitizedList,
-      });
+      const res = await executeEditWithRetry((targetId) =>
+        editResumeVersion(targetId, {
+          sections: sanitizedList,
+        }),
+      );
 
       await adoptEditedVersion(res.resume_version_id);
       setEditingSectionIndex(null);
@@ -401,9 +445,11 @@ export function ReviewDetailsScreen({
         return s;
       });
 
-      const res = await editResumeVersion(activeVersionId, {
-        sections: sanitizedList,
-      });
+      const res = await executeEditWithRetry((targetId) =>
+        editResumeVersion(targetId, {
+          sections: sanitizedList,
+        }),
+      );
 
       await adoptEditedVersion(res.resume_version_id);
       setEditingSectionIndex(null);
@@ -443,9 +489,11 @@ export function ReviewDetailsScreen({
         return s;
       });
 
-      const res = await editResumeVersion(activeVersionId, {
-        sections: sanitizedList,
-      });
+      const res = await executeEditWithRetry((targetId) =>
+        editResumeVersion(targetId, {
+          sections: sanitizedList,
+        }),
+      );
 
       await adoptEditedVersion(res.resume_version_id);
       setIsAddSectionOpen(false);
@@ -491,9 +539,11 @@ export function ReviewDetailsScreen({
         return sanitizeSectionPayload(s);
       });
 
-      const res = await editResumeVersion(activeVersionId, {
-        sections: updatedList,
-      });
+      const res = await executeEditWithRetry((targetId) =>
+        editResumeVersion(targetId, {
+          sections: updatedList,
+        }),
+      );
 
       await adoptEditedVersion(res.resume_version_id);
       setFixingItemInfo(null);
@@ -515,7 +565,9 @@ export function ReviewDetailsScreen({
     setConfirmError(null);
     setIsSavingEdit(true);
     try {
-      const created = await editResumeVersion(activeVersionId, { structured: data });
+      const created = await executeEditWithRetry((targetId) =>
+        editResumeVersion(targetId, { structured: data }),
+      );
       await adoptEditedVersion(created.resume_version_id);
       setIsStructuredEditorOpen(false);
     } catch (error) {
@@ -535,7 +587,9 @@ export function ReviewDetailsScreen({
     setConfirmError(null);
     setIsSavingEdit(true);
     try {
-      const created = await editResumeVersion(activeVersionId, { text });
+      const created = await executeEditWithRetry((targetId) =>
+        editResumeVersion(targetId, { text }),
+      );
       await adoptEditedVersion(created.resume_version_id);
       setIsTextEditorOpen(false);
     } catch (error) {
@@ -553,22 +607,46 @@ export function ReviewDetailsScreen({
   // Confirm gate
   const confirmCurrentVersion = async () => {
     setConfirmError(null);
-    if (activeVersionId) {
-      try {
-        setIsConfirming(true);
-        const res = await confirmResumeVersion(activeVersionId);
-        onConfirm?.(activeVersionId, res?.confirmed_at);
-      } catch (error) {
-        if (isSubscriptionRequiredError(error)) {
-          onRequireSubscription?.();
-          return;
-        }
-        setConfirmError(errorMessage(error, 'Could not confirm this resume version.'));
-      } finally {
-        setIsConfirming(false);
-      }
-    } else {
+    if (!activeVersionId) {
       setConfirmError('Resume version is missing. Please return and submit your resume again.');
+      return;
+    }
+    try {
+      setIsConfirming(true);
+      let targetId = activeVersionId;
+      let res;
+      try {
+        res = await confirmResumeVersion(targetId);
+      } catch (firstErr: any) {
+        const errCode = firstErr?.code || firstErr?.problem?.code || firstErr?.message;
+        const isSuperseded =
+          errCode === 'resume_version_superseded' ||
+          String(firstErr?.message || '').includes('replaced by a newer one') ||
+          firstErr?.status === 409;
+
+        if (isSuperseded) {
+          const freshVersions = await listResumeVersions();
+          const newest = freshVersions.find((v) => !v.superseded) ?? freshVersions[0];
+          if (newest && newest.resume_version_id !== targetId) {
+            targetId = newest.resume_version_id;
+            setActiveVersionId(targetId);
+            res = await confirmResumeVersion(targetId);
+          } else {
+            throw firstErr;
+          }
+        } else {
+          throw firstErr;
+        }
+      }
+      onConfirm?.(targetId, res?.confirmed_at);
+    } catch (error) {
+      if (isSubscriptionRequiredError(error)) {
+        onRequireSubscription?.();
+        return;
+      }
+      setConfirmError(errorMessage(error, 'Could not confirm this resume version.'));
+    } finally {
+      setIsConfirming(false);
     }
   };
 

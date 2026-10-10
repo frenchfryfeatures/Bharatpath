@@ -71,6 +71,7 @@ export default function ShareResultRoute() {
         if (cancelled || versions.length === 0) return;
         const preferred =
           versions.find((v) => v.confirmed && !v.superseded) ??
+          versions.find((v) => !v.superseded) ??
           versions.find((v) => v.confirmed) ??
           versions[0];
         const details = await getResumeVersionDetails(preferred.resume_version_id);

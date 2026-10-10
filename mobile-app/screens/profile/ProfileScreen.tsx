@@ -41,6 +41,7 @@ import {
   SignOut,
   GraduationCap,
   CreditCard,
+  BookOpen,
 } from 'phosphor-react-native';
 import { Colors, Spacing } from '@/theme/tokens';
 import { BottomTabBar, TabName } from '@/components/navigation/BottomTabBar';
@@ -79,6 +80,7 @@ export interface ProfileScreenProps {
   onAttributeReportPress?: () => void;
   onInterviewReportPress?: () => void;
   onCoursesPress?: () => void;
+  onCollegePress?: () => void;
   onLanguagePress?: () => void;
   onChangePasswordPress?: () => void;
   onWhoHasSeenMePress?: () => void;
@@ -110,6 +112,7 @@ export function ProfileScreen({
   onAttributeReportPress,
   onInterviewReportPress,
   onCoursesPress,
+  onCollegePress,
   onLanguagePress,
   onChangePasswordPress,
   onWhoHasSeenMePress,
@@ -293,7 +296,21 @@ export function ProfileScreen({
             </Pressable>
             */}
 
-            {/* Certified skill courses (adjusted in place of attribute report) */}
+            {/* College */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuItem,
+                pressed && styles.cardPressed,
+              ]}
+              onPress={onCollegePress}
+              accessibilityRole="button"
+            >
+              <GraduationCap size={20} color={Colors.navy} weight="duotone" />
+              <Text style={styles.menuItemTitle}>College</Text>
+              <CaretRight size={16} color="#5F6B80" weight="bold" />
+            </Pressable>
+
+            {/* Certified skill courses */}
             <Pressable
               style={({ pressed }) => [
                 styles.menuItem,
@@ -302,7 +319,7 @@ export function ProfileScreen({
               onPress={onCoursesPress}
               accessibilityRole="button"
             >
-              <GraduationCap size={20} color={Colors.navy} weight="duotone" />
+              <BookOpen size={20} color={Colors.navy} weight="duotone" />
               <Text style={styles.menuItemTitle}>Certified skill courses</Text>
               <CaretRight size={16} color="#5F6B80" weight="bold" />
             </Pressable>

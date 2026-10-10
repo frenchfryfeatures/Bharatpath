@@ -180,7 +180,7 @@ export function structuredResumeSections(
       }
       sections.push({
         kind,
-        heading: kind === 'activities' ? 'Other' : heading,
+        heading: heading || 'Other',
         body,
       });
     }

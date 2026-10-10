@@ -205,6 +205,7 @@ export default function YouRoute() {
       onAttributeReportPress={() => router.push('/attribute-report' as any)}
       onInterviewReportPress={() => router.push('/interview-sessions' as any)}
       onCoursesPress={() => router.push('/courses' as any)}
+      onCollegePress={() => router.push('/college' as any)}
       onLanguagePress={() => {
         AppAlert.alert(
           'Language Settings',

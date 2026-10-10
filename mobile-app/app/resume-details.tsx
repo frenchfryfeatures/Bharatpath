@@ -121,6 +121,7 @@ export default function ResumeDetailsRoute() {
 
         const preferred =
           versions.find((v) => v.confirmed && !v.superseded) ??
+          versions.find((v) => !v.superseded) ??
           versions.find((v) => v.confirmed) ??
           versions[0];
 
