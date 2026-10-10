@@ -9,6 +9,29 @@ states. Newest entries first.
 
 ---
 
+## 2026-10-10 — PR #69 deployed: bucket, env and migrations 0014–0015
+
+PR #69 (KYB switch, 100% codes, profile images) merged with every CI check
+green, and shipped to the EC2 host as `8b7b770`.
+
+- **Bucket created** by `terraform apply` in 335345888157:
+  `bharatpath-profile-images-dev-335345888157`, ap-south-1, public access
+  fully blocked, encrypted, versioned. The plan was 4 to add, 2 to change
+  (the two app IAM policies, to cover the new bucket), 0 to destroy.
+- **Host `.env`:** `S3_BUCKET_PROFILE_IMAGES` appended to
+  `/opt/bharatpath/.env` (still 600). The file was not regenerated, because
+  that would drop its hand-filled secrets. The previous file is kept on the
+  host as `.env.bak-20261010`.
+- **Migrations** ran on `up` through the `migrate` service: 0013 → 0014 →
+  0015, no errors. The host was on `c04d02f` (PR #63), which `main`
+  already contained.
+- **Checked live:** `/health` 200; every new route is in `openapi.json` and
+  answers 401 without a token. **Not yet checked:** a real photo or logo
+  upload on the live site, which needs a signed-in account; do one round
+  trip (upload → PUT → confirm → GET) when the apps wire it up.
+
+---
+
 ## 2026-10-09 — profile photos for everyone, logos for employers and colleges
 
 Asked for by the backend lead. Same branch as the KYB switch and 100%
@@ -35,10 +58,8 @@ the app teams is `backend-guide/16`.
 - **Admin:** `photo_url` on `/admin/candidates/{id}/onboarding`, inside the
   page's existing audited reveal.
 - **New bucket** `profile_images`: `app/settings.py`, `infra/terraform/s3.tf`
-  and `outputs.tf`, `scripts/init_localstack.sh`. **Not applied:** the live
-  host needs `terraform plan -out` / `apply` and the regenerated env file
-  before uploads work there. Until then the routes exist and every confirm
-  answers 404 (nothing can land in a bucket that is not there).
+  and `outputs.tf`, `scripts/init_localstack.sh`. Applied and deployed
+  2026-10-10 (entry above).
 - **Not done (handoff, frontend/mobile):** the upload flow and showing the
   images; the apps still draw initials. College logos are not yet shown to
   students anywhere (`/candidate/colleges` could carry them); employer and
