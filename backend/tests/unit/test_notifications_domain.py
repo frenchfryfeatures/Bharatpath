@@ -71,9 +71,40 @@ def test_every_notifying_event_is_one_a_module_actually_emits(event: str) -> Non
 def test_a_glance_is_not_news() -> None:
     assert plan_for("applications.stage_changed", {"to_stage": "VIEWED"}) == ()
     assert plan_for("subscriptions.state_changed", {"to_state": "ACTIVE"}) == ()
-    assert plan_for("kyb.reviewed", {"decision": "REJECTED"}) == ()
+    assert plan_for("kyb.reviewed", {"decision": "UNDER_REVIEW"}) == ()
     assert plan_for("interview.session_evaluated", {"outcome": "FAILED"}) == ()
     assert plan_for("questionnaire.submitted", {}) == ()
+
+
+def test_a_send_back_and_a_rejection_tell_the_owners_why() -> None:
+    """2026-10-10: the organisation hears the reviewer's reason either way;
+    a rejection used to tell nobody."""
+    for decision, codes in (
+        ("MORE_INFO_REQUIRED", ("EMAIL_KYB_NEEDS_INFO", "IN_APP_KYB_NEEDS_INFO")),
+        ("REJECTED", ("EMAIL_KYB_REJECTED", "IN_APP_KYB_REJECTED")),
+    ):
+        [plan] = plan_for("kyb.reviewed", {"decision": decision})
+        assert (plan.audience, plan.templates, plan.variables) == (
+            "EMPLOYER_OWNERS",
+            codes,
+            ("reason",),
+        )
+
+
+def test_a_submission_waiting_for_review_tells_staff_in_their_inbox_only() -> None:
+    [first] = plan_for("kyb.submitted", {"resubmission": False})
+    [again] = plan_for("kyb.submitted", {"resubmission": True})
+    assert first.templates == ("IN_APP_KYB_SUBMITTED",)
+    assert again.templates == ("IN_APP_KYB_RESUBMITTED",)
+    for plan in (first, again):
+        assert plan.audience == "KYB_REVIEWERS" and plan.variables == ("employer",)
+
+
+def test_the_reviewers_told_are_the_ones_who_can_review() -> None:
+    from app.modules.admin.domain import CONSOLE_ROLES
+    from app.modules.notifications.domain import KYB_REVIEWER_ROLES
+
+    assert CONSOLE_ROLES["kyb"] == KYB_REVIEWER_ROLES
 
 
 def test_a_college_learns_that_a_student_left_and_never_which() -> None:

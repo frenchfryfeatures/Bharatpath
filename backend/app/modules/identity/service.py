@@ -553,6 +553,15 @@ async def list_tenants(
     return [_tenant(row) for row in rows]
 
 
+async def staff_ids(session: AsyncSession, *, roles: frozenset[str]) -> list[uuid.UUID]:
+    """Active members of our own PLATFORM tenant holding `roles`: who on the
+    staff hears about work waiting for them. Empty before any is provisioned."""
+    tenant = await repository.platform_tenant(session)
+    if tenant is None:
+        return []
+    return await repository.active_member_ids(session, tenant_id=tenant.id, roles=roles)
+
+
 async def member_ids(
     session: AsyncSession, *, tenant_id: uuid.UUID, roles: frozenset[str] | None = None
 ) -> list[uuid.UUID]:

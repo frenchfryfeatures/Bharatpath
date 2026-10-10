@@ -13,6 +13,15 @@ reviewer. Either way the decision is mirrored onto `employers.kyb_status`, the
 column the publish trigger reads, so invariant 8 follows from KYB rather than
 being maintained beside it.
 
+**Send back, correct, submit again** (2026-10-10). A reviewer either sends
+a submission back (MORE_INFO_REQUIRED: the same submission reopens) or
+rejects it (final; the next one is filled in from it, documents included).
+Both carry a reason and may point at fields and documents
+(`review_flags`). Every decision is a `kyb_reviews` row holding what it was
+made on, so the next review shows what changed. A submission waiting for a
+reviewer tells our staff (`kyb.submitted`); every decision tells the
+organisation's owners (`kyb.reviewed`), the reason included.
+
 **What auto-approval does not do** (`kyb/forms.py`, blocker N4/B7): nobody
 reads the answers. The form still earns its place -- the identifiers are
 captured in valid formats and the documents are stored -- so switching review
@@ -31,7 +40,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import storage
 from app.core.audit import AuditAction, audit_event
-from app.core.db import set_transaction_tenant
+from app.core.db import clear_transaction_tenant, set_transaction_tenant
 from app.core.errors import (
     AppError,
     ConflictError,
@@ -49,10 +58,13 @@ from app.modules.employer.reference import active_employer_types, active_industr
 from app.modules.kyb import repository
 from app.modules.kyb.domain import (
     ACCEPTED_DOCUMENT_TYPES,
+    DECISIONS_WITH_FLAGS,
     EDITABLE_STATES,
     MAX_DOCUMENT_BYTES,
     REVIEW_DECISIONS,
+    changes_since,
     document_key,
+    flag_refusal,
     reason_required,
     refuse_transition,
     sniff_document,
@@ -62,9 +74,12 @@ from app.modules.kyb.events import APPROVED, REVIEWED, SUBMITTED
 from app.modules.kyb.forms import EMPLOYEE_COUNT_BANDS, FORM_VERSION, KYB_FORM
 from app.modules.kyb.schemas import (
     DocumentTicketResponse,
+    KybChanges,
     KybDocumentResponse,
     KybFormResponse,
     KybOption,
+    KybReviewEntry,
+    KybReviewFlag,
     KybSubmissionResponse,
 )
 from app.settings import get_settings
@@ -86,6 +101,8 @@ KYB_OPTIONS: Final[dict[str, frozenset[str]]] = {
 DOCUMENT_TYPES: Final[frozenset[str]] = frozenset(
     f.code for f in KYB_FORM.fields if f.type == "FILE"
 )
+#: What a reviewer may flag: any field of the form, documents included.
+FLAGGABLE_FIELDS: Final[frozenset[str]] = frozenset(f.code for f in KYB_FORM.fields)
 
 
 # ---------------------------------------------------------------------------
@@ -140,6 +157,15 @@ class KybUnknownDocumentTypeError(ValidationError):
 class KybReasonRequiredError(ValidationError):
     code = "kyb_reason_required"
     title = "A reason is required for this decision"
+
+
+class KybFlagsInvalidError(ValidationError):
+    """`code` says which: `kyb_flags_not_allowed` (an approval has nothing to
+    correct), `kyb_flag_unknown_field`, `kyb_flag_duplicate`;
+    `params.fields` names them."""
+
+    code = "kyb_flags_invalid"
+    title = "These flags cannot be recorded"
 
 
 class KybConfigError(AppError):
@@ -221,25 +247,71 @@ async def set_require_approval(
     return enabled
 
 
+async def _latest_documents(session: AsyncSession, submission_id: uuid.UUID) -> dict[str, Any]:
+    """`doc_type -> the latest upload of it`."""
+    latest: dict[str, Any] = {}
+    for doc in await repository.documents(session, submission_id=submission_id):
+        latest[doc.doc_type] = doc  # ordered by upload time, so the last one wins
+    return latest
+
+
+async def _document_url(key: str) -> str:
+    settings = get_settings()
+    return await storage.presign_get(
+        bucket=settings.s3_bucket_kyb_documents,
+        key=key,
+        expires_in=settings.presigned_url_ttl_seconds,
+    )
+
+
+def _flags(raw: Any) -> list[KybReviewFlag]:
+    return [KybReviewFlag.model_validate(flag) for flag in (raw or [])]
+
+
 async def _response(session: AsyncSession, submission: Any | None) -> KybSubmissionResponse:
     if submission is None:
         return KybSubmissionResponse(state="DRAFT")
-    latest: dict[str, Any] = {}
-    for doc in await repository.documents(session, submission_id=submission.id):
-        latest[doc.doc_type] = doc  # ordered by upload time, so the last one wins
+    latest = await _latest_documents(session, submission.id)
+    history = await repository.reviews(session, submission_id=submission.id)
+    changed = None
+    if history:
+        fields, documents = changes_since(
+            reviewed_answers=dict(history[-1].answers or {}),
+            answers=dict(submission.answers or {}),
+            reviewed_documents=dict(history[-1].documents or {}),
+            documents={doc_type: str(doc.id) for doc_type, doc in latest.items()},
+        )
+        changed = KybChanges(fields=fields, documents=documents)
     return KybSubmissionResponse(
         submission_id=submission.id,
         state=submission.state,
         form_version=submission.form_version,
         answers=dict(submission.answers or {}),
         documents=[
-            KybDocumentResponse(doc_type=d.doc_type, mime=d.mime, uploaded_at=d.uploaded_at)
+            KybDocumentResponse(
+                doc_type=d.doc_type,
+                mime=d.mime,
+                uploaded_at=d.uploaded_at,
+                url=await _document_url(d.s3_key),
+            )
             for d in latest.values()
         ],
         submitted_at=submission.submitted_at,
         reviewed_at=submission.reviewed_at,
         decision_reason=submission.decision_reason,
         auto_approved=submission.auto_approved,
+        review_flags=_flags(submission.review_flags),
+        reviews=[
+            KybReviewEntry(
+                decision=r.decision,
+                reason=r.reason,
+                flags=_flags(r.flags),
+                reviewed_at=r.reviewed_at,
+            )
+            for r in history
+        ],
+        changed_since_last_review=changed,
+        previous_submission_id=submission.previous_submission_id,
     )
 
 
@@ -250,7 +322,27 @@ async def _open_or_new_draft(session: AsyncSession, tenant_id: uuid.UUID) -> Any
     latest = await repository.latest_submission(session, tenant_id=tenant_id)
     if latest is not None and latest.state == "APPROVED":
         raise KybAlreadyVerifiedError()
-    return await repository.create_draft(session, tenant_id=tenant_id, form_version=FORM_VERSION)
+    if latest is None or latest.state != "REJECTED":
+        return await repository.create_draft(
+            session, tenant_id=tenant_id, form_version=FORM_VERSION
+        )
+    # Starting again after a rejection: the new submission is filled in from
+    # the rejected one, answers and documents both, so correcting it is an
+    # edit rather than a retyping. Its documents are copied only once -- a
+    # draft that won a race already has them.
+    draft = await repository.create_draft(
+        session,
+        tenant_id=tenant_id,
+        form_version=FORM_VERSION,
+        answers=dict(latest.answers or {}),
+        previous_submission_id=latest.id,
+    )
+    if draft.previous_submission_id == latest.id and not await repository.documents(
+        session, submission_id=draft.id
+    ):
+        previous = await _latest_documents(session, latest.id)
+        await repository.copy_documents(session, documents=list(previous.values()), to=draft)
+    return draft
 
 
 def _issues(issues: tuple[Any, ...]) -> KybAnswersInvalidError:
@@ -460,6 +552,9 @@ async def submit(session: AsyncSession, *, ctx: TenantContext) -> KybSubmissionR
         raise KybTransitionError(params={"from": submission.state, "to": target})
 
     approved = target == "APPROVED"
+    resubmitted = submission.state == "MORE_INFO_REQUIRED" or (
+        submission.previous_submission_id is not None
+    )
     await repository.set_state(
         session,
         submission=submission,
@@ -468,6 +563,7 @@ async def submit(session: AsyncSession, *, ctx: TenantContext) -> KybSubmissionR
         reviewed_at=now if approved else None,
         auto_approved=approved,
         decision_reason=None,
+        review_flags=[],
     )
     await employer_service.set_kyb_status(
         session, tenant_id=tenant_id, status=target, verified_at=now if approved else None
@@ -489,7 +585,11 @@ async def submit(session: AsyncSession, *, ctx: TenantContext) -> KybSubmissionR
         event_type=APPROVED if approved else SUBMITTED,
         aggregate_type="kyb_submission",
         aggregate_id=submission.id,
-        payload={"tenant_id": str(tenant_id), "auto_approved": approved},
+        payload={
+            "tenant_id": str(tenant_id),
+            "auto_approved": approved,
+            "resubmission": resubmitted,
+        },
     )
     logger.info("kyb_submitted", tenant_id=str(tenant_id), state=target)
     return await _response(session, submission)
@@ -522,6 +622,7 @@ async def review(
     reviewer_role: str,
     decision: str,
     reason: str | None = None,
+    flags: list[KybReviewFlag] | None = None,
 ) -> KybSubmissionResponse:
     """A human decision, used when the switch is on. Routed by the admin
     console: `POST /admin/kyb/submissions/{id}/decision`.
@@ -533,6 +634,14 @@ async def review(
         raise KybTransitionError(params={"to": decision})
     if reason_required(decision) and (reason is None or not reason.strip()):
         raise KybReasonRequiredError(params={"decision": decision})
+    flags = flags or []
+    refused = flag_refusal(
+        decision=decision, flagged=[f.field for f in flags], known_fields=FLAGGABLE_FIELDS
+    )
+    if refused is not None:
+        code, fields = refused
+        raise KybFlagsInvalidError(code=code, params={"fields": fields})
+    stored_flags = [f.model_dump() for f in flags]
 
     await set_transaction_tenant(session, tenant_id)
     submission = await repository.get_submission(
@@ -544,14 +653,29 @@ async def review(
         raise KybTransitionError(params={"from": submission.state, "to": decision})
 
     now = datetime.now(UTC)
+    reason = reason.strip() if reason else None
+    latest = await _latest_documents(session, submission.id)
+    await repository.add_review(
+        session,
+        tenant_id=tenant_id,
+        submission_id=submission.id,
+        decision=decision,
+        reason=reason,
+        flags=stored_flags,
+        reviewed_by=reviewer_id,
+        reviewed_at=now,
+        answers=dict(submission.answers or {}),
+        documents={doc_type: str(doc.id) for doc_type, doc in latest.items()},
+    )
     await repository.set_state(
         session,
         submission=submission,
         state=decision,
         reviewed_by=reviewer_id,
         reviewed_at=now,
-        decision_reason=reason.strip() if reason else None,
+        decision_reason=reason,
         auto_approved=False,
+        review_flags=stored_flags if decision in DECISIONS_WITH_FLAGS else [],
     )
     await employer_service.set_kyb_status(
         session,
@@ -567,13 +691,37 @@ async def review(
         target_type="kyb_submission",
         target_id=submission.id,
         tenant_id=tenant_id,
-        metadata={"decision": decision, "auto_approved": False},
+        metadata={"decision": decision, "auto_approved": False, "flags": len(stored_flags)},
     )
     await emit(
         session,
         event_type=REVIEWED,
         aggregate_type="kyb_submission",
         aggregate_id=submission.id,
-        payload={"tenant_id": str(tenant_id), "decision": decision},
+        payload={
+            "tenant_id": str(tenant_id),
+            "submission_id": str(submission.id),
+            "decision": decision,
+        },
     )
     return await _response(session, submission)
+
+
+async def decision_reason_for_delivery(
+    session: AsyncSession, *, tenant_id: uuid.UUID, submission_id: uuid.UUID
+) -> str | None:
+    """The reviewer's words, for the notification that tells the
+    organisation. Read at dispatch, so the outbox payload carries ids only.
+
+    Binds the event's tenant to read under RLS, and unbinds it before
+    returning: the notification task goes on to read other rows in the same
+    transaction, and a tenant left bound would hide them.
+    """
+    await set_transaction_tenant(session, tenant_id)
+    try:
+        submission = await repository.get_submission(
+            session, tenant_id=tenant_id, submission_id=submission_id
+        )
+        return submission.decision_reason if submission is not None else None
+    finally:
+        await clear_transaction_tenant(session)

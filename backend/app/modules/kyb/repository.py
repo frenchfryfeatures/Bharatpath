@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.models import ConfigValue
 from app.modules.kyb.domain import OPEN_STATES
-from app.modules.kyb.models import KybDocument, KybSubmission
+from app.modules.kyb.models import KybDocument, KybReview, KybSubmission
 
 _OPEN_PREDICATE = "state IN ('DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'MORE_INFO_REQUIRED')"
 
@@ -93,7 +93,12 @@ async def get_submission(
 
 
 async def create_draft(
-    session: AsyncSession, *, tenant_id: uuid.UUID, form_version: str
+    session: AsyncSession,
+    *,
+    tenant_id: uuid.UUID,
+    form_version: str,
+    answers: dict[str, Any] | None = None,
+    previous_submission_id: uuid.UUID | None = None,
 ) -> KybSubmission:
     """A new DRAFT, or the open submission that won a race to exist.
 
@@ -108,9 +113,10 @@ async def create_draft(
             id=uuid.uuid4(),
             tenant_id=tenant_id,
             state="DRAFT",
-            answers={},
+            answers=dict(answers or {}),
             form_version=form_version,
             auto_approved=False,
+            previous_submission_id=previous_submission_id,
         )
         .on_conflict_do_nothing(index_elements=["tenant_id"], index_where=text(_OPEN_PREDICATE))
     )
@@ -141,6 +147,7 @@ async def set_state(
         "reviewed_at",
         "decision_reason",
         "auto_approved",
+        "review_flags",
     }
     unexpected = set(fields) - allowed
     if unexpected:
@@ -186,3 +193,39 @@ async def add_document(
     session.add(row)
     await session.flush()
     return row
+
+
+async def copy_documents(
+    session: AsyncSession, *, documents: list[KybDocument], to: KybSubmission
+) -> None:
+    """Attach `documents` to another submission: new rows, the same objects.
+    A rejected organisation starting again keeps what it already uploaded."""
+    for doc in documents:
+        session.add(
+            KybDocument(
+                tenant_id=to.tenant_id,
+                submission_id=to.id,
+                doc_type=doc.doc_type,
+                s3_key=doc.s3_key,
+                mime=doc.mime,
+                uploaded_at=doc.uploaded_at,
+            )
+        )
+    await session.flush()
+
+
+async def add_review(session: AsyncSession, **fields: Any) -> KybReview:
+    row = KybReview(**fields)
+    session.add(row)
+    await session.flush()
+    return row
+
+
+async def reviews(session: AsyncSession, *, submission_id: uuid.UUID) -> list[KybReview]:
+    """Every decision on this submission, oldest first."""
+    result = await session.execute(
+        select(KybReview)
+        .where(KybReview.submission_id == submission_id)
+        .order_by(KybReview.reviewed_at, KybReview.id)
+    )
+    return list(result.scalars().all())

@@ -43,9 +43,11 @@ from app.core.tenant import TenantContext
 from app.modules.applications import service as applications_service
 from app.modules.college import service as college_service
 from app.modules.identity import service as identity_service
+from app.modules.kyb import service as kyb_service
 from app.modules.notifications import repository, unsubscribe
 from app.modules.notifications.domain import (
     DEFAULT_NUDGE_RULES,
+    KYB_REVIEWER_ROLES,
     NUDGE_TEMPLATES,
     NudgeRules,
     NudgeRulesError,
@@ -229,6 +231,8 @@ async def _addressees(
                 session, _uuid(payload.get("tenant_id")), COLLEGE_ADMIN_ROLES
             )
         )
+    elif audience == "KYB_REVIEWERS":
+        ids = list(await identity_service.staff_ids(session, roles=KYB_REVIEWER_ROLES))
     elif audience == "SUBSCRIBER":
         subscriber = _uuid(payload.get("subscriber_id"))
         if payload.get("subscriber_type") == "USER":
@@ -286,6 +290,16 @@ async def _variables(
             values[name] = int(payload["amount_minor"])
         elif name == "date" and payload.get("debit_not_before"):
             values[name] = datetime.fromisoformat(str(payload["debit_not_before"]))
+        elif name == "reason":
+            tenant_id = _uuid(payload.get("tenant_id"))
+            submission_id = _uuid(payload.get("submission_id"))
+            if tenant_id is not None and submission_id is not None:
+                values[name] = (
+                    await kyb_service.decision_reason_for_delivery(
+                        session, tenant_id=tenant_id, submission_id=submission_id
+                    )
+                    or ""
+                )
     if {"message", "when", "link"} & set(plan.variables):
         values.update(await _message_variables(session, payload))
     return values

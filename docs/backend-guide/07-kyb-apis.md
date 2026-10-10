@@ -120,11 +120,27 @@ employers in the country.
   "submitted_at": null,
   "reviewed_at": null,
   "decision_reason": null,
-  "auto_approved": false
+  "auto_approved": false,
+  "review_flags": [],
+  "reviews": [],
+  "changed_since_last_review": null,
+  "previous_submission_id": null
 }
 ```
 `submission_id: null` and `state: "DRAFT"` is the answer for an organisation
 that hasn't saved anything yet — not an error, just a starting state.
+
+Added 2026-10-10 for the review flow (§7):
+- each document has a `url`, a short-lived link to the uploaded file;
+- `review_flags` lists the fields and documents the reviewer wants corrected
+  (`{"field": "pan", "note": "Use the PAN printed on the card"}`, or a
+  document type such as `doc_pan`). **Highlight exactly these on the form.**
+- `reviews` is every decision on this submission, oldest first (decision,
+  reason, flags, time — never who reviewed);
+- `changed_since_last_review` is `{fields, documents}` changed since the
+  last decision, or `null` before the first one;
+- `previous_submission_id` is set when this submission was started after a
+  rejection and filled in from the rejected one.
 
 ---
 
@@ -132,7 +148,10 @@ that hasn't saved anything yet — not an error, just a starting state.
 
 **Auth required:** `EMPLOYER_OWNER` only, and **only while the submission is
 `DRAFT` or `MORE_INFO_REQUIRED`** — `409 kyb_not_editable` if it's
-`SUBMITTED`, `UNDER_REVIEW`, or already `APPROVED`/`REJECTED`.
+`SUBMITTED` or `UNDER_REVIEW`, and `409 kyb_already_verified` once approved.
+**After a `REJECTED` decision, any save starts a new submission** filled in
+with the rejected one's answers and documents (`{"answers": {}}` is enough
+to start it). See §7.
 
 **Request body** (`SaveAnswersRequest`):
 ```json
@@ -264,20 +283,35 @@ With the switch **on**:
 
 ---
 
-## What happens after `SUBMITTED` — and why there's no endpoint for it
+## 7. After `SUBMITTED`: review, send back, correct, resubmit (2026-10-10)
 
-If the switch is on, a human reviewer needs to approve, reject, or ask for
-more info. **That review logic already exists in `kyb/service.py`** — but
-**it has no route**, and won't until a platform-staff console exists to let
-someone actually hold the `KYB_REVIEWER` role and act through it (a tracked
-gap, not a design decision — see `docs/blockers.md`). Today, with the
-switch on, a submission would sit at `SUBMITTED` with no way to move it
-forward except a direct database action.
+Only while approval is **manual** (the admin console's KYB switch). With it
+on automatic, `submit` approves at once and none of this happens.
 
-For reference, when that surface does land, three review decisions are
-possible: `APPROVED`, `REJECTED`, `MORE_INFO_REQUIRED` — and a rejection or
-a "more info" request must always carry a reason (SRS 1.11.3) — "please
-provide more" with no hint of what is not something anyone could act on.
+```
+SUBMITTED ──► APPROVED                                   done; jobs can be published
+    │
+    ├──► MORE_INFO_REQUIRED  ("Send back")
+    │        the SAME submission reopens: PUT /answers, re-upload documents,
+    │        POST /submit again ──► SUBMITTED (the reviewer sees what changed)
+    │
+    └──► REJECTED            (final for this submission)
+             the next PUT /answers (or document upload) starts a NEW submission,
+             already filled in with the old answers and documents ──► submit
+```
+
+- **Both "Send back" and "Reject" carry a reason**, which the organisation
+  reads as `decision_reason`, and may point at specific fields and documents
+  in `review_flags`. Show the reason, and mark the flagged fields on the form.
+- **Notifications** (in-app and email to every owner, with the reason
+  included): sent back → `IN_APP_KYB_NEEDS_INFO` / `EMAIL_KYB_NEEDS_INFO`;
+  rejected → `IN_APP_KYB_REJECTED` / `EMAIL_KYB_REJECTED`; approved → as
+  before. Our staff (admins and KYB reviewers) get an **in-app** message
+  for every submission and resubmission.
+- After resubmitting, `review_flags` is empty again and the earlier decision
+  stays in `reviews`.
+
+The console side is [13 §1](13-admin-console-and-disputes-apis.md).
 
 ---
 

@@ -7,7 +7,7 @@
 > **Still-open questions live in [`questions.txt`](questions.txt)**, written in plain language and
 > ready to send. This file is the archive; that file is the ask.
 >
-> Last updated 9 October 2026 — Round 13 added (KYB switch in the console, 100% discount codes).
+> Last updated 10 October 2026 — Round 14 added (KYB send back, correct and resubmit).
 
 ---
 
@@ -15,6 +15,16 @@
 
 | Round | Source | Asked | Answered | Still open |
 |---
+
+## Round 14 — client request, 2026-10-10
+
+Relayed by the backend lead, with a screenshot of the console's KYB queue.
+
+| # | Request (verbatim) | What we did |
+|---|---|---|
+| **14.1** | *"approve reject ....in case of reject with remark needs to repload manula entry update and document update again submit admin mai submit ka notification and if reject correct then notification to employer/college"* | **Employers only**: colleges have no review, by design (`college/models.py`), and the lead confirmed nothing changes for them. Agreed with the lead: **Send back** (`MORE_INFO_REQUIRED`) reopens the same submission to correct and resubmit; **Reject** is final, and the next submission starts filled in from it. Both carry a reason and optional per-field / per-document flags. Every decision recorded with what it was made on, so a resubmission shows what changed. Staff (admins, KYB reviewers) told **in-app** of every submission; owners told of every decision, in-app and email, reason included (a rejection used to tell nobody). Reviewers can now open the uploaded files. Migration `0016_kyb_review_flow`. |
+
+---
 
 ## Round 13 — client decisions, 2026-10-09
 

@@ -34,6 +34,7 @@ from pydantic import Field
 from app.core.schemas import ApiSchema
 from app.modules.admin.domain import MAX_DISPUTE_DESCRIPTION, MAX_RESOLUTION, DisputeKind
 from app.modules.candidate.career import CareerResponse, form_fields
+from app.modules.kyb.schemas import KybReviewFlag
 from app.modules.resume.structuring import StructuredResume, StructuredStatus
 
 
@@ -55,6 +56,11 @@ class KybSubmissionRow(_Base):
     reviewed_at: datetime | None
     auto_approved: bool
     created_at: datetime
+    #: Decisions already made on this submission. Above zero on a submission
+    #: waiting for review means it was sent back and corrected.
+    review_count: int = 0
+    #: True when it was started again after a rejection.
+    after_rejection: bool = False
 
 
 class KybSubmissionsPage(_Base):
@@ -73,8 +79,14 @@ class KybApprovalMode(_Base):
 
 
 class KybDecisionRequest(_Base):
+    """`MORE_INFO_REQUIRED` is **Send back**: the organisation corrects the
+    same submission and submits it again. `REJECTED` is final; their next
+    submission starts filled in from this one. Both need a `reason`, and
+    may name the fields and documents to correct in `flags` (2026-10-10)."""
+
     decision: Literal["UNDER_REVIEW", "APPROVED", "REJECTED", "MORE_INFO_REQUIRED"]
     reason: str | None = Field(default=None, max_length=1000)
+    flags: list[KybReviewFlag] = Field(default_factory=list, max_length=40)
 
 
 # ---------------------------------------------------------------------------

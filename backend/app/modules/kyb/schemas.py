@@ -40,6 +40,35 @@ class KybDocumentResponse(_Base):
     doc_type: str
     mime: str | None = None
     uploaded_at: datetime
+    #: A presigned GET for the file, which expires (2026-10-10). The owner
+    #: sees their own upload; a reviewer opens it from the console.
+    url: str | None = None
+
+
+class KybReviewFlag(_Base):
+    """One field or document a reviewer wants corrected. `field` is a form
+    field code, or a document type such as `doc_pan`."""
+
+    field: Annotated[str, Field(min_length=1, max_length=64)]
+    note: Annotated[str | None, Field(max_length=500)] = None
+
+
+class KybReviewEntry(_Base):
+    """One decision on this submission, oldest first. No reviewer: who
+    decided is on the audit trail, not on the organisation's screen."""
+
+    decision: Literal["UNDER_REVIEW", "APPROVED", "REJECTED", "MORE_INFO_REQUIRED"]
+    reason: str | None = None
+    flags: list[KybReviewFlag] = Field(default_factory=list)
+    reviewed_at: datetime
+
+
+class KybChanges(_Base):
+    """What differs from what the last decision was made on: field codes
+    whose answer changed, and document types uploaded again."""
+
+    fields: list[str] = Field(default_factory=list)
+    documents: list[str] = Field(default_factory=list)
 
 
 class KybSubmissionResponse(_Base):
@@ -57,6 +86,17 @@ class KybSubmissionResponse(_Base):
     reviewed_at: datetime | None = None
     decision_reason: str | None = None
     auto_approved: bool = False
+    #: What the reviewer wants corrected, while the submission is sent back
+    #: (MORE_INFO_REQUIRED) or after a rejection. Empty otherwise.
+    review_flags: list[KybReviewFlag] = Field(default_factory=list)
+    #: Every decision on this submission, oldest first.
+    reviews: list[KybReviewEntry] = Field(default_factory=list)
+    #: Null before the first decision. After one, what has changed since --
+    #: which, for a corrected resubmission, is what the reviewer re-checks.
+    changed_since_last_review: KybChanges | None = None
+    #: Set when this submission was started after a rejection and filled in
+    #: from the rejected one.
+    previous_submission_id: uuid.UUID | None = None
 
 
 class SaveAnswersRequest(_Base):

@@ -345,6 +345,10 @@ ERASURE_PLAN: Final[Mapping[str, TablePlan]] = {
     "jobs": _not_personal("An employer's advertisement."),
     "kyb_submissions": _not_personal("An organisation's verification, submitted by its staff."),
     "kyb_documents": _not_personal("An organisation's documents."),
+    "kyb_reviews": _not_personal(
+        "A reviewer's decision on an organisation's verification, and the answers "
+        "it was made on (2026-10-10). `reviewed_by` names our staff, not the subject."
+    ),
     "roster_imports": _not_personal("A college's upload, by its staff."),
     "roster_entries": TablePlan(
         Disposition.RETAIN,

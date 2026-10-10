@@ -9,6 +9,48 @@ states. Newest entries first.
 
 ---
 
+## 2026-10-10 — KYB: send back, correct, resubmit; notifications both ways
+
+Client request via the lead (answers-log 14.1). **Employers only**; colleges
+have no review step and keep none. Branch `feat/kyb-review-flow`. Backend
+only. App-team contract: `backend-guide/07` §7 and `13` §1.
+
+- **Two decisions with a remark.** *Send back* (`MORE_INFO_REQUIRED`) reopens
+  the same submission: the owner edits answers, re-uploads documents and
+  submits again. *Reject* is final; the next save starts a new submission
+  filled in with the old answers and documents (`previous_submission_id`).
+- **Flags:** a decision may name form fields and document types to correct
+  (`review_flags`, with optional notes); unknown or duplicate fields, or
+  flags on an approval, are 422.
+- **History:** every decision is a `kyb_reviews` row (tenant RLS,
+  append-only) with the answers and document ids it was made on, so a
+  resubmission carries `changed_since_last_review`. The queue row says
+  `review_count` (resubmitted when above zero) and `after_rejection`.
+- **Reviewers can open the files:** each document now has a presigned `url`.
+  Until now the console had no way to see an uploaded document.
+- **Notifications:** `kyb.submitted` → admins and KYB reviewers, **in-app
+  only** (new audience `KYB_REVIEWERS`); a send-back and a rejection → the
+  owners, email and in-app, **with the reviewer's reason** (new variable
+  `reason`, read at dispatch). A rejection previously told nobody, and
+  `test_a_glance_is_not_news` said so; that line now covers `UNDER_REVIEW`.
+  New strings in the six priority bundles, still flagged for a
+  native-speaker pass.
+- **Migration `0016_kyb_review_flow`:** two `kyb_submissions` columns and the
+  `kyb_reviews` table with its policy. Up, down and up again tested locally.
+- **Unchanged:** with the KYB switch on automatic, a submission is approved
+  at once and none of this applies.
+- **Frontend handoff:** a *Send back* button beside Approve/Reject; per-field
+  and per-document flags in the decision; the "changed since last review"
+  highlight and a "Resubmitted" badge from `review_count`; the eye icon from
+  `documents[].url`. On the employer side: show `decision_reason` and
+  highlight `review_flags`, and after a rejection a "Start again" action that
+  calls `PUT /employer/kyb/answers` with `{}`.
+- Tests: `tests/unit/test_kyb_review_rules.py`,
+  `tests/integration/test_kyb_review_flow.py`, and new cases in
+  `test_notifications_domain.py`.
+
+---
+
 ## 2026-10-10 — PR #69 deployed: bucket, env and migrations 0014–0015
 
 PR #69 (KYB switch, 100% codes, profile images) merged with every CI check

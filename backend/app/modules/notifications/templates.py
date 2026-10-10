@@ -455,14 +455,27 @@ EMAIL_TEMPLATES: Final[tuple[MessageTemplate, ...]] = (
         (),
         subject="Your organisation is verified",
     ),
+    # 2026-10-10: a send-back and a rejection carry the reviewer's words.
+    # `{reason}` ends a sentence the reviewer wrote, so the template's own
+    # next sentence starts fresh rather than depending on its punctuation.
     MessageTemplate(
         "EMAIL_KYB_NEEDS_INFO",
         "EMAIL",
         "email.kyb_needs_info",
-        "Your organisation's verification on BharatPath needs more information. Sign in to "
-        "see what is missing.",
-        (),
-        subject="Your verification needs more information",
+        "Your organisation's verification on BharatPath needs changes before it can be "
+        "approved. The reviewer wrote: {reason} Sign in to correct it and submit it again.",
+        ("reason",),
+        subject="Your verification needs changes",
+    ),
+    MessageTemplate(
+        "EMAIL_KYB_REJECTED",
+        "EMAIL",
+        "email.kyb_rejected",
+        "Your organisation's verification on BharatPath was not approved. The reviewer wrote: "
+        "{reason} You can sign in and apply again; your earlier answers and documents are "
+        "already filled in.",
+        ("reason",),
+        subject="Your verification was not approved",
     ),
     # 2026-09-29: an employer writing to an applicant. `{message}` is their
     # own words; `{link}` is a bare https link, or nothing, so no sentence
@@ -571,7 +584,30 @@ IN_APP_TEMPLATES: Final[tuple[MessageTemplate, ...]] = (
         "IN_APP_KYB_NEEDS_INFO",
         "IN_APP",
         "in_app.kyb_needs_info",
-        "Your organisation's verification needs more information.",
+        "Your organisation's verification needs changes: {reason}",
+        ("reason",),
+    ),
+    MessageTemplate(
+        "IN_APP_KYB_REJECTED",
+        "IN_APP",
+        "in_app.kyb_rejected",
+        "Your organisation's verification was not approved: {reason}",
+        ("reason",),
+    ),
+    # To our staff, in the console's inbox only (2026-10-10).
+    MessageTemplate(
+        "IN_APP_KYB_SUBMITTED",
+        "IN_APP",
+        "in_app.kyb_submitted",
+        "{employer} submitted their verification for review.",
+        ("employer",),
+    ),
+    MessageTemplate(
+        "IN_APP_KYB_RESUBMITTED",
+        "IN_APP",
+        "in_app.kyb_resubmitted",
+        "{employer} corrected their verification and submitted it again.",
+        ("employer",),
     ),
     MessageTemplate(
         "IN_APP_INTERVIEW_FEEDBACK_READY",
