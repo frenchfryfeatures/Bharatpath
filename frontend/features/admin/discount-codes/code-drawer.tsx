@@ -1,5 +1,7 @@
 "use client";
 
+import { Avatar } from "@/components/ui/avatar";
+
 import { useState } from "react";
 import { X } from "lucide-react";
 
@@ -99,7 +101,8 @@ export function CodeDrawer({ code, canWrite, onClose }: CodeDrawerProps) {
               {redemptions.data?.items.map((item) => (
                 <div key={item.id} className="rounded-lg border border-[#e5e7eb] p-3">
                   <div className="flex justify-between gap-3">
-                    <strong className="truncate text-[#172033]">
+                    <strong className="flex min-w-0 items-center gap-2 text-[#172033]">
+                      {item.organisation && <Avatar name={item.organisation} src={item.logo_url} size="sm" fit="contain" />}
                       {item.organisation || `Candidate ${item.user_id}`}
                     </strong>
                     <span className="shrink-0 text-[11px] text-[#7b8494]">{formatDate(item.redeemed_at)}</span>

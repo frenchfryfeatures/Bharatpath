@@ -4,6 +4,7 @@ import type {
   KybDocType,
   KybDocumentTicket,
   KybForm,
+  KybReviewFlag,
   KybSubmission,
 } from "./types";
 
@@ -22,6 +23,19 @@ interface KybDocumentResponse {
   doc_type: string;
   mime: string | null;
   uploaded_at: string;
+  url?: string | null;
+}
+
+interface KybFlagResponse {
+  field: string;
+  note?: string | null;
+}
+
+interface KybReviewResponse {
+  decision: string;
+  reason?: string | null;
+  flags?: KybFlagResponse[] | null;
+  reviewed_at: string;
 }
 
 interface KybSubmissionResponse {
@@ -34,6 +48,10 @@ interface KybSubmissionResponse {
   reviewed_at: string | null;
   decision_reason: string | null;
   auto_approved: boolean;
+  review_flags?: KybFlagResponse[] | null;
+  reviews?: KybReviewResponse[] | null;
+  changed_since_last_review?: { fields?: string[]; documents?: string[] } | null;
+  previous_submission_id?: string | null;
 }
 
 interface KybDocumentTicketResponse {
@@ -59,6 +77,13 @@ function mapKybForm(response: KybFormResponse): KybForm {
   };
 }
 
+function mapFlags(flags?: KybFlagResponse[] | null): KybReviewFlag[] {
+  return (flags ?? []).map((flag) => ({
+    field: flag.field,
+    note: flag.note ?? null,
+  }));
+}
+
 function mapKybSubmission(response: KybSubmissionResponse): KybSubmission {
   return {
     submissionId: response.submission_id,
@@ -69,11 +94,26 @@ function mapKybSubmission(response: KybSubmissionResponse): KybSubmission {
       docType: document.doc_type,
       mime: document.mime,
       uploadedAt: document.uploaded_at,
+      url: document.url ?? null,
     })),
     submittedAt: response.submitted_at,
     reviewedAt: response.reviewed_at,
     decisionReason: response.decision_reason,
     autoApproved: response.auto_approved,
+    reviewFlags: mapFlags(response.review_flags),
+    reviews: (response.reviews ?? []).map((review) => ({
+      decision: review.decision,
+      reason: review.reason ?? null,
+      flags: mapFlags(review.flags),
+      reviewedAt: review.reviewed_at,
+    })),
+    changedSinceLastReview: response.changed_since_last_review
+      ? {
+          fields: response.changed_since_last_review.fields ?? [],
+          documents: response.changed_since_last_review.documents ?? [],
+        }
+      : null,
+    previousSubmissionId: response.previous_submission_id ?? null,
   };
 }
 
@@ -202,6 +242,7 @@ export const employerKybApi = baseApi.injectEndpoints({
 export const {
   useGetEmployerKybFormQuery,
   useGetEmployerKybQuery,
+  useLazyGetEmployerKybQuery,
   useSaveEmployerKybAnswersMutation,
   useCreateEmployerKybDocumentTicketMutation,
   useUploadEmployerKybDocumentMutation,

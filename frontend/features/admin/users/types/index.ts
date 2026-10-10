@@ -13,6 +13,8 @@ export interface UserRow {
   id: string;
   name: string;
   initials: string;
+  imageUrl?: string | null;
+  imageFit?: "cover" | "contain";
   identifier: string;
   meta: string;
   state: UserState;

@@ -3,7 +3,6 @@ export {
   AdminSettingsPage,
   SettingsTabs,
   KybApprovalTab,
-  PlatformTab,
 } from "./components";
 
 export { useSettings } from "./hooks/use-settings";

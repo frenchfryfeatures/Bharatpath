@@ -16,7 +16,7 @@ import {
 import { DiscountCodeField } from "@/components/billing/discount-code-field";
 import { SimulatedPaymentDialog } from "@/components/billing/simulated-payment-dialog";
 import { getApiErrorMessage } from "@/lib/api/error-message";
-import { isStubPaymentUrl } from "@/store/api/payment.api";
+import { isCompleteWithoutPayment, isStubPaymentUrl } from "@/store/api/payment.api";
 import {
   useCheckoutCandidateSubscriptionMutation,
   useGetCandidatePlansQuery,
@@ -93,7 +93,12 @@ export function SubscriptionStep({
       planCode,
       ...(discountCode ? { discountCode } : {}),
     }).unwrap();
-    if (isStubPaymentUrl(result.redirect_url)) setPayment(result);
+    if (isCompleteWithoutPayment(result)) {
+      // Nothing to pay: access is already granted, so reading it back shows
+      // the "member" screen.
+      setPayment(null);
+      await subscription.refetch();
+    } else if (isStubPaymentUrl(result.redirect_url)) setPayment(result);
     else if (result.redirect_url) window.location.assign(result.redirect_url);
     else
       throw new Error(

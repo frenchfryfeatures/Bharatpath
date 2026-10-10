@@ -1,10 +1,12 @@
 "use client";
 
-import Link from "next/link";
+import { EmployerLogoCard } from "./employer-logo-card";
+
+import { choiceLabel, humanizeCode } from "@/lib/format/labels";
+
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import {
   AlertCircle,
-  Building2,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
@@ -12,6 +14,7 @@ import {
   FileCheck2,
   FileText,
   Globe,
+  ExternalLink,
   Lock,
   Loader2,
   ShieldCheck,
@@ -24,7 +27,8 @@ import { MfaSettingsControl } from "@/components/auth/mfa-settings-control";
 import { Skeleton } from "@/components/common/loading";
 import { EmployerErrorState } from "@/features/employer/components/employer-error-state";
 import { INDIAN_STATES } from "@/features/student/onboarding/constants";
-import { useGetEmployerKybQuery } from "@/store/employer/kyb";
+import { KybReviewHistory } from "@/features/employer/onboarding/components/kyb-review-history";
+import { useGetEmployerKybFormQuery, useGetEmployerKybQuery } from "@/store/employer/kyb";
 import {
   clearPendingTab,
   replaceCompanyProfile,
@@ -40,6 +44,11 @@ import {
   type CompanyProfile,
   type EditableCompanyField,
 } from "@/store/employer/settings";
+import {
+  KybChangesPanel,
+  needsVerificationChanges,
+  useKybDocumentViewer,
+} from "./kyb-changes-panel";
 import { useSessionIdentity } from "@/lib/auth/use-session-identity";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 
@@ -86,9 +95,6 @@ const EDITABLE_FIELDS: readonly EditableCompanyField[] = [
   "about",
 ];
 
-/** KYB states in which the owner can still change their answers. */
-const KYB_EDITABLE_STATES = new Set(["DRAFT", "MORE_INFO_REQUIRED", "REJECTED"]);
-
 /** "acme.in" becomes "https://acme.in"; the server accepts https only. */
 function normaliseWebsite(value: string): string {
   const trimmed = value.trim();
@@ -117,7 +123,7 @@ function getEmployerTypeLabel(
   if (!typeCode) return "—";
   const fromRef = referenceTypes?.find((t) => t.code === typeCode);
   if (fromRef) return fromRef.label;
-  return EMPLOYER_TYPE_MAP[typeCode] || typeCode;
+  return EMPLOYER_TYPE_MAP[typeCode] || choiceLabel(typeCode);
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -153,7 +159,40 @@ function StatusBadge({ status }: { status: string }) {
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full bg-[#f8f9fc] px-3 py-1 text-xs font-semibold text-[#475467] ring-1 ring-inset ring-[#eaecf0]">
       <FileText className="h-3.5 w-3.5" aria-hidden="true" />
-      {norm ? norm.replace(/_/g, " ") : "Draft"}
+      {norm ? humanizeCode(norm) : "Draft"}
+    </span>
+  );
+}
+
+/** "On file" chip with a button that opens the uploaded file in a new tab. */
+function OnFileChip({ onView }: { onView: () => Promise<boolean> }) {
+  const [opening, setOpening] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span className="inline-flex items-center gap-1 rounded bg-[#ecfdf3] px-2 py-0.5 text-[11px] font-medium text-[#027a48]">
+        <CheckCircle2 className="h-3 w-3" /> On file
+      </span>
+      <button
+        type="button"
+        disabled={opening}
+        onClick={async () => {
+          setOpening(true);
+          setFailed(false);
+          setFailed(!(await onView()));
+          setOpening(false);
+        }}
+        className="inline-flex cursor-pointer items-center gap-1 text-[11px] font-semibold text-[#3566b8] hover:underline disabled:cursor-wait disabled:opacity-60"
+        title={failed ? "Could not open the file. Try again." : "Open the uploaded file"}
+      >
+        {opening ? (
+          <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+        ) : (
+          <ExternalLink className="h-3 w-3" aria-hidden="true" />
+        )}
+        {failed ? "Retry" : "View"}
+      </button>
     </span>
   );
 }
@@ -204,6 +243,8 @@ export function CompanyTab() {
     isLoading: isKybLoading,
   } = useGetEmployerKybQuery(undefined, { skip: !isOwner });
 
+  const { data: kybForm } = useGetEmployerKybFormQuery(undefined, { skip: !isOwner });
+  const viewDocument = useKybDocumentViewer();
   const { data: reference } = useGetEmployerReferenceQuery();
   const [updateOrganisation, { isLoading: isSaving }] =
     useUpdateEmployerOrganisationMutation();
@@ -439,19 +480,15 @@ export function CompanyTab() {
   return (
     <div className="w-full space-y-6 pb-24">
       {/* Top Header Card */}
-      <div className="flex flex-col gap-4 rounded-xl border border-[#e0e4e9] bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <Building2 className="h-5 w-5 text-[#3566b8]" aria-hidden="true" />
-            <h1 className="text-base font-bold text-[#111827]">Company profile</h1>
-          </div>
-          <p className="mt-1 text-xs text-[#687386]">
-            Public details for jobseekers and verified compliance records.
-          </p>
-        </div>
-        <div>
+      <div className="flex flex-col gap-4 rounded-xl border border-[#e0e4e9] bg-white p-5 shadow-sm">
+        <div className="flex items-start justify-between gap-3">
+          <h1 className="text-base font-bold text-[#111827]">Company profile</h1>
           <StatusBadge status={company.kybStatus || "DRAFT"} />
         </div>
+        <EmployerLogoCard />
+        <p className="text-xs text-[#687386]">
+          Public details for jobseekers and verified compliance records.
+        </p>
       </div>
 
       {(isOrgError || isKybError) && (
@@ -460,6 +497,9 @@ export function CompanyTab() {
           fallback="Unable to load complete company details. Please try again."
         />
       )}
+
+      {/* Changes a reviewer asked for, or a rejection to start again from */}
+      {isOwner && kyb && <KybChangesPanel kyb={kyb} />}
 
       {/* 1. PUBLIC PROFILE (Editable directly) */}
       <section className="rounded-xl border border-[#e0e4e9] bg-white p-5 shadow-sm sm:p-6">
@@ -593,13 +633,9 @@ export function CompanyTab() {
           <p className="mt-0.5 text-xs text-[#687386]">
             From your business verification, as submitted for review. They change only
             through verification, never from this page.{" "}
-            {KYB_EDITABLE_STATES.has(company.kybStatus.toUpperCase()) ? (
-              <Link href="/signup/employer" className="font-semibold text-[#3566b8] hover:underline">
-                Update your verification details
-              </Link>
-            ) : (
-              "Contact support to correct them."
-            )}
+            {needsVerificationChanges(kyb)
+              ? "Update them from the verification panel at the top of this page."
+              : "Contact support to correct them."}
           </p>
         </div>
 
@@ -769,9 +805,7 @@ export function CompanyTab() {
               <span className="text-xs font-semibold text-[#1e293b]">PAN Document</span>
             </div>
             {panDoc ? (
-              <span className="inline-flex items-center gap-1 rounded bg-[#ecfdf3] px-2 py-0.5 text-[11px] font-medium text-[#027a48]">
-                <CheckCircle2 className="h-3 w-3" /> On file
-              </span>
+              <OnFileChip onView={() => viewDocument("doc_pan")} />
             ) : (
               <span className="text-[11px] text-[#64748b]">Not submitted</span>
             )}
@@ -783,9 +817,7 @@ export function CompanyTab() {
               <span className="text-xs font-semibold text-[#1e293b]">Certificate of Incorporation</span>
             </div>
             {regDoc ? (
-              <span className="inline-flex items-center gap-1 rounded bg-[#ecfdf3] px-2 py-0.5 text-[11px] font-medium text-[#027a48]">
-                <CheckCircle2 className="h-3 w-3" /> On file
-              </span>
+              <OnFileChip onView={() => viewDocument("doc_registration")} />
             ) : (
               <span className="text-[11px] text-[#64748b]">Optional • None</span>
             )}
@@ -797,9 +829,7 @@ export function CompanyTab() {
               <span className="text-xs font-semibold text-[#1e293b]">GST Registration</span>
             </div>
             {gstDoc ? (
-              <span className="inline-flex items-center gap-1 rounded bg-[#ecfdf3] px-2 py-0.5 text-[11px] font-medium text-[#027a48]">
-                <CheckCircle2 className="h-3 w-3" /> On file
-              </span>
+              <OnFileChip onView={() => viewDocument("doc_gst")} />
             ) : (
               <span className="text-[11px] text-[#64748b]">Optional • None</span>
             )}
@@ -811,15 +841,19 @@ export function CompanyTab() {
               <span className="text-xs font-semibold text-[#1e293b]">Authorisation Letter</span>
             </div>
             {authDoc ? (
-              <span className="inline-flex items-center gap-1 rounded bg-[#ecfdf3] px-2 py-0.5 text-[11px] font-medium text-[#027a48]">
-                <CheckCircle2 className="h-3 w-3" /> On file
-              </span>
+              <OnFileChip onView={() => viewDocument("doc_authorisation")} />
             ) : (
               <span className="text-[11px] text-[#64748b]">Optional • None</span>
             )}
           </div>
         </div>
       </section>
+
+      {isOwner && kyb && kyb.reviews.length > 0 && (
+        <section className="rounded-xl border border-[#e0e4e9] bg-white p-5 shadow-sm sm:p-6">
+          <KybReviewHistory form={kybForm} reviews={kyb.reviews} />
+        </section>
+      )}
 
       {/* 5. LEGAL & COMPLIANCE UNDERTAKINGS (Collapsible) */}
       <section className="rounded-xl border border-[#e0e4e9] bg-white shadow-sm overflow-hidden">

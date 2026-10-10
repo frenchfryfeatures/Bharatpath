@@ -1,5 +1,7 @@
 "use client";
 
+import { choiceLabel } from "@/lib/format/labels";
+
 import { useMemo, useState } from "react";
 import { Check, Info, Pencil, Search, X } from "lucide-react";
 import { Skeleton } from "@/components/common/loading";
@@ -247,7 +249,7 @@ function formatAnswer(question: QuestionnaireQuestion, value: unknown): string {
   if (question.type === "BOOLEAN") return value ? "Yes" : "No";
   if (question.type === "SINGLE" || question.type === "MULTI") {
     const codes = Array.isArray(value) ? value : [value];
-    return codes.map((code) => question.options.find((option) => option.code === code)?.label ?? String(code)).join(", ");
+    return codes.map((code) => question.options.find((option) => option.code === code)?.label ?? choiceLabel(String(code))).join(", ");
   }
   return String(value);
 }

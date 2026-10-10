@@ -1,5 +1,7 @@
 "use client";
 
+import { CollegeLogoCard } from "./college-logo-card";
+
 import { BadgeCheck, Loader2 } from "lucide-react";
 
 import { Skeleton } from "@/components/common/loading";
@@ -76,6 +78,8 @@ export function CollegeProfile() {
           Shown to employers alongside your students&apos; verified scores.
         </p>
       </div>
+
+      <CollegeLogoCard />
 
       {/* Institution name */}
       <label className="flex flex-col gap-2">

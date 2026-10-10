@@ -1,5 +1,7 @@
 "use client";
 
+import { ImageTile } from "@/features/admin/shared/image-tile";
+
 import { useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 
@@ -23,6 +25,42 @@ import type {
   QueueItem,
   QueueTab,
 } from "../types";
+
+const BADGE_TONES = {
+  blue: "bg-[#eef0ff] text-[#385da8]",
+  amber: "bg-[#fff5df] text-[#9a6b18]",
+  green: "bg-[#eef7f1] text-[#2f7b4b]",
+  neutral: "bg-[#f0f2f5] text-[#687182]",
+} as const;
+
+function QueueBadge({
+  tone,
+  children,
+}: {
+  tone: keyof typeof BADGE_TONES;
+  children: string;
+}) {
+  return (
+    <span
+      className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold ${BADGE_TONES[tone]}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+function statusTone(status: string): keyof typeof BADGE_TONES {
+  switch (status.toLowerCase()) {
+    case "submitted":
+      return "blue";
+    case "under review":
+      return "amber";
+    case "approved":
+      return "green";
+    default:
+      return "neutral";
+  }
+}
 
 export function QueuePage() {
   usePageHeader(
@@ -61,6 +99,22 @@ export function QueuePage() {
     }
   }, [dispatch, requestedTab, user?.backendRole]);
 
+  const RISK_COLUMN: ColumnDef<QueueItem> = {
+      id: "risk",
+
+      header: "Risk",
+
+      headerClassName:
+        "min-w-[118px]",
+
+      cellClassName:
+        "min-w-[118px]",
+
+      cell: (item) => (
+        item.risk ? <RiskBadge risk={item.risk} /> : null
+      ),
+    };
+
   const columns: ColumnDef<QueueItem>[] = [
     {
       id: "subject",
@@ -75,9 +129,7 @@ export function QueuePage() {
 
       cell: (item) => (
         <div className="flex min-w-0 items-center gap-3">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#eef3fb] text-[10px] font-bold text-[#315c9f]">
-            {item.initials}
-          </span>
+          <ImageTile src={item.imageUrl} initials={item.initials} fit={item.imageFit} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#eef3fb] text-[10px] font-bold text-[#315c9f]" />
 
           <div className="min-w-0">
             <p className="truncate text-[13px] font-semibold leading-5 text-[#172033]">
@@ -87,6 +139,14 @@ export function QueuePage() {
             <p className="truncate text-[11px] leading-4 text-[#7b8494]">
               {item.submitted}
             </p>
+
+            {item.afterRejection ? (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {item.afterRejection ? (
+                  <QueueBadge tone="blue">Re-applied after rejection</QueueBadge>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         </div>
       ),
@@ -96,49 +156,64 @@ export function QueuePage() {
       id: "secondary",
 
       header: isKyb
-        ? "GSTIN"
+        ? "Status"
         : "Flag",
 
       headerClassName:
-        "min-w-[175px]",
+        `min-w-[175px] ${isKyb ? "text-center" : ""}`,
 
       cellClassName:
-        "min-w-[175px] whitespace-nowrap text-[12px] text-[#344054]",
+        `min-w-[175px] whitespace-nowrap text-[12px] text-[#344054] ${isKyb ? "text-center" : ""}`,
 
       cell: (item) =>
-        item.secondary,
+        isKyb ? (
+          <QueueBadge tone={item.resubmitted ? "amber" : statusTone(item.secondary)}>
+            {item.resubmitted ? "Resubmitted" : item.secondary}
+          </QueueBadge>
+        ) : (
+          item.secondary
+        ),
     },
 
     {
-      id: "risk",
+      id: "date",
 
-      header: "Risk",
-
-      headerClassName:
-        "min-w-[118px]",
-
-      cellClassName:
-        "min-w-[118px]",
-
-      cell: (item) => (
-        <RiskBadge risk={item.risk} />
-      ),
-    },
-
-    {
-      id: "waiting",
-
-      header: "Waiting",
+      header: isKyb ? "Submitted" : "Flagged",
 
       headerClassName:
-        "min-w-[125px]",
+        "min-w-[170px]",
 
       cellClassName:
-        "min-w-[125px] whitespace-nowrap text-[13px] font-semibold text-[#172033]",
+        "min-w-[170px] whitespace-nowrap text-[12px] text-[#344054]",
 
       cell: (item) =>
-        item.waiting,
+        item.date,
     },
+
+    ...(isKyb
+      ? [
+          {
+            id: "approval",
+
+            header: "Decision",
+
+            headerClassName:
+              "min-w-[140px] text-center",
+
+            cellClassName:
+              "min-w-[140px] whitespace-nowrap text-center text-[12px] text-[#344054]",
+
+            cell: (item: QueueItem) =>
+              item.approval ? (
+                <QueueBadge
+                  tone={item.approval === "Auto-approved" ? "green" : "amber"}
+                >
+                  {item.approval}
+                </QueueBadge>
+              ) : null,
+          },
+        ]
+      : []),
 
     {
       id: "actions",
@@ -175,6 +250,11 @@ export function QueuePage() {
       ),
     },
   ];
+
+  // The KYB list carries no risk rating, so only integrity gets the column.
+  const visibleColumns = isKyb
+    ? columns
+    : [...columns.slice(0, 2), RISK_COLUMN, ...columns.slice(2)];
 
   const allTabs: Array<
     [QueueTab, string]
@@ -251,7 +331,7 @@ export function QueuePage() {
             <ErrorState error={error} fallback="Could not load this queue." onRetry={() => void refresh()} className="mb-3" />
           ) : null}
           <DataTable<QueueItem>
-            columns={columns}
+            columns={visibleColumns}
             data={items}
             keyExtractor={(item) =>
               item.id

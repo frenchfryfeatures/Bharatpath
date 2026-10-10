@@ -44,7 +44,7 @@ export function ApplicationCard({
       className={`flex w-full flex-col gap-3 rounded-[20px] border border-[#E7E0D4] bg-white p-4 text-left ${interactiveCardClass}`}
     >
       <div className="flex items-center gap-3">
-        <MonogramTile tint="indigo" size={40}>
+        <MonogramTile tint="indigo" size={40} logoUrl={application.employerLogoUrl}>
           {employerMonogram(application.employerName)}
         </MonogramTile>
         <div className="flex min-w-0 flex-1 flex-col gap-1">

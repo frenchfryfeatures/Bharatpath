@@ -1,3 +1,4 @@
+import { fieldLabel } from "@/lib/format/labels";
 import type { FetchBaseQueryError } from "@reduxjs/toolkit/query";
 
 import { ApiError } from "./errors";
@@ -40,6 +41,8 @@ const CODE_MESSAGES: Record<string, string> = {
     "This request was already submitted with different details.",
   no_active_membership:
     "Your account is not linked to an organisation yet.",
+  kyb_required:
+    "Your business needs to be verified before you can do this.",
   subscription_required:
     "An active subscription is required to continue.",
   interview_device_check_required:
@@ -62,8 +65,20 @@ const CODE_MESSAGES: Record<string, string> = {
     "Your verification has already been submitted and can no longer be edited.",
   kyb_already_verified:
     "Your organisation is already verified.",
+  kyb_reason_required:
+    "Add a remark. The organisation reads it on its verification page.",
+  kyb_flag_unknown_field:
+    "One of the ticked items is not on the verification form. Reopen the submission and try again.",
+  kyb_flag_duplicate:
+    "The same field was ticked twice. Reopen the submission and try again.",
+  kyb_flags_not_allowed:
+    "Ticked fields cannot be sent with an approval. Untick them or choose Send back.",
   kyb_document_rejected:
     "That file could not be accepted. Upload a PDF, JPEG or PNG under 10 MB.",
+  profile_image_rejected:
+    "That file could not be read as an image. Use a JPEG, PNG or WebP file.",
+  profile_image_upload_not_found:
+    "The upload did not finish. Please try uploading the image again.",
   kyb_upload_not_found:
     "The upload did not finish. Please try uploading the file again.",
   kyb_unknown_document_type:
@@ -143,6 +158,17 @@ export function getApiErrorCode(
   return undefined;
 }
 
+/** The problem's `params` (for example `kyb_status`), if the error carries any. */
+export function getApiErrorParams(
+  error: unknown,
+): Record<string, unknown> | undefined {
+  if (isFetchBaseQueryError(error)) {
+    return problemFrom(error.data)?.params;
+  }
+
+  return undefined;
+}
+
 /** Extract the HTTP status, if the error carries one. */
 export function getApiErrorStatus(
   error: unknown,
@@ -177,7 +203,7 @@ export function getApiValidationMessages(error: unknown): string[] {
       ? loc.filter((part) => typeof part === "string" && part !== "body").pop()
       : undefined;
     const reason = msg.replace(/^Value error, /, "");
-    const label = typeof field === "string" ? field.replace(/_/g, " ") : "";
+    const label = typeof field === "string" ? fieldLabel(field) : "";
     return [label ? `${label}: ${reason}` : reason];
   });
 }

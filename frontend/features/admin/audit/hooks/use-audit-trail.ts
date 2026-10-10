@@ -1,5 +1,7 @@
 "use client";
 
+import { humanizeCode } from "@/lib/format/labels";
+
 import { useCallback } from "react";
 
 import {
@@ -21,8 +23,8 @@ function auditView(item: AuditEventRow): AuditItem {
       : "check";
   return {
     id: String(item.id),
-    description: `${item.action.replaceAll("_", " ")} · ${item.target_type}`,
-    operator: item.actor_role,
+    description: `${humanizeCode(item.action)} · ${humanizeCode(item.target_type)}`,
+    operator: humanizeCode(item.actor_role),
     timestamp: new Date(item.occurred_at).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }),
     icon,
   };

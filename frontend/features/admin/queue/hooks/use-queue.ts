@@ -1,5 +1,7 @@
 "use client";
 
+import { humanizeCode } from "@/lib/format/labels";
+
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { canAccessAdminQueueTab } from "@/lib/auth/route-access";
 
@@ -36,6 +38,11 @@ function initials(value: string) {
     .toUpperCase();
 }
 
+/** "SUBMITTED" / "hidden_text" -> "Submitted" / "Hidden text". */
+function humanise(value: string) {
+  return humanizeCode(value);
+}
+
 function relativeTime(value: string | null, prefix: string) {
   if (!value) return `${prefix} date unavailable`;
   const elapsed = Math.max(0, Date.now() - new Date(value).getTime());
@@ -44,10 +51,15 @@ function relativeTime(value: string | null, prefix: string) {
   return `${prefix} ${Math.floor(hours / 24)}d ago`;
 }
 
-function waitingTime(value: string | null) {
+function formatDate(value: string | null) {
   if (!value) return "Unknown";
-  const hours = Math.floor(Math.max(0, Date.now() - new Date(value).getTime()) / 3_600_000);
-  return hours < 24 ? `${hours}h` : `${Math.floor(hours / 24)}d`;
+  return new Date(value).toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 export function useQueue() {
@@ -83,22 +95,32 @@ export function useQueue() {
     id: item.id,
     name: item.organisation,
     initials: initials(item.organisation),
+    imageUrl: item.logo_url,
+    imageFit: "contain",
     submitted: relativeTime(item.submitted_at ?? item.created_at, "Submitted"),
-    secondary: item.state.replaceAll("_", " "),
-    risk: item.auto_approved ? "Low" : "Medium",
-    waiting: waitingTime(item.submitted_at ?? item.created_at),
+    secondary: humanise(item.state),
+    risk: null,
+    date: formatDate(item.submitted_at ?? item.created_at),
+    approval: item.auto_approved ? "Auto-approved" : "Manual review",
     type: "KYB",
+    resubmitted: (item.review_count ?? 0) > 0 && item.state === "SUBMITTED",
+    afterRejection: item.after_rejection ?? false,
   }));
 
   const integrityItems: QueueItem[] = (integrityQuery.data?.items ?? []).map((item) => ({
     id: item.id,
     name: `Candidate · ${item.candidate_id.slice(0, 8)}`,
     initials: "CA",
+    imageUrl: item.photo_url,
+    imageFit: "cover",
     submitted: relativeTime(item.created_at, "Flagged"),
-    secondary: item.rule_id.replaceAll("_", " "),
+    secondary: humanise(item.rule_id),
     risk: (item.severity[0] + item.severity.slice(1).toLowerCase()) as QueueRisk,
-    waiting: waitingTime(item.created_at),
+    date: formatDate(item.created_at),
+    approval: null,
     type: "Integrity",
+    resubmitted: false,
+    afterRejection: false,
   }));
 
   const items = tab === "kyb" ? kybItems : integrityItems;

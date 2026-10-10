@@ -19,6 +19,7 @@ export type AdminListParams = {
 };
 
 export type KybSubmissionRow = {
+  logo_url?: string | null;
   id: string;
   tenant_id: string;
   organisation: string;
@@ -28,10 +29,27 @@ export type KybSubmissionRow = {
   reviewed_at: string | null;
   auto_approved: boolean;
   created_at: string;
+  /** Decisions made so far. Above 0 on a SUBMITTED row means sent back, corrected, resubmitted. */
+  review_count?: number;
+  /** True when the organisation started this one after a rejection. */
+  after_rejection?: boolean;
 };
 
 export type KybSubmissionsPage = CursorPage<KybSubmissionRow> & {
   review_required: boolean;
+};
+
+export type KybReviewFlag = {
+  /** A form field code (`pan`) or a document code (`doc_pan`). */
+  field: string;
+  note?: string | null;
+};
+
+export type KybReviewEntry = {
+  decision: string;
+  reason: string | null;
+  flags: KybReviewFlag[];
+  reviewed_at: string;
 };
 
 export type KybSubmission = {
@@ -43,14 +61,22 @@ export type KybSubmission = {
     doc_type: string;
     mime: string | null;
     uploaded_at: string;
+    /** Expires after 15 minutes. Never cache it. */
+    url?: string | null;
   }>;
   submitted_at: string | null;
   reviewed_at: string | null;
   decision_reason: string | null;
   auto_approved: boolean;
+  review_flags?: KybReviewFlag[];
+  /** Earlier decisions, oldest first. */
+  reviews?: KybReviewEntry[];
+  /** Null before the first decision. */
+  changed_since_last_review?: { fields: string[]; documents: string[] } | null;
 };
 
 export type IntegritySignalRow = {
+  photo_url?: string | null;
   id: string;
   candidate_id: string;
   resume_version_id: string | null;
@@ -70,6 +96,7 @@ export type IntegritySignalDetail = IntegritySignalRow & {
 };
 
 export type TenantRow = {
+  logo_url?: string | null;
   id: string;
   type: "EMPLOYER" | "COLLEGE";
   name: string;
@@ -94,6 +121,7 @@ export type SuspensionResponse = {
 };
 
 export type CandidateDrilldown = {
+  photo_url?: string | null;
   id: string;
   status: string;
   locale: string;
@@ -180,6 +208,7 @@ export type LessonUpload = {
 export type CandidateApplications = { items: Array<{ id: string; job_title: string; employer_name: string | null; stage: string; applied_at: string }>; analytics: { total: number; open: number; by_stage: Record<string, number>; reached: Record<string, number> } };
 
 export type EmployerDrilldown = {
+  logo_url?: string | null;
   tenant_id: string;
   name: string;
   status: string;
@@ -202,6 +231,7 @@ export type EmployerDrilldown = {
 };
 
 export type CollegeDrilldown = {
+  logo_url?: string | null;
   tenant_id: string;
   name: string;
   status: string;
@@ -347,6 +377,8 @@ export type OrganisationStatusCounts = {
 };
 
 export type AdminOldestWaitingItem = {
+  logo_url?: string | null;
+  photo_url?: string | null;
   type: "KYB" | "INTEGRITY" | "DISPUTE";
   id: string;
   waiting_since: string;
@@ -365,6 +397,7 @@ export type AdminThroughputPoint = {
 };
 
 export type AdminCandidateRow = {
+  photo_url?: string | null;
   id: string;
   status: "ACTIVE" | "SUSPENDED" | "DELETED";
   full_name: string | null;
@@ -415,6 +448,7 @@ export type CreateDiscountCodeRequest = {
 
 export type DiscountCodesPage = CursorPage<DiscountCode> & { policy_version: string };
 export type DiscountRedemption = {
+  logo_url?: string | null;
   id: string;
   payment_id: string;
   user_id: string;
@@ -644,6 +678,10 @@ export const adminApi = baseApi.injectEndpoints({
       query: (params) => ({ url: "/admin/kyb/submissions", params: params ?? undefined }),
       providesTags: ["Admin"],
     }),
+    getAdminKybApprovalMode: builder.query<{ review_required: boolean }, void>({
+      query: () => "/admin/settings/kyb-approval",
+      providesTags: ["Admin"],
+    }),
     setAdminKybApprovalMode: builder.mutation<{ review_required: boolean }, boolean>({
       query: (review_required) => ({
         url: "/admin/settings/kyb-approval",
@@ -656,7 +694,7 @@ export const adminApi = baseApi.injectEndpoints({
       query: (submissionId) => `/admin/kyb/submissions/${submissionId}`,
       providesTags: ["Admin"],
     }),
-    decideAdminKyb: builder.mutation<KybSubmission, { submissionId: string; decision: "UNDER_REVIEW" | "APPROVED" | "REJECTED" | "MORE_INFO_REQUIRED"; reason?: string }>({
+    decideAdminKyb: builder.mutation<KybSubmission, { submissionId: string; decision: "UNDER_REVIEW" | "APPROVED" | "REJECTED" | "MORE_INFO_REQUIRED"; reason?: string; flags?: KybReviewFlag[] }>({
       query: ({ submissionId, ...body }) => ({ url: `/admin/kyb/submissions/${submissionId}/decision`, method: "POST", body }),
       invalidatesTags: ["Admin"],
     }),
@@ -806,6 +844,7 @@ export const {
   useCreateAdminSearchFilterMutation,
   useImportAdminSearchFiltersMutation,
   useUpdateAdminSearchFilterMutation,
+  useGetAdminKybApprovalModeQuery,
   useGetAdminKybSubmissionsQuery,
   useSetAdminKybApprovalModeMutation,
   useGetAdminKybSubmissionQuery,

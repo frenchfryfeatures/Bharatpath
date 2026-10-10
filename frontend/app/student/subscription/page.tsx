@@ -9,7 +9,8 @@ import { Skeleton } from "@/components/common/loading";
 import { StudentPage } from "@/features/student/shell";
 import { useStudentHasAccess } from "@/features/student/onboarding/use-student-access";
 import { getApiErrorMessage } from "@/lib/api/error-message";
-import { isStubPaymentUrl } from "@/store/api/payment.api";
+import { isCompleteWithoutPayment, isStubPaymentUrl } from "@/store/api/payment.api";
+import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
 import { type CandidateCheckout, useCancelCandidateSubscriptionMutation, useCheckoutCandidateSubscriptionMutation, useGetCandidatePlansQuery, useGetCandidateSubscriptionQuery, usePreviewCandidateDiscountMutation } from "@/store/student";
 
 const money = (amount: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(amount / 100);
@@ -29,7 +30,12 @@ export default function CandidateSubscriptionPage() {
   async function createCheckout(planCode: string, discountCode?: string) {
     setError(null);
     const result = await checkout({ planCode, discountCode }).unwrap();
-    if (isStubPaymentUrl(result.redirect_url)) setSimulatedCheckout(result);
+    if (isCompleteWithoutPayment(result)) {
+      setSimulatedCheckout(null);
+      setSelectedPlanCode(null);
+      await refetchSubscription();
+      showSuccessFeedback("Discount applied. Your subscription is active.");
+    } else if (isStubPaymentUrl(result.redirect_url)) setSimulatedCheckout(result);
     else if (result.redirect_url) window.location.assign(result.redirect_url);
     else throw new Error("Checkout was created, but no payment page was returned.");
   }

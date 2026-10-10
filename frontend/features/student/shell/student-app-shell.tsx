@@ -60,12 +60,12 @@ export function StudentAppShell({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#FFFCF7]">
+    <div className="flex h-screen overflow-hidden bg-[#FFFCF7] font-sans text-[13px] leading-5">
       {/* Desktop sidebar - full height, collapsible to an icon rail */}
       <aside
         className={[
           "hidden shrink-0 border-r border-[#E7E0D4] bg-white transition-[width] duration-200 md:flex",
-          collapsed ? "w-[76px]" : "w-64",
+          collapsed ? "w-16" : "w-[232px]",
         ].join(" ")}
       >
         <StudentSidebarContent

@@ -1,5 +1,7 @@
 "use client";
 
+import { humanizeCode } from "@/lib/format/labels";
+
 import { useState } from "react";
 import { Download, ExternalLink, FileText, RotateCw } from "lucide-react";
 
@@ -13,7 +15,7 @@ export interface ResumeShowcaseProps {
 }
 
 function humanise(value: string) {
-  return value.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
+  return humanizeCode(value);
 }
 
 export function ResumeShowcase({ resume, currentTime, onRefresh }: ResumeShowcaseProps) {

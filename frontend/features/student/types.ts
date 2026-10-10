@@ -37,6 +37,7 @@ export interface StudentProfile {
  */
 export interface ProfileView {
   employerName: string;
+  employerLogoUrl?: string | null;
   lastViewedAt: string;
 }
 
@@ -124,6 +125,8 @@ export interface JobListing {
   id: string;
   title: string;
   employerName: string | null;
+  /** Presigned and expiring; null without a logo. Never cache it. */
+  employerLogoUrl?: string | null;
   description?: string;
   /** The full posting. Only the single-job endpoint sends it. */
   details?: CandidateJobDetails;
@@ -192,6 +195,7 @@ export interface JobApplication {
   jobId: string;
   jobTitle: string | null;
   employerName: string | null;
+  employerLogoUrl?: string | null;
   stage: ApplicationStatus;
   hireConfirmation: HireConfirmation;
   interview: InterviewDetails | null;
@@ -271,6 +275,7 @@ export interface Course {
 export interface CollegeLink {
   collegeId: string;
   collegeName: string | null;
+  collegeLogoUrl?: string | null;
   scope: "ROSTER" | "INDIVIDUAL";
   grantedVia: "REFERRAL_CODE" | "INVITE" | "DIRECT";
   grantedAt: string;

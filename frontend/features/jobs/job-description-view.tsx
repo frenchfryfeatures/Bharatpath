@@ -85,6 +85,7 @@ type Tone = (typeof TONES)[JobViewTone];
 export interface JobDescriptionData {
   title: string;
   employerName: string | null;
+  employerLogoUrl?: string | null;
   location: string | null;
   workMode: "ONSITE" | "HYBRID" | "REMOTE" | null;
   experienceMinMonths: number | null;
@@ -181,12 +182,21 @@ function JobHeaderCard({
             {job.employerName ?? "Employer"}
           </p>
         </div>
-        <span
-          aria-hidden="true"
-          className={`grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-[16px] font-bold ${t.monogram}`}
-        >
-          {monogram(job.employerName)}
-        </span>
+        {job.employerLogoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- presigned, expiring URL
+          <img
+            src={job.employerLogoUrl}
+            alt=""
+            className="h-14 w-14 shrink-0 rounded-2xl border border-[#E7E0D4] bg-white object-contain"
+          />
+        ) : (
+          <span
+            aria-hidden="true"
+            className={`grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-[16px] font-bold ${t.monogram}`}
+          >
+            {monogram(job.employerName)}
+          </span>
+        )}
       </div>
 
       <div className={`mt-4 flex flex-col gap-2 ${t.body}`}>

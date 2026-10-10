@@ -1,6 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { CircleAlert } from "lucide-react";
+
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 
 import type {
   KybMode,
@@ -11,8 +14,10 @@ interface KybApprovalTabProps {
   isLoading?: boolean;
   hasError?: boolean;
   isSaving?: boolean;
+  /** Only a platform admin may flip the switch; others read it. */
+  canChange?: boolean;
   saveError?: boolean;
-  onModeChange: (mode: KybMode) => void;
+  onModeChange: (mode: KybMode) => void | Promise<void>;
 }
 
 const approvalOptions: Array<{
@@ -24,7 +29,7 @@ const approvalOptions: Array<{
     key: "manual",
     label: "Manual approval",
     description:
-      "Currently unavailable. Employers cannot be switched to manual approval.",
+      "Every new submission waits in the review queue for an operator decision.",
   },
   {
     key: "auto",
@@ -39,9 +44,22 @@ export function KybApprovalTab({
   isLoading,
   hasError,
   isSaving,
+  canChange = true,
   saveError,
   onModeChange,
 }: KybApprovalTabProps) {
+  const [pendingMode, setPendingMode] = useState<KybMode | null>(null);
+
+  const confirmChange = async () => {
+    if (!pendingMode) return;
+    try {
+      await onModeChange(pendingMode);
+    } catch {
+      // The tab shows the save error; the dialog closes either way.
+    }
+    setPendingMode(null);
+  };
+
   return (
     <div className="grid min-w-0 grid-cols-1 gap-4 pt-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,348px)]">
       {/* ============================================================
@@ -72,8 +90,8 @@ export function KybApprovalTab({
               <button
                 key={option.key}
                 type="button"
-                disabled={Boolean(option.key === "manual" || hasError || isLoading || isSaving || kybMode === option.key)}
-                onClick={() => onModeChange(option.key)}
+                disabled={Boolean(!canChange || hasError || isLoading || isSaving || kybMode === option.key)}
+                onClick={() => setPendingMode(option.key)}
                 className={[
                   "flex w-full items-start gap-3 rounded-[12px] border p-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-70",
                   active
@@ -104,12 +122,6 @@ export function KybApprovalTab({
                       {option.label}
                     </span>
 
-                    {option.key === "manual" && !active && (
-                      <span className="shrink-0 text-[11px] font-medium text-[#7b8494]">
-                        Unavailable
-                      </span>
-                    )}
-
                     {active && !isLoading && (
                       <span className="shrink-0 rounded-full bg-[#6255d8] px-2.5 py-1 text-[10px] font-bold uppercase text-white">
                         Current
@@ -132,7 +144,7 @@ export function KybApprovalTab({
           <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-[#b17a19]" />
 
           <p className="text-[11px] leading-[17px] text-[#9a6c19]">
-            {hasError ? "The effective approval mode is unavailable." : saveError ? "Could not save the approval mode. Try again." : isSaving ? "Saving the approval mode..." : isLoading ? "Reading the current mode..." : kybMode === "auto"
+            {!canChange ? "Only a platform admin can change the approval mode. You can see the current setting." : hasError ? "The effective approval mode is unavailable." : saveError ? "Could not save the approval mode. Try again." : isSaving ? "Saving the approval mode..." : isLoading ? "Reading the current mode..." : kybMode === "auto"
               ? "Automatic approval is live. Spot-check the audit trail weekly."
               : "Manual approval is live. New employer submissions will wait for an operator decision."}
           </p>
@@ -141,8 +153,27 @@ export function KybApprovalTab({
 
       <section className="min-w-0 rounded-[12px] border border-[#e5e8ee] bg-white p-5">
         <h2 className="text-[14px] font-semibold text-[#172033]">Configuration access</h2>
-        <p className="mt-2 text-[12px] leading-[18px] text-[#7b8494]">Changing the mode applies to new KYB submissions. Existing submissions keep their current review state.</p>
+        <p className="mt-2 text-[12px] leading-[18px] text-[#7b8494]">Changing the mode applies to new KYB submissions only. Switching to automatic never approves a submission that is already waiting, and approved employers stay approved.</p>
       </section>
+
+      <ConfirmModal
+        open={pendingMode !== null}
+        title={
+          pendingMode === "auto"
+            ? "Switch to automatic approval?"
+            : "Switch to manual approval?"
+        }
+        description={
+          pendingMode === "auto"
+            ? "New employer submissions will be approved automatically once complete. Submissions already waiting stay in the queue, and the change is recorded in the audit trail."
+            : "Every new employer submission will wait in the review queue for an operator decision. Employers already approved stay approved, and the change is recorded in the audit trail."
+        }
+        confirmLabel={pendingMode === "auto" ? "Switch to automatic" : "Switch to manual"}
+        confirmLoading={Boolean(isSaving)}
+        icon={<CircleAlert className="h-5 w-5" />}
+        onClose={() => setPendingMode(null)}
+        onConfirm={() => void confirmChange()}
+      />
     </div>
   );
 }
