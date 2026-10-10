@@ -247,6 +247,7 @@ export function ApplicationDetailScreen({
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {/* Top Bar */}
           <View style={styles.topBar}>

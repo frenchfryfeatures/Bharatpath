@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -43,7 +44,10 @@ export function EmailVerificationScreen({
   const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
-    inputRef.current?.focus();
+    const timer = setTimeout(() => {
+      inputRef.current?.focus();
+    }, 150);
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -121,7 +125,11 @@ export function EmailVerificationScreen({
             <View style={styles.navPlaceholder} />
           </View>
 
-          <View style={styles.content}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
             <OnboardingProgress step={0} />
             {/* Header / Icon */}
             <View style={styles.headerSection}>
@@ -151,47 +159,53 @@ export function EmailVerificationScreen({
               </View>
             ) : null}
 
-            {/* Code Box Representation */}
-            <Pressable
-              style={styles.codeBoxesContainer}
-              onPress={() => inputRef.current?.focus()}
-            >
-              {codeDigits.map((digit, idx) => {
-                const isCurrent = idx === code.length && code.length < 6;
-                const isFilled = digit.trim().length > 0;
-                return (
-                  <View
-                    key={idx}
-                    style={[
-                      styles.codeBox,
-                      isCurrent && styles.codeBoxActive,
-                      isFilled && styles.codeBoxFilled,
-                    ]}
-                  >
-                    <Text style={styles.codeDigit}>{digit.trim()}</Text>
-                  </View>
-                );
-              })}
-            </Pressable>
+            {/* Code Box Representation with direct touch capture */}
+            <View style={styles.codeWrapper}>
+              <Pressable
+                style={styles.codeBoxesContainer}
+                onPress={() => inputRef.current?.focus()}
+                accessible={false}
+              >
+                {codeDigits.map((digit, idx) => {
+                  const isCurrent = idx === code.length && code.length < 6;
+                  const isFilled = digit.trim().length > 0;
+                  return (
+                    <View
+                      key={idx}
+                      pointerEvents="none"
+                      style={[
+                        styles.codeBox,
+                        isCurrent && styles.codeBoxActive,
+                        isFilled && styles.codeBoxFilled,
+                      ]}
+                    >
+                      <Text style={styles.codeDigit}>{digit.trim()}</Text>
+                    </View>
+                  );
+                })}
+              </Pressable>
 
-            {/* Hidden Real TextInput */}
-            <TextInput
-              ref={inputRef}
-              style={styles.hiddenInput}
-              value={code}
-              onChangeText={(text) => {
-                const cleaned = text.replace(/\D/g, '').slice(0, 6);
-                setCode(cleaned);
-                if (errorMsg) setErrorMsg(null);
-                if (cleaned.length === 6 && !isVerifying) {
-                  handleVerify(cleaned);
-                }
-              }}
-              keyboardType="number-pad"
-              maxLength={6}
-              autoFocus
-              editable={!isVerifying}
-            />
+              {/* Master TextInput: overlays code boxes with full dimensions, opacity 0.01 & zIndex 10 for direct native touch response */}
+              <TextInput
+                ref={inputRef}
+                style={styles.hiddenInput}
+                value={code}
+                onChangeText={(text) => {
+                  const cleaned = text.replace(/\D/g, '').slice(0, 6);
+                  setCode(cleaned);
+                  if (errorMsg) setErrorMsg(null);
+                  if (cleaned.length === 6 && !isVerifying) {
+                    handleVerify(cleaned);
+                  }
+                }}
+                keyboardType="number-pad"
+                textContentType="oneTimeCode"
+                autoComplete="sms-otp"
+                maxLength={6}
+                caretHidden={true}
+                editable={!isVerifying}
+              />
+            </View>
 
             {/* Verify Button */}
             <Pressable
@@ -232,7 +246,7 @@ export function EmailVerificationScreen({
                 The code expires in 15 minutes. Check spam or junk folders if not received.
               </Text>
             </View>
-          </View>
+          </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
@@ -281,10 +295,10 @@ const styles = StyleSheet.create({
     opacity: 0.85,
     transform: [{ scale: 0.98 }],
   },
-  content: {
-    flex: 1,
+  scrollContent: {
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.xl,
+    paddingBottom: Spacing.xxl,
     gap: Spacing.lg,
   },
   headerSection: {
@@ -357,6 +371,12 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: Colors.red.fg,
   },
+  codeWrapper: {
+    position: 'relative',
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   codeBoxesContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -393,9 +413,15 @@ const styles = StyleSheet.create({
   },
   hiddenInput: {
     position: 'absolute',
-    width: 1,
-    height: 1,
-    opacity: 0,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+    opacity: 0.01,
+    color: 'transparent',
+    zIndex: 10,
   },
   primaryButton: {
     backgroundColor: Colors.brandAccent,

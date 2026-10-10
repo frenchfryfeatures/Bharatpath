@@ -272,6 +272,7 @@ export function CollegeScreen({ onBack }: CollegeScreenProps) {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {/* Top Bar */}
           <View style={styles.topBar}>

@@ -29,7 +29,7 @@ export function CollegeReferralConsentScreen({ code, onDone }: { code: string; o
     finally { setBusy(false); }
   };
   return <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFCF7' }}>
-    <ScrollView contentContainerStyle={{ padding: 20, gap: 20 }}>
+    <ScrollView contentContainerStyle={{ padding: 20, gap: 20 }} keyboardShouldPersistTaps="handled">
       <OnboardingProgress step={0} />
       <Text style={{ fontFamily: 'GeneralSans-Bold', fontSize: 26, color: '#0A1931' }}>Link your college</Text>
       <Text style={{ fontFamily: 'GeneralSans-Regular', fontSize: 14, lineHeight: 22, color: '#5F6B80' }}>Referral code: {code}</Text>

@@ -173,6 +173,7 @@ export function ChangePasswordModal({
             <ScrollView
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.formScroll}
+              keyboardShouldPersistTaps="handled"
             >
               {error ? (
                 <View style={styles.errorBox}>

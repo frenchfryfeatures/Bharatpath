@@ -54,6 +54,11 @@ BEAT_SCHEDULE: Final[dict[str, dict[str, object]]] = {
         # next one is thirty seconds away and picks up the same rows.
         "options": {"expires": 25.0},
     },
+    "push-pending": {
+        "task": "notifications.push_pending",
+        "schedule": schedule(run_every=30.0),
+        "options": {"expires": 25.0},
+    },
     # -- hourly sweeps -----------------------------------------------------
     # Every one of these measures a period in days. Hourly is far more often
     # than any of them needs and is still cheap, and it means the worst case

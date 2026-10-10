@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AppAlert } from '@/components/feedback/AppAlert';
 import {
   Alert,
   View,
@@ -40,11 +39,9 @@ import {
   confirmResumeVersion,
   editResumeVersion,
   getResumeVersionDetails,
-  listResumeVersions,
   ResumeSection,
   ResumeSectionItem,
   ResumeVersionDetailResponse,
-  ResumeVersionResponse,
   SectionKind,
 } from '@/services/api/resume';
 import { ApiError } from '@/services/api/client';
@@ -60,8 +57,11 @@ export interface ReviewDetailsScreenProps {
   subtitle?: string;
   confirmButtonText?: string;
   showReadyBadge?: boolean;
-  onConfirm?: (confirmedVersionId?: string, confirmedAt?: string) => void;
-  onFixField?: (field: string) => void;
+  onConfirm?: (
+    confirmedVersionId?: string,
+    confirmedAt?: string,
+    alreadyConfirmed?: boolean
+  ) => void;
   candidateName?: string;
   candidateEmail?: string;
   manualData?: ManualResumeData;
@@ -134,7 +134,7 @@ export function ReviewDetailsScreen({
   onVersionUpdated,
   onUploadNewResume,
   onRequireSubscription,
-  requireEditToSave = true,
+  requireEditToSave = false,
   initialHasEdited = false,
 }: ReviewDetailsScreenProps) {
   const [activeVersionId, setActiveVersionId] = useState(versionId);
@@ -149,7 +149,7 @@ export function ReviewDetailsScreen({
     }
   }, [versionId]);
 
-  const canSave = !requireEditToSave || hasEdited;
+  const canSave = !requireEditToSave || hasEdited || !details?.confirmed;
 
   // Modals state
   const [editingSectionIndex, setEditingSectionIndex] = useState<number | null>(null);
@@ -173,22 +173,7 @@ export function ReviewDetailsScreen({
   useEffect(() => {
     setActiveVersionId(versionId);
     setDetails(versionDetails);
-
-    // If the provided version is already superseded, automatically migrate to the newest active version
-    if (versionDetails?.superseded) {
-      listResumeVersions()
-        .then(async (versions) => {
-          const latest = versions.find((v) => !v.superseded);
-          if (latest && latest.resume_version_id !== versionId) {
-            const freshDetails = await getResumeVersionDetails(latest.resume_version_id);
-            setActiveVersionId(latest.resume_version_id);
-            setDetails(freshDetails);
-            onVersionUpdated?.(latest.resume_version_id, freshDetails);
-          }
-        })
-        .catch(() => undefined);
-    }
-  }, [versionDetails, versionId, onVersionUpdated]);
+  }, [versionDetails, versionId]);
 
   const parsed = details?.parsed;
   const rawText = typeof parsed?.raw_text === 'string' ? parsed.raw_text : '';
@@ -268,115 +253,22 @@ export function ReviewDetailsScreen({
     [candidateName, manualData, parsed, resumeInfo.name, structuredResume]
   );
 
-  const errorMessage = (error: unknown, fallback: string): string => {
-    if (error instanceof ApiError) {
-      const detail = error.problem?.params?.detail;
-      if (Array.isArray(detail)) {
-        const msgs = detail
-          .map((d: any) =>
-            typeof d === 'string'
-              ? d
-              : typeof d?.msg === 'string'
-              ? d.msg
-              : typeof d?.title === 'string'
-              ? d.title
-              : JSON.stringify(d)
-          )
-          .filter(Boolean);
-        if (msgs.length > 0) return msgs.join('. ');
-      }
-      if (typeof detail === 'string' && detail.trim()) return detail.trim();
-      if (typeof error.problem?.title === 'string' && error.problem.title.trim())
-        return error.problem.title.trim();
-      if (typeof error.message === 'string' && error.message.trim())
-        return error.message.trim();
-    }
-    if (error instanceof Error && typeof error.message === 'string' && error.message.trim()) {
-      return error.message.trim();
-    }
-    return fallback;
-  };
+  const errorMessage = (error: unknown, fallback: string) =>
+    error instanceof ApiError
+      ? error.problem?.params?.detail || error.problem?.title || error.message
+      : error instanceof Error
+      ? error.message
+      : fallback;
 
   const isSubscriptionRequiredError = (error: unknown): boolean =>
     error instanceof ApiError && (error.status === 402 || error.code === 'subscription_required');
 
   const adoptEditedVersion = async (newVersionId: string) => {
-    try {
-      const newDetails = await getResumeVersionDetails(newVersionId);
-      setActiveVersionId(newVersionId);
-      setDetails(newDetails);
-      setHasEdited(true);
-      onVersionUpdated?.(newVersionId, newDetails);
-    } catch (fetchErr) {
-      console.warn('Adopt version details fetch failed:', fetchErr);
-      setActiveVersionId(newVersionId);
-      setHasEdited(true);
-    }
-  };
-
-  const sanitizeSectionPayload = (s: {
-    kind: SectionKind;
-    heading?: string | null;
-    body: string;
-  }) => {
-    let kind = s.kind;
-    const rawHeading = s.heading?.trim() || '';
-
-    // Reclassify if marked as activities but heading indicates another section
-    if (kind === 'activities' && rawHeading) {
-      const lower = rawHeading.toLowerCase();
-      if (lower.includes('summary') || lower.includes('profile') || lower.includes('objective')) {
-        kind = 'summary';
-      } else if (lower.includes('skill') || lower.includes('technology') || lower.includes('technologies')) {
-        kind = 'skills';
-      } else if (lower.includes('project')) {
-        kind = 'projects';
-      } else if (lower.includes('certif') || lower.includes('license')) {
-        kind = 'certifications';
-      } else if (lower.includes('language')) {
-        kind = 'languages';
-      } else if (lower.includes('education') || lower.includes('academic')) {
-        kind = 'education';
-      } else if (lower.includes('experience') || lower.includes('employment') || lower.includes('work')) {
-        kind = 'experience';
-      } else if (lower.includes('achievement') || lower.includes('award') || lower.includes('honor')) {
-        kind = 'achievements';
-      }
-    }
-
-    // Setting heading to null for all sections instructs backend to write under
-    // the canonical heading for the kind (e.g. Summary, Experience, Skills).
-    // This is explicitly supported by backend schemas and completely avoids any 422 heading mismatch errors!
-    return {
-      kind,
-      heading: null,
-      body: s.body,
-    };
-  };
-
-  const executeEditWithRetry = async (
-    performEdit: (targetVersionId: string) => Promise<ResumeVersionResponse>,
-  ): Promise<ResumeVersionResponse> => {
-    if (!activeVersionId) throw new Error('No active resume version to edit.');
-    try {
-      return await performEdit(activeVersionId);
-    } catch (firstErr: any) {
-      const errCode = firstErr?.code || firstErr?.problem?.code || firstErr?.message;
-      const isSuperseded =
-        errCode === 'resume_version_superseded' ||
-        String(firstErr?.message || '').includes('replaced by a newer one') ||
-        firstErr?.status === 409;
-
-      if (isSuperseded) {
-        const freshVersions = await listResumeVersions();
-        const newest = freshVersions.find((v) => !v.superseded) ?? freshVersions[0];
-        if (newest && newest.resume_version_id !== activeVersionId) {
-          setActiveVersionId(newest.resume_version_id);
-          return await performEdit(newest.resume_version_id);
-        }
-      }
-      throw firstErr;
-    }
+    const newDetails = await getResumeVersionDetails(newVersionId);
+    setActiveVersionId(newVersionId);
+    setDetails(newDetails);
+    setHasEdited(true);
+    onVersionUpdated?.(newVersionId, newDetails);
   };
 
   // Section-based editing
@@ -392,37 +284,32 @@ export function ReviewDetailsScreen({
     try {
       const updatedList = sections.map((s, idx) => {
         if (idx === editingSectionIndex) {
-          return sanitizeSectionPayload(updatedSection);
+          return {
+            kind: updatedSection.kind,
+            heading: updatedSection.kind === 'header' ? null : (updatedSection.heading || null),
+            body: updatedSection.body,
+          };
         }
-        return sanitizeSectionPayload(s);
+        return {
+          kind: s.kind,
+          heading: s.kind === 'header' ? null : (s.heading || null),
+          body: s.body,
+        };
       });
 
-      // Backend constraint: HEADER kind can only ever appear as the first section
-      const sanitizedList = updatedList.map((s, idx) => {
-        if (idx > 0 && s.kind === 'header') {
-          return { ...s, kind: 'summary' as SectionKind };
-        }
-        return s;
+      const res = await editResumeVersion(activeVersionId, {
+        sections: updatedList,
       });
-
-      const res = await executeEditWithRetry((targetId) =>
-        editResumeVersion(targetId, {
-          sections: sanitizedList,
-        }),
-      );
 
       await adoptEditedVersion(res.resume_version_id);
       setEditingSectionIndex(null);
-    } catch (err: any) {
+    } catch (err) {
       if (isSubscriptionRequiredError(err)) {
         setEditingSectionIndex(null);
         onRequireSubscription?.();
         return;
       }
-      const msg = errorMessage(err, 'Failed to save section changes.');
-      setConfirmError(msg);
-      AppAlert.alert('Save Failed', msg, [{ text: 'OK' }]);
-      throw new Error(msg);
+      setConfirmError(errorMessage(err, 'Failed to save section changes.'));
     } finally {
       setIsSavingEdit(false);
     }
@@ -436,20 +323,15 @@ export function ReviewDetailsScreen({
     try {
       const updatedList = sections
         .filter((_, idx) => idx !== editingSectionIndex)
-        .map((s) => sanitizeSectionPayload(s));
+        .map((s) => ({
+          kind: s.kind,
+          heading: s.kind === 'header' ? null : (s.heading || null),
+          body: s.body,
+        }));
 
-      const sanitizedList = updatedList.map((s, idx) => {
-        if (idx > 0 && s.kind === 'header') {
-          return { ...s, kind: 'summary' as SectionKind };
-        }
-        return s;
+      const res = await editResumeVersion(activeVersionId, {
+        sections: updatedList,
       });
-
-      const res = await executeEditWithRetry((targetId) =>
-        editResumeVersion(targetId, {
-          sections: sanitizedList,
-        }),
-      );
 
       await adoptEditedVersion(res.resume_version_id);
       setEditingSectionIndex(null);
@@ -459,9 +341,7 @@ export function ReviewDetailsScreen({
         onRequireSubscription?.();
         return;
       }
-      const msg = errorMessage(err, 'Failed to delete section.');
-      setConfirmError(msg);
-      AppAlert.alert('Delete Failed', msg, [{ text: 'OK' }]);
+      setConfirmError(errorMessage(err, 'Failed to delete section.'));
     } finally {
       setIsSavingEdit(false);
     }
@@ -474,26 +354,21 @@ export function ReviewDetailsScreen({
 
     try {
       const updatedList = [
-        ...sections.map((s) => sanitizeSectionPayload(s)),
-        sanitizeSectionPayload({
+        ...sections.map((s) => ({
+          kind: s.kind,
+          heading: s.kind === 'header' ? null : (s.heading || null),
+          body: s.body,
+        })),
+        {
           kind: newSection.kind,
           heading: null,
           body: newSection.body,
-        }),
+        },
       ];
 
-      const sanitizedList = updatedList.map((s, idx) => {
-        if (idx > 0 && s.kind === 'header') {
-          return { ...s, kind: 'summary' as SectionKind };
-        }
-        return s;
+      const res = await editResumeVersion(activeVersionId, {
+        sections: updatedList,
       });
-
-      const res = await executeEditWithRetry((targetId) =>
-        editResumeVersion(targetId, {
-          sections: sanitizedList,
-        }),
-      );
 
       await adoptEditedVersion(res.resume_version_id);
       setIsAddSectionOpen(false);
@@ -503,9 +378,7 @@ export function ReviewDetailsScreen({
         onRequireSubscription?.();
         return;
       }
-      const msg = errorMessage(err, 'Failed to add section.');
-      setConfirmError(msg);
-      AppAlert.alert('Add Failed', msg, [{ text: 'OK' }]);
+      setConfirmError(errorMessage(err, 'Failed to add section.'));
     } finally {
       setIsSavingEdit(false);
     }
@@ -530,20 +403,22 @@ export function ReviewDetailsScreen({
 
       const updatedList = sections.map((s, idx) => {
         if (idx === sectionIndex) {
-          return sanitizeSectionPayload({
+          return {
             kind: s.kind,
-            heading: s.heading,
+            heading: s.kind === 'header' ? null : (s.heading || null),
             body: updatedBody,
-          });
+          };
         }
-        return sanitizeSectionPayload(s);
+        return {
+          kind: s.kind,
+          heading: s.kind === 'header' ? null : (s.heading || null),
+          body: s.body,
+        };
       });
 
-      const res = await executeEditWithRetry((targetId) =>
-        editResumeVersion(targetId, {
-          sections: updatedList,
-        }),
-      );
+      const res = await editResumeVersion(activeVersionId, {
+        sections: updatedList,
+      });
 
       await adoptEditedVersion(res.resume_version_id);
       setFixingItemInfo(null);
@@ -565,9 +440,7 @@ export function ReviewDetailsScreen({
     setConfirmError(null);
     setIsSavingEdit(true);
     try {
-      const created = await executeEditWithRetry((targetId) =>
-        editResumeVersion(targetId, { structured: data }),
-      );
+      const created = await editResumeVersion(activeVersionId, { structured: data });
       await adoptEditedVersion(created.resume_version_id);
       setIsStructuredEditorOpen(false);
     } catch (error) {
@@ -587,9 +460,7 @@ export function ReviewDetailsScreen({
     setConfirmError(null);
     setIsSavingEdit(true);
     try {
-      const created = await executeEditWithRetry((targetId) =>
-        editResumeVersion(targetId, { text }),
-      );
+      const created = await editResumeVersion(activeVersionId, { text });
       await adoptEditedVersion(created.resume_version_id);
       setIsTextEditorOpen(false);
     } catch (error) {
@@ -607,46 +478,22 @@ export function ReviewDetailsScreen({
   // Confirm gate
   const confirmCurrentVersion = async () => {
     setConfirmError(null);
-    if (!activeVersionId) {
-      setConfirmError('Resume version is missing. Please return and submit your resume again.');
-      return;
-    }
-    try {
-      setIsConfirming(true);
-      let targetId = activeVersionId;
-      let res;
+    if (activeVersionId) {
       try {
-        res = await confirmResumeVersion(targetId);
-      } catch (firstErr: any) {
-        const errCode = firstErr?.code || firstErr?.problem?.code || firstErr?.message;
-        const isSuperseded =
-          errCode === 'resume_version_superseded' ||
-          String(firstErr?.message || '').includes('replaced by a newer one') ||
-          firstErr?.status === 409;
-
-        if (isSuperseded) {
-          const freshVersions = await listResumeVersions();
-          const newest = freshVersions.find((v) => !v.superseded) ?? freshVersions[0];
-          if (newest && newest.resume_version_id !== targetId) {
-            targetId = newest.resume_version_id;
-            setActiveVersionId(targetId);
-            res = await confirmResumeVersion(targetId);
-          } else {
-            throw firstErr;
-          }
-        } else {
-          throw firstErr;
+        setIsConfirming(true);
+        const res = await confirmResumeVersion(activeVersionId);
+        onConfirm?.(activeVersionId, res?.confirmed_at, res?.already_confirmed);
+      } catch (error) {
+        if (isSubscriptionRequiredError(error)) {
+          onRequireSubscription?.();
+          return;
         }
+        setConfirmError(errorMessage(error, 'Could not confirm this resume version.'));
+      } finally {
+        setIsConfirming(false);
       }
-      onConfirm?.(targetId, res?.confirmed_at);
-    } catch (error) {
-      if (isSubscriptionRequiredError(error)) {
-        onRequireSubscription?.();
-        return;
-      }
-      setConfirmError(errorMessage(error, 'Could not confirm this resume version.'));
-    } finally {
-      setIsConfirming(false);
+    } else {
+      setConfirmError('Resume version is missing. Please return and submit your resume again.');
     }
   };
 
@@ -684,6 +531,7 @@ export function ReviewDetailsScreen({
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {/* Header Title & Subtitle */}
           <View style={styles.titleSection}>
@@ -747,13 +595,7 @@ export function ReviewDetailsScreen({
           {confirmError ? (
             <View style={styles.errorBanner}>
               <WarningCircle size={17} color="#8F3B3B" weight="fill" />
-              <Text style={styles.errorBannerText}>
-                {typeof confirmError === 'string'
-                  ? confirmError
-                  : typeof (confirmError as any)?.message === 'string'
-                  ? (confirmError as any).message
-                  : JSON.stringify(confirmError)}
-              </Text>
+              <Text style={styles.errorBannerText}>{confirmError}</Text>
             </View>
           ) : null}
 
@@ -1156,13 +998,11 @@ export function ReviewDetailsScreen({
           <Pressable
             style={({ pressed }) => [
               styles.confirmButton,
-              (!canSave || isConfirming) && styles.buttonDisabled,
-              pressed && canSave && !isConfirming && styles.buttonPressed,
+              (isConfirming || (requireEditToSave && !canSave)) && styles.buttonDisabled,
+              pressed && !isConfirming && (!requireEditToSave || canSave) && styles.buttonPressed,
             ]}
             onPress={confirmCurrentVersion}
-            disabled={!canSave || isConfirming}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: !canSave || isConfirming }}
+            disabled={isConfirming || (requireEditToSave && !canSave)}
           >
             {isConfirming ? (
               <View style={styles.buttonLoadingRow}>
@@ -1170,21 +1010,12 @@ export function ReviewDetailsScreen({
                 <Text style={styles.confirmButtonText}>Confirming...</Text>
               </View>
             ) : (
-              <Text
-                style={[
-                  styles.confirmButtonText,
-                  !canSave && styles.confirmButtonTextDisabled,
-                ]}
-              >
+              <Text style={styles.confirmButtonText}>
                 {confirmButtonText || 'Confirm'}
               </Text>
             )}
           </Pressable>
-          <Text style={styles.bottomSubtext}>
-            {!canSave
-              ? 'Edit any section above to enable save & update score'
-              : 'You can edit any of this later'}
-          </Text>
+          <Text style={styles.bottomSubtext}>You can edit any of this later</Text>
         </View>
 
         {/* Modal: Section Editor */}
@@ -1601,9 +1432,6 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     backgroundColor: '#C8C1EC',
-    shadowOpacity: 0,
-    elevation: 0,
-    opacity: 0.75,
   },
   buttonLoadingRow: {
     flexDirection: 'row',
@@ -1619,9 +1447,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 20,
     color: '#FFFFFF',
-  },
-  confirmButtonTextDisabled: {
-    color: 'rgba(255, 255, 255, 0.85)',
   },
   bottomSubtext: {
     fontFamily: 'GeneralSans-Regular',

@@ -137,6 +137,13 @@ export async function apiRequest<T>(
     cache: 'no-store',
   };
 
+  const controller = new AbortController();
+  fetchOptions.signal = controller.signal;
+  const timeout = setTimeout(
+    () => controller.abort(),
+    options.body instanceof FormData ? 120_000 : 30_000,
+  );
+
   if (options.body) {
     fetchOptions.body =
       options.body instanceof FormData ? options.body : JSON.stringify(options.body);
@@ -153,14 +160,17 @@ export async function apiRequest<T>(
           )) as unknown as Response)
         : await fetch(url, fetchOptions);
   } catch (netErr: any) {
-    console.error(`[API Network Error] ${options.method || 'GET'} ${url}:`, netErr);
+    console.warn(`[API Network Error] ${options.method || 'GET'} ${cleanEndpoint}`);
     throw new ApiError({
       type: 'https://bharatpath.example/problems/network_error',
-      title: `Cannot reach backend at ${url}. Please verify the backend API is running.`,
+      title: controller.signal.aborted
+        ? 'The request timed out. Check your connection and try again.'
+        : 'Cannot reach the service. Check your connection and try again.',
       status: 0,
-      code: 'network_error',
-      params: { url, originalError: netErr?.message || String(netErr) },
+      code: controller.signal.aborted ? 'request_timeout' : 'network_error',
     });
+  } finally {
+    clearTimeout(timeout);
   }
 
   // 2. Reactive 401 handling: If server returns 401 Unauthorized (e.g. invalid/expired token),
@@ -185,10 +195,20 @@ export async function apiRequest<T>(
   // Check if response is JSON
   const contentType = response.headers.get('content-type') || '';
   const isJson = contentType.includes('application/json') || contentType.includes('application/problem+json');
-  const data = isJson ? await response.json() : await response.text();
+  let data: any;
+  try {
+    data = isJson ? await response.json() : await response.text();
+  } catch {
+    throw new ApiError({
+      type: 'https://bharatpath.example/problems/invalid_response',
+      title: 'The service returned an unreadable response. Please try again.',
+      status: response.status,
+      code: 'invalid_response',
+    });
+  }
 
   if (!response.ok) {
-    console.warn(`[API Error ${response.status}] ${options.method || 'GET'} ${url}:`, JSON.stringify(data));
+    console.warn(`[API Error ${response.status}] ${options.method || 'GET'} ${cleanEndpoint}`);
     if (isJson && data && typeof data === 'object') {
       const detailMsg = Array.isArray(data.detail)
         ? data.detail.map((d: any) => `${d.loc ? d.loc.filter((p: any) => p !== 'body').join('.') : 'field'}: ${d.msg}`).join(', ')

@@ -21,7 +21,7 @@ import pytest
 from pydantic import SecretStr
 from sqlalchemy import text
 
-from app.modules.notifications import service
+from app.modules.notifications import push, service
 from app.modules.notifications.providers import StubEmailProvider
 from tests.conftest import _seed_url, sessions
 from tests.integration.test_admin_console import _staff
@@ -134,6 +134,91 @@ async def test_an_application_reaches_the_inbox_and_the_email_waits_on_a_provide
     read = await client.post(f"{INBOX}/{item['id']}/read", headers=candidate)
     assert read.status_code == 200 and read.json()["read_at"] is not None
     assert (await client.get(INBOX, headers=candidate)).json()["unread"] == unread - 1
+
+
+async def test_registered_phone_receives_one_push_for_a_new_inbox_event(
+    client: Any, mint_token: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    a = await _applied(client, mint_token)
+    headers = a["candidate"]["headers"]
+    token = f"ExpoPushToken[{uuid.uuid4().hex}]"
+    registered = await client.post(
+        f"{INBOX}/devices", json={"token": token, "platform": "android"}, headers=headers
+    )
+    assert registered.status_code == 204, registered.text
+    assert (
+        await client.post(
+            f"{INBOX}/devices", json={"token": token, "platform": "android"}, headers=headers
+        )
+    ).status_code == 204
+    assert (
+        await client.post(
+            f"{INBOX}/devices", json={"token": "bad", "platform": "android"}, headers=headers
+        )
+    ).status_code == 422
+
+    event_id = await _event_id("applications.application_submitted", a["id"])
+    await _dispatch(event_id)
+    async with sessions(APP_URL)() as session, session.begin():
+        assert await push.queue(session) == 1
+        assert await push.queue(session) == 0
+
+    sent_payloads: list[dict[str, Any]] = []
+
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            pass
+
+        def json(self) -> dict[str, Any]:
+            return {"data": {"status": "ok", "id": "expo-ticket-1"}}
+
+    class FakeClient:
+        def __init__(self, **_: Any) -> None:
+            pass
+
+        async def __aenter__(self) -> FakeClient:
+            return self
+
+        async def __aexit__(self, *_: Any) -> None:
+            pass
+
+        async def post(self, url: str, *, json: dict[str, Any]) -> FakeResponse:
+            assert url == push.PUSH_URL
+            sent_payloads.append(json)
+            return FakeResponse()
+
+    monkeypatch.setattr(push.httpx, "AsyncClient", FakeClient)
+    async with sessions(APP_URL)() as session, session.begin():
+        assert await push.send_one(session) == "SENT"
+        assert await push.send_one(session) == "EMPTY"
+    assert len(sent_payloads) == 1
+    assert sent_payloads[0]["to"] == token
+    assert sent_payloads[0]["sound"] == "default"
+    assert a["employer"]["name"] not in sent_payloads[0]["body"]
+    notification_id = sent_payloads[0]["data"]["notificationId"]
+
+    async with sessions(_seed_url())() as session:
+        deliveries = (
+            await session.execute(
+                text(
+                    "SELECT state, ticket_id FROM push_deliveries WHERE notification_id = :id"
+                ),
+                {"id": notification_id},
+            )
+        ).all()
+    assert deliveries == [("SENT", "expo-ticket-1")]
+
+    unregistered = await client.request(
+        "DELETE", f"{INBOX}/devices", json={"token": token}, headers=headers
+    )
+    assert unregistered.status_code == 204, unregistered.text
+    async with sessions(_seed_url())() as session:
+        assert (
+            await session.scalar(
+                text("SELECT active FROM push_devices WHERE token = :token"), {"token": token}
+            )
+            is False
+        )
 
 
 async def test_an_email_is_sent_once_whatever_the_relay_repeats(

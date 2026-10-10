@@ -2825,6 +2825,11 @@ def _create_privacy_access() -> None:
           DELETE FROM notification_preferences WHERE user_id = p_user_id;
           GET DIAGNOSTICS n = ROW_COUNT;
           m := m || jsonb_build_object('notification_preferences', n);
+          DELETE FROM push_deliveries WHERE notification_id IN
+            (SELECT id FROM notifications WHERE user_id = p_user_id);
+          GET DIAGNOSTICS n = ROW_COUNT; m := m || jsonb_build_object('push_deliveries', n);
+          DELETE FROM push_devices WHERE user_id = p_user_id;
+          GET DIAGNOSTICS n = ROW_COUNT; m := m || jsonb_build_object('push_devices', n);
           DELETE FROM notifications WHERE user_id = p_user_id;
           GET DIAGNOSTICS n = ROW_COUNT; m := m || jsonb_build_object('notifications', n);
 

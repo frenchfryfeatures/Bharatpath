@@ -8,6 +8,7 @@ import { UploadSimple, ArrowRight, ClipboardText, NotePencil } from 'phosphor-re
 import { Colors, Radii, Spacing } from '@/theme/tokens';
 import { PasteTextModal } from './PasteTextModal';
 import { ManualResumeModal, ManualResumeData } from './ManualResumeModal';
+import { resumeFileError } from '@/services/profile/resumeFile';
 
 export interface UploadedFileMeta {
   fileName: string;
@@ -43,25 +44,23 @@ export function ResumeIntakeScreen({ onSelectOption, onBack, userName }: ResumeI
       const result = await DocumentPicker.getDocumentAsync({
         type: [
           'application/pdf',
-          'application/msword',
           'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-          'text/plain',
         ],
         copyToCacheDirectory: true,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
+        const validationError = resumeFileError(asset);
+        if (validationError) {
+          AppAlert.alert('Cannot use this file', validationError);
+          return;
+        }
         const fileName = asset.name || 'Candidate_Resume.pdf';
         const fileSize = asset.size ? `${(asset.size / 1024).toFixed(0)} KB` : '412 KB';
         const fileSizeBytes = asset.size;
         const fileUri = asset.uri;
         const mimeType = asset.mimeType || 'application/pdf';
-
-        if (fileName.toLowerCase().endsWith('.doc') || mimeType === 'application/msword') {
-          AppAlert.alert('Unsupported Format', 'Old Word files are not supported. Save it as DOCX or PDF, or paste the text.');
-          return;
-        }
 
         onSelectOption &&
           onSelectOption(
@@ -75,6 +74,7 @@ export function ResumeIntakeScreen({ onSelectOption, onBack, userName }: ResumeI
       }
     } catch (e) {
       console.warn('Document picker error:', e);
+      AppAlert.alert('File selection failed', 'Please choose the file again.');
     }
   };
 
@@ -113,6 +113,7 @@ export function ResumeIntakeScreen({ onSelectOption, onBack, userName }: ResumeI
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {/* Step Progress Header */}
           <View style={styles.headerProgressSection}>

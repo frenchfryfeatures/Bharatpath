@@ -321,6 +321,7 @@ export function JobDetailScreen({
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Dark Navy Hero Section */}
         <View style={styles.navyHero}>

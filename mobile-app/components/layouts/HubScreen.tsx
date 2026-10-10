@@ -26,6 +26,7 @@ export function HubScreen({ children, style, scrollable = true }: HubScreenProps
         style={styles.container}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         bounces={true}
       >
         {content}

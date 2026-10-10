@@ -137,6 +137,7 @@ export function ProfileScreen({
             { paddingBottom: 130 + Math.max(insets.bottom, 24) },
           ]}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {/* Header with avatar badge and candidate info */}
           <View style={styles.header}>

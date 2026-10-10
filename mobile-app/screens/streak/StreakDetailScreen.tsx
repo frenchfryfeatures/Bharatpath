@@ -399,6 +399,7 @@ export function StreakDetailScreen({ onBack }: StreakDetailScreenProps) {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           refreshControl={
             <RefreshControl
               refreshing={refreshing}

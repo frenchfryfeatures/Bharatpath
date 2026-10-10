@@ -38,7 +38,34 @@ export function readyStructuredResume(
   const status = details?.structured_status ?? details?.parsed?.structured_status;
   const structured =
     details?.structured_resume ?? details?.parsed?.structured_resume;
-  return status === 'READY' && structured ? structured : null;
+  if (status !== 'READY' || !structured || typeof structured !== 'object' || Array.isArray(structured)) return null;
+  const listKeys = ['experience', 'education', 'skills', 'projects', 'certifications', 'languages', 'achievements', 'interests', 'other_sections'] as const;
+  if (listKeys.some((key) => structured[key] != null && !Array.isArray(structured[key]))) return null;
+  if (['projects', 'certifications', 'languages', 'achievements', 'interests'].some((key) =>
+    (structured as Record<string, any>)[key]?.some((item: unknown) =>
+      item === null || (typeof item !== 'string' && (typeof item !== 'object' || Array.isArray(item)))))) return null;
+  if (structured.contacts != null && (typeof structured.contacts !== 'object' || Array.isArray(structured.contacts))) return null;
+  if (structured.contacts?.others != null && !Array.isArray(structured.contacts.others)) return null;
+  const stringFields = ['full_name', 'headline', 'location', 'summary'] as const;
+  if (stringFields.some((key) => structured[key] != null && typeof structured[key] !== 'string')) return null;
+  if (structured.contacts && Object.values(structured.contacts).some((value) =>
+    value != null && !Array.isArray(value) && typeof value !== 'string')) return null;
+  if (structured.contacts?.others?.some((item) =>
+    !item || typeof item !== 'object' || typeof item.url !== 'string' ||
+    (item.label != null && typeof item.label !== 'string'))) return null;
+  if (['experience', 'education', 'other_sections'].some((key) =>
+    (structured as Record<string, any>)[key]?.some((item: unknown) => !item || typeof item !== 'object' || Array.isArray(item)))) return null;
+  if (structured.other_sections?.some((item) => !Array.isArray(item.items))) return null;
+  if (structured.experience?.some((item) =>
+    (item.highlights != null && !Array.isArray(item.highlights)) ||
+    (item.skills_used != null && !Array.isArray(item.skills_used)) ||
+    Object.values(item).some((value) => value != null && typeof value !== 'string' && typeof value !== 'boolean' && !Array.isArray(value)))) return null;
+  if (structured.education?.some((item) =>
+    Object.values(item).some((value) => value != null && typeof value !== 'string'))) return null;
+  if (structured.other_sections?.some((item) =>
+    typeof item.heading !== 'string' || item.items.some((entry) => entry == null))) return null;
+  if (structured.skills?.some((item) => typeof item !== 'string')) return null;
+  return structured;
 }
 
 /** Turn the rich API payload into the review cards already used by mobile. */

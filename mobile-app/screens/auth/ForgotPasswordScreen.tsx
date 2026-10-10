@@ -336,6 +336,7 @@ export function ForgotPasswordScreen({
                         return (
                           <View
                             key={idx}
+                            pointerEvents="none"
                             style={[
                               styles.codeBox,
                               isCurrent && styles.codeBoxActive,
@@ -359,6 +360,9 @@ export function ForgotPasswordScreen({
                         if (errorMsg) setErrorMsg(null);
                       }}
                       keyboardType="number-pad"
+                      textContentType="oneTimeCode"
+                      autoComplete="sms-otp"
+                      caretHidden={true}
                       maxLength={6}
                       editable={!isLoading}
                     />

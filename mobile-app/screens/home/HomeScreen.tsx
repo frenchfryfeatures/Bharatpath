@@ -219,6 +219,7 @@ export function HomeScreen({
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {/* Top Header Row */}
           <View style={styles.headerRow}>

@@ -17,6 +17,7 @@ import {
   getStoredCandidateScore,
   clearAllAuthData,
 } from '@/services/storage/authStorage';
+import { unregisterCurrentPushDevice } from '@/services/notifications/device';
 
 interface AuthContextType {
   session: AuthSession | null;
@@ -253,6 +254,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [candidateFullName, session]);
 
   const handleSignOut = useCallback(async () => {
+    await unregisterCurrentPushDevice().catch((error) =>
+      console.warn('[Notifications] could not unregister on sign out', error));
     await apiSignOut();
     setSession(null);
     setProfile(null);
