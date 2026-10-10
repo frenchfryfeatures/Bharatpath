@@ -74,6 +74,10 @@ class AuditAction(StrEnum):
 
     # Trust and verification
     KYB_DECISION_RECORDED = "kyb_decision_recorded"
+    #: Staff switched KYB between manual review and approval on arrival
+    #: (2026-10-09). It decides whether the next employer is verified by a
+    #: person or by nobody, so who flipped it, and when, is on the record.
+    KYB_APPROVAL_MODE_CHANGED = "kyb_approval_mode_changed"
     INTEGRITY_FLAG_RESOLVED = "integrity_flag_resolved"
     TENANT_SUSPENDED = "tenant_suspended"
     TENANT_REINSTATED = "tenant_reinstated"

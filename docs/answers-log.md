@@ -7,7 +7,7 @@
 > **Still-open questions live in [`questions.txt`](questions.txt)**, written in plain language and
 > ready to send. This file is the archive; that file is the ask.
 >
-> Last updated 29 September 2026 — Round 11 added (portal requests).
+> Last updated 9 October 2026 — Round 13 added (KYB switch in the console, 100% discount codes).
 
 ---
 
@@ -15,6 +15,17 @@
 
 | Round | Source | Asked | Answered | Still open |
 |---
+
+## Round 13 — client decisions, 2026-10-09
+
+Relayed by the backend lead from the client, 8:36 pm (WhatsApp).
+
+| # | Question | Client answer (verbatim) | What we did |
+|---|---|---|---|
+| **13.1** | R15's switch (`kyb.require_approval`) could be changed only by writing a config row by hand. Should staff change it? | *"it should have option for changing from the UI for manual and auto approval of KYB"* | **`GET`/`PUT /admin/settings/kyb-approval`.** Admin only to flip it (`kyb_policy`); reviewers can read it. Each flip is a new config version and an audit row. **Our call, not asked:** switching to automatic approves nobody already waiting, because that would be a verification decision nobody made about those employers. The console page already existed in `frontend/` and was calling this route. |
+| **13.2** | E36 Q1: can a discount code be 100%? | *"keep range of discount till 100"* | **Percentages are 1–100**, and a fixed amount may make the price exactly zero. A zero checkout settles immediately as a `complimentary` payment with no gateway (migration `0014_complimentary_discounts`). **Unchanged, still ours (E36 Q2, Q3):** a free code is first checkout only and one use per person or organisation, and still counts against its usage limit. |
+
+---
 
 ## Round 12 — client decision, 2026-09-30
 

@@ -22,6 +22,7 @@ from . import (
     kyb,
     notifications,
     privacy,
+    profile_images,
     questionnaire,
     resume,
     scoring,
@@ -50,4 +51,5 @@ ALL_MODULES: tuple[ModuleType, ...] = (
     notifications,
     privacy,
     engagement,
+    profile_images,
 )

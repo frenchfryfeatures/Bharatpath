@@ -147,6 +147,39 @@ cleared an item should see it gone.
 record, not a queue** — every submission arriving was approved on the spot
 (R15), and `auto_approved: true` says exactly that on each row.
 
+### `GET /admin/settings/kyb-approval` — manual or automatic KYB
+
+**Auth:** `kyb` capability (Admin or KYB Reviewer). Added 2026-10-09.
+
+**Response** — `200 OK` (`KybApprovalMode`):
+```json
+{ "review_required": false }
+```
+`true` is **manual**: every new submission waits in the queue above for a
+reviewer. `false` is **automatic**: a complete submission is approved as it
+arrives. It is the same value as `review_required` on the list.
+
+### `PUT /admin/settings/kyb-approval` — switch it (audited)
+
+**Auth:** `kyb_policy` capability, **Admin only**. A KYB Reviewer can see
+the switch but cannot turn their own queue off.
+
+**Request body** (`KybApprovalMode`):
+```json
+{ "review_required": true }
+```
+**Response** — `200 OK`, the mode now in force, same shape.
+
+- **It applies to the next submission.** Switching to automatic does
+  *not* approve anything already waiting at `SUBMITTED` / `UNDER_REVIEW`.
+  A reviewer still decides those. Switching to manual does not un-approve
+  anyone.
+- Each real change writes a new version of the `kyb.require_approval`
+  config row and an audit row (`kyb_approval_mode_changed`). Sending the
+  mode already in force writes nothing.
+- If the stored row is malformed, `GET` answers `500 kyb_config_invalid`.
+  A `PUT` replaces the bad row, so that's how it gets fixed.
+
 ### `GET /admin/kyb/submissions/{id}` — one, with its answers and documents (audited)
 
 **Response** — `200 OK`, `KybSubmissionResponse` — the same shape
@@ -395,7 +428,7 @@ application stands has not thereby read a CV or listened to anyone.
 
 | Endpoint | Capability (roles) | What it returns |
 |---|---|---|
-| `…/onboarding` | `candidate_contact` (admin, support) | Everything given at sign-up and on the profile, **phone and email unmasked**, questionnaire answers in words, college links |
+| `…/onboarding` | `candidate_contact` (admin, support) | Everything given at sign-up and on the profile, **phone and email unmasked**, questionnaire answers in words, college links, and `photo_url` (their profile photo, a link that expires; 2026-10-09) |
 | `…/resume` | `candidate_resume` (+ integrity reviewer) | The newest CV version and the newest confirmed one (what the score was built from): text or form fields, and the uploaded file by presigned GET |
 | `…/score-timeline` | `candidate_drilldown` | Every score, oldest first |
 | `…/interviews` | `candidate_drilldown` | Every mock-interview session |
@@ -659,8 +692,13 @@ didn't my code work" without being able to mint new ones). Added
 ```json
 { "audience": "CANDIDATE", "percent_off": 50, "label": "Launch promo", "usage_limit": 500, "valid_until": "2026-12-31T23:59:59Z" }
 ```
-Leave `code` out to have one generated; `percent_off` is 1–99,
-`amount_off_minor` is paise, `valid_from` defaults to now.
+Leave `code` out to have one generated; `percent_off` is 1–100,
+`amount_off_minor` is paise, `valid_from` defaults to now. **100%, or an
+amount equal to the plan's price, makes the plan free** (client,
+2026-10-09): the payer's checkout settles at once with no gateway (see
+[08 §checkout](08-billing-subscriptions-courses-apis.md)), and the
+redemption log shows `amount_minor: 0`. A free code is still one use per
+person or organisation, and still counts against `usage_limit`.
 
 **Response** — `201 Created` (`DiscountCodeResponse`):
 ```json

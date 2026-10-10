@@ -280,7 +280,7 @@ test asserts**, so a placeholder cannot quietly become the product:
 | `college/domain.py` | `CONSENT_VERSION` starts `placeholder-` — the words a student agrees to when linking to a college are ours, not counsel's |
 | `college/domain.py` | `INDIVIDUAL_CONSENT_VERSION` starts `placeholder-` — the words for letting a college see a student by name, and the field list they name (blockers E27). Version 2 (2026-09-29) names contact, CV, interviews, courses and application stages |
 | `analytics/domain.py` | `DEFAULT_FLOORS` cohort 10 and median to 10 are ours. **Cell 1 (exact numbers) is the client's**, 2026-09-30. A config row may raise them, never lower them below 5 / 1 |
-| `billing/domain.py` | `DISCOUNT_POLICY_VERSION` starts `placeholder-` — no 100% code, first checkout only, one use per payer (blockers E36) |
+| `billing/domain.py` | `DISCOUNT_POLICY_VERSION` starts `placeholder-` — first checkout only, one use per payer (blockers E36). 100% codes are the client's (2026-10-09) |
 | `resume/vocabulary.py` | `VOCABULARY_VERSION` starts `placeholder-` — the spellings the review screen flags near misses of |
 | `discovery/catalogue.py` | `FILTER_CATALOGUE_VERSION` starts `placeholder-` — the starter skills and cities in the employer filter panel |
 
@@ -351,6 +351,13 @@ is where a third one would have to be argued for.
 - **R15 is one config row:** `kyb.require_approval`, `{"enabled": true|false}`,
   off when absent. A malformed row refuses (`kyb_config_invalid`) rather than
   defaulting, because defaulting to "off" approves employers nobody meant to.
+- **Staff flip it from the console** (`PUT /admin/settings/kyb-approval`,
+  capability `kyb_policy`, PLATFORM_ADMIN only; 2026-10-09).
+  `kyb.service.set_require_approval` appends a version under an advisory
+  lock and audits it. **It decides the next submission only**: switching to
+  automatic never approves one already waiting. A reviewer can read the
+  switch and cannot flip it. Tests that flip it delete the versions they
+  wrote (`_drop_switch_versions_above` in `test_admin_console.py`).
 - **`employers.kyb_status` is what the publish trigger reads.** Only
   `kyb.service` changes it, through `employer.service.set_kyb_status`. The
   profile PATCH must never be a way to set it.
@@ -478,6 +485,35 @@ similar-to-applied` and `/matching-profile` (`backend-guide/05` §7).
 - The database only narrows: published, `_listed()`, shares a skill or a
   title word, not applied to, newest 300. The ranking is Python. No
   relevance number leaves the server.
+
+## Profile photos and logos — 2026-10-09
+
+`app/modules/profile_images` (`backend-guide/16`). Everyone's own photo
+(`user_photos`, `/profile/photo`); employer and college logos
+(`organisation_logos`, `/{employer,college}/organisation/logo`, owner /
+college admin to change).
+
+- **A student's photo reaches the student and staff, nobody else** (the
+  backend lead's decision, 2026-10-09: a face says gender and age, and
+  masked search exists so employers judge on band and skills).
+  `tests/invariants/test_profile_photo_reach.py` fails on a photo-like field
+  in any employer- or college-facing schema, and on a caller of
+  `profile_images.service.photo_url` other than the admin console. Widening
+  it is a client decision.
+- **The server keeps only what it encoded.** Confirm sniffs the bytes,
+  decodes, applies EXIF rotation, scales to 512px and re-encodes (JPEG, or
+  PNG with transparency), which drops every byte of metadata -- a phone
+  photo's GPS position included. The raw upload is deleted, accepted or not.
+- **A replaced or removed image's object is deleted**, because the key on
+  the row is the only record of it and erasure reads keys off rows.
+  `user_photos` is ERASE (object first, via `erasable_object_keys`);
+  `organisation_logos` is NOT_PERSONAL and RLS-exempt -- candidates read
+  logos across tenants on the board, as `employer_logo_url`.
+- Bucket `S3_BUCKET_PROFILE_IMAGES` (Terraform `profile_images`, LocalStack
+  `bharatpath-profile-images`). Tests use the `images` fixture in
+  `test_profile_images.py` (`FakeS3` plus `put_object` and `presign_get`).
+- `erase_candidate` was replaced again in `0015_profile_images`, patched
+  onto 0010's at the applications delete, as 0010 did onto 0007's.
 
 ## Masked search — Day 13
 
@@ -974,13 +1010,21 @@ for app teams is `docs/signup-and-accounts.md`.
 - **Discount codes live in `billing`.** A code lowers the checkout's
   `amount_minor` and is recorded on the payment (`discount_code_id`,
   `list_amount_minor`, both held by `guard_payment_write`). **A use is a
-  `discount_redemptions` row written in `_apply_payment_event`, beside the
+  `discount_redemptions` row written in `_settle`, beside the
   grant** — never at checkout; `guard_discount_redemption` refuses a row
   without this code's verified payment. A code's terms never change
   (`guard_discount_code_write`); staff switch it off and make another. Checkouts
   against one code are serialised by locking its row, and a fresh PENDING
   checkout holds a use for `CHECKOUT_HOLD_MINUTES`. Status is computed, never
   stored. Only a checkout reads a code, so a mandate debit is never discounted.
+- **A code may be 100% (client, 2026-10-09).** A checkout that comes to
+  zero has no gateway and no callback, so `_settle_complimentary` inserts it
+  PENDING with provider `complimentary` and settles it at once through
+  `_settle`, the same function a verified callback uses. **This is the one
+  grant no gateway signed**; what stands in is the code, locked and checked
+  under that lock. `ck_payments_complimentary` holds that a zero payment is
+  always `complimentary` with a code, and `complimentary` is always zero.
+  Never add another way to reach `_settle`.
 
 ## Portal dashboards — 2026-09-29
 

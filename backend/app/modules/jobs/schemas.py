@@ -166,6 +166,9 @@ class BoardJobSummary(_Base):
     id: uuid.UUID
     title: str
     employer_name: str | None = None
+    #: The employer's logo, a presigned link that expires; null without one
+    #: (2026-10-09). Re-fetch the page rather than caching the link.
+    employer_logo_url: str | None = None
     skills: list[str]
     location: str | None = None
     work_mode: str | None = None

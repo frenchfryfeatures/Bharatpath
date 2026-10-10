@@ -1,9 +1,9 @@
 """Discount codes (2026-09-18): the pure rules, and the placeholders they carry.
 
-The policy is ours until the client answers three questions (a 100% code,
-renewals, reuse). These tests hold what the placeholder promises -- above all
-that no code can make a payment of zero -- and that it still says it is a
-placeholder.
+Three questions went to the client (a 100% code, renewals, reuse). The
+first is answered -- a code may be 100% (2026-10-09) -- and the other two are
+still ours. These tests hold what the policy promises, and that it still says
+it is a placeholder.
 """
 
 from __future__ import annotations
@@ -15,6 +15,7 @@ import pytest
 from app.modules.billing.domain import (
     CODE_ALPHABET,
     DISCOUNT_POLICY_VERSION,
+    MAX_PERCENT_OFF,
     MIN_NET_AMOUNT_MINOR,
     DiscountCodeFormatError,
     discount_refusal,
@@ -65,12 +66,22 @@ def test_a_code_is_a_percentage_or_an_amount_never_both_or_neither() -> None:
         validate_discount_value(percent_off=None, amount_off_minor=None)
 
 
-@pytest.mark.parametrize("percent", [0, 100, 101, -5])
-def test_no_percentage_can_make_the_price_zero(percent: int) -> None:
-    """Placeholder answer to the client's question 1: a 100% code does not
-    exist, because a zero payment has no gateway callback to grant it."""
+@pytest.mark.parametrize("percent", [0, 101, -5])
+def test_a_percentage_is_one_to_a_hundred(percent: int) -> None:
     with pytest.raises(ValueError):
         validate_discount_value(percent_off=percent, amount_off_minor=None)
+
+
+def test_a_hundred_percent_code_makes_the_price_zero() -> None:
+    """The client's answer to question 1 (2026-10-09)."""
+    assert MAX_PERCENT_OFF == 100
+    price = discounted_price(14_999, percent_off=100, amount_off_minor=None)
+    assert price is not None
+    assert (price.list_amount_minor, price.discount_minor, price.amount_minor) == (
+        14_999,
+        14_999,
+        0,
+    )
 
 
 def test_a_percentage_rounds_the_discount_down_to_the_paisa() -> None:
@@ -83,8 +94,13 @@ def test_a_percentage_rounds_the_discount_down_to_the_paisa() -> None:
     )
 
 
-def test_a_fixed_amount_that_would_leave_less_than_the_floor_is_refused() -> None:
-    assert discounted_price(14_900, percent_off=None, amount_off_minor=14_900) is None
+def test_a_fixed_amount_may_make_it_free_but_never_leave_a_few_paise() -> None:
+    free = discounted_price(14_900, percent_off=None, amount_off_minor=14_900)
+    assert free is not None and free.amount_minor == 0
+    # More than the price is not "free plus change": the code was not made
+    # for this plan.
+    assert discounted_price(14_900, percent_off=None, amount_off_minor=15_000) is None
+    # A gateway order for 50 paise is a fee, not a price.
     assert discounted_price(14_900, percent_off=None, amount_off_minor=14_850) is None
     floor = discounted_price(
         14_900, percent_off=None, amount_off_minor=14_900 - MIN_NET_AMOUNT_MINOR
@@ -93,11 +109,11 @@ def test_a_fixed_amount_that_would_leave_less_than_the_floor_is_refused() -> Non
 
 
 def test_the_parts_always_add_up() -> None:
-    for percent in range(1, 100):
+    for percent in range(1, 101):
         price = discounted_price(499_900, percent_off=percent, amount_off_minor=None)
         assert price is not None
         assert price.list_amount_minor == price.amount_minor + price.discount_minor
-        assert price.amount_minor >= MIN_NET_AMOUNT_MINOR
+        assert price.amount_minor == 0 or price.amount_minor >= MIN_NET_AMOUNT_MINOR
 
 
 # --- status -------------------------------------------------------------------

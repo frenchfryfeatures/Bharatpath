@@ -53,7 +53,10 @@ class CheckoutResponse(_Base):
         default=None, description="The price before a discount code; null without one."
     )
     currency: str
-    redirect_url: str | None = Field(description="Where to send the payer to pay.")
+    redirect_url: str | None = Field(
+        description="Where to send the payer to pay. Null when a discount code made the "
+        "checkout free: `status` is then already SUCCEEDED and there is nothing to pay."
+    )
 
     @classmethod
     def of(cls, payment: Any) -> CheckoutResponse:

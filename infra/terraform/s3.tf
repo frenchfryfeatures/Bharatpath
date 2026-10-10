@@ -1,6 +1,6 @@
 data "aws_caller_identity" "current" {}
 
-# The six buckets app/settings.py expects. Names are suffixed with the
+# The seven buckets app/settings.py expects. Names are suffixed with the
 # account id because S3 bucket names are globally unique across all of
 # AWS -- "bharatpath-resumes" was almost certainly taken years ago.
 locals {
@@ -11,6 +11,7 @@ locals {
     exports         = "Generated CSV/PDF exports."
     audit_archive   = "Cold copies of the append-only audit trail."
     course_media    = "Course video and materials (producer still unknown -- plan.md N7)."
+    profile_images  = "Profile photos and organisation logos, re-encoded by the API."
   }
 
   bucket_names = {

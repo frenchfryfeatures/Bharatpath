@@ -61,6 +61,7 @@ from app.modules.admin.schemas import (
     InterviewRecordingRow,
     InterviewSessionRow,
     InvitationResentResponse,
+    KybApprovalMode,
     KybDecisionRequest,
     KybSubmissionsPage,
     LessonUploadResponse,
@@ -140,6 +141,38 @@ async def list_kyb_submissions(
         state=state,
         cursor=cursor,
         limit=limit,
+        request_id=get_request_id(request),
+    )
+
+
+@router.get(
+    "/settings/kyb-approval",
+    response_model=KybApprovalMode,
+    dependencies=can("kyb"),
+    summary="Whether KYB submissions wait for a reviewer or are approved on arrival",
+)
+async def kyb_approval_mode(user: CurrentUser, session: DbSession) -> KybApprovalMode:
+    return await service.kyb_approval_mode(session)
+
+
+@router.put(
+    "/settings/kyb-approval",
+    response_model=KybApprovalMode,
+    dependencies=can("kyb_policy"),
+    summary="Switch KYB between manual review and approval on arrival (audited)",
+)
+async def set_kyb_approval_mode(
+    payload: KybApprovalMode, request: Request, user: CurrentUser, session: DbSession
+) -> KybApprovalMode:
+    """`review_required: true` sends every new submission to the review
+    queue; `false` approves a complete submission on arrival. It applies to
+    the next submission: one already waiting still needs a decision, and an
+    approved organisation stays approved. Setting the mode in force changes
+    nothing."""
+    return await service.set_kyb_approval_mode(
+        session,
+        ctx=user,
+        review_required=payload.review_required,
         request_id=get_request_id(request),
     )
 

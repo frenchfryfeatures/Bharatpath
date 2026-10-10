@@ -108,6 +108,7 @@ from app.modules.admin.schemas import (
     InterviewRecordingRow,
     InterviewSessionRow,
     InvitationResentResponse,
+    KybApprovalMode,
     KybBacklog,
     KybSubmissionRow,
     KybSubmissionsPage,
@@ -168,6 +169,7 @@ from app.modules.interview import service as interview_service
 from app.modules.jobs import service as jobs_service
 from app.modules.kyb import service as kyb_service
 from app.modules.kyb.schemas import KybSubmissionResponse
+from app.modules.profile_images import service as profile_images_service
 from app.modules.questionnaire.domain import answers_in_words
 from app.modules.resume import service as resume_service
 from app.modules.resume.structuring import structured_view
@@ -314,6 +316,33 @@ async def kyb_submissions(
         next_cursor=_next(rows, size, at="created_at"),
         review_required=review_required,
     )
+
+
+async def kyb_approval_mode(
+    session: AsyncSession, *, now: datetime | None = None
+) -> KybApprovalMode:
+    """The switch as it stands. Global config, naming nobody: no reveal."""
+    return KybApprovalMode(
+        review_required=await kyb_service.require_approval(session, now=_now(now))
+    )
+
+
+async def set_kyb_approval_mode(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    review_required: bool,
+    request_id: str | None = None,
+) -> KybApprovalMode:
+    """`kyb.service.set_require_approval` writes the row and the audit row."""
+    enabled = await kyb_service.set_require_approval(
+        session,
+        enabled=review_required,
+        actor_id=ctx.user_id,
+        actor_role=ctx.role,
+        request_id=request_id,
+    )
+    return KybApprovalMode(review_required=enabled)
 
 
 async def _submission_tenant(
@@ -1989,6 +2018,7 @@ async def candidate_onboarding(
         if row is None:
             raise CandidateNotFoundError()
         facts = await repository.candidate_facts(reader, user_id=user_id)
+        photo_url = await profile_images_service.photo_url(reader, user_id=user_id)
     saved_career = row["career"] or {}
     career = (
         CareerResponse.model_validate(
@@ -2008,6 +2038,7 @@ async def candidate_onboarding(
         locale=row["locale"],
         created_at=row["created_at"],
         full_name=row["full_name"],
+        photo_url=photo_url,
         email=row["email"],
         phone=career.details.phone or row["phone"] if career else row["phone"],
         city=row["city"],

@@ -65,6 +65,13 @@ class KybSubmissionsPage(_Base):
     review_required: bool
 
 
+class KybApprovalMode(_Base):
+    """R15's switch, `kyb.require_approval`. True: every submission waits for
+    a reviewer. False: a complete submission is approved on arrival."""
+
+    review_required: bool
+
+
 class KybDecisionRequest(_Base):
     decision: Literal["UNDER_REVIEW", "APPROVED", "REJECTED", "MORE_INFO_REQUIRED"]
     reason: str | None = Field(default=None, max_length=1000)
@@ -559,12 +566,13 @@ class InvitationResentResponse(_Base):
 # Discount codes (2026-09-18)
 # ---------------------------------------------------------------------------
 class CreateDiscountCodeRequest(_Base):
-    """Exactly one of `percent_off` (1-99) and `amount_off_minor` (paise).
-    Leave `code` out to have one generated."""
+    """Exactly one of `percent_off` (1-100) and `amount_off_minor` (paise).
+    Leave `code` out to have one generated. 100%, or an amount equal to the
+    price, makes the plan free: checkout settles at once, with no gateway."""
 
     code: str | None = Field(default=None, min_length=4, max_length=32)
     audience: Literal["CANDIDATE", "EMPLOYER", "COLLEGE"]
-    percent_off: int | None = Field(default=None, ge=1, le=99)
+    percent_off: int | None = Field(default=None, ge=1, le=100)
     amount_off_minor: int | None = Field(default=None, gt=0)
     valid_from: datetime | None = Field(default=None, description="Defaults to now.")
     valid_until: datetime | None = None
@@ -795,6 +803,9 @@ class CandidateOnboarding(_Base):
     locale: str
     created_at: datetime
     full_name: str | None
+    #: Their profile photo, a presigned link that expires (2026-10-09).
+    #: Staff see it here; employers and colleges never do.
+    photo_url: str | None = None
     email: str | None
     phone: str | None
     city: str | None

@@ -30,8 +30,17 @@ a pre-debit notice, the wait, the debit, and its callback back through step 3.
 lowers what the checkout asks the gateway for, and is recorded on the payment
 with the list price; step 3 grants exactly what an undiscounted payment
 grants, and writes the redemption beside it. A code is therefore used when
-money moves and not before, and it can never make a payment of zero -- the
-policy is `billing.domain`, and it is a placeholder until the client answers.
+money moves and not before. The policy is `billing.domain`.
+
+**A code that takes the price to zero (client, 2026-10-09)** skips steps 1
+and 2: there is no money, so there is no gateway order and no callback to
+wait for. `_settle_complimentary` inserts the payment PENDING, as every
+payment is, and settles it in the same transaction through `_settle` -- the
+code that settles a verified callback -- so the grant, the redemption and
+the event are the same rows a paid checkout writes. What stands in for the
+gateway's signature is the code: locked, checked against this payer and
+counted under that lock, and a zero payment without one is refused by
+`ck_payments_complimentary`.
 """
 
 from __future__ import annotations
@@ -41,7 +50,7 @@ import secrets
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Final
+from typing import Any, Final
 
 from fastapi import status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -62,6 +71,7 @@ from app.core.tenant import TenantContext
 from app.modules.billing import events, repository
 from app.modules.billing.domain import (
     CHECKOUT_HOLD_MINUTES,
+    COMPLIMENTARY_PROVIDER,
     CURRENCY,
     MANDATE_ACTIVATED,
     MANDATE_GONE_FAILURE_CODES,
@@ -174,7 +184,8 @@ async def _open_checkout(
     item, price and code inside the reuse window returns the first.
 
     With a code, the code's row is locked for the rest of the transaction, so
-    checkouts against it are serialised and its last use is sold once."""
+    checkouts against it are serialised and its last use is sold once. A
+    code that takes the price to zero returns the payment already settled."""
     provider = get_payment_provider()
     await repository.lock_checkout(session, user_id=payer_id, item_id=item_id)
     applied: _AppliedDiscount | None = None
@@ -193,6 +204,18 @@ async def _open_checkout(
             now=now,
         )
         amount_minor = applied.price.amount_minor
+        if amount_minor == 0:
+            return await _settle_complimentary(
+                session,
+                payer_id=payer_id,
+                purpose=purpose,
+                item_code=item_code,
+                item_id=item_id,
+                subscriber_type=subscriber_type,
+                subscriber_id=subscriber_id,
+                applied=applied,
+                now=now,
+            )
     existing = await repository.reusable_pending_payment(
         session,
         user_id=payer_id,
@@ -233,6 +256,55 @@ async def _open_checkout(
         amount_minor=amount_minor,
         discounted=applied is not None,
     )
+    return payment
+
+
+async def _settle_complimentary(
+    session: AsyncSession,
+    *,
+    payer_id: uuid.UUID,
+    purpose: str,
+    item_code: str,
+    item_id: uuid.UUID,
+    subscriber_type: str | None,
+    subscriber_id: uuid.UUID | None,
+    applied: _AppliedDiscount,
+    now: datetime,
+) -> Payment:
+    """A checkout a code took to zero, settled now. Nothing to send a gateway.
+
+    Called with the code's row still locked by `_apply_discount`, which has
+    already refused a code this subscriber used, one used up, and one held
+    by someone else's checkout -- the checks a paid checkout passes before
+    its callback can settle it. Inserted PENDING like any payment, so
+    `guard_payment_write` sees the ordinary transition.
+    """
+    payment_id = uuid.uuid4()
+    payment = await repository.insert_payment(
+        session,
+        payment_id=payment_id,
+        user_id=payer_id,
+        provider=COMPLIMENTARY_PROVIDER,
+        provider_ref=str(payment_id),
+        amount_minor=0,
+        purpose=purpose,
+        item_code=item_code,
+        item_id=item_id,
+        subscriber_type=subscriber_type,
+        subscriber_id=subscriber_id,
+        subscription_id=None,
+        checkout_url=None,
+        discount_code_id=applied.code.id,
+        list_amount_minor=applied.price.list_amount_minor,
+    )
+    await _settle(
+        session,
+        payment,
+        verified_at=now,
+        evidence={"complimentary": True, "discount_code_id": str(applied.code.id)},
+        now=now,
+    )
+    logger.info("payment_complimentary", purpose=purpose, item_code=item_code)
     return payment
 
 
@@ -578,28 +650,12 @@ async def _apply_payment_event(
                 received=event.amount_minor,
             )
             return "AMOUNT_MISMATCH"
-        payment.status = "SUCCEEDED"
-        payment.signature_verified_at = row.signature_verified_at
-        payment.raw_callback = row.payload
-        payment.settled_at = now
-        payment.failure_code = None
-        await session.flush()
-        await _grant(session, payment, now)
-        if payment.discount_code_id is not None:
-            # The code is used now, when money moved, and in the transaction
-            # that granted what it paid for.
-            await repository.insert_redemption(session, payment=payment)
-        await emit(
+        await _settle(
             session,
-            event_type=events.PAYMENT_SUCCEEDED,
-            aggregate_type="payment",
-            aggregate_id=payment.id,
-            payload={
-                "payment_id": str(payment.id),
-                "user_id": str(payment.user_id),
-                "purpose": payment.purpose,
-                "item_code": payment.item_code,
-            },
+            payment,
+            verified_at=row.signature_verified_at,
+            evidence=row.payload,
+            now=now,
         )
         return "APPLIED"
 
@@ -631,8 +687,44 @@ async def _apply_payment_event(
     return "APPLIED"
 
 
+async def _settle(
+    session: AsyncSession,
+    payment: Payment,
+    *,
+    verified_at: datetime,
+    evidence: dict[str, Any],
+    now: datetime,
+) -> None:
+    """SUCCEEDED, granted, the code's use recorded, and the event -- in one
+    transaction. Called by a verified callback (`_apply_payment_event`) and by
+    a complimentary checkout (`_settle_complimentary`), and nothing else."""
+    payment.status = "SUCCEEDED"
+    payment.signature_verified_at = verified_at
+    payment.raw_callback = evidence
+    payment.settled_at = now
+    payment.failure_code = None
+    await session.flush()
+    await _grant(session, payment, now)
+    if payment.discount_code_id is not None:
+        # The code is used now, when the payment settled, and in the
+        # transaction that granted what it paid for.
+        await repository.insert_redemption(session, payment=payment)
+    await emit(
+        session,
+        event_type=events.PAYMENT_SUCCEEDED,
+        aggregate_type="payment",
+        aggregate_id=payment.id,
+        payload={
+            "payment_id": str(payment.id),
+            "user_id": str(payment.user_id),
+            "purpose": payment.purpose,
+            "item_code": payment.item_code,
+        },
+    )
+
+
 async def _grant(session: AsyncSession, payment: Payment, now: datetime) -> None:
-    """What a verified payment bought. Only ever called from `_apply_payment_event`."""
+    """What a settled payment bought. Only ever called from `_settle`."""
     if payment.purpose == "COURSE":
         await courses_service.record_purchase(
             session, user_id=payment.user_id, course_id=payment.item_id, payment_id=payment.id
