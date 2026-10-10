@@ -1,6 +1,6 @@
 "use client";
 
-import { ImageUploader } from "@/components/profile-image/image-uploader";
+import { ProfileImageEditor } from "@/components/profile-image/profile-image-editor";
 import { useSessionIdentity } from "@/lib/auth/use-session-identity";
 import { useGetCollegeOrganisationQuery } from "@/store/college/settings/settings.api";
 
@@ -10,7 +10,7 @@ export function CollegeLogoCard() {
   const organisation = useGetCollegeOrganisationQuery();
 
   return (
-    <ImageUploader
+    <ProfileImageEditor
       target="college-logo"
       name={organisation.data?.name ?? "College"}
       title="College logo"

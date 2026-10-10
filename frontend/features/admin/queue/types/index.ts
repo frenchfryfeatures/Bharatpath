@@ -15,6 +15,8 @@ export interface QueueItem {
   id: string;
   name: string;
   initials: string;
+  imageUrl?: string | null;
+  imageFit?: "cover" | "contain";
   submitted: string;
   secondary: string;
   /** Integrity signals only (their severity). KYB submissions carry no risk. */

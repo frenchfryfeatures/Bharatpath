@@ -19,6 +19,7 @@ export type AdminListParams = {
 };
 
 export type KybSubmissionRow = {
+  logo_url?: string | null;
   id: string;
   tenant_id: string;
   organisation: string;
@@ -75,6 +76,7 @@ export type KybSubmission = {
 };
 
 export type IntegritySignalRow = {
+  photo_url?: string | null;
   id: string;
   candidate_id: string;
   resume_version_id: string | null;
@@ -94,6 +96,7 @@ export type IntegritySignalDetail = IntegritySignalRow & {
 };
 
 export type TenantRow = {
+  logo_url?: string | null;
   id: string;
   type: "EMPLOYER" | "COLLEGE";
   name: string;
@@ -118,6 +121,7 @@ export type SuspensionResponse = {
 };
 
 export type CandidateDrilldown = {
+  photo_url?: string | null;
   id: string;
   status: string;
   locale: string;
@@ -204,6 +208,7 @@ export type LessonUpload = {
 export type CandidateApplications = { items: Array<{ id: string; job_title: string; employer_name: string | null; stage: string; applied_at: string }>; analytics: { total: number; open: number; by_stage: Record<string, number>; reached: Record<string, number> } };
 
 export type EmployerDrilldown = {
+  logo_url?: string | null;
   tenant_id: string;
   name: string;
   status: string;
@@ -226,6 +231,7 @@ export type EmployerDrilldown = {
 };
 
 export type CollegeDrilldown = {
+  logo_url?: string | null;
   tenant_id: string;
   name: string;
   status: string;
@@ -371,6 +377,8 @@ export type OrganisationStatusCounts = {
 };
 
 export type AdminOldestWaitingItem = {
+  logo_url?: string | null;
+  photo_url?: string | null;
   type: "KYB" | "INTEGRITY" | "DISPUTE";
   id: string;
   waiting_since: string;
@@ -389,6 +397,7 @@ export type AdminThroughputPoint = {
 };
 
 export type AdminCandidateRow = {
+  photo_url?: string | null;
   id: string;
   status: "ACTIVE" | "SUSPENDED" | "DELETED";
   full_name: string | null;
@@ -439,6 +448,7 @@ export type CreateDiscountCodeRequest = {
 
 export type DiscountCodesPage = CursorPage<DiscountCode> & { policy_version: string };
 export type DiscountRedemption = {
+  logo_url?: string | null;
   id: string;
   payment_id: string;
   user_id: string;

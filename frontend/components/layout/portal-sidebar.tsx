@@ -114,7 +114,13 @@ export function PortalSidebar({
         : "Staff account");
   const initials = identityInitials(accountTitle);
 
-  const photo = useGetProfileImageQuery("photo", { skip: !identity });
+  const imageTarget =
+    portal === "employer"
+      ? "employer-logo"
+      : portal === "college"
+        ? "college-logo"
+        : "photo";
+  const photo = useGetProfileImageQuery(imageTarget, { skip: !identity });
   const [failedPhoto, setFailedPhoto] = useState<string | null>(null);
   const photoUrl =
     photo.data?.url && photo.data.url !== failedPhoto ? photo.data.url : null;
@@ -691,7 +697,7 @@ export function PortalSidebar({
                 src={photoUrl}
                 alt=""
                 onError={() => setFailedPhoto(photoUrl)}
-                className="h-full w-full rounded-full object-cover"
+                className={`h-full w-full rounded-full ${imageTarget === "photo" ? "object-cover" : "bg-white object-contain"}`}
               />
             ) : (
               initials

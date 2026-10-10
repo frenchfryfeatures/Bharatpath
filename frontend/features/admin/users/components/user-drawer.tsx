@@ -1,5 +1,7 @@
 "use client";
 
+import { Avatar } from "@/components/ui/avatar";
+
 import { humanizeCode } from "@/lib/format/labels";
 
 import { useState } from "react";
@@ -107,9 +109,12 @@ export function UserDrawer() {
       <button type="button" aria-label="Close details" onClick={closeUser} className="absolute inset-0 bg-[#172033]/30" />
       <aside className="absolute right-0 top-0 flex h-full w-[520px] max-w-full flex-col bg-white shadow-[-20px_0_60px_-24px_rgba(0,0,0,0.5)]" role="dialog" aria-modal="true">
         <header className="flex items-start justify-between border-b border-[#e5e7eb] px-5 py-4">
-          <div>
+          <div className="flex min-w-0 items-center gap-3">
+            <Avatar name={title} src={isCandidate ? candidateQuery.data?.photo_url : organisationDetail?.logo_url} fit={isCandidate ? "cover" : "contain"} size="lg" />
+            <div>
             <h2 className="text-[18px] font-bold text-[#172033]">{title}</h2>
             <p className="mt-1 text-[12px] text-[#7b8494]">{subjectType} · {selectedId}</p>
+            </div>
           </div>
           <button type="button" onClick={closeUser} aria-label="Close" className="grid h-8 w-8 place-items-center rounded-lg text-[#7b8494] hover:bg-[#f5f6f8]"><X className="h-4 w-4" /></button>
         </header>

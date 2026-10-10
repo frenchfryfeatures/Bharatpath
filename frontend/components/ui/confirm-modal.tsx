@@ -66,7 +66,7 @@ export function ConfirmModal({
       <div
         aria-labelledby="confirm-modal-title"
         aria-describedby="confirm-modal-description"
-        className={`w-full max-w-105 rounded-[14px] border border-[#e7e9ee] bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.18)] ${variant === "student" ? "font-sans text-[13px] leading-5 lg:text-[14px]" : ""}`}
+        className={`w-full max-w-105 rounded-[14px] border border-[#e7e9ee] bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.18)] ${variant === "student" ? "font-sans text-[13px] leading-5" : ""}`}
       >
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
@@ -82,13 +82,13 @@ export function ConfirmModal({
             <div>
               <h2
                 id="confirm-modal-title"
-                className={`${variant === "student" ? "text-[16px] leading-6 lg:text-[18px]" : "text-[16px] leading-5.5"} font-semibold text-[#151b2b]`}
+                className={`${variant === "student" ? "text-[16px] leading-5" : "text-[16px] leading-5.5"} font-semibold text-[#151b2b]`}
               >
                 {title}
               </h2>
               <p
                 id="confirm-modal-description"
-                className={`mt-1.5 text-[#5d6673] ${variant === "student" ? "text-[13px] leading-5 lg:text-[14px]" : "text-[13px] leading-4.75"}`}
+                className={`mt-1.5 text-[#5d6673] ${variant === "student" ? "text-[13px] leading-5" : "text-[13px] leading-4.75"}`}
               >
                 {description}
               </p>

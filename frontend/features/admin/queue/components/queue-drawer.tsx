@@ -1,5 +1,7 @@
 "use client";
 
+import { ImageTile } from "@/features/admin/shared/image-tile";
+
 import { useState } from "react";
 import {
   AlertCircle,
@@ -439,17 +441,14 @@ function QueueDrawerBody() {
         <div className="flex shrink-0 items-start gap-3 border-b border-[#e5e7eb] px-4 py-3">
           {/* Avatar */}
 
-          <span
-            className={[
+          <ImageTile src={item.imageUrl} initials={item.initials} fit={item.imageFit} className={[
               "grid h-10 w-10 shrink-0 place-items-center rounded-xl",
               isKyb
                 ? "bg-[#eef0ff] text-[#385da8]"
                 : "bg-[#fff5df] text-[#9a6b18]",
               "text-[13px] font-bold leading-[17px]",
             ].join(" ")}
-          >
-            {item.initials}
-          </span>
+           />
 
           {/* Name + submitted */}
 

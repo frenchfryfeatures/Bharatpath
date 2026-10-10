@@ -91,7 +91,7 @@ export function StudentHeader({
   const { title, subtitle } = sectionFor(pathname);
 
   return (
-    <header className="flex min-h-16 shrink-0 items-center gap-3 border-b border-[#E7E0D4] bg-white px-3 sm:px-4">
+    <header className="flex min-h-16 shrink-0 items-center gap-3 border-b border-[#E7E0D4] bg-white px-4 py-2.5">
       {/* Mobile: open drawer */}
       <button
         type="button"
@@ -103,12 +103,12 @@ export function StudentHeader({
       </button>
 
       {/* Title */}
-      <div className="flex min-w-0 flex-1 flex-col">
-        <h1 className="truncate text-[18px] font-bold leading-6 tracking-[-0.01em] text-[#0A1931]">
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <h1 className="truncate text-[18px] font-bold leading-[23px] tracking-[-0.01em] text-[#0A1931]">
           {title}
         </h1>
         {subtitle ? (
-          <span className="truncate text-[12px] leading-4 text-[#5F6B80]">
+          <span className="truncate text-[12px] leading-[17px] text-[#5F6B80]">
             {subtitle}
           </span>
         ) : null}

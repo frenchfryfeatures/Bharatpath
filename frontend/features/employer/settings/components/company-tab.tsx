@@ -1,11 +1,12 @@
 "use client";
 
+import { EmployerLogoCard } from "./employer-logo-card";
+
 import { choiceLabel, humanizeCode } from "@/lib/format/labels";
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import {
   AlertCircle,
-  Building2,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
@@ -479,19 +480,15 @@ export function CompanyTab() {
   return (
     <div className="w-full space-y-6 pb-24">
       {/* Top Header Card */}
-      <div className="flex flex-col gap-4 rounded-xl border border-[#e0e4e9] bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <Building2 className="h-5 w-5 text-[#3566b8]" aria-hidden="true" />
-            <h1 className="text-base font-bold text-[#111827]">Company profile</h1>
-          </div>
-          <p className="mt-1 text-xs text-[#687386]">
-            Public details for jobseekers and verified compliance records.
-          </p>
-        </div>
-        <div>
+      <div className="flex flex-col gap-4 rounded-xl border border-[#e0e4e9] bg-white p-5 shadow-sm">
+        <div className="flex items-start justify-between gap-3">
+          <h1 className="text-base font-bold text-[#111827]">Company profile</h1>
           <StatusBadge status={company.kybStatus || "DRAFT"} />
         </div>
+        <EmployerLogoCard />
+        <p className="text-xs text-[#687386]">
+          Public details for jobseekers and verified compliance records.
+        </p>
       </div>
 
       {(isOrgError || isKybError) && (

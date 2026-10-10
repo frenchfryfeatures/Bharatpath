@@ -86,6 +86,8 @@ export function useUsers() {
         id: candidate.id,
         name: candidate.full_name ?? "Unnamed candidate",
         initials: initialsOf(candidate.full_name),
+        imageUrl: candidate.photo_url,
+        imageFit: "cover",
         identifier:
           candidate.email_masked ?? candidate.phone_masked ?? candidate.id,
         meta:
@@ -97,6 +99,8 @@ export function useUsers() {
     : (tenantsQuery.data?.items ?? []).map((tenant) => ({
         id: tenant.id,
         name: tenant.name,
+        imageUrl: tenant.logo_url,
+        imageFit: "contain",
         initials: tenant.name
           .split(/\s+/)
           .slice(0, 2)

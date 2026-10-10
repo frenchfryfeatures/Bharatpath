@@ -1,6 +1,6 @@
 "use client";
 
-import { ImageUploader } from "@/components/profile-image/image-uploader";
+import { ProfileImageEditor } from "@/components/profile-image/profile-image-editor";
 import { useSessionIdentity } from "@/lib/auth/use-session-identity";
 import { useGetEmployerOrganisationQuery } from "@/store/employer/settings";
 
@@ -10,13 +10,12 @@ export function EmployerLogoCard() {
   const organisation = useGetEmployerOrganisationQuery();
 
   return (
-    <ImageUploader
+    <ProfileImageEditor
       target="employer-logo"
       name={organisation.data?.legalName ?? "Company"}
       title="Company logo"
       description="Candidates see this next to your jobs. Only the account owner can change it."
       canEdit={isOwner}
-      className="mb-4"
     />
   );
 }

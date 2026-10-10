@@ -166,6 +166,8 @@ function toOldestItems(
       name: subject,
       meta: humaniseCode(item.detail),
       initials: initialsOf(subject) || "-",
+      imageUrl: item.logo_url ?? item.photo_url,
+      imageFit: item.logo_url ? "contain" : "cover",
       type: typeOf(item.type),
       risk: riskOf(item.severity),
       waiting: waitingFor(item.waiting_since),

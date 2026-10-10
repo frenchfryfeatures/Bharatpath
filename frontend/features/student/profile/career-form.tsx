@@ -181,7 +181,7 @@ export function CareerForm({
   const editingAll = editing && editSection === "all";
   const updateEmploymentFields = !editing || editingAll || editSection === "employment";
   const showIdentityFields = section.key === "basic" && (!editing || editingAll);
-  const modalFieldClass = editing ? "lg:py-3 lg:text-[15px] lg:leading-5" : "";
+  const modalFieldClass = editing ? "!rounded-lg !border !px-3 !py-2.5 !text-[13px] !leading-5" : "";
   const activeFields = fields.data.filter(
     (field) =>
       (editingAll ||
@@ -288,7 +288,7 @@ export function CareerForm({
   return (
     <form
       noValidate
-      className={`flex flex-col gap-6 ${editing ? "font-sans text-[13px] leading-5 lg:text-[14px]" : ""}`}
+      className={`flex flex-col gap-6 ${editing ? "font-sans text-[13px] leading-5" : ""}`}
       onSubmit={async (event) => {
         event.preventDefault();
         const pendingLocation = locationInput.trim();
@@ -438,7 +438,7 @@ export function CareerForm({
     >
       <div>
         {editing ? (
-          <p className="text-[13px] leading-5 text-[#3A4761] lg:text-[14px]">
+          <p className="text-[13px] leading-5 text-[#3A4761]">
             Update your profile details below.
           </p>
         ) : (
@@ -601,8 +601,8 @@ export function CareerForm({
                   ariaLabel={field.label}
                   menuPlacement="auto"
                   portal
-                  variant="student"
-                  className={`[&>button]:h-[54px] [&>button]:rounded-[16px] [&>button]:border-[1.5px] [&>button]:px-4 [&>button>span]:font-medium ${editing ? "lg:[&>button]:h-[48px]" : ""}`}
+                  variant={editing ? "student-compact" : "student"}
+                  className={`[&>button]:h-[54px] [&>button]:rounded-[16px] [&>button]:border-[1.5px] [&>button]:px-4 [&>button>span]:font-medium ${editing ? "[&>button]:!h-10 [&>button]:!rounded-lg [&>button]:!border [&>button]:!px-3" : ""}`}
                 />
               ) : field.key === "preferred_locations" ? (
                 <div className="space-y-3">
@@ -724,7 +724,7 @@ export function CareerForm({
       <div className="flex items-center gap-3">
         <StudentBackButton
           disabled={busy}
-          className={editing ? "lg:h-12 lg:text-[14px]" : ""}
+          className={editing ? "!h-9 !rounded-lg !py-2 !text-[13px]" : ""}
           label={editing ? "Close" : "Back"}
           onClick={() => {
             if (editing) onBack();
@@ -732,7 +732,7 @@ export function CareerForm({
             else onBack();
           }}
         />
-        <PillButton type="submit" isLoading={busy} className={`flex-1 ${editing ? "lg:py-3 lg:text-[14px]" : ""}`}>
+        <PillButton type="submit" isLoading={busy} className={`flex-1 ${editing ? "!h-9 !rounded-lg !py-2 !text-[13px]" : ""}`}>
           {editing || step === sections.length - 1
             ? editing
               ? "Save profile"

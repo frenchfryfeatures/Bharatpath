@@ -1,10 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type CSSProperties } from "react";
+import { usePathname } from "next/navigation";
 import { ImagePlus, Trash2 } from "lucide-react";
 
 import { Avatar, Button } from "@/components/ui";
 import { getApiErrorMessage } from "@/lib/api/error-message";
+import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
 import { PhotoCropper } from "./photo-cropper";
 import {
   useConfirmProfileImageMutation,
@@ -25,6 +27,17 @@ interface ImageUploaderProps {
   canEdit?: boolean;
   className?: string;
   embedded?: boolean;
+  onUploadComplete?: () => void;
+}
+
+const PHOTO_THEMES = {
+  student: { accent: "#5F4DB2", hover: "#4A3E8F", surface: "#F7F5FA", track: "#E9E4F0" },
+  neutral: { accent: "#334155", hover: "#1E293B", surface: "#F8FAFC", track: "#E2E8F0" },
+} as const;
+
+/** Keep student styling distinct; all other portals share a simple palette. */
+export function getProfileImageTheme(portal: string) {
+  return portal === "student" ? PHOTO_THEMES.student : PHOTO_THEMES.neutral;
 }
 
 const ACCEPT = "image/jpeg,image/png,image/webp";
@@ -42,7 +55,16 @@ export function ImageUploader({
   canEdit = true,
   className = "",
   embedded = false,
+  onUploadComplete,
 }: ImageUploaderProps) {
+  const portal = usePathname().split("/")[1];
+  const theme = getProfileImageTheme(portal);
+  const themeStyle = {
+    "--photo-accent": theme.accent,
+    "--photo-hover": theme.hover,
+    "--photo-surface": theme.surface,
+    "--photo-track": theme.track,
+  } as CSSProperties;
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -68,11 +90,7 @@ export function ImageUploader({
       setError("That image is too large. The limit is 5 MB.");
       return;
     }
-    if (target === "photo") {
-      setCropFile(file);
-      return;
-    }
-    void upload(file);
+    setCropFile(file);
   };
 
   const upload = async (file: File) => {
@@ -94,6 +112,8 @@ export function ImageUploader({
       await uploadFile({ ticket, file }).unwrap();
       await confirm({ target, uploadId: ticket.uploadId }).unwrap();
       setCropFile(null);
+      showSuccessFeedback(`${title} updated successfully.`);
+      onUploadComplete?.();
     } catch (caught) {
       setError(getApiErrorMessage(caught, "Could not upload the image. Please try again."));
     } finally {
@@ -111,19 +131,19 @@ export function ImageUploader({
   };
 
   return (
-    <section className={`${embedded ? "min-w-0" : "min-w-0 rounded-[12px] border border-[#e5e8ee] bg-white p-5"} ${className}`}>
+    <section style={themeStyle} className={`${embedded ? "min-w-0" : "min-w-0 rounded-[12px] border border-[#e5e8ee] bg-white p-5"} ${className}`}>
       {!embedded && <>
         <h2 className="text-[14px] font-semibold leading-[18px] text-[#172033]">{title}</h2>
         <p className="mt-1 max-w-[530px] text-[12px] leading-[17px] text-[#7b8494]">{description}</p>
       </>}
 
       {cropFile ? (
-        <PhotoCropper key={`${cropFile.name}-${cropFile.lastModified}`} file={cropFile} busy={busy} onCancel={() => { setCropFile(null); setError(null); }} onSave={upload} />
+        <PhotoCropper key={`${cropFile.name}-${cropFile.lastModified}`} file={cropFile} shape={target === "photo" ? "circle" : "square"} busy={busy} onCancel={() => { setCropFile(null); setError(null); }} onSave={upload} />
       ) : <div className={embedded ? "flex flex-col items-center gap-5 py-3" : "mt-4 flex flex-wrap items-center gap-4"}>
         <Avatar
           name={name}
           src={image.data?.url}
-          className={embedded ? "!h-32 !w-32 !rounded-full !bg-[#F1EAF7] !text-[32px] !text-[#5F4DB2] ring-4 ring-[#F7F4FC]" : "!h-16 !w-16 !text-[18px]"}
+          className={embedded ? "!h-32 !w-32 !rounded-full !bg-[var(--photo-track)] !text-[32px] !text-[var(--photo-accent)] ring-4 ring-[var(--photo-surface)]" : "!h-16 !w-16 !text-[18px]"}
         />
 
         {canEdit ? (
@@ -138,6 +158,7 @@ export function ImageUploader({
             <Button
               type="button"
               variant={embedded ? "primary" : "secondary"}
+              className="!bg-[var(--photo-accent)] !text-white hover:!bg-[var(--photo-hover)]"
               size="sm"
               icon={<ImagePlus size={14} />}
               isLoading={busy}
@@ -145,7 +166,7 @@ export function ImageUploader({
               disabled={image.isLoading || removal.isLoading}
               onClick={() => inputRef.current?.click()}
             >
-              {embedded ? (hasImage ? "Choose new photo" : "Choose photo") : (hasImage ? "Replace" : "Upload")}
+              {embedded ? (hasImage ? `Choose new ${target === "photo" ? "photo" : "logo"}` : `Choose ${target === "photo" ? "photo" : "logo"}`) : (hasImage ? "Replace" : "Upload")}
             </Button>
             {hasImage ? (
               <Button

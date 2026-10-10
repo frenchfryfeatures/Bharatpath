@@ -1,18 +1,21 @@
 "use client";
 
+import { Avatar } from "@/components/ui/avatar";
+
 import React, { useEffect } from "react";
 import Link from "next/link";
 import {
   X,
   Briefcase,
   Mic,
-  CheckCircle2,
   AlertCircle,
 } from "lucide-react";
 
 import { ScoreBandBadge } from "@/components/ui/score-band-badge";
 import { Skeleton } from "@/components/common/loading";
 import { useScrollLock } from "@/hooks/use-scroll-lock";
+
+import { useGetCollegeStudentDetailsQuery } from "@/store/college/students/students.api";
 
 import { useGetCollegeStudentQuery } from "@/store/college/students";
 
@@ -57,6 +60,8 @@ export function StudentDetailDrawer({
     candidateId ?? "",
     { skip: !isOpen },
   );
+
+  const details = useGetCollegeStudentDetailsQuery(candidateId ?? "", { skip: !isOpen });
 
   useEffect(() => {
     if (!isOpen) {
@@ -200,6 +205,19 @@ export function StudentDetailDrawer({
                 <p className="text-[13px] font-bold text-[#151b2b] mb-2">
                   Hires on BharatPath
                 </p>
+                <section className="mb-5 space-y-2" aria-label="Student applications">
+                  <h3 className="text-[13px] font-semibold text-[#151b2b]">Applications</h3>
+                  {details.isLoading ? <p className="text-[12px] text-[#777f90]">Loading applications?</p> : details.isError ? <p role="alert" className="text-[12px] text-[#777f90]">Applications could not be loaded.</p> : details.data?.applications.length === 0 ? <p className="text-[12px] text-[#777f90]">No applications yet.</p> : null}
+                  {details.data?.applications.map((application, index) => (
+                    <div key={`${application.job_title}-${application.applied_at}-${index}`} className="flex items-center gap-3 rounded-xl border border-[#e7e9ee] px-4 py-3">
+                      <Avatar name={application.employer_name} src={application.employer_logo_url} size="md" fit="contain" />
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-semibold text-[#151b2b]">{application.job_title}</p>
+                        <p className="text-[12px] text-[#777f90]">{application.employer_name} ? {application.stage.replaceAll("_", " ")} ? {formatDate(application.applied_at)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </section>
                 {data.hires.length === 0 ? (
                   <p className="rounded-xl border border-dashed border-[#dfe2e8] bg-[#fcfdfe] px-4 py-4 text-[13px] text-[#777f90]">
                     No platform hires recorded yet.
@@ -211,9 +229,7 @@ export function StudentDetailDrawer({
                         key={`${hire.jobTitle}-${index}`}
                         className="flex items-start gap-3 rounded-xl border border-[#e7e9ee] px-4 py-3"
                       >
-                        <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#eaf5ef] text-[#23805d]">
-                          <CheckCircle2 size={16} strokeWidth={2.2} />
-                        </div>
+                        <Avatar name={hire.employerName} src={hire.employerLogoUrl} size="md" fit="contain" />
                         <div className="min-w-0">
                           <p className="text-[13px] font-semibold text-[#151b2b]">
                             {hire.jobTitle}
