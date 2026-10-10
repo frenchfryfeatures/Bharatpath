@@ -94,7 +94,7 @@ export function CandidateCard({
     Math.max(candidate.skills.length - 5, 0);
 
   const displayName =
-    candidate.fullName ?? `Candidate ${candidate.candidateId.slice(0, 8)}`;
+    candidate.fullName ?? "Name not shared";
   const initials = candidate.fullName
     ? candidate.fullName
         .split(" ")

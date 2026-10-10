@@ -213,9 +213,8 @@ function JourneyAside({ phase }: { phase: SignupPhase }) {
  * ---------------------------------------------------------------------- */
 const PROMISES = [
   "Nothing is scored until you confirm what we read.",
-  "Employers see your resume only if you apply.",
+  "Verified employers can see your CV and contact details when they open your profile. You can see who did under Who has seen me.",
   "We never ask your age or date of birth.",
-  "Change your language any time from your profile.",
 ] as const;
 
 export function TrustAside() {

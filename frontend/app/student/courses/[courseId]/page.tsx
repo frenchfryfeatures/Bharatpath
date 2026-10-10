@@ -17,6 +17,9 @@ function durationLabel(seconds: number) {
   return minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : `${minutes} min`;
 }
 
+/** Titles sometimes carry their own "Module 1:" prefix; the page adds the number. */
+const stripOrdinal = (title: string) => title.replace(/^(module|lesson)\s*\d+\s*[:.\-–]\s*/i, "");
+
 export default function CoursePage() {
   const id = useParams<{ courseId: string }>().courseId;
   const course = useGetCourseDetailQuery(id);
@@ -34,7 +37,7 @@ export default function CoursePage() {
   if (course.error || !course.data) return <StudentPage><StudentErrorState icon={<BookOpen size={22} />} title="Course unavailable" error={course.error} fallback="Could not load this course." /></StudentPage>;
 
   const data = course.data;
-  const price = new Intl.NumberFormat("en-IN", { style: "currency", currency: data.currency, maximumFractionDigits: 0 }).format(data.price_minor / 100);
+  const price = new Intl.NumberFormat("en-IN", { style: "currency", currency: data.currency, minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(data.price_minor / 100);
 
   async function buy() {
     setError("");
@@ -78,7 +81,7 @@ export default function CoursePage() {
     {data.locked ? <section className="rounded-[22px] border border-[#E7E0D4] bg-white p-5 sm:p-7"><div className="flex items-start gap-4"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#F1EAF7] text-[#5F4DB2]"><LockKeyhole size={22} /></span><div><h2 className="text-[20px] font-bold text-[#0A1931]">Unlock this course</h2><p className="mt-1 text-[14px] leading-6 text-[#5F6B80]">Purchase once to watch every lesson and save your progress.</p></div></div><div className="mt-5"><PillButton onClick={() => void buy()} disabled={payment.isLoading}>{payment.isLoading ? "Preparing payment…" : `Unlock for ${price}`}</PillButton></div></section>
       : activeLesson ? <section className="overflow-hidden rounded-[22px] border border-[#DCD5C9] bg-[#0A1931] shadow-[0_14px_35px_rgba(10,25,49,0.12)]">
         <LessonPlayer key={activeLesson.id} lesson={activeLesson} onPosition={setCurrentPosition} onProgress={(position) => void reportProgress(activeLesson, position)} />
-        <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5"><div className="min-w-0"><p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[#44D6A2]"><span className="h-2 w-2 rounded-full bg-[#44D6A2]" /> Now playing</p><p className="mt-1 truncate text-[16px] font-semibold text-white">Lesson {activeIndex + 1}: {activeLesson.title}</p></div><div className="flex shrink-0 gap-2">
+        <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5"><div className="min-w-0"><p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[#44D6A2]"><span className="h-2 w-2 rounded-full bg-[#44D6A2]" /> Now playing</p><p className="mt-1 truncate text-[16px] font-semibold text-white">Lesson {activeIndex + 1}: {stripOrdinal(activeLesson.title)}</p></div><div className="flex shrink-0 gap-2">
           <button type="button" disabled={progressState.isLoading || activeLesson.completed} onClick={() => void reportProgress(activeLesson, Math.max(currentPosition, activeLesson.position_seconds), false)} className="inline-flex h-10 flex-1 cursor-pointer items-center justify-center gap-2 rounded-full bg-white px-4 text-[12px] font-bold text-[#5F4DB2] disabled:cursor-not-allowed disabled:opacity-70 sm:flex-none"><Check size={15} /> {activeLesson.completed ? "Completed" : progressState.isLoading ? "Saving…" : "Complete"}</button>
           <button type="button" disabled={!lessons[activeIndex + 1]} onClick={() => lessons[activeIndex + 1] && chooseLesson(lessons[activeIndex + 1])} className="inline-flex h-10 flex-1 cursor-pointer items-center justify-center gap-2 rounded-full bg-[#6B4FC7] px-5 text-[12px] font-bold text-white disabled:cursor-default disabled:opacity-40 sm:flex-none">Next <ArrowRight size={15} /></button>
         </div></div>
@@ -92,10 +95,10 @@ export default function CoursePage() {
     </section>
 
     <section><h2 className="mb-3 text-[13px] font-bold uppercase tracking-[0.16em] text-[#5F6B80]">Course syllabus</h2><div className="space-y-4">
-      {data.modules.length ? data.modules.map((module, moduleIndex) => <article key={module.id} className="rounded-[22px] border border-[#E7E0D4] bg-white p-4 sm:p-5"><h3 className="mb-4 text-[17px] font-bold text-[#0A1931]">Module {moduleIndex + 1}: {module.title}</h3><div className="space-y-3">{module.lessons.map((lesson) => {
+      {data.modules.length ? data.modules.map((module, moduleIndex) => <article key={module.id} className="rounded-[22px] border border-[#E7E0D4] bg-white p-4 sm:p-5"><h3 className="mb-4 text-[17px] font-bold text-[#0A1931]">Module {moduleIndex + 1}: {stripOrdinal(module.title)}</h3><div className="space-y-3">{module.lessons.map((lesson) => {
         const index = lessons.findIndex((item) => item.id === lesson.id);
         const playing = activeLesson?.id === lesson.id && !data.locked;
-        return <button key={lesson.id} type="button" disabled={data.locked} onClick={() => chooseLesson(lesson)} className={`flex w-full items-start gap-3 rounded-[16px] border p-4 text-left transition disabled:cursor-not-allowed ${playing ? "border-[#6B4FC7] bg-[#F7F3FF]" : "border-[#ECE7DE] bg-[#FFFEFC] hover:border-[#CFC3EB]"}`}><span className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full ${lesson.completed ? "bg-[#23835B] text-white" : playing ? "bg-[#6B4FC7] text-white" : "border border-[#6B4FC7] text-[#6B4FC7]"}`}>{lesson.completed ? <Check size={15} /> : data.locked ? <LockKeyhole size={13} /> : <Play size={13} fill="currentColor" />}</span><span className="min-w-0 flex-1"><span className={`block text-[14px] font-bold leading-5 ${playing ? "text-[#5F4DB2]" : "text-[#0A1931]"}`}>Lesson {index + 1}: {lesson.title}</span>{lesson.description ? <span className="mt-1 block text-[12px] leading-5 text-[#5F6B80]">{lesson.description}</span> : null}<span className="mt-2 block text-[11px] text-[#8290A4]">{durationLabel(lesson.duration_seconds)}{lesson.completed ? " · Finished" : ""}</span></span>{playing ? <span className="mt-1 rounded-full bg-[#6B4FC7] px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide text-white">Playing</span> : null}</button>;
+        return <button key={lesson.id} type="button" disabled={data.locked} onClick={() => chooseLesson(lesson)} className={`flex w-full items-start gap-3 rounded-[16px] border p-4 text-left transition disabled:cursor-not-allowed ${playing ? "border-[#6B4FC7] bg-[#F7F3FF]" : "border-[#ECE7DE] bg-[#FFFEFC] hover:border-[#CFC3EB]"}`}><span className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full ${lesson.completed ? "bg-[#23835B] text-white" : playing ? "bg-[#6B4FC7] text-white" : "border border-[#6B4FC7] text-[#6B4FC7]"}`}>{lesson.completed ? <Check size={15} /> : data.locked ? <LockKeyhole size={13} /> : <Play size={13} fill="currentColor" />}</span><span className="min-w-0 flex-1"><span className={`block text-[14px] font-bold leading-5 ${playing ? "text-[#5F4DB2]" : "text-[#0A1931]"}`}>Lesson {index + 1}: {stripOrdinal(lesson.title)}</span>{lesson.description ? <span className="mt-1 block text-[12px] leading-5 text-[#5F6B80]">{lesson.description}</span> : null}<span className="mt-2 block text-[11px] text-[#8290A4]">{durationLabel(lesson.duration_seconds)}{lesson.completed ? " · Finished" : ""}</span></span>{playing ? <span className="mt-1 rounded-full bg-[#6B4FC7] px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide text-white">Playing</span> : null}</button>;
       })}</div></article>) : <EmptyState icon={<Video size={22} />} title="Lessons coming soon" message="Lessons will appear here when this course is published." />}
     </div></section>
 
@@ -167,7 +170,7 @@ function YouTubePlayer({ lesson, onPosition, onProgress }: { lesson: CourseLesso
   // The YouTube API replaces its mount element with an iframe. Keep that node
   // inside a React-owned wrapper so lesson changes never make React remove a
   // child that the third-party player has already replaced.
-  return <div className="aspect-video w-full bg-black [&>iframe]:h-full [&>iframe]:w-full" aria-label={lesson.title}><div ref={playerMountRef} /></div>;
+  return <div className="aspect-video w-full bg-black [&>iframe]:h-full [&>iframe]:w-full" aria-label={stripOrdinal(lesson.title)}><div ref={playerMountRef} /></div>;
 }
 
 type YouTubePlayerInstance = {

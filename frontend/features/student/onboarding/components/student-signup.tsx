@@ -17,7 +17,6 @@ import { useAppDispatch } from "@/store/hooks";
 import {
   studentApi,
   useCompleteResumeUploadMutation,
-  useGetCandidateSubscriptionQuery,
   useLazyGetResumeVersionsQuery,
   useGetCollegeConsentTermsQuery,
   useLinkStudentCollegeByReferralMutation,
@@ -38,6 +37,7 @@ import {
   type CareerDetails,
 } from "@/features/student/profile/career-api";
 import { PaidScoringStep } from "./paid-scoring-step";
+import { useStudentHasAccess } from "../use-student-access";
 import { SubscriptionStep } from "./subscription-step";
 import { SignupFrame, TrustAside, type SignupPhase } from "./ui";
 import { isStudentOnboardingComplete } from "../onboarding-status";
@@ -111,7 +111,7 @@ export function StudentSignup() {
   const [saveCareer] = useSaveCareerProfileMutation();
   const [intakeResume] = useIntakeCareerResumeMutation();
   const career = useGetCareerProfileQuery(undefined, { skip: !signedIn });
-  const subscription = useGetCandidateSubscriptionQuery(undefined, { skip: !signedIn });
+  const { subscription, hasAccess } = useStudentHasAccess(!signedIn);
 
   const [loadProfile] = studentApi.endpoints.getStudentProfile.useLazyQuery();
   const [loadVersions] = useLazyGetResumeVersionsQuery();
@@ -436,7 +436,11 @@ export function StudentSignup() {
             )
           }
           onContinue={() => {
-            go({ name: "intake" });
+            const versionId = career.data?.resume_version_id;
+            // The resume from the first step is already saved; score it
+            // rather than asking for it again.
+            if (versionId) go({ name: "paid-scoring", resumeVersionId: versionId });
+            else go({ name: "intake" });
           }}
         />,
         <TrustAside />,
@@ -446,7 +450,7 @@ export function StudentSignup() {
       return frame(
         <IntakeStep
           error={stage.error}
-          onBack={() => go({ name: subscription.data?.has_access ? "subscription" : "account-details" })}
+          onBack={() => go({ name: hasAccess ? "subscription" : "account-details" })}
           onFile={(file) => {
             setInitialProfileSection(0);
             void startUpload(file);
@@ -523,7 +527,7 @@ export function StudentSignup() {
           resumeVersionId={stage.resumeVersionId}
           onDone={(result) => {
             void career.refetch();
-            if (subscription.data?.has_access && result.resume_version_id)
+            if (hasAccess && result.resume_version_id)
               go({ name: "paid-scoring", resumeVersionId: result.resume_version_id });
             else go({ name: "subscription" });
           }}

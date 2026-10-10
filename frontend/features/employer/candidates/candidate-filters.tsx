@@ -283,6 +283,11 @@ export function CandidateFilters({
             placeholder="Find or add a skill"
             maxLength={panel?.limits.max_skill_length ?? 80}
             onChange={setSkillQuery}
+            onEnter={() => {
+              if (!canAddSkill || maxSkillsReached) return;
+              onToggleFilter("skills", typedSkill);
+              setSkillQuery("");
+            }}
           />
           <div className="flex flex-wrap gap-[6px]">
             {skills.map((skill) => {
@@ -366,6 +371,11 @@ export function CandidateFilters({
             placeholder="Find or add a city"
             maxLength={panel?.limits.max_city_length ?? 100}
             onChange={setLocationQuery}
+            onEnter={() => {
+              if (!canAddCity || maxCitiesReached) return;
+              onToggleFilter("locations", typedLocation);
+              setLocationQuery("");
+            }}
           />
           <div className="flex flex-col gap-[2px]">
             {cities.map((location) => (
@@ -569,11 +579,13 @@ function FilterLookup({
   placeholder,
   maxLength,
   onChange,
+  onEnter,
 }: {
   value: string;
   placeholder: string;
   maxLength: number;
   onChange: (value: string) => void;
+  onEnter?: () => void;
 }) {
   return (
     <label className="flex h-9 items-center gap-2 rounded-lg border border-[#e2e5eb] bg-white px-2 focus-within:border-[#315c9f]">
@@ -583,6 +595,12 @@ function FilterLookup({
         value={value}
         maxLength={maxLength}
         onChange={(event) => onChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            onEnter?.();
+          }
+        }}
         placeholder={placeholder}
         className="min-w-0 flex-1 bg-transparent text-[12px] text-[#273142] outline-none placeholder:text-[#8a92a0]"
       />

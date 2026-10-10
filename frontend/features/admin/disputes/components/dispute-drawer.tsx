@@ -51,7 +51,7 @@ export function DisputeDrawer() {
   const selectedDispute = {
     title: detail ? `${detail.kind[0]}${detail.kind.slice(1).toLowerCase()} dispute` : "Loading dispute",
     parties: detail ? `${detail.party} · ${detail.tenant_id ?? detail.raised_by}` : "",
-    raised: detail ? new Date(detail.created_at).toLocaleString() : "",
+    raised: detail ? new Date(detail.created_at).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "",
     status: detail?.state === "IN_REVIEW" ? "Investigating" : detail ? `${detail.state[0]}${detail.state.slice(1).toLowerCase()}` : "Pending",
     claim: detail?.description ?? "",
     evidence: detail ? [

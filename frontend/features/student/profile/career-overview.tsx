@@ -164,7 +164,7 @@ export function CareerOverview({
           {profile.data?.updated_at && (
             <p className="mt-3 text-[11px] font-medium leading-4 text-[#7B8495]">
               Updated{" "}
-              {new Date(profile.data.updated_at).toLocaleDateString("en-IN")}
+              {new Date(profile.data.updated_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
             </p>
           )}
           {summaryStats && (

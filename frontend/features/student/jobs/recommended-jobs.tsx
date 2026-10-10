@@ -91,12 +91,15 @@ function RecommendationSection({
       ) : result.error ? (
         <StudentErrorState error={result.error} title="Jobs unavailable" fallback="Could not load recommended jobs." onRetry={result.refetch} />
       ) : !result.data?.hasBasis ? (
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-full"><EmptyState title={section.basisTitle} message={section.basisMessage} /></div>
-          <Link href={section.basisHref} className="rounded-full bg-[#5F4DB2] px-5 py-2.5 text-[13px] font-semibold text-white hover:bg-[#4A3E8F]">
-            {section.basisAction}
-          </Link>
-        </div>
+        <EmptyState
+          title={section.basisTitle}
+          message={section.basisMessage}
+          action={
+            <Link href={section.basisHref} className="inline-block rounded-full bg-[#5F4DB2] px-5 py-2.5 text-[13px] font-semibold text-white hover:bg-[#4A3E8F]">
+              {section.basisAction}
+            </Link>
+          }
+        />
       ) : result.data.items.length ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {result.data.items.map((job) => (

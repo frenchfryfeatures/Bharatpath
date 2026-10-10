@@ -47,14 +47,7 @@ export function ApplicationDrawer({
 
   const candidate = application.candidate;
   const resume = detail.currentData ? detail.currentData.resume : application.resume;
-  const band = getScoreBand(
-    application.candidate.exactScore ??
-      (application.candidate.band === "STRONG" ? 850
-        : application.candidate.band === "SOLID" ? 750
-          : application.candidate.band === "DEVELOPING" ? 600
-            : application.candidate.band === "ENTRY" ? 400
-              : null),
-  );
+  const band = getScoreBand(application.candidate.band, application.candidate.exactScore);
 
   const currentStage = Number(application.stage);
   const currentStageLabel =
@@ -194,6 +187,15 @@ export function ApplicationDrawer({
                 canReject={currentStage === 4 && application.outcome === null}
                 onReject={onReject}
               />
+            )}
+            {currentStage < 4 && application.outcome === null && (
+              <button
+                type="button"
+                onClick={onReject}
+                className="flex h-10 w-full cursor-pointer items-center justify-center rounded-lg border border-[#d7dbe3] bg-white px-4 text-[13px] font-semibold text-[#a12835] transition hover:bg-[#fff1f2]"
+              >
+                Reject application
+              </button>
             )}
             {!application.outcome && <ApplicationMessages applicationId={application.id} />}
           </div>

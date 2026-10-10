@@ -83,8 +83,7 @@ export function AuthPageShell({
         </div>
 
         <p className="relative text-xs text-white/45">
-          Your credentials are handled through the configured
-          Neon-backed authentication service.
+          Your credentials are handled by our secure sign-in service.
         </p>
       </section>
 

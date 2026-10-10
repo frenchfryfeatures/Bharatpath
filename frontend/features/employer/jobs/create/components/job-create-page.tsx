@@ -1,5 +1,6 @@
 "use client";
 
+import { humanizeCode } from "@/lib/format/labels";
 import {
   ArrowLeft,
   Copy,
@@ -184,7 +185,7 @@ export function JobCreatePage({
 
     window.setTimeout(
       () => setToast(null),
-      2200,
+      6000,
     );
   };
 
@@ -423,10 +424,10 @@ export function JobCreatePage({
 
             <Field label="Industry type" wide>
               <TextInput
-                value={details.basics.industry}
+                value={/^[A-Z0-9_]+$/.test(details.basics.industry) ? humanizeCode(details.basics.industry) : details.basics.industry}
                 disabled={disabled}
                 ariaLabel="Industry type"
-                placeholder={organisation?.industry || "Pharmaceuticals"}
+                placeholder={humanizeCode(organisation?.industry) || "Pharmaceuticals"}
                 onChange={(industry) => setDetail("basics", "industry", industry)}
               />
             </Field>
@@ -516,6 +517,7 @@ export function JobCreatePage({
 
             <Field
               label="Minimum salary (₹)"
+              required
               hint="Always entered, even when not shown."
               error={errors.salaryMin}
             >
@@ -529,7 +531,7 @@ export function JobCreatePage({
               />
             </Field>
 
-            <Field label="Maximum salary (₹)" error={errors.salaryMax}>
+            <Field label="Maximum salary (₹)" required error={errors.salaryMax}>
               <NumberInput
                 value={values.salaryMax}
                 disabled={disabled}
@@ -1081,7 +1083,7 @@ export function JobCreatePage({
               label="Minimum score threshold"
               trailing={
                 <span className="text-[15px] font-bold text-[#151b2b]">
-                  {values.minScore}
+                  {hasThreshold(values.minScore) ? values.minScore : "No minimum"}
                 </span>
               }
               error={errors.minScore}
@@ -1094,7 +1096,7 @@ export function JobCreatePage({
                 value={values.minScore}
                 disabled={disabled}
                 aria-label="Minimum score threshold"
-                aria-valuetext={`Selected score ${values.minScore}`}
+                aria-valuetext={hasThreshold(values.minScore) ? `Selected score ${values.minScore}` : "No minimum score"}
                 onChange={(event) =>
                   setValue(
                     "minScore",
@@ -1107,7 +1109,7 @@ export function JobCreatePage({
               />
 
               <div className="mt-1.5 flex justify-between text-[11px] text-[#7b8493]">
-                <span>{THRESHOLD_MIN}</span>
+                <span>No minimum</span>
                 <span>{THRESHOLD_MAX}</span>
               </div>
             </Field>

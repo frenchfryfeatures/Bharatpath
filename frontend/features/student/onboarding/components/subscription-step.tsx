@@ -1,5 +1,6 @@
 "use client";
 
+import { useStudentHasAccess } from "../use-student-access";
 import { useState } from "react";
 import { StudentBackButton } from "@/features/student/components/student-back-button";
 import {
@@ -19,7 +20,6 @@ import { isStubPaymentUrl } from "@/store/api/payment.api";
 import {
   useCheckoutCandidateSubscriptionMutation,
   useGetCandidatePlansQuery,
-  useGetCandidateSubscriptionQuery,
   usePreviewCandidateDiscountMutation,
   type CandidateCheckout,
 } from "@/store/student";
@@ -45,7 +45,7 @@ export function SubscriptionStep({
     isError,
     refetch: refetchPlans,
   } = useGetCandidatePlansQuery(undefined, { refetchOnMountOrArgChange: true });
-  const subscription = useGetCandidateSubscriptionQuery();
+  const { subscription, hasAccess, seated } = useStudentHasAccess();
   const [preview] = usePreviewCandidateDiscountMutation();
   const [checkout, checkoutState] = useCheckoutCandidateSubscriptionMutation();
   const [selected, setSelected] = useState("");
@@ -54,13 +54,13 @@ export function SubscriptionStep({
 
   const selectedPlan = plans.find((plan) => plan.code === selected) ?? plans[0];
 
-  if (subscription.data?.has_access) {
+  if (hasAccess) {
     return (
       <div className="flex flex-col gap-5">
         <StepHeader
           step="subscription"
           title="You’re a member"
-          subtitle="Your membership is active. Choose how to add the resume you want scored."
+          subtitle={seated && !subscription.data?.has_access ? "Your college seat gives you access. Continue to get your resume scored." : "Your membership is active. Continue to get your resume scored."}
         />
         <section className="flex items-start gap-3 rounded-[20px] border border-[#B8D9C8] bg-[#EEF7F1] p-5">
           <ShieldCheck
@@ -70,18 +70,17 @@ export function SubscriptionStep({
           />
           <div>
             <h2 className="text-[15px] font-bold text-[#174C33]">
-              Membership active
+              {seated && !subscription.data?.has_access ? "Access through your college" : "Membership active"}
             </h2>
             <p className="mt-1 text-[13px] leading-5 text-[#35624A]">
-              Your subscription is ready. Choose a file, paste your resume, or
-              fill in a form before scoring.
+              Your access is ready. We will score the resume you already added.
             </p>
           </div>
         </section>
         <div className="flex items-center gap-3">
           {onBack ? <StudentBackButton onClick={onBack} /> : null}
           <PillButton onClick={onContinue} className="min-w-0 flex-1">
-            Choose how to add your resume <ArrowRight size={17} />
+            Continue <ArrowRight size={17} />
           </PillButton>
         </div>
       </div>

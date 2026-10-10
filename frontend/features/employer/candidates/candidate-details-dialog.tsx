@@ -181,7 +181,7 @@ export function CandidateDetailsDialog({
               </h2>
               <p className="mt-0.5 truncate text-[11px] text-[#7b8494]">
                 {candidate
-                  ? `Candidate ${candidate.candidate_id.slice(0, 8)}`
+                  ? "Candidate profile"
                   : "Retrieving the latest profile details"}
               </p>
             </div>

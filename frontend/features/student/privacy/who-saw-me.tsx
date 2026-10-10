@@ -56,7 +56,7 @@ export function WhoSawMe() {
           </section>
 
           <aside className="flex flex-col gap-4 lg:sticky lg:top-6">
-            <NoteStrip icon={<Info size={16} />}>Your resume file is never shared. Employers see the parsed profile only.</NoteStrip>
+            <NoteStrip icon={<Info size={16} />}>Verified employers can see your CV and contact details when they open your profile. This list shows which organisations did.</NoteStrip>
             <div className="rounded-[20px] border border-[#E7E0D4] bg-white p-5">
               <div className="mb-2 flex items-center gap-2"><ShieldCheck size={17} className="text-[#1F6B45]" aria-hidden="true" /><p className="text-[14px] font-semibold text-[#0A1931]">Your privacy is protected</p></div>
               <p className="mt-2 text-[12px] leading-5 text-[#5F6B80]">We show the employer organisation, never the individual recruiter or how many times they opened your profile.</p>

@@ -20,7 +20,7 @@ export function InterviewIntro() {
       : new Intl.NumberFormat("en-IN", {
           style: "currency",
           currency: offer.data.currency || "INR",
-          maximumFractionDigits: 0,
+          minimumFractionDigits: 0, maximumFractionDigits: 2,
         }).format(offer.data.priceMinor / 100);
 
   return (

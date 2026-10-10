@@ -52,6 +52,15 @@ export function InviteStudentModal({
     e.preventDefault();
     setError(null);
 
+    if (!Number.isInteger(expiresInDays) || expiresInDays < 1) {
+      setError("Choose at least 1 day before the code expires.");
+      return;
+    }
+    if (maxUses.trim() && (!Number.isInteger(Number(maxUses)) || Number(maxUses) < 1)) {
+      setError("Maximum uses must be a whole number of 1 or more, or left empty.");
+      return;
+    }
+
     try {
       const code = await onIssueCode({
         expiresInDays,

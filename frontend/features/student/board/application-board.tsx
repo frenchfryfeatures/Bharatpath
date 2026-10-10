@@ -81,7 +81,7 @@ export function ApplicationBoard() {
         {!applications.isLoading && (
           <div className="flex items-baseline justify-between">
             <span className="text-[11px] font-bold uppercase leading-4 tracking-[0.12em] text-[#5F6B80]">
-              {visibleApplications.length} {filter === "all" ? "" : `${filter} `}applications
+              {visibleApplications.length} {filter === "all" ? "" : `${filter} `}{visibleApplications.length === 1 ? "application" : "applications"}
             </span>
           </div>
         )}

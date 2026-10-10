@@ -52,7 +52,7 @@ function toView(
 ): StatusView {
   if (!subscription || subscription.state === "NONE") {
     return {
-      label: "No subscription",
+      label: "No plan",
       detail: "Choose a plan",
       active: false,
       progress: null,
@@ -91,7 +91,7 @@ function toView(
 }
 
 const SHELL =
-  "flex h-[40px] w-[184px] shrink-0 items-center gap-[10px] rounded-xl border border-[#e5e7ec] bg-white px-[10px] pl-[6px]";
+  "flex h-[40px] min-w-[184px] shrink-0 items-center gap-[10px] rounded-xl border border-[#e5e7ec] bg-white px-[10px] pl-[6px]";
 
 export function SubscriptionStatusButton({
   subscription,

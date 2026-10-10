@@ -52,9 +52,26 @@ function getAvatarClasses(
   return "bg-[#fff4df] text-[#a86500]";
 }
 
+/**
+ * Several signals for one subject and rule (one per CV version) read as five
+ * identical rows. The list is oldest-first, so the first of a group is the
+ * oldest and stands for it.
+ */
+function groupIdentical(items: OldestDashboardItem[]) {
+  const groups = new Map<string, { item: OldestDashboardItem; count: number }>();
+  for (const item of items) {
+    const key = [item.name, item.meta, item.type, item.risk].join("|");
+    const found = groups.get(key);
+    if (found) found.count += 1;
+    else groups.set(key, { item, count: 1 });
+  }
+  return [...groups.values()];
+}
+
 export function OldestItems({
-  items,
+  items: allItems,
 }: OldestItemsProps) {
+  const grouped = groupIdentical(allItems);
   return (
     <section className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-[16px] border border-[#e5e7ec] bg-white lg:h-[530px] lg:max-h-[568px]">
       {/* ================================================================ */}
@@ -138,7 +155,7 @@ export function OldestItems({
 
           {/* Rows */}
 
-          {items.map((item, index) => (
+          {grouped.map(({ item, count }, index) => (
             <div
               key={`${item.name}-${item.waiting}-${index}`}
               className="grid grid-cols-[minmax(180px,1.6fr)_120px_104px_88px] gap-3 border-t border-[#eef0f3] px-5 py-3"
@@ -174,6 +191,7 @@ export function OldestItems({
                     }}
                   >
                     {item.meta}
+                    {count > 1 ? ` · ${count} items` : ""}
                   </span>
                 </div>
               </div>

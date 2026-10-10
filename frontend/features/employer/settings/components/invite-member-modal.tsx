@@ -35,6 +35,12 @@ export function InviteMemberModal() {
       <form
         className="w-full max-w-[440px] rounded-[13px] border border-[#dfe4ea] bg-white p-5 shadow-[0_20px_50px_rgba(15,23,42,0.18)]"
         onSubmit={submit}
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && roleMenuOpen) {
+            event.stopPropagation();
+            setRoleMenuOpen(false);
+          }
+        }}
       >
         <div className="mb-[18px] flex items-start justify-between gap-3">
           <div>

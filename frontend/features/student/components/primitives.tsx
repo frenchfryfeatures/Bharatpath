@@ -354,10 +354,12 @@ export function EmptyState({
   icon,
   title,
   message,
+  action,
 }: {
   icon?: ReactNode;
   title: string;
   message: string;
+  action?: ReactNode;
 }) {
   return (
     <div className="flex flex-col items-center gap-3 rounded-[20px] border border-dashed border-[#E7E0D4] bg-white px-6 py-12 text-center">
@@ -372,6 +374,7 @@ export function EmptyState({
       <span className="max-w-[260px] text-[13px] leading-[19px] text-[#5F6B80]">
         {message}
       </span>
+      {action ? <div className="mt-2">{action}</div> : null}
     </div>
   );
 }

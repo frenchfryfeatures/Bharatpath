@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 
 import { Modal } from "@/components/ui/modal";
-import { passwordError } from "@/features/auth/hooks/use-signup-flow";
+import { minPasswordLength, passwordError } from "@/features/auth/hooks/use-signup-flow";
 import { formatPasswordError, type CognitoPoolType } from "@/lib/auth/cognito";
 import { changeMyPassword, currentPasswordPool } from "@/lib/auth/password";
 import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
@@ -197,7 +197,7 @@ export function ChangePasswordModal({
         <PasswordField id="new-password" label="New password" value={next} onChange={setNext} autoComplete="new-password" theme={theme} />
         <PasswordField id="confirm-new-password" label="Confirm new password" value={confirm} onChange={setConfirm} autoComplete="new-password" theme={theme} />
         <p className={theme.hint}>
-          At least 12 characters, with an uppercase letter, a lowercase letter, a number
+          At least {minPasswordLength(currentPasswordPool(pool))} characters, with an uppercase letter, a lowercase letter, a number
           {currentPasswordPool(pool) === "BUSINESS" ? " and a symbol." : "."}
         </p>
 
