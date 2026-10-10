@@ -91,6 +91,8 @@ def test_no_invariant_file_is_unaccounted_for() -> None:
         "test_cross_tenant_routes.py",
         "test_discovery_suppression.py",
         "test_masked_candidate.py",
+        # A student's photo reaches the student and staff only (2026-10-09).
+        "test_profile_photo_reach.py",
         "test_questionnaire_never_scores.py",
         "test_route_authorisation.py",
         "test_schema_guards.py",

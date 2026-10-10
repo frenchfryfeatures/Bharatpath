@@ -214,6 +214,16 @@ ERASURE_PLAN: Final[Mapping[str, TablePlan]] = {
     "streak_activity_days": _erase(
         "user_id", "Which days they opened the app, the last year of them."
     ),
+    "user_photos": _erase(
+        "user_id",
+        "Their face (2026-10-09). The object goes first, with the CV and the "
+        "recordings, because the key is on this row.",
+    ),
+    "organisation_logos": _not_personal(
+        "An employer's or a college's logo: the organisation's, shown to "
+        "candidates on purpose. `updated_by` names a member, as `created_by` "
+        "does elsewhere, and is not the row's subject.",
+    ),
     "candidate_search_documents": _erase(
         "user_id",
         "The employer-facing projection of them. Written only by a trigger on "

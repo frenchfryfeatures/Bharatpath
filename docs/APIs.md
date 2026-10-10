@@ -393,6 +393,8 @@ session opens**; a read whose audit cannot be written returns nothing.
 
 | Method | Path | Roles | Body/Params | Response | Notes |
 |---|---|---|---|---|---|
+| GET | `/admin/settings/kyb-approval` | PLATFORM_ADMIN, KYB_REVIEWER | -- | `KybApprovalMode` | `{review_required}`: true is manual review, false approves on arrival |
+| PUT | `/admin/settings/kyb-approval` | PLATFORM_ADMIN | `{review_required}` | `KybApprovalMode` | New version of `kyb.require_approval` plus an audit row (`kyb_approval_mode_changed`). Applies to the next submission; nothing waiting is approved by it |
 | GET | `/admin/kyb/submissions` | PLATFORM_ADMIN, KYB_REVIEWER | `state`, `cursor`, `limit` | `KybSubmissionsPage` | No answers. `review_required` shows `kyb.require_approval`: while false this is a record, not a queue |
 | GET | `/admin/kyb/submissions/{submission_id}` | same | path | `KybSubmissionResponse` | Answers and documents. Audited (`admin_kyb_submission_opened`) |
 | POST | `/admin/kyb/submissions/{submission_id}/decision` | same | `{decision, reason?}` | `KybSubmissionResponse` | `kyb.service.review`; reason required to reject or ask for more |
@@ -485,6 +487,28 @@ so a client holding one should sign the person out rather than retry.
 The export is a zip of JSON, one file per section. It carries the score and
 **not** how it was calculated — the platform never explains a score, and an
 export is not a way round that.
+
+## profile_images — `/profile` (+ extra routers at `/employer/organisation/logo` and `/college/organisation/logo`)
+
+Added 2026-10-09; full reference in [`backend-guide/16`](backend-guide/16-profile-images-apis.md).
+Upload is ticket → PUT to S3 → confirm. At confirm the image is checked,
+decoded, re-encoded at ≤512px with all metadata stripped, and the raw upload
+is deleted. **A student's photo is shown to the student and staff only**,
+never to an employer or a college (`tests/invariants/test_profile_photo_reach.py`).
+Not paywalled.
+
+| Method | Path | Auth | Body/Params | Response | Notes |
+|---|---|---|---|---|---|
+| GET | `/profile/photo` | any signed-in account | -- | `ImageResponse` | All fields null when none. `url` is a presigned GET that expires |
+| POST | `/profile/photo/upload` | any signed-in account | -- | `UploadTicketResponse` (201) | JPEG/PNG/WebP, ≤5 MB |
+| POST | `/profile/photo/confirm` | any signed-in account | `{upload_id}` | `ImageResponse` | Replaces and deletes any earlier photo. 404 `profile_image_upload_not_found`; 422 `profile_image_rejected` with `params.reason` |
+| DELETE | `/profile/photo` | any signed-in account | -- | `ImageResponse` (nulls) | Row, then object |
+| GET | `/employer/organisation/logo` | any employer role | -- | `ImageResponse` | Also on every board job as `employer_logo_url` |
+| POST | `/employer/organisation/logo/upload` · `/confirm` | EMPLOYER_OWNER | -- · `{upload_id}` | as above | A transparent PNG stays PNG |
+| DELETE | `/employer/organisation/logo` | EMPLOYER_OWNER | -- | `ImageResponse` (nulls) | |
+| GET | `/college/organisation/logo` | COLLEGE_ADMIN, COLLEGE_STAFF | -- | `ImageResponse` | |
+| POST | `/college/organisation/logo/upload` · `/confirm` | COLLEGE_ADMIN | -- · `{upload_id}` | as above | |
+| DELETE | `/college/organisation/logo` | COLLEGE_ADMIN | -- | `ImageResponse` (nulls) | |
 
 ## Rate limits (Day 20)
 

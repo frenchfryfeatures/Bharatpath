@@ -108,6 +108,9 @@ class Settings(BaseSettings):
     s3_bucket_exports: str = "bharatpath-exports"
     s3_bucket_audit_archive: str = "bharatpath-audit-archive"
     s3_bucket_course_media: str = "bharatpath-course-media"
+    #: Profile photos and organisation logos (2026-10-09). Images the server
+    #: re-encoded, plus the raw uploads it deletes once judged.
+    s3_bucket_profile_images: str = "bharatpath-profile-images"
 
     presigned_url_ttl_seconds: int = 900
 

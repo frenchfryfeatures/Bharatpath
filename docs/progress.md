@@ -9,6 +9,82 @@ states. Newest entries first.
 
 ---
 
+## 2026-10-09 — profile photos for everyone, logos for employers and colleges
+
+Asked for by the backend lead. Same branch as the KYB switch and 100%
+codes (`feat/kyb-toggle-and-full-discount`). Backend only. The contract for
+the app teams is `backend-guide/16`.
+
+- **New module `profile_images`**, two tables (migration
+  `0015_profile_images`): `user_photos`, one per person (student, employer
+  or college member, staff), and `organisation_logos`, one per employer or
+  college. Upload is ticket → PUT → confirm, like KYB documents and lessons.
+- **Decided with the lead:** both kinds (person photo *and* organisation
+  logo); **a student's photo is seen by the student and staff only**, never
+  by an employer or a college, on any surface. An invariant test holds it.
+  Logos are shown to candidates beside jobs (`employer_logo_url` on the
+  board, job detail and both recommended lists).
+- **Every stored image is re-encoded by the server** (Pillow, already a
+  dependency): rotation applied, ≤512px, JPEG or PNG-with-alpha, no
+  metadata (so no GPS), and anything that does not decode is refused. The
+  raw upload is always deleted; a replaced image's object is deleted.
+- **Privacy:** `user_photos` is ERASE, its object collected before the
+  cascade; `erase_candidate` replaced again in 0015; the export has a
+  `photo` section (metadata, not the image). `organisation_logos` is
+  NOT_PERSONAL and RLS-exempt (with its reason in the baseline).
+- **Admin:** `photo_url` on `/admin/candidates/{id}/onboarding`, inside the
+  page's existing audited reveal.
+- **New bucket** `profile_images`: `app/settings.py`, `infra/terraform/s3.tf`
+  and `outputs.tf`, `scripts/init_localstack.sh`. **Not applied:** the live
+  host needs `terraform plan -out` / `apply` and the regenerated env file
+  before uploads work there. Until then the routes exist and every confirm
+  answers 404 (nothing can land in a bucket that is not there).
+- **Not done (handoff, frontend/mobile):** the upload flow and showing the
+  images; the apps still draw initials. College logos are not yet shown to
+  students anywhere (`/candidate/colleges` could carry them); employer and
+  college drill-downs in the console do not show logos.
+- Tests: `tests/unit/test_profile_image_rules.py`,
+  `tests/integration/test_profile_images.py`,
+  `tests/invariants/test_profile_photo_reach.py`.
+
+---
+
+## 2026-10-09 — KYB switch in the console, and 100% discount codes
+
+Two client decisions, relayed by the backend lead (answers-log Round 13).
+Branch `feat/kyb-toggle-and-full-discount`. Backend only.
+
+- **KYB manual/automatic from the console.** `GET`/`PUT
+  /admin/settings/kyb-approval` (`{review_required}`). The admin settings
+  page in `frontend/` already called the `PUT` and got a 404; it now
+  works. Flipping is PLATFORM_ADMIN only (new capability `kyb_policy`);
+  reviewers can read it. Each flip appends a `kyb.require_approval`
+  version under an advisory lock and writes a `kyb_approval_mode_changed`
+  audit row. A flip never approves a submission already waiting.
+- **100% discount codes.** `MAX_PERCENT_OFF` is 100, and a fixed amount may
+  make the price exactly zero (between 1 and 99 paise is still refused).
+  A zero checkout has no gateway and no callback, so
+  `billing.service._settle_complimentary` inserts it PENDING with provider
+  `complimentary` and settles it at once through `_settle`, now shared
+  with the verified-callback path. The checkout response is already
+  `SUCCEEDED` with `redirect_url: null`. It works with
+  `PAYMENTS_PROVIDER=none`.
+- **Migration `0014_complimentary_discounts`:** percent bound 1–100, a
+  redemption may be for 0, and `ck_payments_complimentary` (a zero payment
+  is always `complimentary` and carries a code; added `NOT VALID` on
+  existing databases, valid on fresh ones). Tested upgrade, downgrade and a
+  fresh build.
+- **Handoff to the frontend team, not done here:** the discount form still
+  caps a percentage at 99 (`create-code-drawer.tsx`), and the KYB settings
+  hook only ever sends "auto" (`setKybMode` returns early for "manual").
+  Apps should treat a checkout with `status: SUCCEEDED` and no
+  `redirect_url` as done (backend-guide/08).
+- Tests: `test_discount_domain.py`, `test_discount_codes.py` (free
+  checkout, no-gateway, usage limit, the CHECK), and three in
+  `test_admin_console.py` for the switch.
+
+---
+
 ## 2026-10-09 — recommended jobs on the candidate home screen
 
 Asked for by the user, after Naukri's home page: two sections, **jobs like

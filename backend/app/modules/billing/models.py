@@ -38,6 +38,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.core.db import Base
 from app.core.mixins import Timestamps, UUIDPrimaryKey
 from app.modules.billing.domain import (
+    COMPLIMENTARY_PROVIDER,
     DISCOUNT_AUDIENCES,
     MAX_PERCENT_OFF,
     MIN_PERCENT_OFF,
@@ -137,6 +138,16 @@ class Payment(Base, UUIDPrimaryKey, Timestamps):
             "(discount_code_id IS NOT NULL AND purpose = 'SUBSCRIPTION' "
             "AND list_amount_minor > amount_minor)",
             name="ck_payments_discount_shape",
+        ),
+        # A payment of zero is a discount code's and nothing else's
+        # (2026-10-09). It never reached a gateway, so it carries no
+        # gateway's name, and a gateway payment is never zero. With the shape
+        # above, that makes a free grant reachable only through a code that
+        # staff made and the console audited.
+        CheckConstraint(
+            f"(provider = '{COMPLIMENTARY_PROVIDER}') = (amount_minor = 0) "
+            f"AND (provider <> '{COMPLIMENTARY_PROVIDER}' OR discount_code_id IS NOT NULL)",
+            name="ck_payments_complimentary",
         ),
         # One order reference lands once.
         UniqueConstraint("provider", "provider_ref", name="uq_payment_provider_ref"),
@@ -354,7 +365,7 @@ class DiscountRedemption(Base, UUIDPrimaryKey):
             "subscriber_type IN ('USER', 'TENANT')", name="ck_discount_redemptions_subscriber"
         ),
         CheckConstraint(
-            "discount_minor > 0 AND amount_minor > 0 "
+            "discount_minor > 0 AND amount_minor >= 0 "
             "AND list_amount_minor = amount_minor + discount_minor",
             name="ck_discount_redemptions_arithmetic",
         ),

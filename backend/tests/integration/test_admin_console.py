@@ -343,6 +343,118 @@ async def test_with_approval_on_a_reviewer_opens_and_decides_a_submission(
         await _drop_config(row)
 
 
+SWITCH = f"{ADMIN}/settings/kyb-approval"
+
+
+async def _switch_versions() -> int:
+    return int(
+        await _scalar(
+            "SELECT coalesce(max(version), 0) FROM config_values WHERE key = :k",
+            k="kyb.require_approval",
+        )
+    )
+
+
+async def _drop_switch_versions_above(version: int) -> None:
+    async with sessions(_seed_url())() as session, session.begin():
+        await session.execute(
+            text("DELETE FROM config_values WHERE key = 'kyb.require_approval' AND version > :v"),
+            {"v": version},
+        )
+
+
+async def test_an_admin_switches_kyb_review_on_and_off_from_the_console(
+    client: Any, mint_token: Any, fake_s3: FakeS3
+) -> None:
+    """2026-10-09: the switch is a console setting. Each flip is a new
+    version and an audit row; it decides the next submission, and one
+    already waiting is left for a reviewer rather than approved by the flip."""
+    before = await _switch_versions()
+    admin = await _staff(mint_token)
+    try:
+        on = await client.put(SWITCH, json={"review_required": True}, headers=admin["headers"])
+        assert on.status_code == 200, on.text
+        assert on.json() == {"review_required": True}
+        read = await client.get(SWITCH, headers=admin["headers"])
+        assert read.json() == {"review_required": True}
+
+        waiting = await _kyb_organisation(client, mint_token)
+        await _ready(client, waiting["headers"], fake_s3)
+        held = await client.post(f"{API}/employer/kyb/submit", headers=waiting["headers"])
+        assert held.json()["state"] == "SUBMITTED"
+
+        off = await client.put(SWITCH, json={"review_required": False}, headers=admin["headers"])
+        assert off.json() == {"review_required": False}
+        page = await client.get(f"{ADMIN}/kyb/submissions", headers=admin["headers"])
+        assert page.json()["review_required"] is False
+        # Switching to automatic approved nobody who was already waiting.
+        assert (
+            await _scalar(
+                "SELECT kyb_status FROM employers WHERE tenant_id = :t", t=waiting["tenant_id"]
+            )
+            == "SUBMITTED"
+        )
+        arriving = await _kyb_organisation(client, mint_token)
+        await _ready(client, arriving["headers"], fake_s3)
+        approved = await client.post(f"{API}/employer/kyb/submit", headers=arriving["headers"])
+        assert approved.json()["state"] == "APPROVED"
+        assert approved.json()["auto_approved"] is True
+
+        # Asking for the mode in force writes nothing.
+        versions = await _switch_versions()
+        again = await client.put(SWITCH, json={"review_required": False}, headers=admin["headers"])
+        assert again.status_code == 200
+        assert await _switch_versions() == versions
+        # One audit row per version written: on, then off (the first PUT
+        # writes nothing if review was already on).
+        written = versions - before
+        assert written in (1, 2)
+        assert await _audit_rows("kyb_approval_mode_changed", admin["user_id"]) == written
+    finally:
+        await _drop_switch_versions_above(before)
+
+
+async def test_a_reviewer_sees_the_kyb_switch_but_cannot_flip_it(
+    client: Any, mint_token: Any
+) -> None:
+    before = await _switch_versions()
+    reviewer = await _staff(mint_token, "KYB_REVIEWER")
+    support = await _staff(mint_token, "SUPPORT_AGENT")
+    assert (await client.get(SWITCH, headers=reviewer["headers"])).status_code == 200
+    assert (await client.get(SWITCH, headers=support["headers"])).status_code == 403
+    for who in (reviewer, support):
+        flipped = await client.put(SWITCH, json={"review_required": False}, headers=who["headers"])
+        assert flipped.status_code == 403
+    assert await _switch_versions() == before
+
+
+async def test_a_malformed_switch_is_mended_by_flipping_it(client: Any, mint_token: Any) -> None:
+    """Reading a bad row is a 500 (`kyb_config_invalid`) on purpose; setting
+    the mode is how staff get out of it."""
+    before = await _switch_versions()
+    async with sessions(_seed_url())() as session, session.begin():
+        await session.execute(
+            text(
+                "INSERT INTO config_values (id, key, value, version, effective_from) "
+                "VALUES (gen_random_uuid(), 'kyb.require_approval', "
+                "CAST('{\"enabled\": \"yes\"}' AS jsonb), :n, '2026-01-01')"
+            ),
+            {"n": before + 1},
+        )
+    admin = await _staff(mint_token)
+    try:
+        broken = await client.get(SWITCH, headers=admin["headers"])
+        assert broken.status_code == 500
+        assert broken.json()["code"] == "kyb_config_invalid"
+        mended = await client.put(SWITCH, json={"review_required": False}, headers=admin["headers"])
+        assert mended.status_code == 200, mended.text
+        assert (await client.get(SWITCH, headers=admin["headers"])).json() == {
+            "review_required": False
+        }
+    finally:
+        await _drop_switch_versions_above(before)
+
+
 async def test_an_unknown_submission_is_a_404(client: Any, mint_token: Any) -> None:
     reviewer = await _staff(mint_token, "KYB_REVIEWER")
     response = await client.get(

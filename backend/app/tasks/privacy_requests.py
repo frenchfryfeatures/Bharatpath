@@ -40,6 +40,7 @@ def _bucket(kind: str) -> str:
         "resumes": settings.s3_bucket_resumes,
         "interview_audio": settings.s3_bucket_interview_audio,
         "exports": settings.s3_bucket_exports,
+        "profile_images": settings.s3_bucket_profile_images,
     }[kind]
 
 

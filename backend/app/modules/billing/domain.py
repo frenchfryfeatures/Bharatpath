@@ -196,31 +196,43 @@ def payment_step(current_status: str, event_type: str) -> PaymentStep:
 # written when the payment settles and never before: a code applied to a
 # checkout nobody paid for was not used.
 #
-# **Three answers are the client's and are not in yet** (questions of
-# 2026-09-18). Until they land, the policy below is ours, conservative, and
-# named `placeholder-` in a string a test asserts on, so it cannot quietly
-# become the product:
+# **Three questions went to the client on 2026-09-18; one is answered.**
+# Until the other two are, the policy below is partly ours, conservative,
+# and named `placeholder-` in a string a test asserts on, so it cannot
+# quietly become the product:
 #
-#   1. *A 100% code?* No. Nothing here can make a payment of zero, because
-#      the gateway cannot take one and only a verified gateway callback
-#      grants access. A percentage is 1-99, and a fixed amount that would
-#      leave less than `MIN_NET_AMOUNT_MINOR` is refused at checkout.
+#   1. *A 100% code?* **Yes -- the client's answer, 2026-10-09.** A
+#      percentage is 1-100, and a fixed amount may take the price to exactly
+#      zero. A checkout that comes to zero has nothing to send to a gateway,
+#      so it is settled on the spot as a COMPLIMENTARY payment
+#      (`billing.service._settle_complimentary`) and granted through the
+#      same `_settle` a verified callback uses. Between zero and
+#      `MIN_NET_AMOUNT_MINOR` is still refused: a gateway order for 50 paise
+#      is a fee, not a price.
 #   2. *Renewals?* No. Only checkout reads a code; a manual renewal is a
 #      checkout, so it may carry a new code, but a mandate debit never does.
 #   3. *Reuse?* One redemption per code per subscriber -- the person for a
 #      candidate, the organisation for an employer or a college.
+#
+# Questions 2 and 3 are still ours, so the version keeps its prefix.
 
-DISCOUNT_POLICY_VERSION: Final = "placeholder-1-2026-09-18"
+DISCOUNT_POLICY_VERSION: Final = "placeholder-2-2026-10-09"
 
 DiscountAudience = Literal["CANDIDATE", "EMPLOYER", "COLLEGE"]
 DISCOUNT_AUDIENCES: Final[tuple[DiscountAudience, ...]] = ("CANDIDATE", "EMPLOYER", "COLLEGE")
 
-#: The least a discounted payment may be. A gateway order for zero does not
-#: exist, and "free" would need a grant that no callback verified.
+#: The least a discounted payment that goes to a gateway may be. Zero is
+#: allowed and settled without one; anything between is refused.
 MIN_NET_AMOUNT_MINOR: Final = 100
 MIN_PERCENT_OFF: Final = 1
-MAX_PERCENT_OFF: Final = 99
+MAX_PERCENT_OFF: Final = 100
 ONE_REDEMPTION_PER_SUBSCRIBER: Final = True
+
+#: The `payments.provider` of a checkout a code took to zero. No gateway was
+#: involved, so no gateway's name may be written: `ck_payments_complimentary`
+#: holds that this provider and a zero amount come together, and only on a
+#: discounted subscription.
+COMPLIMENTARY_PROVIDER: Final = "complimentary"
 
 #: Minutes a PENDING discounted checkout counts against a usage limit.
 #: Without a hold, ten people can check out against the last use of a code;
@@ -302,7 +314,8 @@ def discounted_price(
     price_minor: int, *, percent_off: int | None, amount_off_minor: int | None
 ) -> DiscountPrice | None:
     """What a payer pays with this code, or None when the code would take the
-    price below `MIN_NET_AMOUNT_MINOR`.
+    price below zero, or above zero but below `MIN_NET_AMOUNT_MINOR`.
+    Exactly zero is a complimentary checkout (client, 2026-10-09).
 
     A percentage rounds the discount **down** to the paisa, so the payer is
     never charged less than the stated percentage allows by a rounding
@@ -314,7 +327,7 @@ def discounted_price(
     else:
         discount = amount_off_minor or 0
     net = price_minor - discount
-    if net < MIN_NET_AMOUNT_MINOR:
+    if net < 0 or 0 < net < MIN_NET_AMOUNT_MINOR:
         return None
     return DiscountPrice(price_minor, discount, net)
 

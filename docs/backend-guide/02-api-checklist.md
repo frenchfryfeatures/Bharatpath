@@ -279,6 +279,8 @@ Covered in [13-admin-console-and-disputes-apis.md](13-admin-console-and-disputes
 
 | Status | Method | Path |
 |---|---|---|
+| ✅ | GET | `/admin/settings/kyb-approval` |
+| ✅ | PUT | `/admin/settings/kyb-approval` |
 | ✅ | GET | `/admin/kyb/submissions` |
 | ✅ | GET | `/admin/kyb/submissions/{submission_id}` |
 | ✅ | POST | `/admin/kyb/submissions/{submission_id}/decision` |
@@ -404,3 +406,15 @@ walked through in the linked docs; they were simply never added here.
 | ✅ | POST | `/{candidate,employer,college}/subscription/checkout/discount-preview` | Price with a discount code |
 | ✅ | POST | `/{employer,college}/subscription/cancel` | Stop auto-renewing |
 | ✅ | POST | `/{employer,college}/subscription/mandate` | UPI AutoPay |
+| ✅ | GET | `/profile/photo` | Your own photo ([16](16-profile-images-apis.md)), any account |
+| ✅ | POST | `/profile/photo/upload` | Presigned PUT for a new photo |
+| ✅ | POST | `/profile/photo/confirm` | Check, re-encode, keep |
+| ✅ | DELETE | `/profile/photo` | Remove your photo |
+| ✅ | GET | `/employer/organisation/logo` | The employer's logo (any member) |
+| ✅ | POST | `/employer/organisation/logo/upload` | Owner only |
+| ✅ | POST | `/employer/organisation/logo/confirm` | Owner only |
+| ✅ | DELETE | `/employer/organisation/logo` | Owner only |
+| ✅ | GET | `/college/organisation/logo` | The college's logo (admin, staff) |
+| ✅ | POST | `/college/organisation/logo/upload` | College admin only |
+| ✅ | POST | `/college/organisation/logo/confirm` | College admin only |
+| ✅ | DELETE | `/college/organisation/logo` | College admin only |

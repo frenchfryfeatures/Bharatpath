@@ -37,6 +37,29 @@ async def current_config(session: AsyncSession, *, key: str, now: datetime) -> C
     return result.scalar_one_or_none()
 
 
+async def append_config(
+    session: AsyncSession, *, key: str, value: dict[str, Any], effective_from: datetime, note: str
+) -> int:
+    """The next version of `key`, never an update of the last. Serialised per
+    key, so two staff flipping the switch at once write two versions rather
+    than colliding on `uq_config_key_version`."""
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+        {"key": f"config_values:{key}"},
+    )
+    version = int(
+        await session.scalar(
+            text("SELECT coalesce(max(version), 0) + 1 FROM config_values WHERE key = :k"),
+            {"k": key},
+        )
+    )
+    session.add(
+        ConfigValue(key=key, value=value, version=version, effective_from=effective_from, note=note)
+    )
+    await session.flush()
+    return version
+
+
 async def open_submission(session: AsyncSession, *, tenant_id: uuid.UUID) -> KybSubmission | None:
     """The one submission still in progress, if any. The partial unique index
     guarantees there is never more than one."""

@@ -176,6 +176,51 @@ async def require_approval(session: AsyncSession, *, now: datetime) -> bool:
     return value["enabled"]
 
 
+async def set_require_approval(
+    session: AsyncSession,
+    *,
+    enabled: bool,
+    actor_id: uuid.UUID,
+    actor_role: str,
+    request_id: str | None = None,
+    now: datetime | None = None,
+) -> bool:
+    """Flip R15's switch: a new version of the row, never an update, and an
+    audit row. Routed only by the admin console (2026-10-09, client).
+
+    **It decides the next submission and nothing before it.** Switching to
+    automatic does not approve what is already waiting at SUBMITTED or
+    UNDER_REVIEW -- a reviewer still decides those -- and switching to manual
+    does not reopen anyone already approved. Either would be a verification
+    decision nobody made about that employer.
+
+    Asking for the mode already in force writes nothing. A malformed current
+    row is replaced rather than refused: this is how it gets fixed.
+    """
+    now = now or datetime.now(UTC)
+    row = await repository.current_config(session, key=REQUIRE_APPROVAL_CONFIG_KEY, now=now)
+    if row is not None and row.value == {"enabled": enabled}:
+        return enabled
+    version = await repository.append_config(
+        session,
+        key=REQUIRE_APPROVAL_CONFIG_KEY,
+        value={"enabled": enabled},
+        effective_from=now,
+        note=f"Set from the admin console by {actor_role}.",
+    )
+    await audit_event(
+        session,
+        action=AuditAction.KYB_APPROVAL_MODE_CHANGED,
+        actor_id=actor_id,
+        actor_role=actor_role,
+        target_type="config_value",
+        request_id=request_id,
+        metadata={"key": REQUIRE_APPROVAL_CONFIG_KEY, "enabled": enabled, "version": version},
+    )
+    logger.info("kyb_approval_mode_changed", enabled=enabled, version=version)
+    return enabled
+
+
 async def _response(session: AsyncSession, submission: Any | None) -> KybSubmissionResponse:
     if submission is None:
         return KybSubmissionResponse(state="DRAFT")
