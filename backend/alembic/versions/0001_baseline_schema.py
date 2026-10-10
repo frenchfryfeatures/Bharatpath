@@ -57,6 +57,8 @@ TENANT_SCOPED_TABLES = (
     # 2026-10-05. The candidate's policies, the guard and the accept function
     # are migration 0010's, which runs on every database, fresh or not.
     "employer_shortlists",
+    # 2026-10-10, also created with its policy by 0016 on an older database.
+    "kyb_reviews",
 )
 
 # Tables that carry a tenant_id but must NOT get the policy. Each exemption is
@@ -284,6 +286,8 @@ def _create_employer_tables() -> None:
         "employers",
         "kyb_submissions",
         "kyb_documents",
+        # 2026-10-10, also created by 0016 on a database built before it.
+        "kyb_reviews",
         "jobs",
         "applications",
         "application_events",
@@ -446,6 +450,9 @@ def _apply_append_only_grants() -> None:
         f"GRANT UPDATE (disabled_at, disabled_by, updated_at) ON discount_codes TO {APP_ROLE}"
     )
     op.execute(f"REVOKE UPDATE, DELETE ON discount_redemptions FROM {APP_ROLE}")
+    # 2026-10-10. A reviewer's decision, and what it was made on, is the
+    # record a corrected resubmission is compared against.
+    op.execute(f"REVOKE UPDATE, DELETE ON kyb_reviews FROM {APP_ROLE}")
     # Lapsing loses access, not history (R13).
     for table in ("plans", "subscriptions", "upi_mandates", "mandate_debit_notices"):
         op.execute(f"REVOKE DELETE ON {table} FROM {APP_ROLE}")

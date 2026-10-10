@@ -168,7 +168,7 @@ from app.modules.integrity.domain import hides_candidate, rule_text
 from app.modules.interview import service as interview_service
 from app.modules.jobs import service as jobs_service
 from app.modules.kyb import service as kyb_service
-from app.modules.kyb.schemas import KybSubmissionResponse
+from app.modules.kyb.schemas import KybReviewFlag, KybSubmissionResponse
 from app.modules.profile_images import service as profile_images_service
 from app.modules.questionnaire.domain import answers_in_words
 from app.modules.resume import service as resume_service
@@ -382,6 +382,7 @@ async def decide_kyb(
     submission_id: uuid.UUID,
     decision: str,
     reason: str | None,
+    flags: list[KybReviewFlag] | None = None,
     request_id: str | None = None,
 ) -> KybSubmissionResponse:
     """`kyb.service.review` decides and audits; this finds the tenant."""
@@ -394,6 +395,7 @@ async def decide_kyb(
         reviewer_role=ctx.role,
         decision=decision,
         reason=reason,
+        flags=flags,
     )
 
 

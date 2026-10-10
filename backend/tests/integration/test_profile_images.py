@@ -32,14 +32,10 @@ COLLEGE_LOGO = f"{API}/college/organisation/logo"
 
 
 class FakeImageS3(FakeS3):
-    """`FakeS3` plus the two calls an image needs: the server's own write,
-    and a presigned GET."""
+    """`FakeS3` plus the server's own write, which only an image needs."""
 
     async def put_object(self, *, bucket: str, key: str, body: bytes, content_type: str) -> None:
         self.objects[key] = body
-
-    async def presign_get(self, *, bucket: str, key: str, expires_in: int) -> str:
-        return f"https://s3.test/{bucket}/{key}?get=1"
 
 
 @pytest.fixture

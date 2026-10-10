@@ -204,14 +204,19 @@ async def decide_kyb(
     user: CurrentUser,
     session: DbSession,
 ) -> KybSubmissionResponse:
-    """Rejecting or asking for more information needs a reason, which the
-    organisation reads. Only a submission awaiting review can be decided."""
+    """`MORE_INFO_REQUIRED` sends it back to be corrected and submitted again;
+    `REJECTED` is final, and the organisation's next submission starts filled
+    in from this one. Both need a reason, which the organisation reads, and
+    may flag fields and documents (`flags`). Only a submission awaiting
+    review can be decided. 422 `kyb_flag_unknown_field`,
+    `kyb_flag_duplicate` or `kyb_flags_not_allowed` (on an approval)."""
     return await service.decide_kyb(
         session,
         ctx=user,
         submission_id=submission_id,
         decision=payload.decision,
         reason=payload.reason,
+        flags=payload.flags,
         request_id=get_request_id(request),
     )
 

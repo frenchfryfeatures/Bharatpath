@@ -136,12 +136,17 @@ cleared an item should see it gone.
 ```json
 {
   "items": [
-    { "id": "...", "tenant_id": "...", "organisation": "Acme Pvt Ltd", "state": "APPROVED", "form_version": "kyb-v3", "submitted_at": "...", "reviewed_at": "...", "auto_approved": true, "created_at": "..." }
+    { "id": "...", "tenant_id": "...", "organisation": "Acme Pvt Ltd", "state": "APPROVED", "form_version": "kyb-v3", "submitted_at": "...", "reviewed_at": "...", "auto_approved": true, "created_at": "...", "review_count": 0, "after_rejection": false }
   ],
   "next_cursor": null,
   "review_required": false
 }
 ```
+`review_count` (2026-10-10) is how many decisions have been made on the
+submission: **above zero on a `SUBMITTED` row means it was sent back and
+corrected**, so show it as "Resubmitted". `after_rejection: true` means the
+organisation started this one after a rejection.
+
 `review_required` mirrors the live `kyb.require_approval` config row
 (see [07-kyb-apis.md](07-kyb-apis.md)). **While it's `false`, this whole list is a historical
 record, not a queue** — every submission arriving was approved on the spot
@@ -187,12 +192,37 @@ the switch but cannot turn their own queue off.
 organisation itself (full form answers and document metadata). `404
 kyb_submission_not_found` outside this id.
 
+Since 2026-10-10 it also carries:
+- **`documents[].url`**, a short-lived link to each uploaded file, for the
+  eye icon (the open itself is audited);
+- **`reviews`**, every earlier decision with its reason and flags;
+- **`changed_since_last_review`**: `{"fields": [...], "documents": [...]}`
+  changed since the last decision. **On a resubmission, this is what to
+  re-check**, so highlight those rows. `null` before the first decision.
+
 ### `POST /admin/kyb/submissions/{id}/decision` — record a decision
 
 **Request body** (`KybDecisionRequest`):
 ```json
-{ "decision": "REJECTED", "reason": "GST certificate does not match the legal name given." }
+{
+  "decision": "MORE_INFO_REQUIRED",
+  "reason": "The PAN does not match the card.",
+  "flags": [
+    { "field": "pan", "note": "Use the PAN printed on the card" },
+    { "field": "doc_pan", "note": "The scan is unreadable" }
+  ]
+}
 ```
+- **`MORE_INFO_REQUIRED` is the "Send back" button**: the organisation
+  corrects the same submission and submits it again, and it returns to the
+  queue showing what changed.
+- **`REJECTED` is final** for this submission. The organisation's next one
+  starts filled in from it, answers and documents included.
+- **`flags`** (optional, up to 40) name the form fields or document types
+  (`doc_pan`, `doc_gst`, …) to correct, each with an optional note, for those
+  two decisions only. `422 kyb_flag_unknown_field`, `kyb_flag_duplicate`, or
+  `kyb_flags_not_allowed` (on an approval); `params.fields` names them.
+- Owners are notified in-app and by email, with your reason.
 `decision` is one of `UNDER_REVIEW` / `APPROVED` / `REJECTED` /
 `MORE_INFO_REQUIRED`. `reason` is what the organisation reads back on its
 own `GET /employer/kyb` — required in practice for anything but a plain

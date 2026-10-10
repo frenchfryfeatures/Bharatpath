@@ -358,6 +358,22 @@ is where a third one would have to be argued for.
   automatic never approves one already waiting. A reviewer can read the
   switch and cannot flip it. Tests that flip it delete the versions they
   wrote (`_drop_switch_versions_above` in `test_admin_console.py`).
+- **Send back, correct, resubmit** (2026-10-10, employers only -- colleges
+  have no review, by design). `MORE_INFO_REQUIRED` is the console's *Send
+  back*: the same submission reopens. `REJECTED` is final; the next save
+  starts a new submission filled in from it (`previous_submission_id`),
+  documents copied as rows over the same objects. Both may carry
+  `review_flags` (form field codes, documents included), refused on an
+  approval. **Every decision is a `kyb_reviews` row** (tenant RLS,
+  append-only) holding the answers and latest document ids it was made on,
+  which is how `changed_since_last_review` is computed -- never by diffing
+  against the submission's own mutable row.
+- **Who hears**: `kyb.submitted` (manual mode only) → `KYB_REVIEWERS`
+  (PLATFORM_ADMIN + KYB_REVIEWER, in-app only; held equal to
+  `CONSOLE_ROLES["kyb"]` by a test). `kyb.reviewed` → the owners, email and
+  in-app, with `{reason}` read at dispatch by
+  `kyb.service.decision_reason_for_delivery`, which binds the event's tenant
+  and **unbinds it** (`clear_transaction_tenant`) before returning.
 - **`employers.kyb_status` is what the publish trigger reads.** Only
   `kyb.service` changes it, through `employer.service.set_kyb_status`. The
   profile PATCH must never be a way to set it.
