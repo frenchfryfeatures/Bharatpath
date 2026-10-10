@@ -2,7 +2,7 @@
 
 import { AlertTriangle, CheckCircle2, FileText, PencilLine } from "lucide-react";
 
-import type { KybDocument, KybForm } from "@/store/employer/kyb";
+import type { KybDocument, KybForm, KybReviewFlag } from "@/store/employer/kyb";
 
 import {
   displayAnswer,
@@ -16,6 +16,8 @@ interface KybReviewProps {
   form: KybForm;
   answers: KybAnswers;
   documents: Map<string, KybDocument>;
+  /** Still-open reviewer flags, by field or document code. */
+  flags?: ReadonlyMap<string, KybReviewFlag>;
   onEdit: (sectionIndex: number) => void;
 }
 
@@ -23,6 +25,7 @@ export function KybReview({
   form,
   answers,
   documents,
+  flags,
   onEdit,
 }: Readonly<KybReviewProps>) {
   const uploaded = new Set(documents.keys());
@@ -31,6 +34,7 @@ export function KybReview({
     <div className="space-y-4">
       {form.sections.map((section, index) => {
         const complete = isSectionComplete(section, answers, uploaded);
+        const flagged = section.fields.filter((field) => flags?.has(field.code));
 
         return (
           <section
@@ -51,6 +55,11 @@ export function KybReview({
                 >
                   {section.title}
                 </h2>
+                {flagged.length > 0 && (
+                  <span className="rounded-full bg-[#fdebc8] px-2 py-0.5 text-[10px] font-semibold text-[#8a5300]">
+                    {flagged.length === 1 ? "1 change requested" : `${flagged.length} changes requested`}
+                  </span>
+                )}
                 {!complete && (
                   <span className="rounded-full bg-[#fff4e0] px-2 py-0.5 text-[10px] font-semibold text-[#9a5b00]">
                     Needs attention
@@ -71,6 +80,7 @@ export function KybReview({
               <ul className="divide-y divide-[#f1f3f7]">
                 {section.fields.map((field) => {
                   const document = documents.get(field.code);
+                  const flag = flags?.get(field.code);
 
                   return (
                     <li
@@ -83,14 +93,18 @@ export function KybReview({
                       </span>
                       <span
                         className={`shrink-0 font-medium ${
-                          document
+                          flag
+                            ? "text-[#8a5300]"
+                            : document
                             ? "text-[#1f7a63]"
                             : field.required
                               ? "text-[#b42318]"
                               : "text-[#8790a0]"
                         }`}
                       >
-                        {document
+                        {flag
+                          ? "Re-upload needed"
+                          : document
                           ? "Uploaded"
                           : field.required
                             ? "Missing"
@@ -115,6 +129,11 @@ export function KybReview({
                     >
                       <dt className="text-[11px] font-semibold text-[#8790a0]">
                         {field.label}
+                        {flags?.has(field.code) && (
+                          <span className="ml-1.5 rounded-full bg-[#fdebc8] px-1.5 py-0.5 text-[10px] font-semibold text-[#8a5300]">
+                            Change requested
+                          </span>
+                        )}
                       </dt>
                       <dd className="mt-0.5 break-words text-[13px] text-[#17233a]">
                         {displayAnswer(form, field, answers[field.code])}

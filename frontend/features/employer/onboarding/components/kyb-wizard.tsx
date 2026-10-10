@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { OnboardingBackButton } from "@/components/common/onboarding-back-button";
-import { ArrowRight, Info, ShieldCheck } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, ShieldCheck } from "lucide-react";
 
 import { FormSkeleton } from "@/components/common/loading";
 import { Button, ErrorState } from "@/components/ui";
@@ -354,15 +355,6 @@ function KybFlow({
     }
   };
 
-  const restart = () => {
-    setEditing(true);
-    setErrors({});
-    setBanner(null);
-    setStepIndex(0);
-    setMaxVisited(0);
-    scrollToTop();
-  };
-
   const steps: SignupStep[] = [
     ...leadingSteps,
     ...sections.map((item, index): SignupStep => {
@@ -386,21 +378,51 @@ function KybFlow({
     },
   ];
 
+  // Changes a reviewer asked for are made from the organisation's profile
+  // (Settings), not by walking the sign-up steps again.
+  const fixFromProfile =
+    submission.state === "MORE_INFO_REQUIRED" ||
+    submission.state === "REJECTED" ||
+    (submission.state === "DRAFT" && Boolean(submission.previousSubmissionId));
+
+  if (fixFromProfile) {
+    return (
+      <SignupShell steps={steps} signedIn email={email} onSignOut={onSignOut}>
+        <StepCard
+          eyebrow="Verification"
+          title={
+            submission.state === "REJECTED"
+              ? "Your verification was not approved"
+              : "Your verification needs changes"
+          }
+          description="Review what was raised and update it from your company profile."
+        >
+          {submission.decisionReason && (
+            <div className="mb-4 rounded-xl border border-[#f2cf93] bg-[#fffaf0] p-4 text-sm leading-6 text-[#7a4a00]">
+              {submission.decisionReason}
+            </div>
+          )}
+          <Link
+            href="/employer/settings"
+            className="inline-flex h-10 items-center justify-center rounded-lg bg-[#17233a] px-4 text-sm font-semibold text-white transition hover:bg-[#223453]"
+          >
+            Open company profile
+          </Link>
+        </StepCard>
+      </SignupShell>
+    );
+  }
+
   if (!editing) {
     return (
       <SignupShell steps={steps} signedIn email={email} onSignOut={onSignOut}>
-        <KybStatus
-          submission={submission}
-          onRestart={submission.state === "REJECTED" ? restart : undefined}
-        />
+        <KybStatus submission={submission} />
       </SignupShell>
     );
   }
 
   const totalSteps = steps.length;
   const stepNumber = leadingSteps.length + stepIndex + 1;
-  const moreInfo =
-    submission.state === "MORE_INFO_REQUIRED" ? submission.decisionReason : null;
 
   return (
     <SignupShell steps={steps} signedIn email={email} onSignOut={onSignOut}>
@@ -457,18 +479,6 @@ function KybFlow({
           </>
         }
       >
-        {moreInfo && (
-          <div className="mb-5 flex gap-3 rounded-xl border border-[#f5d9a8] bg-[#fffaf0] p-4">
-            <Info className="mt-0.5 h-4 w-4 shrink-0 text-[#b26a00]" aria-hidden="true" />
-            <div>
-              <p className="text-[13px] font-semibold text-[#7a4a00]">
-                Our reviewer needs more information
-              </p>
-              <p className="mt-0.5 text-[13px] leading-5 text-[#7a4a00]">{moreInfo}</p>
-            </div>
-          </div>
-        )}
-
         {banner && <ErrorState className="mb-5" message={banner} />}
 
         {onReview ? (

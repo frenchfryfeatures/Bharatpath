@@ -4,6 +4,7 @@ import type {
   KybDocument,
   KybField,
   KybForm,
+  KybReviewFlag,
   KybSection,
   KybState,
   KybSubmission,
@@ -308,6 +309,28 @@ export function uploadedDocuments(
   }
 
   return documents;
+}
+
+/** The form's own label for a flagged field or document code. */
+export function flagLabel(form: KybForm | undefined, code: string): string {
+  const field = form ? allFields(form).find((item) => item.code === code) : undefined;
+
+  if (field) {
+    return field.label;
+  }
+
+  const text = code.replace(/^doc_/, "").replaceAll("_", " ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** Flags keyed by field/document code, minus the ones already corrected. */
+export function activeFlags(
+  flags: readonly KybReviewFlag[],
+  resolved: ReadonlySet<string>,
+): Map<string, KybReviewFlag> {
+  return new Map(
+    flags.filter((flag) => !resolved.has(flag.field)).map((flag) => [flag.field, flag]),
+  );
 }
 
 export function optionLabel(

@@ -100,6 +100,8 @@ export function useQueue() {
     date: formatDate(item.submitted_at ?? item.created_at),
     approval: item.auto_approved ? "Auto-approved" : "Manual review",
     type: "KYB",
+    resubmitted: (item.review_count ?? 0) > 0 && item.state === "SUBMITTED",
+    afterRejection: item.after_rejection ?? false,
   }));
 
   const integrityItems: QueueItem[] = (integrityQuery.data?.items ?? []).map((item) => ({
@@ -112,6 +114,8 @@ export function useQueue() {
     date: formatDate(item.created_at),
     approval: null,
     type: "Integrity",
+    resubmitted: false,
+    afterRejection: false,
   }));
 
   const items = tab === "kyb" ? kybItems : integrityItems;

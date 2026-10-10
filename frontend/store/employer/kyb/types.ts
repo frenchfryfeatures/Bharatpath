@@ -64,6 +64,27 @@ export interface KybDocument {
   docType: string;
   mime: string | null;
   uploadedAt: string;
+  /** Short-lived (15 min) link to the uploaded file. Never cache it. */
+  url: string | null;
+}
+
+/** A form field or document (`doc_*`) a reviewer asked to be corrected. */
+export interface KybReviewFlag {
+  field: string;
+  note: string | null;
+}
+
+/** One earlier decision on a submission. Reviewer names are never sent. */
+export interface KybReviewEntry {
+  decision: string;
+  reason: string | null;
+  flags: KybReviewFlag[];
+  reviewedAt: string;
+}
+
+export interface KybChangedSinceReview {
+  fields: string[];
+  documents: string[];
 }
 
 /*
@@ -85,6 +106,13 @@ export interface KybSubmission {
   reviewedAt: string | null;
   decisionReason: string | null;
   autoApproved: boolean;
+  /** Fields and documents to fix; empty once the submission is resubmitted. */
+  reviewFlags: KybReviewFlag[];
+  /** Past decisions, oldest first. */
+  reviews: KybReviewEntry[];
+  changedSinceLastReview: KybChangedSinceReview | null;
+  /** Set when this draft was started after a rejection. */
+  previousSubmissionId: string | null;
 }
 
 export interface KybDocumentTicket {

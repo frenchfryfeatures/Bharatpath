@@ -64,6 +64,14 @@ const CODE_MESSAGES: Record<string, string> = {
     "Your verification has already been submitted and can no longer be edited.",
   kyb_already_verified:
     "Your organisation is already verified.",
+  kyb_reason_required:
+    "Add a remark. The organisation reads it on its verification page.",
+  kyb_flag_unknown_field:
+    "One of the ticked items is not on the verification form. Reopen the submission and try again.",
+  kyb_flag_duplicate:
+    "The same field was ticked twice. Reopen the submission and try again.",
+  kyb_flags_not_allowed:
+    "Ticked fields cannot be sent with an approval. Untick them or choose Send back.",
   kyb_document_rejected:
     "That file could not be accepted. Upload a PDF, JPEG or PNG under 10 MB.",
   profile_image_rejected:

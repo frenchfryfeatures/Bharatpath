@@ -28,10 +28,27 @@ export type KybSubmissionRow = {
   reviewed_at: string | null;
   auto_approved: boolean;
   created_at: string;
+  /** Decisions made so far. Above 0 on a SUBMITTED row means sent back, corrected, resubmitted. */
+  review_count?: number;
+  /** True when the organisation started this one after a rejection. */
+  after_rejection?: boolean;
 };
 
 export type KybSubmissionsPage = CursorPage<KybSubmissionRow> & {
   review_required: boolean;
+};
+
+export type KybReviewFlag = {
+  /** A form field code (`pan`) or a document code (`doc_pan`). */
+  field: string;
+  note?: string | null;
+};
+
+export type KybReviewEntry = {
+  decision: string;
+  reason: string | null;
+  flags: KybReviewFlag[];
+  reviewed_at: string;
 };
 
 export type KybSubmission = {
@@ -43,11 +60,18 @@ export type KybSubmission = {
     doc_type: string;
     mime: string | null;
     uploaded_at: string;
+    /** Expires after 15 minutes. Never cache it. */
+    url?: string | null;
   }>;
   submitted_at: string | null;
   reviewed_at: string | null;
   decision_reason: string | null;
   auto_approved: boolean;
+  review_flags?: KybReviewFlag[];
+  /** Earlier decisions, oldest first. */
+  reviews?: KybReviewEntry[];
+  /** Null before the first decision. */
+  changed_since_last_review?: { fields: string[]; documents: string[] } | null;
 };
 
 export type IntegritySignalRow = {
@@ -660,7 +684,7 @@ export const adminApi = baseApi.injectEndpoints({
       query: (submissionId) => `/admin/kyb/submissions/${submissionId}`,
       providesTags: ["Admin"],
     }),
-    decideAdminKyb: builder.mutation<KybSubmission, { submissionId: string; decision: "UNDER_REVIEW" | "APPROVED" | "REJECTED" | "MORE_INFO_REQUIRED"; reason?: string }>({
+    decideAdminKyb: builder.mutation<KybSubmission, { submissionId: string; decision: "UNDER_REVIEW" | "APPROVED" | "REJECTED" | "MORE_INFO_REQUIRED"; reason?: string; flags?: KybReviewFlag[] }>({
       query: ({ submissionId, ...body }) => ({ url: `/admin/kyb/submissions/${submissionId}/decision`, method: "POST", body }),
       invalidatesTags: ["Admin"],
     }),

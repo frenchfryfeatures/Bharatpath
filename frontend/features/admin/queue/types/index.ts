@@ -24,4 +24,8 @@ export interface QueueItem {
   /** KYB only: how the submission is being decided. */
   approval: string | null;
   type: QueueItemType;
+  /** KYB only: sent back, corrected and submitted again. */
+  resubmitted: boolean;
+  /** KYB only: started after an earlier submission was rejected. */
+  afterRejection: boolean;
 }

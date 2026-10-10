@@ -37,8 +37,26 @@ function toNotification(item: NotificationInboxItem): Notification {
     title: item.body,
     timestamp: item.created_at,
     read: item.read_at !== null,
-    href: item.template_code === "IN_APP_SHORTLIST_INVITED" ? "/student/invites" : undefined,
+    href: notificationHref(item.template_code),
   };
+}
+
+/** Where tapping a notification goes, for the templates that have a destination. */
+function notificationHref(templateCode: string): string | undefined {
+  switch (templateCode) {
+    case "IN_APP_SHORTLIST_INVITED":
+      return "/student/invites";
+    // Staff: a new or corrected verification is waiting in the KYB queue.
+    case "IN_APP_KYB_SUBMITTED":
+    case "IN_APP_KYB_RESUBMITTED":
+      return "/admin/queue?tab=kyb";
+    // Owner: sent back or rejected, the fix happens on the verification page.
+    case "IN_APP_KYB_NEEDS_INFO":
+    case "IN_APP_KYB_REJECTED":
+      return "/employer/settings";
+    default:
+      return undefined;
+  }
 }
 
 const rawBaseQuery = fetchBaseQuery({

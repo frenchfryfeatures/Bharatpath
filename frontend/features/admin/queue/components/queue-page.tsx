@@ -139,6 +139,14 @@ export function QueuePage() {
             <p className="truncate text-[11px] leading-4 text-[#7b8494]">
               {item.submitted}
             </p>
+
+            {item.afterRejection ? (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {item.afterRejection ? (
+                  <QueueBadge tone="blue">Re-applied after rejection</QueueBadge>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         </div>
       ),
@@ -159,8 +167,8 @@ export function QueuePage() {
 
       cell: (item) =>
         isKyb ? (
-          <QueueBadge tone={statusTone(item.secondary)}>
-            {item.secondary}
+          <QueueBadge tone={item.resubmitted ? "amber" : statusTone(item.secondary)}>
+            {item.resubmitted ? "Resubmitted" : item.secondary}
           </QueueBadge>
         ) : (
           item.secondary
