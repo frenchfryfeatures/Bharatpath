@@ -124,6 +124,8 @@ export interface JobListing {
   id: string;
   title: string;
   employerName: string | null;
+  /** Presigned and expiring; null without a logo. Never cache it. */
+  employerLogoUrl?: string | null;
   description?: string;
   /** The full posting. Only the single-job endpoint sends it. */
   details?: CandidateJobDetails;

@@ -107,6 +107,7 @@ export function JobDetail() {
         job={{
           title: listing.title,
           employerName: listing.employerName,
+          employerLogoUrl: listing.employerLogoUrl,
           location: listing.location,
           workMode: listing.workMode,
           experienceMinMonths: listing.experienceMinMonths,

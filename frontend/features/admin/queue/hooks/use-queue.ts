@@ -36,6 +36,12 @@ function initials(value: string) {
     .toUpperCase();
 }
 
+/** "SUBMITTED" / "hidden_text" -> "Submitted" / "Hidden text". */
+function humanise(value: string) {
+  const text = value.replaceAll("_", " ").toLowerCase();
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 function relativeTime(value: string | null, prefix: string) {
   if (!value) return `${prefix} date unavailable`;
   const elapsed = Math.max(0, Date.now() - new Date(value).getTime());
@@ -44,10 +50,15 @@ function relativeTime(value: string | null, prefix: string) {
   return `${prefix} ${Math.floor(hours / 24)}d ago`;
 }
 
-function waitingTime(value: string | null) {
+function formatDate(value: string | null) {
   if (!value) return "Unknown";
-  const hours = Math.floor(Math.max(0, Date.now() - new Date(value).getTime()) / 3_600_000);
-  return hours < 24 ? `${hours}h` : `${Math.floor(hours / 24)}d`;
+  return new Date(value).toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 export function useQueue() {
@@ -84,9 +95,10 @@ export function useQueue() {
     name: item.organisation,
     initials: initials(item.organisation),
     submitted: relativeTime(item.submitted_at ?? item.created_at, "Submitted"),
-    secondary: item.state.replaceAll("_", " "),
-    risk: item.auto_approved ? "Low" : "Medium",
-    waiting: waitingTime(item.submitted_at ?? item.created_at),
+    secondary: humanise(item.state),
+    risk: null,
+    date: formatDate(item.submitted_at ?? item.created_at),
+    approval: item.auto_approved ? "Auto-approved" : "Manual review",
     type: "KYB",
   }));
 
@@ -95,9 +107,10 @@ export function useQueue() {
     name: `Candidate · ${item.candidate_id.slice(0, 8)}`,
     initials: "CA",
     submitted: relativeTime(item.created_at, "Flagged"),
-    secondary: item.rule_id.replaceAll("_", " "),
+    secondary: humanise(item.rule_id),
     risk: (item.severity[0] + item.severity.slice(1).toLowerCase()) as QueueRisk,
-    waiting: waitingTime(item.created_at),
+    date: formatDate(item.created_at),
+    approval: null,
     type: "Integrity",
   }));
 

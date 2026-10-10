@@ -35,6 +35,7 @@ import {
 import { Skeleton } from "@/components/common/loading";
 import { StudentProfileSkeleton } from "@/features/student/loading";
 import { StudentPage } from "@/features/student/shell";
+import { ProfilePhotoCard } from "@/components/profile-image/profile-photo-card";
 
 export function StudentProfile() {
   const router = useRouter();
@@ -89,6 +90,7 @@ export function StudentProfile() {
           }
         >
           <div className="flex flex-col gap-4">
+            <ProfilePhotoCard name={profile.data?.fullName ?? "Student"} />
             <section
               id="profile-reports"
               className="scroll-mt-24 rounded-[20px] border border-[#E7E0D4] bg-white p-4"

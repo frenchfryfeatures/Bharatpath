@@ -102,6 +102,7 @@ interface JobResponse {
   id: string;
   title: string;
   employer_name: string | null;
+  employer_logo_url?: string | null;
   description?: string;
   details?: Partial<CandidateJobDetails>;
   skills: string[];
@@ -264,6 +265,7 @@ function mapJob(response: JobResponse): JobListing {
     id: response.id,
     title: response.title,
     employerName: response.employer_name,
+    employerLogoUrl: response.employer_logo_url ?? null,
     description: response.description,
     details: response.details
       ? candidateDetailsWithDefaults(response.details)

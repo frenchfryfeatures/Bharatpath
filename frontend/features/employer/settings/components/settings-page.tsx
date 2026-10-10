@@ -15,6 +15,7 @@ import {
 
 import { SettingsTabs } from "./settings-tabs";
 import { CompanyTab } from "./company-tab";
+import { EmployerLogoCard } from "./employer-logo-card";
 import { TeamTab } from "./team-tab";
 import { PaymentTab } from "./payment-tab";
 import { SubscriptionTab } from "./subscription-tab";
@@ -43,7 +44,12 @@ export function EmployerSettingsPage() {
   const renderTab = () => {
     switch (settings.activeTab) {
       case "company":
-        return <CompanyTab />;
+        return (
+          <>
+            <EmployerLogoCard />
+            <CompanyTab />
+          </>
+        );
       case "team":
         return <TeamTab />;
       case "payment":

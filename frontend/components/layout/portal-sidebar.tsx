@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+import { useGetProfileImageQuery } from "@/store/api/profile-image-api";
 import {
   ArrowLeftToLine,
   LogOut,
@@ -112,6 +113,11 @@ export function PortalSidebar({
         ? "College account"
         : "Staff account");
   const initials = identityInitials(accountTitle);
+
+  const photo = useGetProfileImageQuery("photo", { skip: !identity });
+  const [failedPhoto, setFailedPhoto] = useState<string | null>(null);
+  const photoUrl =
+    photo.data?.url && photo.data.url !== failedPhoto ? photo.data.url : null;
 
   /*
    * ============================================================
@@ -677,7 +683,19 @@ export function PortalSidebar({
               font: '600 13px/16px "General Sans", sans-serif',
             }}
           >
-            {isIdentityResolving ? "" : initials}
+            {isIdentityResolving ? (
+              ""
+            ) : photoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- presigned, expiring URL
+              <img
+                src={photoUrl}
+                alt=""
+                onError={() => setFailedPhoto(photoUrl)}
+                className="h-full w-full rounded-full object-cover"
+              />
+            ) : (
+              initials
+            )}
           </span>
 
           {!collapsed && (

@@ -8,13 +8,13 @@ import { ErrorState } from "@/components/ui";
 
 import { SettingsTabs } from "./settings-tabs";
 import { KybApprovalTab } from "./kyb-approval-tab";
-import { PlatformTab } from "./platform-tab";
+import { ProfilePhotoCard } from "@/components/profile-image/profile-photo-card";
 import { AccountSecurityCard } from "@/components/auth/account-security-card";
 
 export function SettingsPage() {
   usePageHeader(
     "Settings",
-    "Approval mode, verification checks and platform controls",
+    "KYB approval mode, your profile photo and account security",
   );
 
   const {
@@ -23,6 +23,7 @@ export function SettingsPage() {
     error,
     isSaving,
     saveError,
+    canChangeKybMode,
     setKybMode,
     setTab,
   } = useSettings();
@@ -42,16 +43,15 @@ export function SettingsPage() {
           isLoading={isLoading}
           hasError={Boolean(error)}
           isSaving={isSaving}
+          canChange={canChangeKybMode}
           saveError={Boolean(saveError)}
           onModeChange={setKybMode}
         />
       ) : (
-        <>
-          <PlatformTab />
-          <div className="mt-4">
-            <AccountSecurityCard />
-          </div>
-        </>
+        <div className="mt-4 flex max-w-[640px] flex-col gap-4">
+          <ProfilePhotoCard />
+          <AccountSecurityCard />
+        </div>
       )}
     </div>
   );

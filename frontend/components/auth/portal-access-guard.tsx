@@ -21,6 +21,6 @@ export function PortalAccessGuard({ portal, children }: { portal: ProtectedPorta
   }, [allowed, isPublic, isResolving, router, user]);
 
   if (isPublic) return <>{children}</>;
-  if (!allowed) return <AccountDestinationLoading />;
+  if (!allowed) return <AccountDestinationLoading portal={portal} />;
   return <>{children}</>;
 }

@@ -17,7 +17,11 @@ export interface QueueItem {
   initials: string;
   submitted: string;
   secondary: string;
-  risk: QueueRisk;
-  waiting: string;
+  /** Integrity signals only (their severity). KYB submissions carry no risk. */
+  risk: QueueRisk | null;
+  /** When it was submitted (KYB) or flagged (integrity), formatted for the table. */
+  date: string;
+  /** KYB only: how the submission is being decided. */
+  approval: string | null;
   type: QueueItemType;
 }

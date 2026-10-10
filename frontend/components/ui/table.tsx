@@ -162,7 +162,7 @@ export const TableCell = forwardRef<
   return (
     <td
       ref={ref}
-      className={`px-5 py-3 text-[13px] text-[#151b2b] align-middle ${className}`}
+      className={`px-6 py-3 text-[13px] text-[#151b2b] align-middle ${className}`}
       {...props}
     />
   );

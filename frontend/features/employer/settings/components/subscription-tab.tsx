@@ -7,7 +7,8 @@ import { CancelSubscriptionDialog } from "@/components/billing/cancel-subscripti
 import { useCancelEmployerSubscriptionMutation, useCheckoutEmployerSubscriptionMutation, useCreateEmployerMandateMutation, useGetEmployerPlansQuery, useGetEmployerSubscriptionQuery, usePreviewEmployerDiscountMutation } from "@/store/employer/billing";
 import { DiscountCodeField } from "@/components/billing/discount-code-field";
 import { SimulatedPaymentDialog } from "@/components/billing/simulated-payment-dialog";
-import { isStubPaymentUrl } from "@/store/api/payment.api";
+import { isCompleteWithoutPayment, isStubPaymentUrl } from "@/store/api/payment.api";
+import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
 import type { CheckoutResponse } from "@/store/employer/billing/billing.api";
 import { useConfirmDialog } from "@/features/employer/components/use-confirm-dialog";
 import { EmployerErrorState } from "@/features/employer/components/employer-error-state";
@@ -64,7 +65,12 @@ export function SubscriptionTab() {
 
   const createCheckout = async (planCode: string, discountCode?: string) => {
     const result = await checkout({ planCode, discountCode }).unwrap();
-    if (isStubPaymentUrl(result.redirect_url)) setSimulatedCheckout(result);
+    if (isCompleteWithoutPayment(result)) {
+      setSimulatedCheckout(null);
+      setSelectedPlanCode(null);
+      await refetchSubscription();
+      showSuccessFeedback("Discount applied. Your subscription is active.");
+    } else if (isStubPaymentUrl(result.redirect_url)) setSimulatedCheckout(result);
     else if (result.redirect_url) window.location.assign(result.redirect_url);
   };
 

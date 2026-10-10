@@ -167,7 +167,7 @@ export function QueueDrawer() {
 
   const riskStyle =
     riskStyles[
-      item.risk as keyof typeof riskStyles
+      (item.risk ?? "Medium") as keyof typeof riskStyles
     ] ?? riskStyles.Medium;
 
   /*
@@ -290,6 +290,7 @@ export function QueueDrawer() {
             <div className="flex gap-2">
               {/* Risk */}
 
+              {item.risk ? (
               <span
                 className={[
                   "inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2.5 py-1",
@@ -300,6 +301,7 @@ export function QueueDrawer() {
               >
                 Risk · {item.risk}
               </span>
+              ) : null}
 
               {/* Queue type */}
 
@@ -476,19 +478,6 @@ export function QueueDrawer() {
             ========================================================== */}
 
         <div className="flex shrink-0 gap-2 border-t border-[#e5e7eb] px-2 py-3">
-          {/* Request info */}
-
-          {isKyb ? (
-            <button
-              type="button"
-              disabled={actionLoading}
-              onClick={() => void submitDecision("MORE_INFO_REQUIRED")}
-              className="flex-1 cursor-pointer rounded-lg border border-[#e5e7eb] bg-white px-3 py-3 text-[13px] font-semibold leading-[17px] text-[#172033] transition-colors hover:bg-[#f8f9fb] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Request info
-            </button>
-          ) : null}
-
           {/* Reject */}
 
           <button

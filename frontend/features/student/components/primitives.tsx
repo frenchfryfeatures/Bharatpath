@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useState, type ReactNode } from "react";
 
 /*
  * ==========================================================================
@@ -323,16 +325,35 @@ export function MonogramTile({
   children,
   tint = "indigo",
   size = 44,
+  logoUrl,
 }: {
   children: ReactNode;
   tint?: "navy" | "indigo" | "amber";
   size?: number;
+  /** The employer's logo. Falls back to the monogram when absent or broken. */
+  logoUrl?: string | null;
 }) {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const tints: Record<string, string> = {
     navy: "bg-[#0A1931] text-[#F4D685]",
     indigo: "bg-[#F1EAF7] text-[#4A3E8F]",
     amber: "bg-[#F7EFD6] text-[#7A5C0E]",
   };
+
+  if (logoUrl && failedUrl !== logoUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- presigned, expiring URL
+      <img
+        src={logoUrl}
+        alt=""
+        width={size}
+        height={size}
+        onError={() => setFailedUrl(logoUrl)}
+        className="shrink-0 rounded-[14px] border border-[#E7E0D4] bg-white object-contain"
+        style={{ width: size, height: size }}
+      />
+    );
+  }
 
   return (
     <span
