@@ -5,6 +5,7 @@ import { ImagePlus, Trash2 } from "lucide-react";
 
 import { Avatar, Button } from "@/components/ui";
 import { getApiErrorMessage } from "@/lib/api/error-message";
+import { PhotoCropper } from "./photo-cropper";
 import {
   useConfirmProfileImageMutation,
   useCreateProfileImageUploadMutation,
@@ -23,6 +24,7 @@ interface ImageUploaderProps {
   /** False hides replace and remove; the image is shown read-only. */
   canEdit?: boolean;
   className?: string;
+  embedded?: boolean;
 }
 
 const ACCEPT = "image/jpeg,image/png,image/webp";
@@ -39,10 +41,12 @@ export function ImageUploader({
   description,
   canEdit = true,
   className = "",
+  embedded = false,
 }: ImageUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [cropFile, setCropFile] = useState<File | null>(null);
 
   const image = useGetProfileImageQuery(target);
   const [createUpload] = useCreateProfileImageUploadMutation();
@@ -52,9 +56,26 @@ export function ImageUploader({
 
   const hasImage = Boolean(image.data?.url);
 
-  const onPick = async (file: File | undefined) => {
+  const onPick = (file: File | undefined) => {
     if (inputRef.current) inputRef.current.value = "";
     if (!file) return;
+    setError(null);
+    if (!ACCEPT.split(",").includes(file.type)) {
+      setError("Use a JPEG, PNG or WebP image.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError("That image is too large. The limit is 5 MB.");
+      return;
+    }
+    if (target === "photo") {
+      setCropFile(file);
+      return;
+    }
+    void upload(file);
+  };
+
+  const upload = async (file: File) => {
 
     setError(null);
     setBusy(true);
@@ -72,6 +93,7 @@ export function ImageUploader({
 
       await uploadFile({ ticket, file }).unwrap();
       await confirm({ target, uploadId: ticket.uploadId }).unwrap();
+      setCropFile(null);
     } catch (caught) {
       setError(getApiErrorMessage(caught, "Could not upload the image. Please try again."));
     } finally {
@@ -89,15 +111,19 @@ export function ImageUploader({
   };
 
   return (
-    <section className={`min-w-0 rounded-[12px] border border-[#e5e8ee] bg-white p-5 ${className}`}>
-      <h2 className="text-[14px] font-semibold leading-[18px] text-[#172033]">{title}</h2>
-      <p className="mt-1 max-w-[530px] text-[12px] leading-[17px] text-[#7b8494]">{description}</p>
+    <section className={`${embedded ? "min-w-0" : "min-w-0 rounded-[12px] border border-[#e5e8ee] bg-white p-5"} ${className}`}>
+      {!embedded && <>
+        <h2 className="text-[14px] font-semibold leading-[18px] text-[#172033]">{title}</h2>
+        <p className="mt-1 max-w-[530px] text-[12px] leading-[17px] text-[#7b8494]">{description}</p>
+      </>}
 
-      <div className="mt-4 flex flex-wrap items-center gap-4">
+      {cropFile ? (
+        <PhotoCropper key={`${cropFile.name}-${cropFile.lastModified}`} file={cropFile} busy={busy} onCancel={() => { setCropFile(null); setError(null); }} onSave={upload} />
+      ) : <div className={embedded ? "flex flex-col items-center gap-5 py-3" : "mt-4 flex flex-wrap items-center gap-4"}>
         <Avatar
           name={name}
           src={image.data?.url}
-          className="!h-16 !w-16 !text-[18px]"
+          className={embedded ? "!h-32 !w-32 !rounded-full !bg-[#F1EAF7] !text-[32px] !text-[#5F4DB2] ring-4 ring-[#F7F4FC]" : "!h-16 !w-16 !text-[18px]"}
         />
 
         {canEdit ? (
@@ -111,7 +137,7 @@ export function ImageUploader({
             />
             <Button
               type="button"
-              variant="secondary"
+              variant={embedded ? "primary" : "secondary"}
               size="sm"
               icon={<ImagePlus size={14} />}
               isLoading={busy}
@@ -119,7 +145,7 @@ export function ImageUploader({
               disabled={image.isLoading || removal.isLoading}
               onClick={() => inputRef.current?.click()}
             >
-              {hasImage ? "Replace" : "Upload"}
+              {embedded ? (hasImage ? "Choose new photo" : "Choose photo") : (hasImage ? "Replace" : "Upload")}
             </Button>
             {hasImage ? (
               <Button
@@ -136,9 +162,9 @@ export function ImageUploader({
             ) : null}
           </div>
         ) : null}
-      </div>
+      </div>}
 
-      <p className="mt-3 text-[11px] leading-4 text-[#7b8494]">JPEG, PNG or WebP.</p>
+      {!cropFile && <p className={`mt-3 text-[11px] leading-4 text-[#7b8494] ${embedded ? "text-center" : ""}`}>JPEG, PNG or WebP{embedded ? " · Up to 5 MB" : "."}</p>}
 
       {image.error ? (
         <p role="alert" className="mt-2 text-[12px] text-[#b42318]">

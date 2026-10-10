@@ -14,8 +14,11 @@ import {
 
 import { DetailSkeleton } from "@/components/common/loading";
 import { ErrorState } from "@/components/ui";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { useScrollLock } from "@/hooks/use-scroll-lock";
 import { openFreshDocument } from "@/lib/open-document";
+import { choiceLabel, fieldLabel, humanizeCode } from "@/lib/format/labels";
+import { INDIAN_STATES } from "@/features/student/onboarding/constants";
 import { FieldError } from "../../shared/form";
 import { showAdminFeedback } from "@/store/admin";
 import { useAppDispatch } from "@/store/hooks";
@@ -29,10 +32,19 @@ import {
 
 import { useQueue } from "../hooks/use-queue";
 
-function formatDetail(value: unknown): string {
+function formatDetail(value: unknown, code?: string): string {
   if (value === null || value === undefined || value === "") return "Not provided";
-  if (Array.isArray(value)) return value.map(formatDetail).join(", ");
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (Array.isArray(value)) return value.map((item) => formatDetail(item, code)).join(", ");
   if (typeof value === "object") return JSON.stringify(value);
+  if (typeof value === "string") {
+    if (code === "state") return INDIAN_STATES.find((state) => state.code === value)?.name ?? choiceLabel(value);
+    if (code === "employee_count_band") {
+      if (value === "5000_PLUS") return "More than 5,000 employees";
+      if (/^\d+_\d+$/.test(value)) return `${value.replace("_", "–")} employees`;
+    }
+    if (code && ["employer_type", "industry", "employee_count_band", "state", "severity", "status"].includes(code)) return humanizeCode(value);
+  }
   return String(value);
 }
 
@@ -49,13 +61,6 @@ function formatDateTime(value: string) {
 /** Most flags the backend accepts on one decision. */
 const MAX_FLAGS = 40;
 
-const DOCUMENT_LABELS: Record<string, string> = {
-  doc_pan: "PAN card",
-  doc_gst: "GST certificate",
-  doc_registration: "Registration certificate",
-  doc_authorisation: "Authorisation letter",
-};
-
 type KybDecision = "APPROVED" | "REJECTED" | "MORE_INFO_REQUIRED";
 type Decision = KybDecision | "CLEARED" | "CONFIRMED";
 
@@ -65,10 +70,6 @@ const DECISION_LABEL: Record<string, { text: string; tone: string }> = {
   REJECTED: { text: "Rejected", tone: "bg-[#fff0f1] text-[#c92f3f]" },
   UNDER_REVIEW: { text: "Under review", tone: "bg-[#eef0ff] text-[#385da8]" },
 };
-
-function fieldLabel(code: string) {
-  return DOCUMENT_LABELS[code] ?? code.replaceAll("_", " ");
-}
 
 /** Field and document codes the backend named in a 422's `params.fields`. */
 function refusedFields(error: unknown): string[] {
@@ -159,6 +160,7 @@ function QueueDrawerBody() {
   // Fields and documents the reviewer wants corrected, each with an optional note.
   const [flags, setFlags] = useState<Record<string, string>>({});
   const [pending, setPending] = useState<Decision | null>(null);
+  const [confirmation, setConfirmation] = useState<KybDecision | null>(null);
   const [documentOpening, setDocumentOpening] = useState<string | null>(null);
   const [documentError, setDocumentError] = useState(false);
 
@@ -206,15 +208,15 @@ function QueueDrawerBody() {
   const verificationChecks = isKyb
     ? Object.entries(kybDetail.data?.answers ?? {}).map(([code, value]) => ({
         code,
-        label: code.replaceAll("_", " "),
-        detail: formatDetail(value),
+        label: fieldLabel(code),
+        detail: formatDetail(value, code),
         status: value === null || value === "" ? ("Not run" as const) : ("Passed" as const),
         changed: changedFields.has(code),
       }))
     : Object.entries(integrityDetail.data?.evidence ?? {}).map(([code, value]) => ({
         code,
-        label: code.replaceAll("_", " "),
-        detail: formatDetail(value),
+        label: fieldLabel(code),
+        detail: formatDetail(value, code),
         status: "Attention" as const,
         changed: false,
       }));
@@ -265,7 +267,7 @@ function QueueDrawerBody() {
     setDocumentOpening(null);
   };
 
-  const submitDecision = async (decision: Decision) => {
+  const validateDecision = (decision: Decision): boolean => {
     // KYB reasons are read back by the organisation; the backend caps them at 1000
     // characters (integrity notes at 2000).
     const needsReason = isKyb && (decision === "REJECTED" || decision === "MORE_INFO_REQUIRED");
@@ -273,24 +275,34 @@ function QueueDrawerBody() {
     if (needsReason && !note.trim()) {
       setNoteError(
         decision === "REJECTED"
-          ? "Add the reason for rejecting. The organisation reads it on its KYB page."
-          : "Say what needs to change. The organisation reads it on its KYB page.",
+          ? "Cannot reject this submission without a remark. Enter the rejection reason in ‘Remark to the employer’, then click Reject again."
+          : "Cannot send back this submission without a remark. Explain what the employer needs to fix, then click Send back again.",
       );
-      return;
+      return false;
     }
     if (isKyb && decision === "APPROVED" && flagCodes.length > 0) {
       setNoteError("Untick the flagged items to approve, or use Send back to ask for changes.");
-      return;
+      return false;
     }
     if (note.trim().length > limit) {
       setNoteError(`Use ${limit} characters or fewer. This is ${note.trim().length}.`);
-      return;
+      return false;
     }
     if (flagCodes.length > MAX_FLAGS) {
       setNoteError(`Flag at most ${MAX_FLAGS} items. ${flagCodes.length} are ticked.`);
-      return;
+      return false;
     }
     setNoteError(undefined);
+    return true;
+  };
+
+  const requestDecision = (decision: KybDecision) => {
+    if (actionLoading || detailLoading || !validateDecision(decision)) return;
+    setConfirmation(decision);
+  };
+
+  const submitDecision = async (decision: Decision) => {
+    if (actionLoading || pending || !validateDecision(decision)) return;
     setPending(decision);
     try {
       if (isKyb) {
@@ -311,6 +323,7 @@ function QueueDrawerBody() {
     } catch {
       // Surfaced to the operator through `actionError` below.
       setPending(null);
+      setConfirmation(null);
       return;
     }
     setPending(null);
@@ -849,7 +862,6 @@ function QueueDrawerBody() {
                   (Send back or Reject only).
                 </span>
               ) : null}
-              <FieldError id="decision-note-error" message={noteError} />
               {actionError ? (
                 <>
                   <ErrorState error={actionError} fallback="The decision could not be saved. Try again." />
@@ -868,13 +880,18 @@ function QueueDrawerBody() {
             FOOTER
             ========================================================== */}
 
+        {noteError ? (
+          <div className="shrink-0 border-t border-[#fecaca] bg-[#fff0f1] px-4 py-3">
+            <FieldError id="decision-note-error" message={noteError} />
+          </div>
+        ) : null}
         <div className="flex shrink-0 gap-2 border-t border-[#e5e7eb] px-2 py-3">
           {/* Reject / Confirm */}
 
           <button
             type="button"
-            disabled={actionLoading}
-            onClick={() => void submitDecision(isKyb ? "REJECTED" : "CONFIRMED")}
+            disabled={actionLoading || detailLoading}
+            onClick={() => isKyb ? requestDecision("REJECTED") : void submitDecision("CONFIRMED")}
             title={isKyb ? "Final. The employer starts a new submission, pre-filled." : undefined}
             className={`${footerButton} flex-1 border border-[#c92f3f] bg-white text-[#c92f3f] hover:bg-[#fff7f7]`}
           >
@@ -886,8 +903,8 @@ function QueueDrawerBody() {
           {isKyb ? (
             <button
               type="button"
-              disabled={actionLoading}
-              onClick={() => void submitDecision("MORE_INFO_REQUIRED")}
+              disabled={actionLoading || detailLoading}
+              onClick={() => requestDecision("MORE_INFO_REQUIRED")}
               title="The employer fixes this same submission and resubmits."
               className={`${footerButton} flex-1 border border-[#9a6b18] bg-white text-[#9a6b18] hover:bg-[#fffaf0]`}
             >
@@ -899,14 +916,48 @@ function QueueDrawerBody() {
 
           <button
             type="button"
-            disabled={actionLoading}
-            onClick={() => void submitDecision(isKyb ? "APPROVED" : "CLEARED")}
+            disabled={actionLoading || detailLoading}
+            onClick={() => isKyb ? requestDecision("APPROVED") : void submitDecision("CLEARED")}
             className={`${footerButton} flex-[1.4] bg-[#5b4fcf] text-white hover:bg-[#4f44bc]`}
           >
             {pending === "APPROVED" || pending === "CLEARED" ? "Saving..." : isKyb ? "Approve" : "Clear"}
           </button>
         </div>
       </aside>
+      <ConfirmModal
+        open={confirmation !== null}
+        title={confirmation === "REJECTED" ? "Reject this submission?" : confirmation === "MORE_INFO_REQUIRED" ? "Send back for changes?" : "Approve this submission?"}
+        description={confirmation === "REJECTED"
+          ? `${item.name}'s submission will be rejected. The employer can start a new submission.`
+          : confirmation === "MORE_INFO_REQUIRED"
+            ? `${item.name} will be asked to correct this submission and resubmit it for review.`
+            : `${item.name}'s business verification will be approved.`}
+        confirmLabel={confirmation === "REJECTED" ? "Reject submission" : confirmation === "MORE_INFO_REQUIRED" ? "Send back" : "Approve submission"}
+        tone={confirmation === "REJECTED" ? "danger" : "default"}
+        icon={confirmation === "APPROVED" ? <Check size={18} /> : <AlertCircle size={18} />}
+        confirmLoading={actionLoading || pending !== null}
+        onClose={() => { if (!actionLoading && !pending) setConfirmation(null); }}
+        onConfirm={() => { if (confirmation) void submitDecision(confirmation); }}
+      >
+        <div className="max-h-[45vh] overflow-y-auto">
+        {note.trim() ? (
+          <div className="rounded-lg bg-[#f7f8fa] p-3">
+            <p className="text-[12px] font-semibold text-[#172033]">Remark to the employer</p>
+            <p className="mt-1 whitespace-pre-wrap break-words text-[13px] text-[#5d6673]">{note.trim()}</p>
+          </div>
+        ) : null}
+        {confirmation !== "APPROVED" && flagCodes.length > 0 ? (
+          <div className="mt-3 text-[12px] text-[#5d6673]">
+            <p className="font-semibold text-[#172033]">Items to fix ({flagCodes.length})</p>
+            <ul className="mt-1 list-disc space-y-1 pl-4">
+              {flagCodes.map((code) => (
+                <li key={code} className="break-words">{fieldLabel(code)}{flags[code].trim() ? `: ${flags[code].trim()}` : ""}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        </div>
+      </ConfirmModal>
     </div>
   );
 }

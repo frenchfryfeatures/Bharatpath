@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { OnboardingBackButton } from "@/components/common/onboarding-back-button";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 
 import { FormSkeleton } from "@/components/common/loading";
@@ -150,7 +151,8 @@ function firstStep(
   answers: KybAnswers,
 ): number {
   // Nothing saved yet: start at the beginning even if defaults fill it.
-  if (!submission.submissionId || submission.state === "REJECTED") {
+  if (!submission.submissionId || submission.state === "REJECTED" ||
+      (submission.state === "DRAFT" && submission.previousSubmissionId)) {
     return 0;
   }
 
@@ -177,6 +179,8 @@ function KybFlow({
   onSignOut,
   reloadSubmission,
 }: Readonly<KybFlowProps>) {
+  const router = useRouter();
+  const restartedAfterRejection = Boolean(initialSubmission.previousSubmissionId);
   const [submission, setSubmission] = useState(initialSubmission);
   const [answers, setAnswers] = useState<KybAnswers>(() => ({
     ...organisationDefaults(organisation),
@@ -378,12 +382,11 @@ function KybFlow({
     },
   ];
 
-  // Changes a reviewer asked for are made from the organisation's profile
-  // (Settings), not by walking the sign-up steps again.
+  // Sent-back submissions and rejections still begin from Settings.
+  // Once restarted, a new draft goes through these onboarding steps.
   const fixFromProfile =
     submission.state === "MORE_INFO_REQUIRED" ||
-    submission.state === "REJECTED" ||
-    (submission.state === "DRAFT" && Boolean(submission.previousSubmissionId));
+    submission.state === "REJECTED";
 
   if (fixFromProfile) {
     return (
@@ -426,6 +429,14 @@ function KybFlow({
 
   return (
     <SignupShell steps={steps} signedIn email={email} onSignOut={onSignOut}>
+      {restartedAfterRejection ? (
+        <OnboardingBackButton
+          label="Back to company profile"
+          className="mb-4"
+          disabled={busy}
+          onClick={() => router.push("/employer/settings")}
+        />
+      ) : null}
       <StepCard
         eyebrow={`Business verification · Step ${stepNumber} of ${totalSteps}`}
         title={onReview ? "Review and submit" : (section?.title ?? "")}
@@ -436,12 +447,7 @@ function KybFlow({
         }
         footer={
           <>
-            <OnboardingBackButton
-              disabled={stepIndex === 0 || busy}
-              onClick={() => goTo(stepIndex - 1)}
-             />
-
-            <div className="flex flex-col-reverse items-stretch gap-2 sm:flex-row sm:items-center sm:gap-4">
+            <div className="ml-auto flex flex-col-reverse items-stretch gap-2 sm:flex-row sm:items-center sm:gap-4">
               {!onReview && (
                 <p className="text-center text-[11px] text-[#8790a0] sm:text-right">
                   Your progress is saved at every step.

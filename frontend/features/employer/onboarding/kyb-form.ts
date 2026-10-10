@@ -1,3 +1,4 @@
+import { choiceLabel, fieldLabel } from "@/lib/format/labels";
 import type { FetchBaseQueryError } from "@reduxjs/toolkit/query";
 
 import type {
@@ -319,8 +320,7 @@ export function flagLabel(form: KybForm | undefined, code: string): string {
     return field.label;
   }
 
-  const text = code.replace(/^doc_/, "").replaceAll("_", " ");
-  return text.charAt(0).toUpperCase() + text.slice(1);
+  return fieldLabel(code);
 }
 
 /** Flags keyed by field/document code, minus the ones already corrected. */
@@ -346,7 +346,7 @@ export function optionLabel(
   return values
     .map(
       (item) =>
-        options.find((option) => option.code === item)?.label ?? String(item),
+        options.find((option) => option.code === item)?.label ?? choiceLabel(String(item)),
     )
     .join(", ");
 }

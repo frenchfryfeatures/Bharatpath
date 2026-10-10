@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowRight, Loader2, RotateCcw, ShieldAlert } from "lucide-react";
 
 import { ErrorState } from "@/components/ui";
@@ -71,6 +73,20 @@ export function KybChangesPanel({ kyb }: Readonly<{ kyb: KybSubmission }>) {
   // What a rejection raised, kept to guide the new draft that follows it.
   const [carried, setCarried] = useState<CarriedReview | null>(null);
   const [submitted, setSubmitted] = useState(false);
+
+  if (kyb.state === "DRAFT" && kyb.previousSubmissionId) {
+    return (
+      <section className="rounded-xl border border-[#f2cf93] bg-white p-5 shadow-sm sm:p-6">
+        <h2 className="text-[14px] font-bold text-[#111827]">Continue your business verification</h2>
+        <p className="mt-2 text-xs leading-5 text-[#687386]">
+          Your new submission is ready. Review your saved details through the onboarding steps, make corrections and submit for review.
+        </p>
+        <Link href="/signup/employer" className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#17233a] px-5 text-xs font-semibold text-white hover:bg-[#223453]">
+          Continue verification <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </Link>
+      </section>
+    );
+  }
 
   if (needsVerificationChanges(kyb)) {
     return (
@@ -150,16 +166,18 @@ function RejectedNotice({
   form: KybForm;
   onRestarted: (review: CarriedReview) => void;
 }>) {
+  const router = useRouter();
   const [saveAnswers, { isLoading }] = useSaveEmployerKybAnswersMutation();
   const [error, setError] = useState<string | null>(null);
 
   // An empty save makes the server open a new draft that already holds the
-  // old answers and documents. The profile then re-renders as the editor.
+  // old answers and documents, then opens the onboarding wizard.
   const startAgain = async () => {
     setError(null);
     try {
       await saveAnswers({ answers: {}, __suppressSuccessFeedback: true }).unwrap();
       onRestarted({ reason: kyb.decisionReason, flags: kyb.reviewFlags });
+      router.push("/signup/employer");
     } catch (failure) {
       setError(getApiErrorMessage(failure, "We could not start a new submission. Try again."));
     }
@@ -198,8 +216,8 @@ function RejectedNotice({
 
       <p className="mt-4 text-xs leading-5 text-[#687386]">
         This submission is closed. Starting again gives you a new one with your
-        previous answers and documents already filled in, so you only need to fix
-        what was raised and submit it.
+        previous answers and documents already filled in. You will go through the
+        onboarding steps to review your details, fix what was raised and submit it.
       </p>
 
       {error && (

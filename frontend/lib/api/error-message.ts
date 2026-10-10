@@ -1,3 +1,4 @@
+import { fieldLabel } from "@/lib/format/labels";
 import type { FetchBaseQueryError } from "@reduxjs/toolkit/query";
 
 import { ApiError } from "./errors";
@@ -202,7 +203,7 @@ export function getApiValidationMessages(error: unknown): string[] {
       ? loc.filter((part) => typeof part === "string" && part !== "body").pop()
       : undefined;
     const reason = msg.replace(/^Value error, /, "");
-    const label = typeof field === "string" ? field.replace(/_/g, " ") : "";
+    const label = typeof field === "string" ? fieldLabel(field) : "";
     return [label ? `${label}: ${reason}` : reason];
   });
 }

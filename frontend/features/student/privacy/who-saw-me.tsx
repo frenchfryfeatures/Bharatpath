@@ -3,7 +3,7 @@
 import { Building2, EyeOff, Info, ShieldCheck } from "lucide-react";
 
 import { Skeleton } from "@/components/common/loading";
-import { EmptyState, NoteStrip, StudentErrorState } from "@/features/student/components";
+import { EmptyState, MonogramTile, NoteStrip, StudentErrorState } from "@/features/student/components";
 import { formatDateTime } from "@/features/student/formatters";
 import { StudentPage, StudentTopBar } from "@/features/student/shell";
 import { useGetStudentProfileViewsQuery } from "@/store/student";
@@ -45,7 +45,7 @@ export function WhoSawMe() {
               <ul className="flex flex-col divide-y divide-[#F0EBDF]">
                 {views.data.items.map((view) => (
                   <li key={`${view.employerName}-${view.lastViewedAt}`} className="flex items-center gap-3 py-4 first:pt-0 last:pb-0">
-                    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#F1EAF7] text-[#5F4DB2]"><Building2 size={20} aria-hidden="true" /></span>
+                    <MonogramTile size={44} logoUrl={view.employerLogoUrl}><Building2 size={20} aria-hidden="true" /></MonogramTile>
                     <span className="min-w-0 flex-1"><span className="block truncate text-[15px] font-semibold text-[#0A1931]">{view.employerName}</span><span className="mt-0.5 block text-[12px] text-[#5F6B80]">Opened {formatDateTime(view.lastViewedAt)}</span></span>
                   </li>
                 ))}

@@ -79,6 +79,8 @@ interface StreakCheckInResponse {
 /** `GET /candidate/profile/views`: one entry per organisation, latest first. */
 interface ProfileViewResponse {
   employer_name: string;
+  employer_logo_url?: string | null;
+  logo_url?: string | null;
   last_viewed_at: string;
 }
 
@@ -127,6 +129,8 @@ interface ApplicationResponse {
   job_id: string;
   job_title: string | null;
   employer_name: string | null;
+  employer_logo_url?: string | null;
+  logo_url?: string | null;
   stage: JobApplication["stage"];
   hire_confirmation: JobApplication["hireConfirmation"];
   interview: {
@@ -199,6 +203,8 @@ interface CourseResponse {
 interface CollegeLinkResponse {
   college_id: string;
   college_name: string | null;
+  college_logo_url?: string | null;
+  logo_url?: string | null;
   scope: CollegeLink["scope"];
   granted_via: CollegeLink["grantedVia"];
   granted_at: string;
@@ -299,6 +305,7 @@ function mapApplication(response: ApplicationResponse): JobApplication {
     jobId: response.job_id,
     jobTitle: response.job_title,
     employerName: response.employer_name,
+    employerLogoUrl: response.employer_logo_url ?? response.logo_url ?? null,
     stage: response.stage,
     hireConfirmation: response.hire_confirmation,
     interview: response.interview
@@ -386,6 +393,7 @@ export const studentApi = baseApi.injectEndpoints({
       ): Page<ProfileView> => ({
         items: response.items.map((view) => ({
           employerName: view.employer_name,
+          employerLogoUrl: view.employer_logo_url ?? view.logo_url ?? null,
           lastViewedAt: view.last_viewed_at,
         })),
         nextCursor: response.next_cursor,
@@ -660,6 +668,7 @@ export const studentApi = baseApi.injectEndpoints({
         response.map((link) => ({
           collegeId: link.college_id,
           collegeName: link.college_name,
+          collegeLogoUrl: link.college_logo_url ?? link.logo_url ?? null,
           scope: link.scope,
           grantedVia: link.granted_via,
           grantedAt: link.granted_at,
@@ -680,6 +689,7 @@ export const studentApi = baseApi.injectEndpoints({
       transformResponse: (link: CollegeLinkResponse) => ({
         collegeId: link.college_id,
         collegeName: link.college_name,
+        collegeLogoUrl: link.college_logo_url ?? link.logo_url ?? null,
         scope: link.scope,
         grantedVia: link.granted_via,
         grantedAt: link.granted_at,
@@ -690,8 +700,8 @@ export const studentApi = baseApi.injectEndpoints({
     }),
     getCollegeInvitations: builder.query<CollegeInvitation[], void>({
       query: () => "/candidate/colleges/invitations",
-      transformResponse: (response: { id: string; college_name: string; sent_at: string; expires_at: string }[]) =>
-        response.map((item) => ({ id: item.id, collegeName: item.college_name, sentAt: item.sent_at, expiresAt: item.expires_at })),
+      transformResponse: (response: { id: string; college_name: string; college_logo_url?: string | null; logo_url?: string | null; sent_at: string; expires_at: string }[]) =>
+        response.map((item) => ({ id: item.id, collegeName: item.college_name, collegeLogoUrl: item.college_logo_url ?? item.logo_url ?? null, sentAt: item.sent_at, expiresAt: item.expires_at })),
       providesTags: [{ type: "Student", id: "COLLEGE_INVITATIONS" }],
     }),
     acceptCollegeInvitation: builder.mutation<void, { id: string; consentVersion: string }>({
@@ -754,6 +764,7 @@ export const {
 export interface CollegeInvitation {
   id: string;
   collegeName: string;
+  collegeLogoUrl?: string | null;
   sentAt: string;
   expiresAt: string;
 }

@@ -94,7 +94,7 @@ export function InvitesPage() {
         {!pages.isLoading ? <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{pages.items.map((invitation) => (
           <article key={invitation.id} className="group flex max-w-[460px] flex-col gap-3 rounded-[18px] border border-[#E9E4DA] bg-white p-4 shadow-[0_2px_10px_rgba(10,25,49,0.025)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#D9D1C3] hover:shadow-[0_12px_28px_rgba(10,25,49,0.07)]">
             <div className="flex items-start gap-3">
-              <MonogramTile size={40}>{employerMonogram(invitation.employer_name)}</MonogramTile>
+              <MonogramTile size={40} logoUrl={invitation.employer_logo_url}>{employerMonogram(invitation.employer_name)}</MonogramTile>
               <div className="min-w-0 flex-1 pt-0.5">
                 <h2 className="text-[15px] font-bold leading-5 tracking-[-0.025em] text-[#0A1931]">{invitation.job_title ?? "Job no longer available"}</h2>
                 <p className="mt-1 truncate text-[12px] leading-4 text-[#657187]">{invitation.employer_name ?? "Employer"}</p>

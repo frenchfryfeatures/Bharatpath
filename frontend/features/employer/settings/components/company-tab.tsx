@@ -1,5 +1,7 @@
 "use client";
 
+import { choiceLabel, humanizeCode } from "@/lib/format/labels";
+
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import {
   AlertCircle,
@@ -120,7 +122,7 @@ function getEmployerTypeLabel(
   if (!typeCode) return "—";
   const fromRef = referenceTypes?.find((t) => t.code === typeCode);
   if (fromRef) return fromRef.label;
-  return EMPLOYER_TYPE_MAP[typeCode] || typeCode;
+  return EMPLOYER_TYPE_MAP[typeCode] || choiceLabel(typeCode);
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -156,7 +158,7 @@ function StatusBadge({ status }: { status: string }) {
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full bg-[#f8f9fc] px-3 py-1 text-xs font-semibold text-[#475467] ring-1 ring-inset ring-[#eaecf0]">
       <FileText className="h-3.5 w-3.5" aria-hidden="true" />
-      {norm ? norm.replace(/_/g, " ") : "Draft"}
+      {norm ? humanizeCode(norm) : "Draft"}
     </span>
   );
 }

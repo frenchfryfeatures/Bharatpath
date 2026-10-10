@@ -1,5 +1,7 @@
 "use client";
 
+import { humanizeCode } from "@/lib/format/labels";
+
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { canAccessAdminQueueTab } from "@/lib/auth/route-access";
 
@@ -38,8 +40,7 @@ function initials(value: string) {
 
 /** "SUBMITTED" / "hidden_text" -> "Submitted" / "Hidden text". */
 function humanise(value: string) {
-  const text = value.replaceAll("_", " ").toLowerCase();
-  return text.charAt(0).toUpperCase() + text.slice(1);
+  return humanizeCode(value);
 }
 
 function relativeTime(value: string | null, prefix: string) {

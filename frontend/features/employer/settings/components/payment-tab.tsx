@@ -1,5 +1,7 @@
 "use client";
 
+import { humanizeCode } from "@/lib/format/labels";
+
 import { useGetEmployerSubscriptionQuery } from "@/store/employer/billing/billing.api";
 
 export function PaymentTab() {
@@ -19,7 +21,7 @@ export function PaymentTab() {
           <div className="w-[22px] text-[19px] font-bold">₹</div>
           <strong className="flex-1 text-xs">UPI AutoPay</strong>
           <span className="w-fit rounded-full bg-[#e9f6f0] px-2 py-1 text-[10px] font-bold text-[#13875e]">
-            {mandate.replace(/_/g, " ").toUpperCase()}
+            {humanizeCode(mandate)}
           </span>
         </div>
       ) : (

@@ -1,5 +1,7 @@
 "use client";
 
+import { humanizeCode } from "@/lib/format/labels";
+
 import type {
   DashboardMetric,
   IntakeClearedItem,
@@ -94,10 +96,7 @@ function subjectOf(item: AdminOldestWaitingItem): string {
 }
 
 function humaniseCode(value: string): string {
-  return value
-    .toLowerCase()
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  return humanizeCode(value);
 }
 
 function toMetrics(data: AdminDashboardResponse): DashboardMetric[] {

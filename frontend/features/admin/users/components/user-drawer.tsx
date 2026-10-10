@@ -1,5 +1,7 @@
 "use client";
 
+import { humanizeCode } from "@/lib/format/labels";
+
 import { useState } from "react";
 import { X } from "lucide-react";
 
@@ -150,7 +152,7 @@ export function UserDrawer() {
                 <section className="grid grid-cols-2 gap-3 rounded-lg border border-[#e5e7eb] p-4">
                   <Detail label="Legal name" value={employerQuery.data.legal_name ?? "Not provided"} />
                   <Detail label="KYB status" value={employerQuery.data.kyb_status ?? "Not submitted"} />
-                  <Detail label="Industry" value={employerQuery.data.industry ?? "Not provided"} />
+                  <Detail label="Industry" value={employerQuery.data.industry ? humanizeCode(employerQuery.data.industry) : "Not provided"} />
                   <Detail label="Views, last 30 days" value={String(employerQuery.data.candidates_viewed_last_30_days)} />
                 </section>
               ) : null}
@@ -626,10 +628,7 @@ function formatCount(value: number): string {
 }
 
 function humanise(value: string): string {
-  return value
-    .toLowerCase()
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  return humanizeCode(value);
 }
 
 function formatDate(value: string): string {
