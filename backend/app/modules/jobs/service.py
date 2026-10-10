@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, date, datetime
-from typing import Any, Final
+from typing import Any, Final, NamedTuple
 
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -531,17 +531,29 @@ async def open_job_for_application(
     return job
 
 
+class CandidateJobRef(NamedTuple):
+    """A job named on the candidate's own screens: its title and who posted it."""
+
+    title: str | None = None
+    employer_name: str | None = None
+    #: A presigned link that expires; null when the employer has no logo.
+    employer_logo_url: str | None = None
+
+
 async def jobs_for_candidate(
     session: AsyncSession, *, ctx: TenantContext, job_ids: list[uuid.UUID]
-) -> dict[uuid.UUID, tuple[str, str | None]]:
-    """`job id -> (title, employer name)` for jobs on the candidate's own board,
-    including jobs that closed after they applied."""
+) -> dict[uuid.UUID, CandidateJobRef]:
+    """`job id -> (title, employer name, employer logo)` for jobs on the
+    candidate's own board, including jobs that closed after they applied."""
     await bind_candidate(session, ctx)
     jobs = await repository.jobs_by_id(session, job_ids=job_ids)
-    names = await employer_service.public_names(
-        session, tenant_ids=list({job.tenant_id for job in jobs})
-    )
-    return {job.id: (job.title, names.get(job.tenant_id)) for job in jobs}
+    tenant_ids = list({job.tenant_id for job in jobs})
+    names = await employer_service.public_names(session, tenant_ids=tenant_ids)
+    logos = await profile_images_service.logo_urls(session, tenant_ids=tenant_ids)
+    return {
+        job.id: CandidateJobRef(job.title, names.get(job.tenant_id), logos.get(job.tenant_id))
+        for job in jobs
+    }
 
 
 async def recommend(

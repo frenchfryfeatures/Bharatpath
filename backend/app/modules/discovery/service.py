@@ -98,6 +98,7 @@ from app.modules.discovery.schemas import (
     StateChoice,
 )
 from app.modules.employer import service as employer_service
+from app.modules.profile_images import service as profile_images_service
 
 logger = get_logger(__name__)
 
@@ -729,9 +730,16 @@ async def profile_views(
     rows = await repository.profile_views(session, after=_views_after(cursor), limit=page_size + 1)
     page, more = rows[:page_size], len(rows) > page_size
     last = page[-1] if more and page else None
+    logos = await profile_images_service.logo_urls(
+        session, tenant_ids=[row.tenant_id for row in page]
+    )
     return Page[ProfileView](
         items=[
-            ProfileView(employer_name=row.employer_name, last_viewed_at=row.last_viewed_at)
+            ProfileView(
+                employer_name=row.employer_name,
+                employer_logo_url=logos.get(row.tenant_id),
+                last_viewed_at=row.last_viewed_at,
+            )
             for row in page
         ],
         next_cursor=(

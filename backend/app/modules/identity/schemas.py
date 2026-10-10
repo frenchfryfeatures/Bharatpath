@@ -93,6 +93,16 @@ class MeResponse(_Base):
         description="The name a candidate gave on their profile. Null for a candidate who has "
         "not set one, and always null for a business account, which has no stored name.",
     )
+    photo_url: str | None = Field(
+        default=None,
+        description="The caller's own profile photo, a presigned link that expires. Null "
+        "without one. Changed at `/profile/photo`.",
+    )
+    organisation_logo_url: str | None = Field(
+        default=None,
+        description="The logo of the caller's organisation (employer or college), a "
+        "presigned link that expires. Null for a candidate, or an organisation without one.",
+    )
 
 
 # ---------------------------------------------------------------------------

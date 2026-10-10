@@ -5,7 +5,7 @@ Added 2026-10-09. Two kinds of image, one module (`profile_images`):
 | Image | Whose | Who sets it | Who sees it |
 |---|---|---|---|
 | **Profile photo** | Every signed-in person: student, employer member, college member, BharatPath staff | The person, for themselves | The person, and BharatPath staff (student photos appear on the admin console's full candidate page). **A student's photo is never shown to an employer or a college.** |
-| **Organisation logo** | An employer or a college | Employer: the **owner**. College: the **college admin**. | Every member of that organisation, and every candidate who sees the employer's jobs (`employer_logo_url` on the board) |
+| **Organisation logo** | An employer or a college | Employer: the **owner**. College: the **college admin**. | Everyone shown the organisation's name: its members, candidates (jobs, applications, invitations, colleges), colleges (where students applied and were hired) and staff. See §4. |
 
 **Why employers never see a student's photo:** a face shows gender, age and
 more. Masked search exists so an employer judges on band and skills. Showing
@@ -85,12 +85,49 @@ The same four routes. Read: college admin and staff. Change: **college admin** o
 
 ## 4. Where else images appear
 
-- **Job board** (`GET /candidate/jobs`, `GET /candidate/jobs/{id}`, and both
-  recommended-jobs lists): every job carries **`employer_logo_url`** (null
-  without a logo). See [05](05-jobs-and-discovery-apis.md).
-- **Admin console** `GET /admin/candidates/{id}/onboarding` carries
-  **`photo_url`**, the student's photo. It's audited like the rest of that
-  page. See [13](13-admin-console-and-disputes-apis.md).
+Since 2026-10-10, **every response that names an employer or a college
+carries its logo**, and the screens that are yours carry your own photo.
+Each is a presigned `url` string (or `null`) that expires like the one in
+`ImageResponse`: show it, don't store it.
+
+### Logos — beside the organisation's name
+
+| Who reads it | Where | Field |
+|---|---|---|
+| Candidate | Job board, job detail, both recommended-jobs lists | `employer_logo_url` |
+| Candidate | `GET /candidate/applications`, `…/{id}`, apply, withdraw, confirm/dispute hire | `employer_logo_url` |
+| Candidate | `GET /candidate/applications/{id}/messages` | `employer_logo_url` |
+| Candidate | `GET /candidate/shortlist-invitations` (and accept/decline) | `employer_logo_url` |
+| Candidate | `GET /candidate/profile/views` | `employer_logo_url` |
+| Candidate | `GET /candidate/colleges`, link by code, accept invitation | `college_logo_url` |
+| Candidate | `GET /candidate/colleges/invitations` | `college_logo_url` |
+| College | `GET /college/students/{id}` → `hires[]` | `employer_logo_url` |
+| College | `GET /college/students/{id}/details` → `applications[]` | `employer_logo_url` |
+| The organisation | `GET/POST/PATCH /employer/organisation`, `GET/POST/PATCH /college/organisation` | `logo_url` |
+| Any member | `GET /auth/me` | `organisation_logo_url` (null for a candidate) |
+| Staff | `/admin/tenants`, `/admin/employers/{id}`, `/admin/colleges/{id}` | `logo_url` |
+| Staff | `/admin/kyb/submissions`, discount-code redemptions, dashboard `oldest_waiting` | `organisation_logo_url` |
+| Staff | candidate drill-down and onboarding → `college_links[]` | `college_logo_url` |
+| Staff | `/admin/candidates/{id}/applications` | `employer_logo_url` |
+
+### Photos — your own screens, and staff
+
+| Who reads it | Where | Field |
+|---|---|---|
+| Anyone, their own | `GET /auth/me` | `photo_url` |
+| Candidate, their own | `GET /candidate/profile`, `PUT …/location`, `PUT …/name` | `photo_url` |
+| Staff | `/admin/candidates` (list), `/admin/candidates/{id}`, `…/onboarding` | `photo_url` |
+| Staff | `/admin/integrity/signals` and `…/{id}` → `candidate` | `photo_url` |
+
+**Not on any employer- or college-facing response**: masked search cards,
+the reveal, applicant cards and the opened application, the shortlist, and
+the college's roster and student pages carry **no** photo field. That is the
+2026-10-09 rule above, and it stays.
+
+**Team lists** (`/employer/team`, `/college/team`) carry no photo either:
+the reach test refuses a photo field in those modules' schemas, whosever it
+is. A member's own photo is on their `/auth/me`.
+
 - **Data export** includes a `photo` section (type, size, date set). To get
   the image itself, call `GET /profile/photo`.
 - **Erasure** deletes the photo from storage first, then the row.

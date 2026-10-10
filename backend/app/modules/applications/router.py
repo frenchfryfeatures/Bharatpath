@@ -441,7 +441,7 @@ async def my_messages(
     application_id: uuid.UUID, user: CurrentUser, session: DbSession
 ) -> list[CandidateMessageResponse]:
     """Not paywalled, like the application itself."""
-    employer, rows = await service.messages_for_candidate(
+    application, rows = await service.messages_for_candidate(
         session, ctx=user, application_id=application_id
     )
     return [
@@ -451,7 +451,8 @@ async def my_messages(
             body=r.body,
             scheduled_at=r.scheduled_at,
             link=r.link,
-            employer_name=employer,
+            employer_name=application.employer_name,
+            employer_logo_url=application.employer_logo_url,
             created_at=r.created_at,
         )
         for r in rows

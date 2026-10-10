@@ -226,10 +226,27 @@ async def remove(session: AsyncSession, *, owner: Owner) -> ImageResponse:
 
 async def logo_urls(session: AsyncSession, *, tenant_ids: list[uuid.UUID]) -> dict[uuid.UUID, str]:
     """`tenant id -> presigned logo URL` for those organisations that have
-    one. For any surface that names an organisation to a candidate: the
-    job board and the recommended jobs."""
+    one. For any surface that names an organisation: to a candidate (the
+    board, their applications, invitations, colleges, who viewed them), to a
+    college (where its students applied and were hired), to the organisation
+    itself, and to staff. A logo is the organisation's own face, shown on
+    purpose; a person's photo is not (`photo_url`)."""
     rows = await repository.logos(session, tenant_ids=sorted(set(tenant_ids)))
     return {row.tenant_id: await _url(row.s3_key) for row in rows}
+
+
+async def logo_url(session: AsyncSession, *, tenant_id: uuid.UUID | None) -> str | None:
+    """One organisation's logo, or None. `logo_urls` for a list."""
+    if tenant_id is None:
+        return None
+    return (await logo_urls(session, tenant_ids=[tenant_id])).get(tenant_id)
+
+
+async def own_photo_url(session: AsyncSession, *, ctx: TenantContext) -> str | None:
+    """The caller's own photo, for their own screens. The id is the verified
+    caller's, so this cannot be pointed at anyone else."""
+    row = await repository.photo(session, user_id=ctx.user_id)
+    return await _url(row.s3_key) if row is not None else None
 
 
 async def photo_url(session: AsyncSession, *, user_id: uuid.UUID) -> str | None:
@@ -238,3 +255,11 @@ async def photo_url(session: AsyncSession, *, user_id: uuid.UUID) -> str | None:
     employer or a college; see `domain`."""
     row = await repository.photo(session, user_id=user_id)
     return await _url(row.s3_key) if row is not None else None
+
+
+async def photo_urls(session: AsyncSession, *, user_ids: list[uuid.UUID]) -> dict[uuid.UUID, str]:
+    """`user id -> photo URL`, for **staff only**: the console's lists that
+    name a person, read inside the audited bypass session. The same rule as
+    `photo_url`, and the same invariant test holds its callers."""
+    rows = await repository.photos(session, user_ids=sorted(set(user_ids)))
+    return {row.user_id: await _url(row.s3_key) for row in rows}

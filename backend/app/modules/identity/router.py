@@ -35,6 +35,7 @@ from app.modules.identity.schemas import (
     OtpStartRequest,
     OtpStartResponse,
 )
+from app.modules.profile_images import service as profile_images_service
 from app.settings import get_settings
 
 router = APIRouter()
@@ -96,11 +97,15 @@ async def me(user: CurrentUser, session: DbSession) -> MeResponse:
 
     `email` is the caller's own, from `users`. `full_name` exists only for a
     candidate (their profile name); a business account has no stored name, so
-    it is null rather than guessed from the address.
+    it is null rather than guessed from the address. `photo_url` is the
+    caller's own photo, and `organisation_logo_url` their organisation's logo.
     """
-    full_name = None
     if user.role == "CANDIDATE":
-        full_name = (await candidate_service.get_profile(session, ctx=user)).full_name
+        profile = await candidate_service.get_profile(session, ctx=user)
+        full_name, photo_url = profile.full_name, profile.photo_url
+    else:
+        full_name = None
+        photo_url = await profile_images_service.own_photo_url(session, ctx=user)
     return MeResponse(
         user_id=user.user_id,
         role=user.role,
@@ -108,6 +113,10 @@ async def me(user: CurrentUser, session: DbSession) -> MeResponse:
         tenant_id=user.tenant_id,
         email=await service.email_of(session, user_id=user.user_id),
         full_name=full_name,
+        photo_url=photo_url,
+        organisation_logo_url=await profile_images_service.logo_url(
+            session, tenant_id=user.tenant_id
+        ),
     )
 
 

@@ -15,8 +15,10 @@ viewers can read them.
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, Depends, Response, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import (
     EMPLOYER_OWNER,
@@ -40,6 +42,7 @@ from app.modules.employer.schemas import (
     TermResponse,
     UpdateOrganisationRequest,
 )
+from app.modules.profile_images import service as profile_images_service
 
 router = APIRouter()
 
@@ -47,8 +50,9 @@ AnyEmployerRole = Depends(require_role(EMPLOYER_OWNER, EMPLOYER_RECRUITER, EMPLO
 OwnerOnly = Depends(require_role(EMPLOYER_OWNER))
 
 
-def _organisation(row: object) -> OrganisationResponse:
-    return OrganisationResponse.model_validate(row)
+async def _organisation(session: AsyncSession, row: Any) -> OrganisationResponse:
+    logo = await profile_images_service.logo_url(session, tenant_id=row.tenant_id)
+    return OrganisationResponse.model_validate(row).model_copy(update={"logo_url": logo})
 
 
 def _member(member: object) -> TeamMemberResponse:
@@ -82,7 +86,7 @@ async def create_organisation(
     """409 if the account already belongs to an organisation -- including a
     suspended one, so suspension cannot be escaped by starting afresh."""
     row = await service.create_organisation(session, user_id=identity.user_id, payload=payload)
-    return _organisation(row)
+    return await _organisation(session, row)
 
 
 @router.get(
@@ -92,7 +96,7 @@ async def create_organisation(
     summary="The caller's organisation",
 )
 async def get_organisation(user: CurrentUser, session: DbSession) -> OrganisationResponse:
-    return _organisation(await service.get_organisation(session, ctx=user))
+    return await _organisation(session, await service.get_organisation(session, ctx=user))
 
 
 @router.patch(
@@ -106,7 +110,8 @@ async def update_organisation(
 ) -> OrganisationResponse:
     """KYB status is not editable here and never will be: it moves only
     through the KYB state machine, or invariant 8 is one PATCH from bypassed."""
-    return _organisation(await service.update_organisation(session, ctx=user, payload=payload))
+    row = await service.update_organisation(session, ctx=user, payload=payload)
+    return await _organisation(session, row)
 
 
 @router.get(
