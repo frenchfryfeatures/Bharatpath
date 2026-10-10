@@ -39,6 +39,13 @@ async def logo(
     return (await session.execute(query)).scalar_one_or_none()
 
 
+async def photos(session: AsyncSession, *, user_ids: list[uuid.UUID]) -> list[UserPhoto]:
+    if not user_ids:
+        return []
+    result = await session.execute(select(UserPhoto).where(UserPhoto.user_id.in_(user_ids)))
+    return list(result.scalars().all())
+
+
 async def logos(session: AsyncSession, *, tenant_ids: list[uuid.UUID]) -> list[OrganisationLogo]:
     if not tenant_ids:
         return []

@@ -296,3 +296,204 @@ async def test_an_erasure_collects_the_photo_before_the_rows_go(
         )
     assert manifest.get("user_photos") == 1
     assert left == 0
+
+
+# ===========================================================================
+# Wherever an organisation is named, its logo; your own photo on your own
+# screens (2026-10-10). A student's photo still reaches nobody else -- see
+# `tests/invariants/test_profile_photo_reach.py`.
+# ===========================================================================
+ME = f"{API}/auth/me"
+
+
+async def _logo(client: Any, who: dict, fake: FakeImageS3, base: str = EMPLOYER_LOGO) -> str:
+    confirmed, _, _ = await _upload(client, base, who["headers"], fake, _png_with_alpha())
+    assert confirmed.status_code == 200, confirmed.text
+    return str(confirmed.json()["url"])
+
+
+async def _photo(client: Any, who: dict, fake: FakeImageS3) -> str:
+    confirmed, _, _ = await _upload(client, PHOTO, who["headers"], fake, _jpeg())
+    assert confirmed.status_code == 200, confirmed.text
+    return str(confirmed.json()["url"])
+
+
+async def test_your_own_photo_and_your_organisations_logo_are_on_your_own_screens(
+    client: Any, mint_token: Any, images: FakeImageS3
+) -> None:
+    me = await _candidate(mint_token, scored=False, subscribed=False)
+    before = (await client.get(ME, headers=me["headers"])).json()
+    assert before["photo_url"] is None and before["organisation_logo_url"] is None
+    photo = await _photo(client, me, images)
+    assert (await client.get(ME, headers=me["headers"])).json()["photo_url"] == photo
+    profile = await client.get(f"{API}/candidate/profile", headers=me["headers"])
+    assert profile.status_code == 200 and profile.json()["photo_url"] == photo
+    named = await client.put(
+        f"{API}/candidate/profile/name", json={"full_name": "Asha Rao"}, headers=me["headers"]
+    )
+    assert named.status_code == 200 and named.json()["photo_url"] == photo
+
+    employer = await _employer(client, mint_token)
+    organisation = f"{API}/employer/organisation"
+    assert (await client.get(organisation, headers=employer["headers"])).json()["logo_url"] is None
+    logo = await _logo(client, employer, images)
+    assert (await client.get(ME, headers=employer["headers"])).json()[
+        "organisation_logo_url"
+    ] == logo
+    assert (await client.get(organisation, headers=employer["headers"])).json()["logo_url"] == logo
+
+    college = await _college(client, mint_token)
+    college_logo = await _logo(client, college, images, COLLEGE_LOGO)
+    mine = (await client.get(ME, headers=college["headers"])).json()
+    assert mine["organisation_logo_url"] == college_logo
+    own = await client.get(f"{API}/college/organisation", headers=college["headers"])
+    assert own.json()["logo_url"] == college_logo
+
+
+async def test_a_candidate_sees_the_employers_logo_on_applications_and_messages(
+    client: Any, mint_token: Any, images: FakeImageS3
+) -> None:
+    from tests.integration.test_pipeline import PIPELINE, _applied
+
+    a = await _applied(client, mint_token)
+    logo = await _logo(client, a["employer"], images)
+    applications = f"{API}/candidate/applications"
+    headers = a["candidate"]["headers"]
+
+    listed = (await client.get(applications, headers=headers)).json()["items"]
+    [mine] = [item for item in listed if item["id"] == a["id"]]
+    assert mine["employer_logo_url"] == logo
+    detail = await client.get(f"{applications}/{a['id']}", headers=headers)
+    assert detail.json()["employer_logo_url"] == logo
+
+    sent = await client.post(
+        f"{PIPELINE}/{a['id']}/messages",
+        json={"kind": "GENERAL", "body": "Thanks for applying."},
+        headers=a["employer"]["headers"],
+    )
+    assert sent.status_code == 201, sent.text
+    [message] = (await client.get(f"{applications}/{a['id']}/messages", headers=headers)).json()
+    assert message["employer_logo_url"] == logo
+
+
+async def test_a_candidate_sees_the_logo_on_an_invitation_and_on_who_viewed_them(
+    client: Any, mint_token: Any, images: FakeImageS3
+) -> None:
+    from tests.integration.test_shortlist import INVITATIONS, _opened, _shortlist
+
+    employer, candidate = await _opened(client, mint_token)
+    logo = await _logo(client, employer, images)
+    job = await _job(client, employer)
+    invited = await _shortlist(client, employer, candidate, job)
+    assert invited.status_code == 201, invited.text
+
+    [invitation] = (await client.get(INVITATIONS, headers=candidate["headers"])).json()["items"]
+    assert invitation["employer_logo_url"] == logo
+    views = await client.get(f"{API}/candidate/profile/views", headers=candidate["headers"])
+    [view] = views.json()["items"]
+    assert view["employer_logo_url"] == logo
+
+
+async def test_a_student_sees_the_colleges_logo_on_links_and_invitations(
+    client: Any, mint_token: Any, images: FakeImageS3
+) -> None:
+    from tests.integration.test_college import STUDENT, _allocate, _code, _link
+    from tests.integration.test_roster_import import _committed_and_sent, _phone, _student
+
+    college = await _college(client, mint_token)
+    logo = await _logo(client, college, images, COLLEGE_LOGO)
+    student = await _candidate(mint_token, scored=False, subscribed=False)
+    code = await _code(client, college)
+    linked = await _link(client, student, code["code"])
+    assert linked.status_code == 201, linked.text
+    assert linked.json()["college_logo_url"] == logo
+    [link] = (await client.get(STUDENT, headers=student["headers"])).json()
+    assert link["college_logo_url"] == logo
+
+    await _allocate(college["tenant_id"], 5)
+    phone = _phone()
+    await _committed_and_sent(client, college, f"name,phone\nAsha,{phone}\n")
+    invited = await _student(mint_token, phone)
+    [invitation] = (await client.get(f"{STUDENT}/invitations", headers=invited["headers"])).json()
+    assert invitation["college_logo_url"] == logo
+
+
+async def test_a_college_sees_the_employers_logo_where_its_student_applied_and_was_hired(
+    client: Any, mint_token: Any, images: FakeImageS3
+) -> None:
+    from tests.integration.test_college import COLLEGE
+    from tests.integration.test_college_consent import (
+        _application,
+        _grant_individual,
+        _linked_student,
+    )
+
+    college = await _college(client, mint_token)
+    student = await _linked_student(client, mint_token, college)
+    granted = await _grant_individual(client, student, college["tenant_id"])
+    assert granted.status_code in (200, 201), granted.text
+    employer = await _employer(client, mint_token)
+    logo = await _logo(client, employer, images)
+    job = await _job(client, employer)
+    await _application((employer["tenant_id"], job["id"]), student["id"], outcome="HIRED")
+
+    students = f"{COLLEGE}/students/{student['id']}"
+    opened = await client.get(students, headers=college["headers"])
+    assert opened.status_code == 200, opened.text
+    [hire] = opened.json()["hires"]
+    assert hire["employer_name"] == employer["name"] and hire["employer_logo_url"] == logo
+    assert "employer_tenant_id" not in hire, "the id finds the logo; it is not sent"
+
+    details = await client.get(f"{students}/details", headers=college["headers"])
+    assert details.status_code == 200, details.text
+    [application] = details.json()["applications"]
+    assert application["employer_logo_url"] == logo
+    assert "employer_tenant_id" not in application
+
+
+async def test_staff_see_photos_and_logos_across_the_console(
+    client: Any, mint_token: Any, images: FakeImageS3
+) -> None:
+    from tests.integration.test_admin_console import ADMIN, _find
+    from tests.integration.test_college import _code, _link
+    from tests.integration.test_pipeline import _applied
+
+    admin = await _staff(mint_token)
+    a = await _applied(client, mint_token)
+    candidate, employer = a["candidate"], a["employer"]
+    photo = await _photo(client, candidate, images)
+    logo = await _logo(client, employer, images)
+    name = f"Console {uuid.uuid4().hex[:8]}"
+    await client.put(
+        f"{API}/candidate/profile/name", json={"full_name": name}, headers=candidate["headers"]
+    )
+    college = await _college(client, mint_token)
+    college_logo = await _logo(client, college, images, COLLEGE_LOGO)
+    code = await _code(client, college)
+    assert (await _link(client, candidate, code["code"])).status_code == 201
+
+    row = await _find(
+        client, f"{ADMIN}/candidates", admin["headers"], str(candidate["id"]), name_contains=name
+    )
+    assert row is not None and row["photo_url"] == photo
+    person = f"{ADMIN}/candidates/{candidate['id']}"
+    drilldown = (await client.get(person, headers=admin["headers"])).json()
+    assert drilldown["photo_url"] == photo
+    assert [c["college_logo_url"] for c in drilldown["college_links"]] == [college_logo]
+    onboarding = (await client.get(f"{person}/onboarding", headers=admin["headers"])).json()
+    assert [c["college_logo_url"] for c in onboarding["college_links"]] == [college_logo]
+    applied = (await client.get(f"{person}/applications", headers=admin["headers"])).json()
+    assert [i["employer_logo_url"] for i in applied["items"]] == [logo]
+
+    organisation = f"{ADMIN}/employers/{employer['tenant_id']}"
+    assert (await client.get(organisation, headers=admin["headers"])).json()["logo_url"] == logo
+    campus = f"{ADMIN}/colleges/{college['tenant_id']}"
+    assert (await client.get(campus, headers=admin["headers"])).json()["logo_url"] == college_logo
+    tenant = await _find(
+        client,
+        f"{ADMIN}/tenants",
+        admin["headers"],
+        employer["tenant_id"],
+        name_contains=employer["name"],
+    )
+    assert tenant is not None and tenant["logo_url"] == logo

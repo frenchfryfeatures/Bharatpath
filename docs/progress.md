@@ -9,6 +9,52 @@ states. Newest entries first.
 
 ---
 
+## 2026-10-10 — Logos wherever an organisation is named; photos stay narrow
+
+Client request via the lead: "return the profile photo/logo wherever we send
+a student, employer or college". Backend only. App-team contract:
+`backend-guide/16` §4.
+
+- **Logos: everywhere an employer or college is named.** Candidate side:
+  applications (list, detail, apply, withdraw, hire answers), messages,
+  shortlist invitations, who viewed my profile, college links and
+  invitations. College side: where a visible student applied and was
+  hired. The organisation's own `/employer/organisation` and
+  `/college/organisation`, and `/auth/me` (`organisation_logo_url`).
+  Console: tenants, both organisation drill-downs, KYB queue, redemptions,
+  dashboard oldest items, a candidate's college links and applications.
+- **Photos: decided by the lead, 2026-10-10 -- the 2026-10-09 rule stands.**
+  Own photo on `/auth/me` and `/candidate/profile`; staff get it on the
+  candidate list, drill-down and integrity queue. **No employer- or
+  college-facing response carries one** (masked cards, reveal, applicants,
+  shortlist, college roster and student pages). Team lists carry none
+  either.
+- **The reach test had a hole, now closed.** It walked only modules in
+  `FACING_OTHERS` and only models defined there, so `RevealedCandidate`
+  (in `candidate`) and anything nested from `resume` were never checked; a
+  photo on the reveal would have passed. It now walks nested models from
+  any module, names `RevealedCandidate`, covers `photo_urls`, and holds
+  `own_photo_url` to taking no id. Checked by adding a photo field to
+  `SharedResumeView`: two tests failed, as they should.
+- **Migration `0017_college_reads_employer_logo`:** `college_student_hires`
+  and `college_student_applications` recreated with an `employer_tenant_id`
+  column, each with its own consent CTE copied verbatim. Both now
+  EXECUTE-to-app-role only (the baseline had left hires at the PUBLIC
+  default). Up, down, up tested locally. The deploy's migrate step
+  (`docker-compose.prod.yml`) applies it; until it has, the new code's
+  college student pages would 500, so ship code and migration together.
+- `test_profile_views.VIEW_FIELDS` widened by `employer_logo_url`, on
+  purpose (it is the organisation's face, not who looked).
+- **Web uploads of photos and logos failed with a "CORS error"** (front-end
+  report). S3, not the API: the `profile_images` bucket had no CORS
+  configuration, so the browser's preflight got 403. `course_media` (lesson
+  uploads from the console) had the same gap. Both added to
+  `aws_s3_bucket_cors_configuration.uploads` in `s3.tf`; plan was 2 to add,
+  0 change, 0 destroy; **applied 2026-10-10**. Preflight from the Vercel
+  origin now 200. Rule: every `presign_put` bucket belongs in that set.
+
+---
+
 ## 2026-10-10 — KYB: send back, correct, resubmit; notifications both ways
 
 Client request via the lead (answers-log 14.1). **Employers only**; colleges

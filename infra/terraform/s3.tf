@@ -69,8 +69,15 @@ resource "aws_s3_bucket_versioning" "this" {
 # Presigned uploads come straight from the mobile client, so the browser
 # and RN fetch layer need CORS. Kept wide for development -- tighten to
 # the real origins before launch.
+#
+# **Every bucket the backend issues a presigned PUT for belongs here**
+# (`storage.presign_put` callers). `profile_images` and `course_media` were
+# left out when they were added, so S3 answered the browser's preflight with
+# a 403 and every photo, logo and lesson upload from the web failed as a
+# "CORS error" (2026-10-10). The mobile app, which sends no preflight, never
+# saw it.
 resource "aws_s3_bucket_cors_configuration" "uploads" {
-  for_each = toset(["resumes", "kyb_documents", "interview_audio"])
+  for_each = toset(["resumes", "kyb_documents", "interview_audio", "profile_images", "course_media"])
 
   bucket = aws_s3_bucket.this[each.key].id
 

@@ -514,8 +514,18 @@ college admin to change).
   masked search exists so employers judge on band and skills).
   `tests/invariants/test_profile_photo_reach.py` fails on a photo-like field
   in any employer- or college-facing schema, and on a caller of
-  `profile_images.service.photo_url` other than the admin console. Widening
-  it is a client decision.
+  `profile_images.service.photo_url` / `photo_urls` other than the admin
+  console. Widening it is a client decision -- re-confirmed 2026-10-10 by
+  the backend lead when the client asked for images "wherever we send"
+  someone. The reach test also walks `RevealedCandidate` and every nested
+  model, whichever module defines it.
+- **Every response naming an employer or college carries its logo**
+  (2026-10-10; `backend-guide/16` §4 lists them): `employer_logo_url`,
+  `college_logo_url`, `organisation_logo_url`, or `logo_url` on the
+  organisation itself. Batch with `logo_urls`, never one per row. A
+  person's own screens use `own_photo_url(ctx)`, which takes no id.
+  `college_student_hires` / `_applications` return `employer_tenant_id`
+  (0017) for the logo only; it is never sent to the college.
 - **The server keeps only what it encoded.** Confirm sniffs the bytes,
   decodes, applies EXIF rotation, scales to 512px and re-encodes (JPEG, or
   PNG with transparency), which drops every byte of metadata -- a phone

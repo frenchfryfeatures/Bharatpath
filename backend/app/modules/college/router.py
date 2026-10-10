@@ -37,6 +37,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 from pydantic import BeforeValidator
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import (
     CANDIDATE,
@@ -57,7 +58,7 @@ from app.modules.college.domain import (
     format_code,
 )
 from app.modules.college.domain import consent_terms as terms_for
-from app.modules.college.models import ReferralCode
+from app.modules.college.models import College, ReferralCode
 from app.modules.college.schemas import (
     AddTeamMemberRequest,
     AnswerInvitationRequest,
@@ -98,6 +99,7 @@ from app.modules.college.schemas import (
     VisibleStudentResponse,
     VisibleStudentsPage,
 )
+from app.modules.profile_images import service as profile_images_service
 from app.modules.questionnaire.domain import answers_in_words
 
 router = APIRouter()
@@ -119,8 +121,9 @@ Paid = Depends(require_active_subscription)
 Student = Depends(require_role(CANDIDATE))
 
 
-def _college(row: object) -> CollegeResponse:
-    return CollegeResponse.model_validate(row)
+async def _college(session: AsyncSession, row: College) -> CollegeResponse:
+    logo = await profile_images_service.logo_url(session, tenant_id=row.tenant_id)
+    return CollegeResponse.model_validate(row).model_copy(update={"logo_url": logo})
 
 
 def _member(member: object) -> TeamMemberResponse:
@@ -166,6 +169,7 @@ def _link(link: service.Link) -> CollegeLinkResponse:
     return CollegeLinkResponse(
         college_id=link.college_id,
         college_name=link.college_name,
+        college_logo_url=link.college_logo_url,
         scope=link.scope,
         granted_via=link.granted_via,
         granted_at=link.granted_at,
@@ -187,8 +191,8 @@ async def create_college(
     payload: CreateCollegeRequest, identity: CurrentBusinessIdentity, session: DbSession
 ) -> CollegeResponse:
     """409 if the account already belongs to an organisation, of either kind."""
-    return _college(
-        await service.create_college(session, user_id=identity.user_id, payload=payload)
+    return await _college(
+        session, await service.create_college(session, user_id=identity.user_id, payload=payload)
     )
 
 
@@ -199,7 +203,7 @@ async def create_college(
     summary="The caller's college",
 )
 async def get_college(user: CurrentUser, session: DbSession) -> CollegeResponse:
-    return _college(await service.get_college(session, ctx=user))
+    return await _college(session, await service.get_college(session, ctx=user))
 
 
 @router.patch(
@@ -211,7 +215,7 @@ async def get_college(user: CurrentUser, session: DbSession) -> CollegeResponse:
 async def update_college(
     payload: UpdateCollegeRequest, user: CurrentUser, session: DbSession
 ) -> CollegeResponse:
-    return _college(await service.update_college(session, ctx=user, payload=payload))
+    return await _college(session, await service.update_college(session, ctx=user, payload=payload))
 
 
 @router.get(
@@ -610,7 +614,11 @@ async def list_invitations(
 ) -> list[CandidateInvitationResponse]:
     return [
         CandidateInvitationResponse(
-            id=i.entry_id, college_name=i.college_name, sent_at=i.sent_at, expires_at=i.expires_at
+            id=i.entry_id,
+            college_name=i.college_name,
+            college_logo_url=i.college_logo_url,
+            sent_at=i.sent_at,
+            expires_at=i.expires_at,
         )
         for i in await service.list_invitations(session, ctx=user)
     ]
@@ -819,6 +827,7 @@ async def get_student_details(
             StudentApplicationResponse(
                 job_title=a.job_title,
                 employer_name=a.employer_name,
+                employer_logo_url=a.employer_logo_url,
                 job_location=a.job_location,
                 stage=a.stage,
                 applied_at=a.applied_at,
@@ -887,7 +896,10 @@ async def get_student(
         interviews=view.interviews,
         hires=[
             StudentHireResponse(
-                job_title=h.job_title, employer_name=h.employer_name, hired_at=h.hired_at
+                job_title=h.job_title,
+                employer_name=h.employer_name,
+                employer_logo_url=h.employer_logo_url,
+                hired_at=h.hired_at,
             )
             for h in view.hires
         ],
