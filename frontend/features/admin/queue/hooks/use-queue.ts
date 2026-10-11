@@ -107,11 +107,13 @@ export function useQueue() {
     afterRejection: item.after_rejection ?? false,
   }));
 
-  const integrityItems: QueueItem[] = (integrityQuery.data?.items ?? []).map((item) => ({
+  const integrityItems: QueueItem[] = (integrityQuery.data?.items ?? []).map((item) => {
+    const fullName = item.candidate?.full_name?.trim();
+    return {
     id: item.id,
-    name: `Candidate · ${item.candidate_id.slice(0, 8)}`,
-    initials: "CA",
-    imageUrl: item.photo_url,
+    name: fullName || `Candidate · ${item.candidate_id.slice(0, 8)}`,
+    initials: fullName ? initials(fullName) : "CA",
+    imageUrl: item.candidate?.photo_url ?? item.photo_url,
     imageFit: "cover",
     submitted: relativeTime(item.created_at, "Flagged"),
     secondary: humanise(item.rule_id),
@@ -121,7 +123,8 @@ export function useQueue() {
     type: "Integrity",
     resubmitted: false,
     afterRejection: false,
-  }));
+    };
+  });
 
   const items = tab === "kyb" ? kybItems : integrityItems;
 

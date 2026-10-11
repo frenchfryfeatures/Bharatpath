@@ -86,6 +86,15 @@ export type IntegritySignalRow = {
   state: "OPEN" | "CLEARED" | "CONFIRMED";
   created_at: string;
   resolved_at: string | null;
+  /** Masked summary of the flagged candidate; the name is null until they give one. */
+  candidate?: {
+    id: string;
+    status: string;
+    full_name: string | null;
+    photo_url: string | null;
+    phone_masked: string | null;
+    email_masked: string | null;
+  } | null;
 };
 
 export type IntegritySignalDetail = IntegritySignalRow & {
