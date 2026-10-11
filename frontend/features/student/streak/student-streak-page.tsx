@@ -435,7 +435,7 @@ function ActivityHeatmap({
       </p>
       <div
         ref={scrollRef}
-        className="bp-scrollbar h-[116px] w-full min-w-0 shrink-0 overflow-x-auto overflow-y-hidden overscroll-x-contain pb-1"
+        className="bp-scrollbar h-[122px] w-full min-w-0 shrink-0 overflow-x-auto overflow-y-hidden overscroll-x-contain pb-1"
       >
         <div className="flex w-max gap-[3px]">
           {weeks.map((week, index) => {
@@ -445,10 +445,10 @@ function ActivityHeatmap({
             return (
               <div
                 key={index}
-                className="relative flex flex-col gap-y-px pt-3"
+                className="relative flex flex-col gap-y-px pt-4"
               >
                 {monthStart ? (
-                  <span className="absolute left-0 top-0 text-[9px] font-semibold text-[#5F6B80]">
+                  <span className="absolute left-0 top-0 whitespace-nowrap text-[9px] leading-none font-semibold text-[#5F6B80]">
                     {new Intl.DateTimeFormat("en-IN", { month: "short", timeZone: "UTC" }).format(monthStart)}
                   </span>
                 ) : null}
