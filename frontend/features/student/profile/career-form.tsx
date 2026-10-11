@@ -541,7 +541,7 @@ export function CareerForm({
                   autoComplete="name"
                   value={fullName}
                   onChange={(event) => setFullName(event.target.value)}
-                  className={`${fieldClass} ${modalFieldClass} ${fieldBorder(Boolean(errors.full_name))} pl-12`}
+                  className={`${fieldClass} ${modalFieldClass} ${fieldBorder(Boolean(errors.full_name))} !pl-12`}
                 />
               </div>
             </Field>
@@ -560,7 +560,7 @@ export function CareerForm({
                   type="email"
                   readOnly
                   value={email || account.data?.email || ""}
-                  className={`${fieldClass} ${modalFieldClass} border-[#E7E0D4] pl-12`}
+                  className={`${fieldClass} ${modalFieldClass} border-[#E7E0D4] !pl-12`}
                 />
               </div>
             </Field>
@@ -680,7 +680,7 @@ export function CareerForm({
                     aria-describedby={
                       errors[field.key] ? `${id}-error` : undefined
                     }
-                    className={`${fieldClass} ${modalFieldClass} ${fieldBorder(Boolean(errors[field.key]))} ${field.key === "phone" ? "pl-12" : ""}`}
+                    className={`${fieldClass} ${modalFieldClass} ${fieldBorder(Boolean(errors[field.key]))} ${field.key === "phone" ? "!pl-12" : ""}`}
                     onChange={(event) => {
                       const raw = event.target.value;
                       if (field.type === "list") {
