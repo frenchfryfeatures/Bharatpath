@@ -14,7 +14,7 @@ import {
   X,
 } from "lucide-react";
 
-import { DetailSkeleton } from "@/components/common/loading";
+import { Skeleton } from "@/components/common/loading";
 import { ErrorState } from "@/components/ui";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { useScrollLock } from "@/hooks/use-scroll-lock";
@@ -143,6 +143,63 @@ function FlagNoteInput({
         className="w-full rounded-lg border border-[#f2cf93] bg-white px-3 py-2 text-[12px] text-[#172033] outline-none placeholder:text-[#a08a5a] focus:border-[#9a6b18]"
       />
     </div>
+  );
+}
+
+function QueueDrawerSkeleton({ isKyb, onClose }: { isKyb: boolean; onClose: () => void }) {
+  return (
+    <>
+      <span role="status" className="sr-only">Loading review details</span>
+      <div className="flex shrink-0 items-start gap-3 border-b border-[#e5e7eb] px-4 py-3">
+        <Skeleton width={40} height={40} radius={12} className="shrink-0" />
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <Skeleton width="65%" height={23} />
+          <Skeleton width="35%" height={17} />
+        </div>
+        <button type="button" onClick={onClose} aria-label="Close" title="Close" className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg text-[#7b8494] hover:bg-[#f5f6f8]">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+        <div className="flex flex-col gap-5" aria-hidden="true">
+          <div className="flex gap-2">
+            <Skeleton width={72} height={22} radius={999} />
+            <Skeleton width={100} height={22} radius={999} />
+          </div>
+          <div className="flex flex-col gap-3">
+            <Skeleton width={150} height={14} />
+            <div className="overflow-hidden rounded-xl border border-[#e5e7eb]">
+              {Array.from({ length: isKyb ? 4 : 2 }, (_, index) => (
+                <div key={index} className="flex items-center gap-3 border-t border-[#eef0f3] px-4 py-3 first:border-t-0">
+                  <Skeleton width={32} height={32} className="shrink-0" />
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <Skeleton width="60%" height={17} />
+                    <Skeleton width="25%" height={14} />
+                  </div>
+                  <Skeleton width={70} height={22} radius={999} className="shrink-0" />
+                </div>
+              ))}
+            </div>
+          </div>
+          {isKyb ? (
+            <div className="flex flex-col gap-3">
+              <Skeleton width={90} height={14} />
+              <Skeleton height={58} radius={10} />
+              <Skeleton height={58} radius={10} />
+            </div>
+          ) : null}
+          <div className="flex flex-col gap-2">
+            <Skeleton width={110} height={17} />
+            <Skeleton height={80} radius={10} />
+          </div>
+        </div>
+      </div>
+      <div className="flex shrink-0 gap-2 border-t border-[#e5e7eb] px-2 py-3" aria-hidden="true">
+        {Array.from({ length: isKyb ? 3 : 2 }, (_, index) => (
+          <Skeleton key={index} height={43} className={index === (isKyb ? 2 : 1) ? "flex-[1.4]" : "flex-1"} />
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -433,7 +490,8 @@ function QueueDrawerBody() {
           DRAWER PANEL
           ============================================================ */}
 
-      <aside className="absolute right-0 top-0 flex h-full w-[520px] max-w-full flex-col bg-white shadow-[-20px_0_60px_-24px_rgba(0,0,0,0.5)]">
+      <aside aria-busy={detailLoading} className="absolute right-0 top-0 flex h-full w-[520px] max-w-full flex-col bg-white shadow-[-20px_0_60px_-24px_rgba(0,0,0,0.5)]">
+        {detailLoading ? <QueueDrawerSkeleton isKyb={isKyb} onClose={closeReview} /> : <>
         {/* ==========================================================
             HEADER
             ========================================================== */}
@@ -480,7 +538,6 @@ function QueueDrawerBody() {
             ========================================================== */}
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-          {detailLoading ? <DetailSkeleton sections={2} /> : null}
           {!detailLoading && (kybDetail.error || integrityDetail.error) ? (
             <ErrorState error={kybDetail.error || integrityDetail.error} fallback="Could not load review details." />
           ) : null}
@@ -922,6 +979,7 @@ function QueueDrawerBody() {
             {pending === "APPROVED" || pending === "CLEARED" ? "Saving..." : isKyb ? "Approve" : "Clear"}
           </button>
         </div>
+        </>}
       </aside>
       <ConfirmModal
         open={confirmation !== null}
