@@ -872,15 +872,23 @@ async def student_profile(
 class StudentHireRow:
     job_title: str
     employer_name: str
+    #: For the employer's logo only; never sent to the college.
+    employer_tenant_id: uuid.UUID
     hired_at: datetime
 
 
 async def student_hires(session: AsyncSession, *, candidate_id: uuid.UUID) -> list[StudentHireRow]:
     result = await session.execute(
-        text("SELECT job_title, employer_name, hired_at FROM college_student_hires(:c)"),
+        text(
+            "SELECT job_title, employer_name, employer_tenant_id, hired_at "
+            "FROM college_student_hires(:c)"
+        ),
         {"c": str(candidate_id)},
     )
-    return [StudentHireRow(r.job_title, r.employer_name, r.hired_at) for r in result]
+    return [
+        StudentHireRow(r.job_title, r.employer_name, r.employer_tenant_id, r.hired_at)
+        for r in result
+    ]
 
 
 async def sent_invitation(
@@ -990,6 +998,8 @@ async def student_courses(
 class StudentApplicationRow:
     job_title: str
     employer_name: str
+    #: For the employer's logo only; never sent to the college.
+    employer_tenant_id: uuid.UUID
     job_location: str | None
     stage: str
     applied_at: datetime
@@ -1003,8 +1013,8 @@ async def student_applications(
     the college has no use for one, and nothing to open with it."""
     result = await session.execute(
         text(
-            "SELECT job_title, employer_name, job_location, stage, applied_at, updated_at, "
-            "reached FROM college_student_applications(:c)"
+            "SELECT job_title, employer_name, employer_tenant_id, job_location, stage, "
+            "applied_at, updated_at, reached FROM college_student_applications(:c)"
         ),
         {"c": str(candidate_id)},
     )
@@ -1013,7 +1023,13 @@ async def student_applications(
     for r in result:
         rows.append(
             StudentApplicationRow(
-                r.job_title, r.employer_name, r.job_location, r.stage, r.applied_at, r.updated_at
+                r.job_title,
+                r.employer_name,
+                r.employer_tenant_id,
+                r.job_location,
+                r.stage,
+                r.applied_at,
+                r.updated_at,
             )
         )
         for stage in r.reached or []:

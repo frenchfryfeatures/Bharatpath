@@ -149,6 +149,16 @@ async def set_transaction_tenant(session: AsyncSession, tenant_id: UUID) -> None
     )
 
 
+async def clear_transaction_tenant(session: AsyncSession) -> None:
+    """Unbind `app.tenant_id` for the rest of the transaction.
+
+    For a system task that read one tenant's row and goes on in the same
+    transaction: every policy reads an empty setting as unbound (`NULLIF`),
+    so this restores exactly what was there before the bind.
+    """
+    await session.execute(text("SELECT set_config('app.tenant_id', '', true)"))
+
+
 async def set_transaction_user(session: AsyncSession, user_id: UUID) -> None:
     """Bind `app.user_id` for the current transaction only. Candidates only.
 

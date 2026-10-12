@@ -61,6 +61,7 @@ from app.modules.admin.schemas import (
     InterviewRecordingRow,
     InterviewSessionRow,
     InvitationResentResponse,
+    KybApprovalMode,
     KybDecisionRequest,
     KybSubmissionsPage,
     LessonUploadResponse,
@@ -145,6 +146,38 @@ async def list_kyb_submissions(
 
 
 @router.get(
+    "/settings/kyb-approval",
+    response_model=KybApprovalMode,
+    dependencies=can("kyb"),
+    summary="Whether KYB submissions wait for a reviewer or are approved on arrival",
+)
+async def kyb_approval_mode(user: CurrentUser, session: DbSession) -> KybApprovalMode:
+    return await service.kyb_approval_mode(session)
+
+
+@router.put(
+    "/settings/kyb-approval",
+    response_model=KybApprovalMode,
+    dependencies=can("kyb_policy"),
+    summary="Switch KYB between manual review and approval on arrival (audited)",
+)
+async def set_kyb_approval_mode(
+    payload: KybApprovalMode, request: Request, user: CurrentUser, session: DbSession
+) -> KybApprovalMode:
+    """`review_required: true` sends every new submission to the review
+    queue; `false` approves a complete submission on arrival. It applies to
+    the next submission: one already waiting still needs a decision, and an
+    approved organisation stays approved. Setting the mode in force changes
+    nothing."""
+    return await service.set_kyb_approval_mode(
+        session,
+        ctx=user,
+        review_required=payload.review_required,
+        request_id=get_request_id(request),
+    )
+
+
+@router.get(
     "/kyb/submissions/{submission_id}",
     response_model=KybSubmissionResponse,
     dependencies=can("kyb"),
@@ -171,14 +204,19 @@ async def decide_kyb(
     user: CurrentUser,
     session: DbSession,
 ) -> KybSubmissionResponse:
-    """Rejecting or asking for more information needs a reason, which the
-    organisation reads. Only a submission awaiting review can be decided."""
+    """`MORE_INFO_REQUIRED` sends it back to be corrected and submitted again;
+    `REJECTED` is final, and the organisation's next submission starts filled
+    in from this one. Both need a reason, which the organisation reads, and
+    may flag fields and documents (`flags`). Only a submission awaiting
+    review can be decided. 422 `kyb_flag_unknown_field`,
+    `kyb_flag_duplicate` or `kyb_flags_not_allowed` (on an approval)."""
     return await service.decide_kyb(
         session,
         ctx=user,
         submission_id=submission_id,
         decision=payload.decision,
         reason=payload.reason,
+        flags=payload.flags,
         request_id=get_request_id(request),
     )
 

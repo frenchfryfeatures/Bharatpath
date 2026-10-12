@@ -30,6 +30,7 @@ export interface VisibleStudentsPage {
 export interface StudentHire {
   jobTitle: string;
   employerName: string;
+  employerLogoUrl?: string | null;
   hiredAt: string;
   source: "PLATFORM";
 }

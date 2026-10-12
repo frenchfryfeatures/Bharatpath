@@ -74,7 +74,7 @@ export function CreateCodeDrawer({ onClose }: { onClose: () => void }) {
       found.value = "Enter a number.";
     } else if (kind === "percent") {
       if (!Number.isInteger(amount)) found.value = "Use a whole percentage, like 20.";
-      else if (amount < 1 || amount > 99) found.value = "A percentage must be between 1 and 99.";
+      else if (amount < 1 || amount > 100) found.value = "A percentage must be between 1 and 100.";
     } else if (amount <= 0) {
       found.value = "The amount must be more than ₹0.";
     } else if (Math.round(amount * 100) / 100 !== amount) {
@@ -238,7 +238,7 @@ export function CreateCodeDrawer({ onClose }: { onClose: () => void }) {
               </div>
               <FormField
                 id="discount-value"
-                label={kind === "percent" ? "Percent off (1–99)" : "Amount off (₹)"}
+                label={kind === "percent" ? "Percent off (1–100)" : "Amount off (₹)"}
                 error={shown("value")}
               >
                 <input

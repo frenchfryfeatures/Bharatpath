@@ -9,6 +9,191 @@ states. Newest entries first.
 
 ---
 
+## 2026-10-10 — Logos wherever an organisation is named; photos stay narrow
+
+Client request via the lead: "return the profile photo/logo wherever we send
+a student, employer or college". Backend only. App-team contract:
+`backend-guide/16` §4.
+
+- **Logos: everywhere an employer or college is named.** Candidate side:
+  applications (list, detail, apply, withdraw, hire answers), messages,
+  shortlist invitations, who viewed my profile, college links and
+  invitations. College side: where a visible student applied and was
+  hired. The organisation's own `/employer/organisation` and
+  `/college/organisation`, and `/auth/me` (`organisation_logo_url`).
+  Console: tenants, both organisation drill-downs, KYB queue, redemptions,
+  dashboard oldest items, a candidate's college links and applications.
+- **Photos: decided by the lead, 2026-10-10 -- the 2026-10-09 rule stands.**
+  Own photo on `/auth/me` and `/candidate/profile`; staff get it on the
+  candidate list, drill-down and integrity queue. **No employer- or
+  college-facing response carries one** (masked cards, reveal, applicants,
+  shortlist, college roster and student pages). Team lists carry none
+  either.
+- **The reach test had a hole, now closed.** It walked only modules in
+  `FACING_OTHERS` and only models defined there, so `RevealedCandidate`
+  (in `candidate`) and anything nested from `resume` were never checked; a
+  photo on the reveal would have passed. It now walks nested models from
+  any module, names `RevealedCandidate`, covers `photo_urls`, and holds
+  `own_photo_url` to taking no id. Checked by adding a photo field to
+  `SharedResumeView`: two tests failed, as they should.
+- **Migration `0017_college_reads_employer_logo`:** `college_student_hires`
+  and `college_student_applications` recreated with an `employer_tenant_id`
+  column, each with its own consent CTE copied verbatim. Both now
+  EXECUTE-to-app-role only (the baseline had left hires at the PUBLIC
+  default). Up, down, up tested locally. The deploy's migrate step
+  (`docker-compose.prod.yml`) applies it; until it has, the new code's
+  college student pages would 500, so ship code and migration together.
+- `test_profile_views.VIEW_FIELDS` widened by `employer_logo_url`, on
+  purpose (it is the organisation's face, not who looked).
+- **Web uploads of photos and logos failed with a "CORS error"** (front-end
+  report). S3, not the API: the `profile_images` bucket had no CORS
+  configuration, so the browser's preflight got 403. `course_media` (lesson
+  uploads from the console) had the same gap. Both added to
+  `aws_s3_bucket_cors_configuration.uploads` in `s3.tf`; plan was 2 to add,
+  0 change, 0 destroy; **applied 2026-10-10**. Preflight from the Vercel
+  origin now 200. Rule: every `presign_put` bucket belongs in that set.
+
+---
+
+## 2026-10-10 — KYB: send back, correct, resubmit; notifications both ways
+
+Client request via the lead (answers-log 14.1). **Employers only**; colleges
+have no review step and keep none. Branch `feat/kyb-review-flow`. Backend
+only. App-team contract: `backend-guide/07` §7 and `13` §1.
+
+- **Two decisions with a remark.** *Send back* (`MORE_INFO_REQUIRED`) reopens
+  the same submission: the owner edits answers, re-uploads documents and
+  submits again. *Reject* is final; the next save starts a new submission
+  filled in with the old answers and documents (`previous_submission_id`).
+- **Flags:** a decision may name form fields and document types to correct
+  (`review_flags`, with optional notes); unknown or duplicate fields, or
+  flags on an approval, are 422.
+- **History:** every decision is a `kyb_reviews` row (tenant RLS,
+  append-only) with the answers and document ids it was made on, so a
+  resubmission carries `changed_since_last_review`. The queue row says
+  `review_count` (resubmitted when above zero) and `after_rejection`.
+- **Reviewers can open the files:** each document now has a presigned `url`.
+  Until now the console had no way to see an uploaded document.
+- **Notifications:** `kyb.submitted` → admins and KYB reviewers, **in-app
+  only** (new audience `KYB_REVIEWERS`); a send-back and a rejection → the
+  owners, email and in-app, **with the reviewer's reason** (new variable
+  `reason`, read at dispatch). A rejection previously told nobody, and
+  `test_a_glance_is_not_news` said so; that line now covers `UNDER_REVIEW`.
+  New strings in the six priority bundles, still flagged for a
+  native-speaker pass.
+- **Migration `0016_kyb_review_flow`:** two `kyb_submissions` columns and the
+  `kyb_reviews` table with its policy. Up, down and up again tested locally.
+- **Unchanged:** with the KYB switch on automatic, a submission is approved
+  at once and none of this applies.
+- **Frontend handoff:** a *Send back* button beside Approve/Reject; per-field
+  and per-document flags in the decision; the "changed since last review"
+  highlight and a "Resubmitted" badge from `review_count`; the eye icon from
+  `documents[].url`. On the employer side: show `decision_reason` and
+  highlight `review_flags`, and after a rejection a "Start again" action that
+  calls `PUT /employer/kyb/answers` with `{}`.
+- Tests: `tests/unit/test_kyb_review_rules.py`,
+  `tests/integration/test_kyb_review_flow.py`, and new cases in
+  `test_notifications_domain.py`.
+
+---
+
+## 2026-10-10 — PR #69 deployed: bucket, env and migrations 0014–0015
+
+PR #69 (KYB switch, 100% codes, profile images) merged with every CI check
+green, and shipped to the EC2 host as `8b7b770`.
+
+- **Bucket created** by `terraform apply` in 335345888157:
+  `bharatpath-profile-images-dev-335345888157`, ap-south-1, public access
+  fully blocked, encrypted, versioned. The plan was 4 to add, 2 to change
+  (the two app IAM policies, to cover the new bucket), 0 to destroy.
+- **Host `.env`:** `S3_BUCKET_PROFILE_IMAGES` appended to
+  `/opt/bharatpath/.env` (still 600). The file was not regenerated, because
+  that would drop its hand-filled secrets. The previous file is kept on the
+  host as `.env.bak-20261010`.
+- **Migrations** ran on `up` through the `migrate` service: 0013 → 0014 →
+  0015, no errors. The host was on `c04d02f` (PR #63), which `main`
+  already contained.
+- **Checked live:** `/health` 200; every new route is in `openapi.json` and
+  answers 401 without a token. **Not yet checked:** a real photo or logo
+  upload on the live site, which needs a signed-in account; do one round
+  trip (upload → PUT → confirm → GET) when the apps wire it up.
+
+---
+
+## 2026-10-09 — profile photos for everyone, logos for employers and colleges
+
+Asked for by the backend lead. Same branch as the KYB switch and 100%
+codes (`feat/kyb-toggle-and-full-discount`). Backend only. The contract for
+the app teams is `backend-guide/16`.
+
+- **New module `profile_images`**, two tables (migration
+  `0015_profile_images`): `user_photos`, one per person (student, employer
+  or college member, staff), and `organisation_logos`, one per employer or
+  college. Upload is ticket → PUT → confirm, like KYB documents and lessons.
+- **Decided with the lead:** both kinds (person photo *and* organisation
+  logo); **a student's photo is seen by the student and staff only**, never
+  by an employer or a college, on any surface. An invariant test holds it.
+  Logos are shown to candidates beside jobs (`employer_logo_url` on the
+  board, job detail and both recommended lists).
+- **Every stored image is re-encoded by the server** (Pillow, already a
+  dependency): rotation applied, ≤512px, JPEG or PNG-with-alpha, no
+  metadata (so no GPS), and anything that does not decode is refused. The
+  raw upload is always deleted; a replaced image's object is deleted.
+- **Privacy:** `user_photos` is ERASE, its object collected before the
+  cascade; `erase_candidate` replaced again in 0015; the export has a
+  `photo` section (metadata, not the image). `organisation_logos` is
+  NOT_PERSONAL and RLS-exempt (with its reason in the baseline).
+- **Admin:** `photo_url` on `/admin/candidates/{id}/onboarding`, inside the
+  page's existing audited reveal.
+- **New bucket** `profile_images`: `app/settings.py`, `infra/terraform/s3.tf`
+  and `outputs.tf`, `scripts/init_localstack.sh`. Applied and deployed
+  2026-10-10 (entry above).
+- **Not done (handoff, frontend/mobile):** the upload flow and showing the
+  images; the apps still draw initials. College logos are not yet shown to
+  students anywhere (`/candidate/colleges` could carry them); employer and
+  college drill-downs in the console do not show logos.
+- Tests: `tests/unit/test_profile_image_rules.py`,
+  `tests/integration/test_profile_images.py`,
+  `tests/invariants/test_profile_photo_reach.py`.
+
+---
+
+## 2026-10-09 — KYB switch in the console, and 100% discount codes
+
+Two client decisions, relayed by the backend lead (answers-log Round 13).
+Branch `feat/kyb-toggle-and-full-discount`. Backend only.
+
+- **KYB manual/automatic from the console.** `GET`/`PUT
+  /admin/settings/kyb-approval` (`{review_required}`). The admin settings
+  page in `frontend/` already called the `PUT` and got a 404; it now
+  works. Flipping is PLATFORM_ADMIN only (new capability `kyb_policy`);
+  reviewers can read it. Each flip appends a `kyb.require_approval`
+  version under an advisory lock and writes a `kyb_approval_mode_changed`
+  audit row. A flip never approves a submission already waiting.
+- **100% discount codes.** `MAX_PERCENT_OFF` is 100, and a fixed amount may
+  make the price exactly zero (between 1 and 99 paise is still refused).
+  A zero checkout has no gateway and no callback, so
+  `billing.service._settle_complimentary` inserts it PENDING with provider
+  `complimentary` and settles it at once through `_settle`, now shared
+  with the verified-callback path. The checkout response is already
+  `SUCCEEDED` with `redirect_url: null`. It works with
+  `PAYMENTS_PROVIDER=none`.
+- **Migration `0014_complimentary_discounts`:** percent bound 1–100, a
+  redemption may be for 0, and `ck_payments_complimentary` (a zero payment
+  is always `complimentary` and carries a code; added `NOT VALID` on
+  existing databases, valid on fresh ones). Tested upgrade, downgrade and a
+  fresh build.
+- **Handoff to the frontend team, not done here:** the discount form still
+  caps a percentage at 99 (`create-code-drawer.tsx`), and the KYB settings
+  hook only ever sends "auto" (`setKybMode` returns early for "manual").
+  Apps should treat a checkout with `status: SUCCEEDED` and no
+  `redirect_url` as done (backend-guide/08).
+- Tests: `test_discount_domain.py`, `test_discount_codes.py` (free
+  checkout, no-gateway, usage limit, the CHECK), and three in
+  `test_admin_console.py` for the switch.
+
+---
+
 ## 2026-10-09 — recommended jobs on the candidate home screen
 
 Asked for by the user, after Naukri's home page: two sections, **jobs like

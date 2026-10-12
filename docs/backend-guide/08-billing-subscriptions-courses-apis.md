@@ -305,6 +305,18 @@ same plan/price within a short reuse window returns the **same** pending
 payment rather than opening a second one (so a user who double-clicks
 "pay" doesn't end up with two competing checkouts for the same thing).
 
+**A code that makes the plan free (100%, added 2026-10-09) settles right
+here.** There's no money, so there's no gateway and no callback to wait
+for. The response is already final:
+```json
+{ "payment_id": "9f2e...", "status": "SUCCEEDED", "amount_minor": 0, "list_amount_minor": 14900, "currency": "INR", "redirect_url": null }
+```
+The subscription is active and the code is used before this response
+arrives. **Apps: if `status` is `SUCCEEDED` and `redirect_url` is `null`,
+skip the payment page and show success.** Don't poll. This works even with
+`PAYMENTS_PROVIDER=none`, so a free code works before a gateway is chosen.
+A paid checkout still answers `503` then.
+
 **Errors:**
 | Code | When |
 |---|---|
@@ -314,7 +326,7 @@ payment rather than opening a second one (so a user who double-clicks
 | `422 discount_code_expired` | Past `valid_until` |
 | `422 discount_code_exhausted` | `usage_limit` already reached — counting both actual redemptions and other fresh checkouts currently holding a use, so the last use can't be sold twice |
 | `422 discount_code_already_used` | This subscriber (this candidate, or this employer's/college's organisation) has already redeemed this code once — one use per subscriber |
-| `422 discount_exceeds_price` | The code would take the price to zero or below |
+| `422 discount_exceeds_price` | The code would take the price below zero (a fixed amount larger than the plan), or leave less than ₹1 to pay. Exactly zero is allowed: see above |
 
 ### `POST /{...}/subscription/cancel` — stop auto-renewing
 

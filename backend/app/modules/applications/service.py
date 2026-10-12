@@ -330,13 +330,14 @@ async def _respond(
     )
     out = []
     for application in applications:
-        title, employer = jobs.get(application.job_id, (None, None))
+        job = jobs.get(application.job_id) or jobs_service.CandidateJobRef()
         out.append(
             ApplicationResponse(
                 id=application.id,
                 job_id=application.job_id,
-                job_title=title,
-                employer_name=employer,
+                job_title=job.title,
+                employer_name=job.employer_name,
+                employer_logo_url=job.employer_logo_url,
                 stage=application.stage,
                 hire_confirmation=_hire(application),
                 interview=_interview(application),
@@ -1269,13 +1270,13 @@ async def messages_for_employer(
 
 async def messages_for_candidate(
     session: AsyncSession, *, ctx: TenantContext, application_id: uuid.UUID
-) -> tuple[str | None, list[ApplicationMessage]]:
-    """The candidate's own messages, with the employer's name. Not paywalled,
-    like reading their applications: a lapsed subscriber keeps what was
-    sent to them."""
+) -> tuple[ApplicationResponse, list[ApplicationMessage]]:
+    """The candidate's own messages, with the application they are about
+    (for the employer's name and logo). Not paywalled, like reading their
+    applications: a lapsed subscriber keeps what was sent to them."""
     row = await _mine(session, ctx, application_id, for_update=False)
     summary = (await _respond(session, ctx, [row]))[0]
-    return summary.employer_name, await repository.messages_for(session, application_id=row.id)
+    return summary, await repository.messages_for(session, application_id=row.id)
 
 
 @dataclass(frozen=True, slots=True)
@@ -1557,13 +1558,14 @@ async def _invitations(
     )
     out = []
     for row in rows:
-        title, employer = jobs.get(row.job_id, (None, None))
+        job = jobs.get(row.job_id) or jobs_service.CandidateJobRef()
         out.append(
             ShortlistInvitation(
                 id=row.id,
                 job_id=row.job_id,
-                job_title=title,
-                employer_name=employer,
+                job_title=job.title,
+                employer_name=job.employer_name,
+                employer_logo_url=job.employer_logo_url,
                 status=row.status,
                 application_id=row.application_id,
                 created_at=row.created_at,

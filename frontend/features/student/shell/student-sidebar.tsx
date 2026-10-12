@@ -3,10 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { ArrowLeftToLine, LogOut, X } from "lucide-react";
 
 import logo from "@/assets/bharatpath-icon.png";
 import { useGetStudentProfileQuery } from "@/store/student";
+import { useGetProfileImageQuery } from "@/store/api/profile-image-api";
 import { initials } from "@/features/student/formatters";
 import {
   identityDisplayLabel,
@@ -44,6 +46,9 @@ export function StudentSidebarContent({
   const pathname = usePathname();
   const { data: profile } = useGetStudentProfileQuery();
   const { user: identity } = useSessionIdentity();
+  const { data: photo } = useGetProfileImageQuery("photo", { skip: !identity });
+  const [failedPhoto, setFailedPhoto] = useState<string | null>(null);
+  const photoUrl = photo?.url && photo.url !== failedPhoto ? photo.url : null;
   const email = identity?.email || null;
   const displayName = profile?.fullName?.trim() || identityDisplayLabel(identity, "Student");
   const detail = profile?.fullName && email ? email : "Student account";
@@ -53,7 +58,7 @@ export function StudentSidebarContent({
 
   const rowClass = (active: boolean) =>
     [
-      "flex items-center rounded-lg text-[13px] font-semibold transition-colors",
+      "flex items-center min-h-10 rounded-lg text-[13px] leading-[17px] font-semibold transition-colors",
       collapsed ? "justify-center px-2 py-2.5" : "gap-2.75 px-2.75 py-2.5",
       active
         ? "bg-[#F1EAF7] text-[#0A1931]"
@@ -65,12 +70,12 @@ export function StudentSidebarContent({
       {/* Brand + collapse */}
       <div
         className={[
-          "flex min-h-16 shrink-0 items-center border-b border-[#E7E0D4]",
-          collapsed ? "justify-center px-2" : "gap-2.5 px-3",
+          "flex min-h-[68px] shrink-0 items-center",
+          collapsed ? "justify-center px-2" : "gap-2.25 pt-5 pr-3 pb-4 pl-4",
         ].join(" ")}
       >
         {collapsed ? (
-          <span className="group relative grid h-9 w-9 place-items-center">
+          <span className="group relative grid h-8 w-8 place-items-center">
             <Link
               href="/student"
               onClick={onNavigate}
@@ -81,7 +86,7 @@ export function StudentSidebarContent({
                 src={logo}
                 alt=""
                 className="h-full w-full object-contain"
-                sizes="36px"
+                sizes="32px"
                 priority
               />
             </Link>
@@ -105,20 +110,20 @@ export function StudentSidebarContent({
               aria-label="Student home"
               className="flex min-w-0 flex-1 items-center gap-2.5"
             >
-              <span className="h-9 w-9 shrink-0">
+              <span className="h-8 w-8 shrink-0">
                 <Image
                   src={logo}
                   alt=""
                   className="h-full w-full object-contain"
-                  sizes="36px"
+                  sizes="32px"
                   priority
                 />
               </span>
               <span className="flex min-w-0 flex-col leading-tight">
-                <span className="truncate text-[15px] font-bold tracking-[-0.02em] text-[#0A1931]">
+                <span className="truncate text-[14px] leading-[17px] font-extrabold tracking-[-0.01em] text-[#0A1931]">
                   BharatPath
                 </span>
-                <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#5F6B80]">
+                <span className="text-[10px] leading-[13px] font-bold uppercase tracking-[0.14em] text-[#5F6B80]">
                   Student
                 </span>
               </span>
@@ -151,7 +156,7 @@ export function StudentSidebarContent({
       </div>
 
       {/* Nav */}
-      <nav className="bp-scrollbar flex flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 py-3">
+      <nav className="bp-scrollbar flex flex-1 flex-col gap-1 overflow-y-auto px-3">
         {studentNavItems.map((item) => {
           const active = isNavItemActive(item.href, pathname);
           const Icon = item.icon;
@@ -175,8 +180,8 @@ export function StudentSidebarContent({
       <div className="mt-auto shrink-0 border-t border-[#E7E0D4]">
         <div
           className={[
-            "flex min-h-[72px] items-center gap-2.5",
-            collapsed ? "group relative flex-col justify-center px-2 py-3" : "px-3",
+            "flex min-h-[76px] items-center gap-2.5",
+            collapsed ? "group relative flex-col justify-center px-2 py-3" : "px-4",
           ].join(" ")}
         >
           <Link
@@ -188,8 +193,16 @@ export function StudentSidebarContent({
               collapsed ? "group-hover:opacity-0" : "flex-1",
             ].join(" ")}
           >
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#5F4DB2] text-[13px] font-bold text-white">
-              {avatarInitials}
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#5F4DB2] text-[13px] font-bold text-white">
+              {photoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element -- presigned, expiring URL
+                <img
+                  src={photoUrl}
+                  alt=""
+                  onError={() => setFailedPhoto(photoUrl)}
+                  className="h-full w-full rounded-full object-cover"
+                />
+              ) : avatarInitials}
             </span>
             {!collapsed ? (
               <span className="flex min-w-0 flex-col">
@@ -217,7 +230,7 @@ export function StudentSidebarContent({
             className={[
               "grid shrink-0 place-items-center text-[#5F6B80] transition-all hover:bg-[#F8E6E0] hover:text-[#993A22]",
               collapsed
-                ? "absolute top-1/2 left-1/2 h-9 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-0 group-hover:opacity-100 focus-visible:bg-[#F8E6E0] focus-visible:opacity-100"
+                ? "absolute top-1/2 left-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-0 group-hover:opacity-100 focus-visible:bg-[#F8E6E0] focus-visible:opacity-100"
                 : "h-8 w-8 rounded-lg",
             ].join(" ")}
           >

@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, date, datetime
-from typing import Any, Final
+from typing import Any, Final, NamedTuple
 
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -77,6 +77,7 @@ from app.modules.jobs.schemas import (
     RecommendedJobs,
     UpdateJobRequest,
 )
+from app.modules.profile_images import service as profile_images_service
 from app.modules.scoring import service as scoring_service
 
 logger = get_logger(__name__)
@@ -421,11 +422,14 @@ def _after(cursor: str | None) -> tuple[datetime, uuid.UUID] | None:
         raise ValidationError(code="invalid_cursor") from exc
 
 
-def _summary(job: Any, *, employer_name: str | None, score: int | None) -> dict[str, Any]:
+def _summary(
+    job: Any, *, employer_name: str | None, score: int | None, logos: dict[uuid.UUID, str]
+) -> dict[str, Any]:
     return {
         "id": job.id,
         "title": job.title,
         "employer_name": employer_name,
+        "employer_logo_url": logos.get(job.tenant_id),
         "skills": list(job.skills),
         "location": job.location,
         "work_mode": job.work_mode,
@@ -473,12 +477,14 @@ async def search_board(
         limit=page_size + 1,
     )
     page, more = rows[:page_size], len(rows) > page_size
-    names = await employer_service.public_names(
-        session, tenant_ids=list({job.tenant_id for job in page})
-    )
+    tenant_ids = list({job.tenant_id for job in page})
+    names = await employer_service.public_names(session, tenant_ids=tenant_ids)
+    logos = await profile_images_service.logo_urls(session, tenant_ids=tenant_ids)
     return Page[BoardJobSummary](
         items=[
-            BoardJobSummary(**_summary(job, employer_name=names.get(job.tenant_id), score=score))
+            BoardJobSummary(
+                **_summary(job, employer_name=names.get(job.tenant_id), score=score, logos=logos)
+            )
             for job in page
         ],
         next_cursor=_cursor_of(page[-1]) if more and page else None,
@@ -494,6 +500,7 @@ async def get_board_job(
         raise JobNotFoundError()
     score = await current_score(session, user_id=user_id)
     names = await employer_service.public_names(session, tenant_ids=[job.tenant_id])
+    logos = await profile_images_service.logo_urls(session, tenant_ids=[job.tenant_id])
     # The two conditions `apply` checks, so the employer's own link is never
     # a way round them.
     eligible = eligibility(min_score=job.min_score, score=score) == "ELIGIBLE"
@@ -502,7 +509,7 @@ async def get_board_job(
     )
     details = for_candidate(parse_stored(job.details), may_apply=may_apply)
     return BoardJobDetail(
-        **_summary(job, employer_name=names.get(job.tenant_id), score=score),
+        **_summary(job, employer_name=names.get(job.tenant_id), score=score, logos=logos),
         description=job.description,
         details=details,
         can_apply_externally=bool(details.application.external_url or details.application.email),
@@ -524,17 +531,29 @@ async def open_job_for_application(
     return job
 
 
+class CandidateJobRef(NamedTuple):
+    """A job named on the candidate's own screens: its title and who posted it."""
+
+    title: str | None = None
+    employer_name: str | None = None
+    #: A presigned link that expires; null when the employer has no logo.
+    employer_logo_url: str | None = None
+
+
 async def jobs_for_candidate(
     session: AsyncSession, *, ctx: TenantContext, job_ids: list[uuid.UUID]
-) -> dict[uuid.UUID, tuple[str, str | None]]:
-    """`job id -> (title, employer name)` for jobs on the candidate's own board,
-    including jobs that closed after they applied."""
+) -> dict[uuid.UUID, CandidateJobRef]:
+    """`job id -> (title, employer name, employer logo)` for jobs on the
+    candidate's own board, including jobs that closed after they applied."""
     await bind_candidate(session, ctx)
     jobs = await repository.jobs_by_id(session, job_ids=job_ids)
-    names = await employer_service.public_names(
-        session, tenant_ids=list({job.tenant_id for job in jobs})
-    )
-    return {job.id: (job.title, names.get(job.tenant_id)) for job in jobs}
+    tenant_ids = list({job.tenant_id for job in jobs})
+    names = await employer_service.public_names(session, tenant_ids=tenant_ids)
+    logos = await profile_images_service.logo_urls(session, tenant_ids=tenant_ids)
+    return {
+        job.id: CandidateJobRef(job.title, names.get(job.tenant_id), logos.get(job.tenant_id))
+        for job in jobs
+    }
 
 
 async def recommend(
@@ -580,13 +599,13 @@ async def recommend(
     # keeps the newer job first.
     ranked.sort(key=lambda entry: entry[0], reverse=True)
     top = ranked[:size]
-    names = await employer_service.public_names(
-        session, tenant_ids=list({job.tenant_id for _, job, _ in top})
-    )
+    tenant_ids = list({job.tenant_id for _, job, _ in top})
+    names = await employer_service.public_names(session, tenant_ids=tenant_ids)
+    logos = await profile_images_service.logo_urls(session, tenant_ids=tenant_ids)
     return RecommendedJobs(
         items=[
             RecommendedJob(
-                **_summary(job, employer_name=names.get(job.tenant_id), score=score),
+                **_summary(job, employer_name=names.get(job.tenant_id), score=score, logos=logos),
                 matched_skills=list(matched),
             )
             for _, job, matched in top

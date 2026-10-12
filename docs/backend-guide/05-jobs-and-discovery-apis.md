@@ -281,6 +281,7 @@ offset, because offset pagination on a growing table skips/repeats rows).
   "items": [
     {
       "id": "...", "title": "Backend Engineer", "employer_name": "Acme Pvt Ltd",
+      "employer_logo_url": "https://…presigned…",
       "skills": ["Python"], "location": "Bangalore", "work_mode": "HYBRID",
       "salary_min_minor": 8000000, "salary_max_minor": 15000000,
       "published_at": "...", "eligibility": "ELIGIBLE"
@@ -289,6 +290,12 @@ offset, because offset pagination on a growing table skips/repeats rows).
   "next_cursor": null
 }
 ```
+
+`employer_logo_url` (2026-10-09) is the employer's logo, or `null` if it has
+none. It is a presigned link that **expires in 15 minutes**: draw it from the
+page you just fetched, and don't cache it. The same field is on the job
+detail and on both recommended-jobs lists. See
+[16](16-profile-images-apis.md).
 
 **Notice what's missing: `min_score`.** The candidate never sees a job's
 threshold — only `eligibility`, one of `ELIGIBLE` / `BELOW_THRESHOLD` /

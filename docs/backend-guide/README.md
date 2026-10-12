@@ -30,6 +30,7 @@ Read in order. Each doc assumes the ones before it.
 | [13-admin-console-and-disputes-apis.md](13-admin-console-and-disputes-apis.md) | The platform-staff console (30 endpoints) — KYB/integrity review, tenant suspension, seats, the candidate list and cross-module drill-downs, disputes, audit search, staff-made accounts, discount codes, the full candidate page (CV, score timeline, recordings) and course building. |
 | [14-notifications-inbox-apis.md](14-notifications-inbox-apis.md) | The in-app inbox and per-channel notification preferences — the reading side of a module that only ever answers, never triggers a send. |
 | [15-privacy-and-data-rights-apis.md](15-privacy-and-data-rights-apis.md) | Export and erasure requests (DPDP Act rights): the 24-hour cooling-off window, the withdraw path, and the one-time-mint download link. |
+| [16-profile-images-apis.md](16-profile-images-apis.md) | Profile photos for every account, and employer and college logos: the three-call upload, what the server keeps (re-encoded, no metadata), and who may see a student's photo (the student and staff only). |
 
 ## Modules
 

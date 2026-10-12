@@ -57,6 +57,8 @@ TENANT_SCOPED_TABLES = (
     # 2026-10-05. The candidate's policies, the guard and the accept function
     # are migration 0010's, which runs on every database, fresh or not.
     "employer_shortlists",
+    # 2026-10-10, also created with its policy by 0016 on an older database.
+    "kyb_reviews",
 )
 
 # Tables that carry a tenant_id but must NOT get the policy. Each exemption is
@@ -81,6 +83,14 @@ RLS_EXEMPT: dict[str, str] = {
         "have no tenant. A WITH CHECK policy would reject those inserts and "
         "silently break the audit trail -- which is the one thing that must "
         "never fail to write. Reads go through the admin bypass engine."
+    ),
+    "organisation_logos": (
+        "A logo is read by every candidate browsing an organisation's jobs, "
+        "across tenants, and a candidate binds no tenant -- the policy would "
+        "hide every logo on the board. It is not private: an organisation "
+        "shows it to candidates on purpose. Writes take the tenant from the "
+        "resolved membership, and every read and write filters on tenant_id "
+        "(2026-10-09)."
     ),
 }
 
@@ -276,6 +286,8 @@ def _create_employer_tables() -> None:
         "employers",
         "kyb_submissions",
         "kyb_documents",
+        # 2026-10-10, also created by 0016 on a database built before it.
+        "kyb_reviews",
         "jobs",
         "applications",
         "application_events",
@@ -328,6 +340,9 @@ def _create_platform_tables() -> None:
         "profile_nudges",
         # 2026-09-24: the skills and cities the search filter panel offers.
         "search_filter_options",
+        # 2026-10-09, also created by 0015 on a database built before it.
+        "user_photos",
+        "organisation_logos",
     )
 
 
@@ -435,6 +450,9 @@ def _apply_append_only_grants() -> None:
         f"GRANT UPDATE (disabled_at, disabled_by, updated_at) ON discount_codes TO {APP_ROLE}"
     )
     op.execute(f"REVOKE UPDATE, DELETE ON discount_redemptions FROM {APP_ROLE}")
+    # 2026-10-10. A reviewer's decision, and what it was made on, is the
+    # record a corrected resubmission is compared against.
+    op.execute(f"REVOKE UPDATE, DELETE ON kyb_reviews FROM {APP_ROLE}")
     # Lapsing loses access, not history (R13).
     for table in ("plans", "subscriptions", "upi_mandates", "mandate_debit_notices"):
         op.execute(f"REVOKE DELETE ON {table} FROM {APP_ROLE}")

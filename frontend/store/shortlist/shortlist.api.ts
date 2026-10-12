@@ -10,6 +10,7 @@ export interface Invitation {
   job_id: string;
   job_title: string | null;
   employer_name: string | null;
+  employer_logo_url?: string | null;
   status: InvitationStatus;
   application_id: string | null;
   created_at: string;
@@ -28,7 +29,7 @@ export interface ShortlistedCandidate {
   city: string | null;
   state_code: string | null;
 }
-export interface EmployerInvitation extends Omit<Invitation, "employer_name"> {
+export interface EmployerInvitation extends Omit<Invitation, "employer_name" | "employer_logo_url"> {
   candidate_id: string;
   candidate: ShortlistedCandidate | null;
 }

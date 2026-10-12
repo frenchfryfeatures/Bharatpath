@@ -35,7 +35,7 @@ export function JobCard({ job, matchedSkills }: { job: JobListing; matchedSkills
       className={`flex flex-col gap-3.5 rounded-[20px] border border-[#E7E0D4] bg-white p-4 text-left ${interactiveCardClass}`}
     >
       <div className="flex items-center gap-3">
-        <MonogramTile tint="indigo">
+        <MonogramTile tint="indigo" logoUrl={job.employerLogoUrl}>
           {employerMonogram(job.employerName)}
         </MonogramTile>
         <div className="flex min-w-0 flex-1 flex-col gap-1">

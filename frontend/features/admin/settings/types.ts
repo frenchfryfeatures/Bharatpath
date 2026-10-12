@@ -1,6 +1,6 @@
 export type SettingsTab =
   | "approval"
-  | "platform";
+  | "account";
 
 export type KybMode =
   | "manual"

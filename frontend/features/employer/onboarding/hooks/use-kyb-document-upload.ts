@@ -56,7 +56,7 @@ function precheck(
  * bytes to S3, then ask the backend to check and attach the stored object.
  */
 export function useKybDocumentUpload(
-  onUploaded: (submission: KybSubmission) => void,
+  onUploaded: (submission: KybSubmission, docType: KybDocType) => void,
 ) {
   const [createTicket] = useCreateEmployerKybDocumentTicketMutation();
   const [uploadToStorage] = useUploadEmployerKybDocumentMutation();
@@ -125,7 +125,7 @@ export function useKybDocumentUpload(
         docType,
       }).unwrap();
 
-      onUploaded(submission);
+      onUploaded(submission, docType);
       return true;
     } catch (error) {
       setError(

@@ -1,5 +1,7 @@
 "use client";
 
+import { Avatar } from "@/components/ui/avatar";
+
 import { useParams, useRouter } from "next/navigation";
 import { CheckCircle2, ExternalLink } from "lucide-react";
 
@@ -107,6 +109,7 @@ export function JobDetail() {
         job={{
           title: listing.title,
           employerName: listing.employerName,
+          employerLogoUrl: listing.employerLogoUrl,
           location: listing.location,
           workMode: listing.workMode,
           experienceMinMonths: listing.experienceMinMonths,
@@ -224,7 +227,8 @@ function SimilarJobRow({
       <span className="text-[14px] font-semibold leading-5 text-[#0A1931]">
         {job.title}
       </span>
-      <span className="text-[12px] text-[#5F6B80]">
+      <span className="flex items-center gap-2 text-[12px] text-[#5F6B80]">
+        <Avatar name={job.employerName ?? "Employer"} src={job.employerLogoUrl} fit="contain" size="sm" />
         {job.employerName ?? "Employer"}
       </span>
       <span className="text-[12px] text-[#3A4761]">

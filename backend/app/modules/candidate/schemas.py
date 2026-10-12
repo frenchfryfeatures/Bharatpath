@@ -69,7 +69,12 @@ class NameRequest(_Base):
 
 
 class CandidateProfileResponse(_Base):
+    """The candidate's own profile, for their own screens."""
+
     full_name: str | None = None
+    #: Their own photo, a presigned link that expires; null without one.
+    #: Changed at `/profile/photo`. It never reaches an employer or a college.
+    photo_url: str | None = None
     city: str | None = None
     state_code: str | None = None
     updated_at: datetime | None = None

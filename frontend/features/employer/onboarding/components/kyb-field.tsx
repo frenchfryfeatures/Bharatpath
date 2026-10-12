@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye } from "lucide-react";
+import { AlertTriangle, Eye } from "lucide-react";
 
 import { AppSelect } from "@/components/ui/app-select";
 import type { KybField, KybOption } from "@/store/employer/kyb";
@@ -342,6 +342,26 @@ export function KybFieldInput({
     </div>
   );
 }
+
+/** The reviewer's note under a field or document they asked to be corrected. */
+export function FlagNote({ note }: { note: string | null }) {
+  return (
+    <p
+      role="note"
+      className="mt-2 flex items-start gap-1.5 text-xs font-medium leading-5 text-[#8a5300]"
+    >
+      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+      <span>
+        <span className="font-semibold">Change requested</span>
+        {note ? `: ${note}` : ""}
+      </span>
+    </p>
+  );
+}
+
+/** Amber frame used for any flagged field or document slot. */
+export const flaggedFrameClass =
+  "rounded-xl border border-[#f2cf93] bg-[#fffaf0] p-3.5";
 
 export function FieldError({ id, message }: { id: string; message?: string }) {
   if (!message) {

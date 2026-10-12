@@ -81,6 +81,8 @@ class ApplicationResponse(_Base):
     job_id: uuid.UUID
     job_title: str | None = None
     employer_name: str | None = None
+    #: The employer's logo, a presigned link that expires; null without one.
+    employer_logo_url: str | None = None
     stage: ApplicationStage
     #: PENDING is the candidate's cue to confirm or dispute.
     hire_confirmation: HireConfirmation = "NONE"
@@ -365,6 +367,8 @@ class CandidateMessageResponse(_Base):
     scheduled_at: datetime | None
     link: str | None
     employer_name: str | None
+    #: The employer's logo, a presigned link that expires; null without one.
+    employer_logo_url: str | None = None
     created_at: datetime
 
 
@@ -435,6 +439,8 @@ class ShortlistInvitation(_Base):
         description="Null once the job has left the board; it can then not be accepted."
     )
     employer_name: str | None
+    #: The employer's logo, a presigned link that expires; null without one.
+    employer_logo_url: str | None = None
     status: InvitationStatus
     application_id: uuid.UUID | None = Field(
         description="The application accepting filed, at SHORTLISTED."

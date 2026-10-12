@@ -159,6 +159,7 @@ source_modules =
     app.modules.notifications
     app.modules.privacy
     app.modules.engagement
+    app.modules.profile_images
 forbidden_modules =
     app.modules.identity.repository
     app.modules.identity.models
@@ -210,6 +211,7 @@ source_modules =
     app.modules.notifications
     app.modules.privacy
     app.modules.engagement
+    app.modules.profile_images
 forbidden_modules =
     app.modules.resume.repository
     app.modules.resume.models

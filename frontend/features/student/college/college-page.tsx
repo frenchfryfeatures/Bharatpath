@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 import { Skeleton } from "@/components/common/loading";
+import { Avatar } from "@/components/ui/avatar";
 import { StudentErrorState } from "@/features/student/components";
 import { StudentPage, StudentTopBar } from "@/features/student/shell";
 import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
@@ -59,6 +60,7 @@ type Pending =
 interface LinkedCollege {
   collegeId: string;
   name: string;
+  logoUrl: string | null;
   byName: boolean;
   seatHeld: boolean;
   since: string;
@@ -188,6 +190,7 @@ export function CollegePage() {
       byCollege.set(item.collegeId, {
         collegeId: item.collegeId,
         name: existing?.name ?? item.collegeName ?? "College",
+        logoUrl: existing?.logoUrl ?? item.collegeLogoUrl ?? null,
         byName: Boolean(existing?.byName) || item.scope === "INDIVIDUAL",
         seatHeld: Boolean(existing?.seatHeld) || item.seatHeld,
         since:
@@ -407,9 +410,13 @@ export function CollegePage() {
                   <div aria-hidden="true" className="absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b from-[#5F4DB2] via-[#8172CA] to-[#F4D685]" />
                   <div className="p-5 pl-7 sm:p-6 sm:pl-8">
                     <div className="flex flex-wrap items-center gap-4">
-                      <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[#5F4DB2] text-[17px] font-extrabold tracking-wide text-white">
-                        {monogram(college.name)}
-                      </span>
+                      {college.logoUrl ? (
+                        <Avatar name={college.name} src={college.logoUrl} size="xl" fit="contain" className="!rounded-2xl" />
+                      ) : (
+                        <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[#5F4DB2] text-[17px] font-extrabold tracking-wide text-white">
+                          {monogram(college.name)}
+                        </span>
+                      )}
                       <div className="min-w-0 flex-1">
                         <h3 className="truncate text-[20px] font-extrabold tracking-[-0.025em] text-[#0A1931]">
                           {college.name}
@@ -511,9 +518,13 @@ export function CollegePage() {
                     return (
                       <li key={item.id} className="rounded-2xl border border-[#EFE9DC] bg-[#FFFCF7] p-4">
                         <div className="flex items-center gap-3">
-                          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#F4F1FC] text-[12px] font-extrabold text-[#5F4DB2]">
-                            {monogram(item.collegeName)}
-                          </span>
+                          {item.collegeLogoUrl ? (
+                            <Avatar name={item.collegeName} src={item.collegeLogoUrl} size="lg" fit="contain" className="!h-10 !w-10 !rounded-xl" />
+                          ) : (
+                            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#F4F1FC] text-[12px] font-extrabold text-[#5F4DB2]">
+                              {monogram(item.collegeName)}
+                            </span>
+                          )}
                           <div className="min-w-0 flex-1">
                             <strong className="block truncate text-[14px] text-[#0A1931]">{item.collegeName}</strong>
                             <span className="text-[11.5px] text-[#68758A]">

@@ -1,3 +1,4 @@
+import { ImageTile } from "@/features/admin/shared/image-tile";
 import Link from "next/link";
 
 import type {
@@ -163,16 +164,10 @@ export function OldestItems({
               {/* Subject */}
 
               <div className="flex min-w-0 items-center gap-2.5">
-                <div
-                  className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg text-[11px] font-bold ${getAvatarClasses(
+                <ImageTile src={item.imageUrl} initials={item.initials} fit={item.imageFit} className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg text-[11px] font-bold ${getAvatarClasses(
                     item.type,
                   )}`}
-                  style={{
-                    fontFamily: "'General Sans', sans-serif",
-                  }}
-                >
-                  {item.initials}
-                </div>
+                 />
 
                 <div className="flex min-w-0 flex-col gap-0.5">
                   <span

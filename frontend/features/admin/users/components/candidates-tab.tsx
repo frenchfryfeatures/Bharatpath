@@ -1,5 +1,7 @@
 "use client";
 
+import { ImageTile } from "@/features/admin/shared/image-tile";
+
 import Link from "next/link";
 
 import { DataTable } from "@/components/ui/table";
@@ -30,9 +32,7 @@ export function CandidatesTab({
       cellClassName: "min-w-[320px]",
       cell: (user) => (
         <div className="flex min-w-0 items-center gap-3">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#f0f2f5] text-[10px] font-bold text-[#172033]">
-            {user.initials}
-          </span>
+          <ImageTile src={user.imageUrl} initials={user.initials} fit={user.imageFit} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#f0f2f5] text-[10px] font-bold text-[#172033]" />
 
           <div className="min-w-0">
             <p className="truncate text-[13px] font-semibold leading-5 text-[#172033]">

@@ -1,3 +1,4 @@
+import { choiceLabel } from "@/lib/format/labels";
 import type { CandidateOnboarding } from "@/store/api/admin-api";
 import type { CareerDetails, CareerField } from "@/features/student/profile/career-api";
 
@@ -28,7 +29,7 @@ function displayValue(field: CareerField, details: CareerDetails): string | numb
     const [year, month] = value.split("-").map(Number);
     return new Date(year, month - 1, 1).toLocaleDateString("en-IN", { month: "short", year: "numeric" });
   }
-  return field.options.find((option) => option.value === value)?.label ?? value;
+  return field.options.find((option) => option.value === value)?.label ?? (field.options.length && typeof value === "string" ? choiceLabel(value) : value);
 }
 
 export function CandidateOnboardingDetails({ onboarding }: { onboarding: CandidateOnboarding }) {

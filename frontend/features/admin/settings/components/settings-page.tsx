@@ -8,13 +8,15 @@ import { ErrorState } from "@/components/ui";
 
 import { SettingsTabs } from "./settings-tabs";
 import { KybApprovalTab } from "./kyb-approval-tab";
-import { PlatformTab } from "./platform-tab";
+import { ProfileImageEditor } from "@/components/profile-image/profile-image-editor";
+import { useSessionIdentity, identityDisplayLabel } from "@/lib/auth/use-session-identity";
 import { AccountSecurityCard } from "@/components/auth/account-security-card";
 
 export function SettingsPage() {
+  const { user } = useSessionIdentity();
   usePageHeader(
     "Settings",
-    "Approval mode, verification checks and platform controls",
+    "KYB approval mode, your profile photo and account security",
   );
 
   const {
@@ -23,6 +25,7 @@ export function SettingsPage() {
     error,
     isSaving,
     saveError,
+    canChangeKybMode,
     setKybMode,
     setTab,
   } = useSettings();
@@ -42,16 +45,18 @@ export function SettingsPage() {
           isLoading={isLoading}
           hasError={Boolean(error)}
           isSaving={isSaving}
+          canChange={canChangeKybMode}
           saveError={Boolean(saveError)}
           onModeChange={setKybMode}
         />
       ) : (
-        <>
-          <PlatformTab />
-          <div className="mt-4">
-            <AccountSecurityCard />
-          </div>
-        </>
+        <div className="mt-4 flex max-w-[640px] flex-col gap-4">
+          <section className="rounded-[12px] border border-[#e5e8ee] bg-white p-5">
+            <h2 className="mb-4 text-[14px] font-semibold text-[#172033]">Admin profile</h2>
+            <ProfileImageEditor target="photo" name={identityDisplayLabel(user, "Admin")} title="Profile photo" description="Upload a JPEG, PNG or WebP image up to 5 MB." />
+          </section>
+          <AccountSecurityCard />
+        </div>
       )}
     </div>
   );

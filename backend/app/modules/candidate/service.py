@@ -37,6 +37,7 @@ from app.modules.discovery import service as discovery_service
 from app.modules.discovery.schemas import ProfileView
 from app.modules.jobs import service as jobs_service
 from app.modules.jobs.schemas import RecommendedJobs
+from app.modules.profile_images import service as profile_images_service
 from app.modules.resume import service as resume_service
 from app.modules.scoring import service as scoring_service
 from app.modules.scoring.domain import display_value
@@ -47,13 +48,22 @@ def _candidate(ctx: TenantContext) -> None:
         raise PermissionDeniedError()
 
 
+async def _own_profile(
+    session: AsyncSession, ctx: TenantContext, profile: object | None
+) -> CandidateProfileResponse:
+    """The stored profile, with the caller's own photo beside it."""
+    photo_url = await profile_images_service.own_photo_url(session, ctx=ctx)
+    if profile is None:
+        return CandidateProfileResponse(photo_url=photo_url)
+    response = CandidateProfileResponse.model_validate(profile)
+    return response.model_copy(update={"photo_url": photo_url})
+
+
 async def get_profile(session: AsyncSession, *, ctx: TenantContext) -> CandidateProfileResponse:
     """The candidate's own profile. Empty, not 404, before anything is saved."""
     _candidate(ctx)
     profile = await repository.get_profile(session, user_id=ctx.user_id)
-    if profile is None:
-        return CandidateProfileResponse()
-    return CandidateProfileResponse.model_validate(profile)
+    return await _own_profile(session, ctx, profile)
 
 
 async def set_location(
@@ -75,7 +85,7 @@ async def set_location(
         profile = await repository.set_career(
             session, user_id=ctx.user_id, career=career, city=payload.city
         )
-    return CandidateProfileResponse.model_validate(profile)
+    return await _own_profile(session, ctx, profile)
 
 
 async def set_full_name(
@@ -86,7 +96,7 @@ async def set_full_name(
     profile = await repository.set_full_name(
         session, user_id=ctx.user_id, full_name=payload.full_name
     )
-    return CandidateProfileResponse.model_validate(profile)
+    return await _own_profile(session, ctx, profile)
 
 
 async def prefill_profile(

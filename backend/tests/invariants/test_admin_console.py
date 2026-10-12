@@ -125,6 +125,9 @@ ROUTE_CAPABILITY: dict[str, Any] = {
     "list_kyb_submissions": "kyb",
     "open_kyb_submission": "kyb",
     "decide_kyb": "kyb",
+    # 2026-10-09: reviewers can see the switch; only the admin flips it.
+    "kyb_approval_mode": "kyb",
+    "set_kyb_approval_mode": "kyb_policy",
     "integrity_queue": "integrity",
     "open_signal": "integrity",
     "resolve_signal": "integrity",

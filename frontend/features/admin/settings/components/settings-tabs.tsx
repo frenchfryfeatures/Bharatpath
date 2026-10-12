@@ -11,7 +11,7 @@ const tabs: Array<
   [SettingsTab, string]
 > = [
   ["approval", "KYB approval"],
-  ["platform", "Platform"],
+  ["account", "Account"],
 ];
 
 export function SettingsTabs({

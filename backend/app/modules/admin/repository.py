@@ -148,7 +148,10 @@ async def kyb_submissions(
         reader,
         """
         SELECT k.id, k.tenant_id, t.name AS organisation, k.state, k.form_version,
-               k.submitted_at, k.reviewed_at, k.auto_approved, k.created_at
+               k.submitted_at, k.reviewed_at, k.auto_approved, k.created_at,
+               (SELECT count(*) FROM kyb_reviews r WHERE r.submission_id = k.id)
+                 AS review_count,
+               k.previous_submission_id IS NOT NULL AS after_rejection
           FROM kyb_submissions k
           JOIN tenants t ON t.id = k.tenant_id
          WHERE (CAST(:state AS text) IS NULL OR k.state = CAST(:state AS text))

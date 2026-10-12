@@ -92,6 +92,8 @@ class ProfileView(_Base):
     """
 
     employer_name: str
+    #: The organisation's logo, a presigned link that expires; null without one.
+    employer_logo_url: str | None = None
     last_viewed_at: datetime
 
 

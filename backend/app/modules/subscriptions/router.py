@@ -113,7 +113,12 @@ def _mount(router: APIRouter, *, audience: str, readers: Any, buyers: Any) -> No
         callback has been processed; poll `GET /billing/payments/{payment_id}`.
 
         With `discount_code`, `amount_minor` in the response is the discounted
-        amount; the code counts as used only once that payment succeeds."""
+        amount; the code counts as used only once that payment succeeds.
+
+        **A code that makes the plan free settles here.** The response is
+        `status: SUCCEEDED`, `amount_minor: 0` and `redirect_url: null`: there
+        is no gateway to send anyone to, and the period has already started.
+        Works with no payment gateway configured."""
         payment = await billing_service.checkout_subscription(
             session, ctx=user, plan_code=payload.plan_code, discount_code=payload.discount_code
         )

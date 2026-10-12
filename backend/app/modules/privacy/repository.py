@@ -299,6 +299,10 @@ async def erasable_object_keys(
               JOIN interview_sessions s ON s.id = a.session_id
              WHERE s.user_id = :user_id
                AND a.s3_key IS NOT NULL
+            UNION ALL
+            SELECT 'profile_images', p.s3_key
+              FROM user_photos p
+             WHERE p.user_id = :user_id
             """
         ),
         {"user_id": user_id},
@@ -435,6 +439,12 @@ _EXPORT_QUERIES: dict[str, str] = {
     "streak_days": """
         SELECT activity_on FROM streak_activity_days WHERE user_id = :user_id
          ORDER BY activity_on
+    """,
+    # That they have a photo and when they set it (2026-10-09). The image
+    # itself is theirs to download from `GET /profile/photo`; the archive is
+    # their records, not a copy of their face.
+    "photo": """
+        SELECT mime, width, height, updated_at FROM user_photos WHERE user_id = :user_id
     """,
     # The college is named because the student chose it. The consent version
     # is included because it is the wording they agreed to, and a person

@@ -108,6 +108,7 @@ from app.modules.admin.schemas import (
     InterviewRecordingRow,
     InterviewSessionRow,
     InvitationResentResponse,
+    KybApprovalMode,
     KybBacklog,
     KybSubmissionRow,
     KybSubmissionsPage,
@@ -167,7 +168,8 @@ from app.modules.integrity.domain import hides_candidate, rule_text
 from app.modules.interview import service as interview_service
 from app.modules.jobs import service as jobs_service
 from app.modules.kyb import service as kyb_service
-from app.modules.kyb.schemas import KybSubmissionResponse
+from app.modules.kyb.schemas import KybReviewFlag, KybSubmissionResponse
+from app.modules.profile_images import service as profile_images_service
 from app.modules.questionnaire.domain import answers_in_words
 from app.modules.resume import service as resume_service
 from app.modules.resume.structuring import structured_view
@@ -309,11 +311,46 @@ async def kyb_submissions(
         rows = await repository.kyb_submissions(
             reader, state=state, after=_keyset(cursor), limit=size
         )
+        logos = await profile_images_service.logo_urls(
+            reader, tenant_ids=[r["tenant_id"] for r in rows]
+        )
     return KybSubmissionsPage(
-        items=[KybSubmissionRow.model_validate(dict(r)) for r in rows],
+        items=[
+            KybSubmissionRow.model_validate(
+                {**dict(r), "organisation_logo_url": logos.get(r["tenant_id"])}
+            )
+            for r in rows
+        ],
         next_cursor=_next(rows, size, at="created_at"),
         review_required=review_required,
     )
+
+
+async def kyb_approval_mode(
+    session: AsyncSession, *, now: datetime | None = None
+) -> KybApprovalMode:
+    """The switch as it stands. Global config, naming nobody: no reveal."""
+    return KybApprovalMode(
+        review_required=await kyb_service.require_approval(session, now=_now(now))
+    )
+
+
+async def set_kyb_approval_mode(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    review_required: bool,
+    request_id: str | None = None,
+) -> KybApprovalMode:
+    """`kyb.service.set_require_approval` writes the row and the audit row."""
+    enabled = await kyb_service.set_require_approval(
+        session,
+        enabled=review_required,
+        actor_id=ctx.user_id,
+        actor_role=ctx.role,
+        request_id=request_id,
+    )
+    return KybApprovalMode(review_required=enabled)
 
 
 async def _submission_tenant(
@@ -353,6 +390,7 @@ async def decide_kyb(
     submission_id: uuid.UUID,
     decision: str,
     reason: str | None,
+    flags: list[KybReviewFlag] | None = None,
     request_id: str | None = None,
 ) -> KybSubmissionResponse:
     """`kyb.service.review` decides and audits; this finds the tenant."""
@@ -365,6 +403,7 @@ async def decide_kyb(
         reviewer_role=ctx.role,
         decision=decision,
         reason=reason,
+        flags=flags,
     )
 
 
@@ -394,16 +433,20 @@ async def integrity_queue(
         rows = await repository.integrity_signals(
             reader, state=state, severity=severity, after=_keyset(cursor), limit=size
         )
+        photos = await profile_images_service.photo_urls(
+            reader, user_ids=[r["candidate_id"] for r in rows]
+        )
     return IntegritySignalsPage(
-        items=[IntegritySignalRow.model_validate(_signal_fields(r)) for r in rows],
+        items=[IntegritySignalRow.model_validate(_signal_fields(r, photos)) for r in rows],
         next_cursor=_next(rows, size, at="created_at"),
     )
 
 
-def _signal_fields(row: Any) -> dict[str, Any]:
+def _signal_fields(row: Any, photos: dict[uuid.UUID, str] | None = None) -> dict[str, Any]:
     """A stored signal, with its rule in words and whether it hides someone.
     Candidate columns, when the row was read with them, become the masked
-    `candidate` block; a full phone or email never leaves here."""
+    `candidate` block; a full phone or email never leaves here. `photos` is
+    `profile_images.service.photo_urls`, read in the audited session."""
     title, description = rule_text(row["rule_id"])
     fields: dict[str, Any] = {
         **{k: row[k] for k in _SIGNAL_KEYS if k in row},
@@ -416,6 +459,7 @@ def _signal_fields(row: Any) -> dict[str, Any]:
             id=row["candidate_id"],
             status=row["candidate_status"],
             full_name=row["candidate_full_name"],
+            photo_url=(photos or {}).get(row["candidate_id"]),
             phone_masked=mask_phone(row["candidate_phone"]),
             email_masked=mask_email(row["candidate_email"]),
         )
@@ -468,10 +512,11 @@ async def open_signal(
         visible = await discovery_service.is_candidate_visible(
             reader, candidate_id=row["candidate_id"]
         )
+        photos = await profile_images_service.photo_urls(reader, user_ids=[row["candidate_id"]])
     version, latest = context["resume_version"], context["score"]
     shown = display_value(int(latest["stored_value"])) if latest else None
     return IntegritySignalDetail(
-        **_signal_fields(row),
+        **_signal_fields(row, photos),
         resume_version=SignalResumeVersion.model_validate(dict(version)) if version else None,
         score=(
             SignalScore(
@@ -551,8 +596,13 @@ async def list_tenants(
     next_cursor = (
         encode_cursor({"n": rows[-1].name, "i": str(rows[-1].id)}) if len(rows) == size else None
     )
+    logos = await profile_images_service.logo_urls(session, tenant_ids=[row.id for row in rows])
     return TenantsPage(
-        items=[TenantRow.model_validate(row) for row in rows], next_cursor=next_cursor
+        items=[
+            TenantRow.model_validate(row).model_copy(update={"logo_url": logos.get(row.id)})
+            for row in rows
+        ],
+        next_cursor=next_cursor,
     )
 
 
@@ -719,12 +769,14 @@ async def list_candidates(
             after=_keyset(cursor),
             limit=size,
         )
+        photos = await profile_images_service.photo_urls(reader, user_ids=[r["id"] for r in rows])
     return CandidatesPage(
         items=[
             CandidateRow(
                 id=r["id"],
                 status=r["status"],
                 full_name=r["full_name"],
+                photo_url=photos.get(r["id"]),
                 city=r["city"],
                 state_code=r["state_code"],
                 phone_masked=mask_phone(r["phone"]),
@@ -757,6 +809,8 @@ async def candidate_drilldown(
             raise CandidateNotFoundError()
         facts = await repository.candidate_facts(reader, user_id=user_id)
         visible = await discovery_service.is_candidate_visible(reader, candidate_id=user_id)
+        photo_url = await profile_images_service.photo_url(reader, user_id=user_id)
+        colleges = await _college_links(reader, facts["colleges"])
 
     latest, resume = facts["latest_score"], facts["resume"]
     score = (
@@ -775,6 +829,7 @@ async def candidate_drilldown(
         locale=account["locale"],
         created_at=account["created_at"],
         full_name=account["full_name"],
+        photo_url=photo_url,
         city=account["city"],
         state_code=account["state_code"],
         phone_masked=mask_phone(account["phone"]),
@@ -793,7 +848,7 @@ async def candidate_drilldown(
         applications_by_stage=facts["applications"],
         hire_disputes=facts["hire_disputes"],
         subscription=_subscription(facts["subscription"]),
-        college_links=[CollegeLinkSummary.model_validate(dict(r)) for r in facts["colleges"]],
+        college_links=colleges,
         seat_held=facts["seat_held"],
         disputes_by_state=facts["disputes"],
     )
@@ -822,11 +877,13 @@ async def employer_drilldown(
             raise OrganisationNotFoundError()
         shared = await repository.organisation_facts(reader, tenant_id=tenant_id)
         facts = await repository.employer_facts(reader, tenant_id=tenant_id, now=now)
+        logo_url = await profile_images_service.logo_url(reader, tenant_id=tenant_id)
 
     views = facts["views"]
     return EmployerDrilldown(
         tenant_id=org["id"],
         name=org["name"],
+        logo_url=logo_url,
         status=org["status"],
         created_at=org["created_at"],
         legal_name=org["legal_name"],
@@ -875,11 +932,13 @@ async def college_drilldown(
             raise OrganisationNotFoundError()
         shared = await repository.organisation_facts(reader, tenant_id=tenant_id)
         facts = await repository.college_facts(reader, tenant_id=tenant_id, now=now)
+        logo_url = await profile_images_service.logo_url(reader, tenant_id=tenant_id)
 
     seats, subscription = facts["seats"], shared["subscription"]
     return CollegeDrilldown(
         tenant_id=org["id"],
         name=org["college_name"] or org["name"],
+        logo_url=logo_url,
         status=org["status"],
         created_at=org["created_at"],
         institution_type=org["institution_type"],
@@ -1659,6 +1718,7 @@ async def discount_redemptions(
             ).name
         except identity_service.TenantNotFoundError:  # pragma: no cover - FK-less, defensive
             continue
+    logos = await profile_images_service.logo_urls(session, tenant_ids=list(names))
     return DiscountRedemptionsPage(
         items=[
             DiscountRedemptionRow(
@@ -1668,6 +1728,7 @@ async def discount_redemptions(
                 subscriber_type=r.subscriber_type,
                 subscriber_id=r.subscriber_id,
                 organisation=names.get(r.subscriber_id),
+                organisation_logo_url=logos.get(r.subscriber_id),
                 list_amount_minor=r.list_amount_minor,
                 discount_minor=r.discount_minor,
                 amount_minor=r.amount_minor,
@@ -1771,6 +1832,15 @@ async def dashboard(
                 )
                 for r in await repository.oldest_disputes(reader, limit=OLDEST_ITEMS)
             ]
+        logos = await profile_images_service.logo_urls(
+            reader, tenant_ids=[w.tenant_id for w in waiting if w.tenant_id is not None]
+        )
+        waiting = [
+            w.model_copy(update={"organisation_logo_url": logos.get(w.tenant_id)})
+            if w.tenant_id is not None
+            else w
+            for w in waiting
+        ]
         moves = await repository.throughput(
             reader,
             since=since,
@@ -1989,6 +2059,8 @@ async def candidate_onboarding(
         if row is None:
             raise CandidateNotFoundError()
         facts = await repository.candidate_facts(reader, user_id=user_id)
+        photo_url = await profile_images_service.photo_url(reader, user_id=user_id)
+        colleges = await _college_links(reader, facts["colleges"])
     saved_career = row["career"] or {}
     career = (
         CareerResponse.model_validate(
@@ -2008,6 +2080,7 @@ async def candidate_onboarding(
         locale=row["locale"],
         created_at=row["created_at"],
         full_name=row["full_name"],
+        photo_url=photo_url,
         email=row["email"],
         phone=career.details.phone or row["phone"] if career else row["phone"],
         city=row["city"],
@@ -2015,8 +2088,21 @@ async def candidate_onboarding(
         career=career,
         questionnaire_submitted_at=row["questionnaire_submitted_at"],
         questionnaire=onboarding_answers(row["questionnaire_answers"] or {}),
-        college_links=[CollegeLinkSummary.model_validate(dict(r)) for r in facts["colleges"]],
+        college_links=colleges,
     )
+
+
+async def _college_links(reader: AsyncSession, rows: list[Any]) -> list[CollegeLinkSummary]:
+    """A candidate's college links, each with the college's logo."""
+    logos = await profile_images_service.logo_urls(
+        reader, tenant_ids=[r["tenant_id"] for r in rows]
+    )
+    return [
+        CollegeLinkSummary.model_validate(
+            {**dict(r), "college_logo_url": logos.get(r["tenant_id"])}
+        )
+        for r in rows
+    ]
 
 
 def onboarding_answers(answers: dict[str, Any]) -> list[OnboardingAnswer]:
@@ -2258,8 +2344,16 @@ async def candidate_applications(
         if await repository.candidate_account(reader, user_id=user_id) is None:
             raise CandidateNotFoundError()
         rows, reached = await repository.candidate_applications(reader, user_id=user_id)
+        logos = await profile_images_service.logo_urls(
+            reader, tenant_ids=[r["employer_tenant_id"] for r in rows]
+        )
     return CandidateApplications(
-        items=[CandidateApplicationRow.model_validate(dict(r)) for r in rows],
+        items=[
+            CandidateApplicationRow.model_validate(
+                {**dict(r), "employer_logo_url": logos.get(r["employer_tenant_id"])}
+            )
+            for r in rows
+        ],
         analytics=application_analytics(rows, reached),
     )
 

@@ -5,7 +5,8 @@ import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 
 import { useGetStudentProfileQuery } from "@/store/student";
-import { initials } from "@/features/student/formatters";
+import { Avatar } from "@/components/ui";
+import { useGetProfileImageQuery } from "@/store/api/profile-image-api";
 import { NotificationCenter } from "@/features/notifications";
 
 import { StudentStreak } from "./student-streak";
@@ -81,10 +82,16 @@ export function StudentHeader({
 }) {
   const pathname = usePathname();
   const { data: profile } = useGetStudentProfileQuery();
+  const { data: photo } = useGetProfileImageQuery("photo", {
+    pollingInterval: 10 * 60 * 1000,
+    skipPollingIfUnfocused: true,
+    refetchOnFocus: true,
+    refetchOnMountOrArgChange: true,
+  });
   const { title, subtitle } = sectionFor(pathname);
 
   return (
-    <header className="flex min-h-16 shrink-0 items-center gap-3 border-b border-[#E7E0D4] bg-white px-3 sm:px-4">
+    <header className="flex min-h-16 shrink-0 items-center gap-3 border-b border-[#E7E0D4] bg-white px-4 py-2.5">
       {/* Mobile: open drawer */}
       <button
         type="button"
@@ -96,12 +103,12 @@ export function StudentHeader({
       </button>
 
       {/* Title */}
-      <div className="flex min-w-0 flex-1 flex-col">
-        <h1 className="truncate text-[18px] font-bold leading-6 tracking-[-0.01em] text-[#0A1931]">
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <h1 className="truncate text-[18px] font-bold leading-[23px] tracking-[-0.01em] text-[#0A1931]">
           {title}
         </h1>
         {subtitle ? (
-          <span className="truncate text-[12px] leading-4 text-[#5F6B80]">
+          <span className="truncate text-[12px] leading-[17px] text-[#5F6B80]">
             {subtitle}
           </span>
         ) : null}
@@ -117,7 +124,11 @@ export function StudentHeader({
         aria-label="Your profile"
         className="grid h-9 w-9 place-items-center rounded-full bg-[#5F4DB2] text-[12px] font-bold text-white transition-all hover:bg-[#4A3E8F] hover:ring-2 hover:ring-[#C9BEEB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/40"
       >
-        {initials(profile?.fullName)}
+        <Avatar
+          name={profile?.fullName ?? "Student"}
+          src={photo?.url}
+          className="!rounded-full !bg-[#5F4DB2] !text-white"
+        />
       </Link>
     </header>
   );

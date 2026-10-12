@@ -1,5 +1,7 @@
 "use client";
 
+import { humanizeCode } from "@/lib/format/labels";
+
 import { useState } from "react";
 import { ChevronDown, Headphones, Mic2, RotateCw } from "lucide-react";
 
@@ -13,7 +15,7 @@ const dateTime = (value: string | null) => value
   ? new Date(value).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })
   : "-";
 
-const label = (value: string) => value.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
+const label = humanizeCode;
 
 function formatDuration(ms: number | null) {
   if (ms === null) return null;

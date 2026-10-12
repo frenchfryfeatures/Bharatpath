@@ -112,3 +112,61 @@ def document_key(
     nothing.
     """
     return f"kyb/{tenant_id}/{submission_id}/{doc_type}/{upload_id}"
+
+
+# ---------------------------------------------------------------------------
+# Sending back, and what changed since (2026-10-10)
+# ---------------------------------------------------------------------------
+#: The two decisions that hand the submission back with something to fix.
+#: MORE_INFO_REQUIRED is the console's **Send back**: the same submission
+#: reopens for the employer to correct and submit again. REJECTED is final
+#: for this submission; the employer starts a new one, filled in from it.
+DECISIONS_WITH_FLAGS: Final[frozenset[str]] = frozenset({"REJECTED", "MORE_INFO_REQUIRED"})
+#: How many fields or documents one decision may point at. The form has 27
+#: fields; a longer list is not one a person acts on.
+MAX_REVIEW_FLAGS: Final = 40
+MAX_FLAG_NOTE: Final = 500
+
+
+def flag_refusal(
+    *, decision: str, flagged: list[str], known_fields: frozenset[str]
+) -> tuple[str, list[str]] | None:
+    """Why a reviewer's field flags cannot be recorded, or None.
+
+    A flag names a form field or a document type (`kyb/forms.py`), so the
+    employer's form can point at exactly what to correct. An approval has
+    nothing to correct, and a field the form does not have is a typo the
+    employer could never find.
+    """
+    if flagged and decision not in DECISIONS_WITH_FLAGS:
+        return "kyb_flags_not_allowed", []
+    unknown = sorted({code for code in flagged if code not in known_fields})
+    if unknown:
+        return "kyb_flag_unknown_field", unknown
+    duplicated = sorted({code for code in flagged if flagged.count(code) > 1})
+    if duplicated:
+        return "kyb_flag_duplicate", duplicated
+    return None
+
+
+def changes_since(
+    *,
+    reviewed_answers: dict[str, object],
+    answers: dict[str, object],
+    reviewed_documents: dict[str, str],
+    documents: dict[str, str],
+) -> tuple[list[str], list[str]]:
+    """`(fields, document types)` that differ from what the last reviewer
+    saw. Documents are compared by the id of the latest upload of each type,
+    so re-uploading a file counts as a change even when its bytes do not."""
+    fields = sorted(
+        code
+        for code in set(reviewed_answers) | set(answers)
+        if reviewed_answers.get(code) != answers.get(code)
+    )
+    changed_documents = sorted(
+        doc_type
+        for doc_type in set(reviewed_documents) | set(documents)
+        if reviewed_documents.get(doc_type) != documents.get(doc_type)
+    )
+    return fields, changed_documents

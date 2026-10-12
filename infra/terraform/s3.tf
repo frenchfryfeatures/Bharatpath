@@ -1,6 +1,6 @@
 data "aws_caller_identity" "current" {}
 
-# The six buckets app/settings.py expects. Names are suffixed with the
+# The seven buckets app/settings.py expects. Names are suffixed with the
 # account id because S3 bucket names are globally unique across all of
 # AWS -- "bharatpath-resumes" was almost certainly taken years ago.
 locals {
@@ -11,6 +11,7 @@ locals {
     exports         = "Generated CSV/PDF exports."
     audit_archive   = "Cold copies of the append-only audit trail."
     course_media    = "Course video and materials (producer still unknown -- plan.md N7)."
+    profile_images  = "Profile photos and organisation logos, re-encoded by the API."
   }
 
   bucket_names = {
@@ -68,8 +69,15 @@ resource "aws_s3_bucket_versioning" "this" {
 # Presigned uploads come straight from the mobile client, so the browser
 # and RN fetch layer need CORS. Kept wide for development -- tighten to
 # the real origins before launch.
+#
+# **Every bucket the backend issues a presigned PUT for belongs here**
+# (`storage.presign_put` callers). `profile_images` and `course_media` were
+# left out when they were added, so S3 answered the browser's preflight with
+# a 403 and every photo, logo and lesson upload from the web failed as a
+# "CORS error" (2026-10-10). The mobile app, which sends no preflight, never
+# saw it.
 resource "aws_s3_bucket_cors_configuration" "uploads" {
-  for_each = toset(["resumes", "kyb_documents", "interview_audio"])
+  for_each = toset(["resumes", "kyb_documents", "interview_audio", "profile_images", "course_media"])
 
   bucket = aws_s3_bucket.this[each.key].id
 

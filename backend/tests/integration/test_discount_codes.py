@@ -155,6 +155,94 @@ async def test_a_checkout_without_a_code_is_unchanged(client: Any, mint_token: A
 
 
 # ===========================================================================
+# 100% codes (client, 2026-10-09)
+# ===========================================================================
+async def test_a_hundred_percent_code_makes_the_plan_free_at_checkout(
+    client: Any, mint_token: Any
+) -> None:
+    """No gateway order and no callback: the checkout settles, the period
+    starts, and the use is logged, all before the response."""
+    admin = await _staff(mint_token)
+    code = await _make(client, admin, percent_off=100, label="Pilot college batch")
+    me = await _candidate(mint_token)
+
+    preview = await client.post(
+        f"{CANDIDATE_SUBSCRIPTION}/checkout/discount-preview",
+        json={"plan_code": "CANDIDATE_MONTHLY", "discount_code": code["code"]},
+        headers=me["headers"],
+    )
+    assert preview.json() == {
+        "list_amount_minor": 14_900,
+        "discount_minor": 14_900,
+        "amount_minor": 0,
+    }
+
+    checkout = await _checkout(client, me, code["code"])
+    assert checkout.status_code == 201, checkout.text
+    body = checkout.json()
+    assert body["status"] == "SUCCEEDED"
+    assert (body["amount_minor"], body["list_amount_minor"]) == (0, 14_900)
+    assert body["redirect_url"] is None
+
+    payment = await client.get(
+        f"{API}/billing/payments/{body['payment_id']}", headers=me["headers"]
+    )
+    assert payment.json()["status"] == "SUCCEEDED" and payment.json()["settled_at"]
+    current = await client.get(CANDIDATE_SUBSCRIPTION, headers=me["headers"])
+    assert current.json()["state"] == "ACTIVE"
+
+    assert await _used(client, admin, code["id"]) == 1
+    log = await client.get(f"{CODES}/{code['id']}/redemptions", headers=admin["headers"])
+    [use] = log.json()["items"]
+    assert (use["list_amount_minor"], use["discount_minor"], use["amount_minor"]) == (
+        14_900,
+        14_900,
+        0,
+    )
+    assert use["payment_id"] == body["payment_id"]
+
+    again = await _checkout(client, me, code["code"])
+    assert again.status_code == 422
+    assert again.json()["code"] == "discount_code_already_used"
+
+
+async def test_a_free_code_works_with_no_payment_gateway_configured(
+    client: Any, mint_token: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """There is no gateway yet (D3). A free code must not need one; a paid
+    checkout still answers 503."""
+    from app.modules.billing import service as billing_service
+    from app.modules.billing.provider import UnconfiguredPaymentProvider
+
+    admin = await _staff(mint_token)
+    code = await _make(
+        client, admin, audience="EMPLOYER", percent_off=None, amount_off_minor=499_900
+    )
+    owner = await _owner(client, mint_token)
+    monkeypatch.setattr(billing_service, "get_payment_provider", UnconfiguredPaymentProvider)
+
+    paid = await _checkout(client, owner, None, plan="EMPLOYER_MONTHLY", base=EMPLOYER_SUBSCRIPTION)
+    assert paid.status_code == 503
+    free = await _checkout(
+        client, owner, code["code"], plan="EMPLOYER_MONTHLY", base=EMPLOYER_SUBSCRIPTION
+    )
+    assert free.status_code == 201, free.text
+    assert free.json()["status"] == "SUCCEEDED"
+    current = await client.get(EMPLOYER_SUBSCRIPTION, headers=owner["headers"])
+    assert current.json()["state"] == "ACTIVE"
+
+
+async def test_a_free_codes_usage_limit_is_its_last_use(client: Any, mint_token: Any) -> None:
+    admin = await _staff(mint_token)
+    code = await _make(client, admin, percent_off=100, usage_limit=1)
+    first, second = await _candidate(mint_token), await _candidate(mint_token)
+    assert (await _checkout(client, first, code["code"])).json()["status"] == "SUCCEEDED"
+    refused = await _checkout(client, second, code["code"])
+    assert refused.status_code == 422
+    assert refused.json()["code"] == "discount_code_exhausted"
+
+
+# ===========================================================================
 # Refusals
 # ===========================================================================
 async def test_a_code_for_another_kind_of_account_reads_exactly_like_an_unknown_one(
@@ -169,11 +257,12 @@ async def test_a_code_for_another_kind_of_account_reads_exactly_like_an_unknown_
     assert wrong.json()["code"] == unknown.json()["code"] == "discount_code_invalid"
 
 
-async def test_a_code_that_would_leave_nothing_to_pay_is_refused(
-    client: Any, mint_token: Any
+@pytest.mark.parametrize("amount_off_minor", [14_850, 15_000])
+async def test_a_code_that_would_leave_a_few_paise_or_less_than_nothing_is_refused(
+    client: Any, mint_token: Any, amount_off_minor: int
 ) -> None:
     admin = await _staff(mint_token)
-    code = await _make(client, admin, percent_off=None, amount_off_minor=14_900)
+    code = await _make(client, admin, percent_off=None, amount_off_minor=amount_off_minor)
     me = await _candidate(mint_token)
     response = await _checkout(client, me, code["code"])
     assert response.status_code == 422
@@ -243,10 +332,10 @@ async def test_the_console_refuses_bad_terms_and_a_chosen_code_that_exists(
         headers=admin["headers"],
     )
     assert both.status_code == 422
-    hundred = await client.post(
-        CODES, json={"audience": "CANDIDATE", "percent_off": 100}, headers=admin["headers"]
+    over = await client.post(
+        CODES, json={"audience": "CANDIDATE", "percent_off": 101}, headers=admin["headers"]
     )
-    assert hundred.status_code == 422
+    assert over.status_code == 422
 
     code = await _make(client, admin)
     taken = await client.post(
@@ -342,6 +431,43 @@ async def test_a_codes_terms_never_change_and_switching_off_is_a_latch(
                     "UPDATE discount_codes SET disabled_at = NULL, disabled_by = NULL WHERE id = :c"
                 ),
                 {"c": code["id"]},
+            )
+
+
+@pytest.mark.parametrize(
+    ("provider", "amount", "with_code"),
+    [
+        ("stub", 0, True),  # a gateway payment is never zero
+        ("complimentary", 0, False),  # a free payment is always a code's
+        ("complimentary", 100, True),  # and is always zero
+    ],
+)
+async def test_a_payment_of_zero_is_a_codes_and_nothing_elses(
+    client: Any, mint_token: Any, provider: str, amount: int, with_code: bool
+) -> None:
+    """`ck_payments_complimentary`, for every writer: the migrator cannot
+    write a free payment the console did not make a code for."""
+    admin = await _staff(mint_token)
+    code = await _make(client, admin, percent_off=100)
+    me = await _candidate(mint_token)
+    with pytest.raises(DBAPIError, match="ck_payments_complimentary"):
+        async with sessions(_seed_url())() as session, session.begin():
+            await session.execute(
+                text(
+                    "INSERT INTO payments (id, user_id, provider, provider_ref, amount_minor, "
+                    "currency, status, purpose, item_code, item_id, subscriber_type, "
+                    "subscriber_id, discount_code_id, list_amount_minor) "
+                    "SELECT gen_random_uuid(), :u, :p, gen_random_uuid()::text, :a, 'INR', "
+                    "'PENDING', 'SUBSCRIPTION', code, id, 'USER', :u, :c, :l "
+                    "FROM plans WHERE code = 'CANDIDATE_MONTHLY' LIMIT 1"
+                ),
+                {
+                    "u": str(me["id"]),
+                    "p": provider,
+                    "a": amount,
+                    "c": code["id"] if with_code else None,
+                    "l": 14_900 if with_code else None,
+                },
             )
 
 

@@ -59,6 +59,7 @@ output "env_file" {
     S3_BUCKET_EXPORTS=${local.bucket_names["exports"]}
     S3_BUCKET_AUDIT_ARCHIVE=${local.bucket_names["audit_archive"]}
     S3_BUCKET_COURSE_MEDIA=${local.bucket_names["course_media"]}
+    S3_BUCKET_PROFILE_IMAGES=${local.bucket_names["profile_images"]}
 
     CELERY_BROKER_URL=sqs://
     SQS_QUEUE_URL=${aws_sqs_queue.tasks.url}
@@ -184,6 +185,7 @@ output "host_env_file" {
     S3_BUCKET_EXPORTS=${local.bucket_names["exports"]}
     S3_BUCKET_AUDIT_ARCHIVE=${local.bucket_names["audit_archive"]}
     S3_BUCKET_COURSE_MEDIA=${local.bucket_names["course_media"]}
+    S3_BUCKET_PROFILE_IMAGES=${local.bucket_names["profile_images"]}
 
     # Redis on this host, not SQS (2026-10-01). The SQS broker never reached
     # the queue Terraform makes: nothing reads SQS_QUEUE_URL, so kombu looks

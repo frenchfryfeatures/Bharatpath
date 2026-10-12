@@ -67,12 +67,20 @@ Audience = Literal[
     "ROSTER_CONTACT",
     #: `payload.raised_by`
     "DISPUTE_RAISER",
+    #: our staff who review KYB: `KYB_REVIEWER_ROLES` in the platform tenant
+    "KYB_REVIEWERS",
 ]
+
+#: The staff a submission waiting for review is announced to. The roles
+#: holding the console's `kyb` capability; a test holds the two equal.
+KYB_REVIEWER_ROLES: Final = frozenset({"PLATFORM_ADMIN", "KYB_REVIEWER"})
 
 #: Variables the service resolves from identifiers in the payload.
 #: `message`, `when` and `link` belong to an employer's message to an applicant
 #: (2026-09-29), read at dispatch from the message the payload names.
-Variable = Literal["employer", "college", "amount", "date", "message", "when", "link"]
+#: `reason` is a KYB reviewer's words to the organisation (2026-10-10), read
+#: at dispatch from the submission `payload.submission_id` names.
+Variable = Literal["employer", "college", "amount", "date", "message", "when", "link", "reason"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,6 +116,7 @@ NOTIFYING_EVENTS: Final = frozenset(
         "subscriptions.state_changed",
         "subscriptions.pre_debit_notified",
         "kyb.approved",
+        "kyb.submitted",
         "kyb.reviewed",
         "college.consent_revoked",
         "college.invitation_sent",
@@ -173,12 +182,31 @@ def plan_for(event_type: str, payload: dict[str, object]) -> tuple[Planned, ...]
         )
     if event_type == "kyb.approved":
         return (Planned("EMPLOYER_OWNERS", ("EMAIL_KYB_APPROVED", "IN_APP_KYB_APPROVED")),)
+    if event_type == "kyb.submitted":
+        # Only while approval is manual: an automatic one emits kyb.approved.
+        # Staff hear in their inbox, never by email (2026-10-10).
+        template = (
+            "IN_APP_KYB_RESUBMITTED" if payload.get("resubmission") else "IN_APP_KYB_SUBMITTED"
+        )
+        return (Planned("KYB_REVIEWERS", (template,), ("employer",)),)
     if event_type == "kyb.reviewed":
         decision = payload.get("decision")
         if decision == "APPROVED":
             return (Planned("EMPLOYER_OWNERS", ("EMAIL_KYB_APPROVED", "IN_APP_KYB_APPROVED")),)
         if decision == "MORE_INFO_REQUIRED":
-            return (Planned("EMPLOYER_OWNERS", ("EMAIL_KYB_NEEDS_INFO", "IN_APP_KYB_NEEDS_INFO")),)
+            return (
+                Planned(
+                    "EMPLOYER_OWNERS",
+                    ("EMAIL_KYB_NEEDS_INFO", "IN_APP_KYB_NEEDS_INFO"),
+                    ("reason",),
+                ),
+            )
+        if decision == "REJECTED":
+            return (
+                Planned(
+                    "EMPLOYER_OWNERS", ("EMAIL_KYB_REJECTED", "IN_APP_KYB_REJECTED"), ("reason",)
+                ),
+            )
         return ()
     if event_type == "college.consent_revoked":
         scopes = payload.get("scopes")

@@ -1,8 +1,10 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import {
+  AlertTriangle,
   CheckCircle2,
+  ExternalLink,
   FileText,
   Loader2,
   RefreshCw,
@@ -12,6 +14,7 @@ import {
 import type {
   KybDocType,
   KybDocument,
+  KybReviewFlag,
   KybSection,
 } from "@/store/employer/kyb";
 
@@ -20,7 +23,7 @@ import type {
   KybDocumentUploader,
   UploadProgress,
 } from "../hooks/use-kyb-document-upload";
-import { FieldError, renderFieldLabel } from "./kyb-field";
+import { FieldError, FlagNote, renderFieldLabel } from "./kyb-field";
 
 const PHASE_LABEL: Record<UploadProgress["phase"], string> = {
   preparing: "Preparing upload…",
@@ -38,16 +41,22 @@ interface KybDocumentsProps {
   section: KybSection;
   documents: Map<string, KybDocument>;
   errors: KybFieldErrors;
+  /** Documents the reviewer asked to be re-uploaded and that are not yet replaced. */
+  flags?: ReadonlyMap<string, KybReviewFlag>;
   disabled?: boolean;
   uploader: KybDocumentUploader;
+  /** Opens a freshly fetched link to an uploaded file. */
+  onView?: (docType: string) => Promise<boolean>;
 }
 
 export function KybDocuments({
   section,
   documents,
   errors,
+  flags,
   disabled,
   uploader,
+  onView,
 }: Readonly<KybDocumentsProps>) {
   return (
     <div className="space-y-3">
@@ -64,6 +73,8 @@ export function KybDocuments({
           helpText={field.help_text}
           required={field.required}
           document={documents.get(field.code)}
+          flag={flags?.get(field.code)}
+          onView={onView ? () => onView(field.code) : undefined}
           progress={uploader.progress[field.code]}
           error={uploader.errors[field.code] ?? errors[field.code]}
           disabled={disabled}
@@ -80,6 +91,8 @@ interface DocumentRowProps {
   helpText: string | null;
   required: boolean;
   document?: KybDocument;
+  flag?: KybReviewFlag;
+  onView?: () => Promise<boolean>;
   progress?: UploadProgress;
   error?: string;
   disabled?: boolean;
@@ -92,12 +105,16 @@ function DocumentRow({
   helpText,
   required,
   document,
+  flag,
+  onView,
   progress,
   error,
   disabled,
   onSelect,
 }: Readonly<DocumentRowProps>) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [viewing, setViewing] = useState(false);
+  const [viewFailed, setViewFailed] = useState(false);
   const busy = Boolean(progress);
   const inputId = `kyb-${docType}`;
 
@@ -110,10 +127,13 @@ function DocumentRow({
 
   return (
     <div
+      id={`kyb-field-${docType}`}
       className={`rounded-xl border p-4 transition ${
         error
           ? "border-[#f0c8cc] bg-[#fffafa]"
-          : document
+          : flag
+            ? "border-[#f2cf93] bg-[#fffaf0]"
+            : document
             ? "border-[#cfe7df] bg-[#f6fbf9]"
             : "border-[#dfe2e8] bg-white"
       }`}
@@ -122,10 +142,16 @@ function DocumentRow({
         <div className="flex min-w-0 items-start gap-3">
           <span
             className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-              document ? "bg-[#dff1ea] text-[#1f7a63]" : "bg-[#f1f4f9] text-[#5d6673]"
+              flag
+              ? "bg-[#fdebc8] text-[#9a5b00]"
+              : document
+                ? "bg-[#dff1ea] text-[#1f7a63]"
+                : "bg-[#f1f4f9] text-[#5d6673]"
             }`}
           >
-            {document ? (
+            {flag ? (
+              <AlertTriangle className="h-5 w-5" aria-hidden="true" />
+            ) : document ? (
               <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
             ) : (
               <FileText className="h-5 w-5" aria-hidden="true" />
@@ -144,7 +170,7 @@ function DocumentRow({
                 <span className="truncate text-[#687386]">{progress.fileName}</span>
               </p>
             ) : document ? (
-              <p className="mt-0.5 text-xs text-[#1f7a63]">
+              <p className={`mt-0.5 text-xs ${flag ? "text-[#687386]" : "text-[#1f7a63]"}`}>
                 Uploaded
                 {document.mime ? ` · ${MIME_LABEL[document.mime] ?? document.mime}` : ""}
                 {uploadedAt ? ` · ${uploadedAt}` : ""}
@@ -155,7 +181,29 @@ function DocumentRow({
           </div>
         </div>
 
-        <div className="shrink-0">
+        <div className="flex shrink-0 items-center gap-2">
+          {document && onView && (
+            <button
+              type="button"
+              disabled={viewing}
+              onClick={async () => {
+                setViewing(true);
+                setViewFailed(false);
+                const opened = await onView();
+                setViewFailed(!opened);
+                setViewing(false);
+              }}
+              className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold text-[#3566b8] transition hover:bg-[#f3f7fd] disabled:cursor-wait disabled:opacity-60"
+              aria-label={`View uploaded ${label}`}
+            >
+              {viewing ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+              ) : (
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              )}
+              View
+            </button>
+          )}
           <input
             ref={inputRef}
             id={inputId}
@@ -178,7 +226,7 @@ function DocumentRow({
             disabled={disabled || busy}
             onClick={() => inputRef.current?.click()}
             className={`inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border px-3.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
-              document
+              document && !flag
                 ? "border-[#dfe2e8] bg-white text-[#4f5666] hover:bg-[#f8f9fb]"
                 : "border-[#3566b8] bg-[#3566b8] text-white hover:bg-[#2c579f]"
             }`}
@@ -188,11 +236,17 @@ function DocumentRow({
             ) : (
               <UploadCloud className="h-3.5 w-3.5" aria-hidden="true" />
             )}
-            {document ? "Replace" : "Choose file"}
+            {flag ? "Re-upload" : document ? "Replace" : "Choose file"}
           </button>
         </div>
       </div>
 
+      {flag && <FlagNote note={flag.note ? `${flag.note.replace(/[.\s]+$/, "")}. Upload a new file.` : "Upload a new file."} />}
+      {viewFailed && (
+        <p className="mt-2 text-xs font-medium text-[#b42318]">
+          We could not open that file. Try again.
+        </p>
+      )}
       <FieldError id={`${inputId}-error`} message={error} />
     </div>
   );

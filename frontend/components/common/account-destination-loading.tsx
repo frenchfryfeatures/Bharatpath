@@ -30,11 +30,11 @@ const portalAppearance = {
   },
   [PORTAL_TYPES.ADMIN]: {
     name: "Admin",
-    background: "bg-[#141b2e]",
-    foreground: "text-white",
-    muted: "text-[#d6e0f0]",
-    accent: "text-[#a8c5ff]",
-    logoBackground: "rounded-2xl bg-white p-2",
+    background: "bg-[#f7f8fa]",
+    foreground: "text-[#172033]",
+    muted: "text-[#687182]",
+    accent: "text-[#5b4fcf]",
+    logoBackground: "",
   },
 } as const;
 
@@ -61,9 +61,9 @@ function PortalAnimation({ portal }: { readonly portal: PortalType }) {
     case PORTAL_TYPES.ADMIN:
       return (
         <div className="relative grid h-10 w-10 place-items-center" aria-hidden="true">
-          <span className="absolute inset-0 animate-ping rounded-full border border-[#a8c5ff] motion-reduce:animate-none" />
-          <span className="absolute inset-1 rounded-full border border-[#a8c5ff]/60" />
-          <ShieldCheck className="relative h-5 w-5 text-[#a8c5ff]" />
+          <span className="absolute inset-0 animate-ping rounded-full border border-[#5b4fcf]/50 motion-reduce:animate-none" />
+          <span className="absolute inset-1 rounded-full border border-[#5b4fcf]/30" />
+          <ShieldCheck className="relative h-5 w-5 text-[#5b4fcf]" />
         </div>
       );
     default:

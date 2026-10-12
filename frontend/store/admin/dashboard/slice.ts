@@ -26,6 +26,8 @@ export interface OldestDashboardItem {
   name: string;
   meta: string;
   initials: string;
+  imageUrl?: string | null;
+  imageFit?: "cover" | "contain";
   type: "KYB" | "Integrity" | "Dispute";
   risk: "High" | "Medium" | "Low" | "-";
   waiting: string;

@@ -95,6 +95,7 @@ export const baseApi = createApi({
     "Application",
     "Team",
     "Kyb",
+    "Image",
   ],
 
   endpoints: () => ({}),

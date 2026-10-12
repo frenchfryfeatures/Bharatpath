@@ -97,6 +97,11 @@ class FakeS3:
     async def presign_put(self, *, bucket: str, key: str, expires_in: int) -> str:
         return f"https://s3.test/{bucket}/{key}?sig=x"
 
+    async def presign_get(self, *, bucket: str, key: str, expires_in: int) -> str:
+        """Faked like the PUT. Left real, it signs with whatever AWS
+        credentials the machine has: a developer's pass, CI's none fails."""
+        return f"https://s3.test/{bucket}/{key}?get=x"
+
 
 @pytest.fixture
 def fake_s3(monkeypatch: pytest.MonkeyPatch) -> FakeS3:
@@ -110,6 +115,7 @@ def fake_s3(monkeypatch: pytest.MonkeyPatch) -> FakeS3:
         "read_whole_object",
         "delete_object",
         "presign_put",
+        "presign_get",
     ):
         monkeypatch.setattr(storage, name, getattr(fake, name))
         if hasattr(service.storage, name):

@@ -8,7 +8,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
-import { ChevronDown, Loader2, Search } from "lucide-react";
+import { Check, ChevronDown, Loader2, Search } from "lucide-react";
 
 interface AppSelectOption {
   value: string;
@@ -253,7 +253,7 @@ export function AppSelect({
   const menuContents = (
     <>
       {searchable && (
-        <div className={`mb-1 flex items-center gap-2 rounded-[7px] px-2.5 py-1.5 ${isStudent ? "bg-[#F7F4EC]" : "bg-[#f5f6f9]"}`}>
+        <div className={`mb-1 flex items-center gap-2 rounded-[7px] px-2.5 py-1.5 ${isStudent ? "bg-[#F7F4EC] ring-1 ring-[#E7E0D4] focus-within:ring-[#5F4DB2]" : "bg-[#f5f6f9]"}`}>
           <Search size={13} className={`shrink-0 ${isStudent ? "text-[#5F6B80]" : "text-[#98a1b0]"}`} />
           <input
             ref={searchInputRef}
@@ -286,17 +286,18 @@ export function AppSelect({
                 role="option"
                 aria-selected={selected}
                 onClick={() => handleSelect(option)}
-                className={`flex w-full items-center rounded-[7px] px-2.5 py-2 text-left transition-colors ${isStudent ? studentTextSize : "text-[11px]"} ${
+                className={`flex w-full items-center justify-between gap-2 rounded-[7px] px-2.5 py-2 text-left transition-colors ${isStudent ? studentTextSize : "text-[11px]"} ${
                   selected
                     ? isStudent
-                      ? "bg-[#F1EAF7] font-semibold text-[#4A3E8F]"
+                      ? "bg-[#F1EAF7] font-semibold text-[#4A3E8F] outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#5F4DB2]"
                       : "bg-[#f2f0ff] font-semibold text-[#51449a]"
                     : isStudent
-                      ? "font-medium text-[#0A1931] hover:bg-[#F7F4EC]"
+                      ? "font-medium text-[#0A1931] outline-none hover:bg-[#F1EAF7] hover:text-[#4A3E8F] focus-visible:bg-[#F1EAF7] focus-visible:text-[#4A3E8F] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#5F4DB2]"
                       : "font-medium text-[#4f5969] hover:bg-[#f7f8fa]"
                 }`}
               >
-                {option.label}
+                <span className="min-w-0">{option.label}</span>
+                {isStudent && selected ? <Check size={14} aria-hidden="true" className="shrink-0 text-[#5F4DB2]" /> : null}
               </button>
             );
           })
@@ -339,7 +340,7 @@ export function AppSelect({
         }}
         className={`flex h-[36px] w-full items-center justify-between gap-2 rounded-[8px] border bg-white px-3 text-left transition-colors focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 ${
           isStudent
-            ? "border-[#E7E0D4] hover:bg-[#FFFCF7] focus-visible:border-[#5F4DB2] focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/20"
+            ? `border-[#E7E0D4] hover:border-[#C9BEEB] hover:bg-[#FFFCF7] focus-visible:border-[#5F4DB2] focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/20 ${open ? "!border-[#5F4DB2] !bg-[#FFFCF7] ring-2 ring-[#5F4DB2]/10" : ""}`
             : "border-[#e1e5ea] hover:bg-[#f8f9fb]"
         }`}
       >
@@ -367,7 +368,7 @@ export function AppSelect({
                   ref={menuRef}
                   role="listbox"
                   style={{ ...menuPosition, position: "fixed" }}
-                  className={`z-[120] min-w-[140px] overflow-hidden rounded-[10px] border bg-white p-1 ${isStudent ? "border-[#E7E0D4] shadow-[0_8px_24px_rgba(10,25,49,0.10)]" : "border-[#e1e5ea] shadow-[0_8px_24px_rgba(19,26,38,0.10)]"} ${menuClassName}`}
+                  className={`z-[120] min-w-[140px] overflow-hidden rounded-[10px] border bg-white p-1 ${isStudent ? "border-[#C9BEEB] shadow-[0_8px_24px_rgba(95,77,178,0.12)]" : "border-[#e1e5ea] shadow-[0_8px_24px_rgba(19,26,38,0.10)]"} ${menuClassName}`}
                 >
                   {menuContents}
                 </div>,
@@ -378,7 +379,7 @@ export function AppSelect({
               <div
                 ref={menuRef}
                 role="listbox"
-                className={`absolute right-0 ${inlinePlacement === "top" ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+6px)]"} z-[120] w-full min-w-[140px] overflow-hidden rounded-[10px] border bg-white p-1 ${isStudent ? "border-[#E7E0D4] shadow-[0_8px_24px_rgba(10,25,49,0.10)]" : "border-[#e1e5ea] shadow-[0_8px_24px_rgba(19,26,38,0.10)]"} ${menuClassName}`}
+                className={`absolute right-0 ${inlinePlacement === "top" ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+6px)]"} z-[120] w-full min-w-[140px] overflow-hidden rounded-[10px] border bg-white p-1 ${isStudent ? "border-[#C9BEEB] shadow-[0_8px_24px_rgba(95,77,178,0.12)]" : "border-[#e1e5ea] shadow-[0_8px_24px_rgba(19,26,38,0.10)]"} ${menuClassName}`}
               >
                 {menuContents}
               </div>

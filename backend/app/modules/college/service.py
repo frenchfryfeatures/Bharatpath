@@ -102,6 +102,7 @@ from app.modules.identity import service as identity_service
 # A service reading another module's pure domain, the same shape as
 # `admin.router` reading `notifications.service`.
 from app.modules.notifications.domain import roster_invitation_contact_fields
+from app.modules.profile_images import service as profile_images_service
 from app.modules.resume import service as resume_service
 from app.modules.resume.structuring import StructuredResume, StructuredStatus, structured_view
 from app.modules.scoring.domain import band_for, display_value
@@ -722,6 +723,7 @@ class Link:
     revoked_at: datetime | None
     seat_held: bool
     created: bool
+    college_logo_url: str | None = None
 
 
 async def _link(
@@ -778,6 +780,7 @@ async def _link(
     return Link(
         college_id=tenant_id,
         college_name=names.get(tenant_id),
+        college_logo_url=await profile_images_service.logo_url(session, tenant_id=tenant_id),
         scope=consent.scope,
         granted_via=granted_via,
         granted_at=consent.granted_at,
@@ -802,6 +805,7 @@ async def _existing_link(
     return Link(
         college_id=tenant_id,
         college_name=names.get(tenant_id),
+        college_logo_url=await profile_images_service.logo_url(session, tenant_id=tenant_id),
         scope=consent.scope,
         granted_via=consent.granted_via,
         granted_at=consent.granted_at,
@@ -873,13 +877,14 @@ async def list_links(session: AsyncSession, *, ctx: TenantContext) -> list[Link]
     user_id = await _bind_student(session, ctx)
     consents = await repository.candidate_consents(session, candidate_id=user_id)
     seat = await repository.candidate_live_seat(session, candidate_id=user_id)
-    names = await repository.college_names(
-        session, tenant_ids=sorted({c.tenant_id for c in consents})
-    )
+    tenant_ids = sorted({c.tenant_id for c in consents})
+    names = await repository.college_names(session, tenant_ids=tenant_ids)
+    logos = await profile_images_service.logo_urls(session, tenant_ids=tenant_ids)
     return [
         Link(
             college_id=c.tenant_id,
             college_name=names.get(c.tenant_id),
+            college_logo_url=logos.get(c.tenant_id),
             scope=c.scope,
             granted_via=c.granted_via,
             granted_at=c.granted_at,
@@ -897,6 +902,7 @@ class InvitationView:
     college_name: str
     sent_at: datetime
     expires_at: datetime
+    college_logo_url: str | None = None
 
 
 async def list_invitations(session: AsyncSession, *, ctx: TenantContext) -> list[InvitationView]:
@@ -904,9 +910,19 @@ async def list_invitations(session: AsyncSession, *, ctx: TenantContext) -> list
     phone or email. Matched in the database on the account's contact, never
     on anything the student sends."""
     await _bind_student(session, ctx)
+    invitations = await repository.invitations_for_candidate(session)
+    logos = await profile_images_service.logo_urls(
+        session, tenant_ids=[i.tenant_id for i in invitations]
+    )
     return [
-        InvitationView(i.entry_id, i.college_name, i.sent_at, i.sent_at + INVITATION_VALID_FOR)
-        for i in await repository.invitations_for_candidate(session)
+        InvitationView(
+            i.entry_id,
+            i.college_name,
+            i.sent_at,
+            i.sent_at + INVITATION_VALID_FOR,
+            logos.get(i.tenant_id),
+        )
+        for i in invitations
     ]
 
 
@@ -1611,6 +1627,7 @@ class StudentHire:
     job_title: str
     employer_name: str
     hired_at: datetime
+    employer_logo_url: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1648,6 +1665,9 @@ async def open_student(
     if row is None:
         raise CollegeStudentNotFoundError()
     hires = await repository.student_hires(session, candidate_id=candidate_id)
+    hire_logos = await profile_images_service.logo_urls(
+        session, tenant_ids=[h.employer_tenant_id for h in hires]
+    )
     await audit_event(
         session,
         action=AuditAction.COLLEGE_STUDENT_VIEWED,
@@ -1674,7 +1694,12 @@ async def open_student(
         scored_at=row.scored_at,
         applications=row.applications,
         interviews=row.interviews,
-        hires=[StudentHire(h.job_title, h.employer_name, h.hired_at) for h in hires],
+        hires=[
+            StudentHire(
+                h.job_title, h.employer_name, h.hired_at, hire_logos.get(h.employer_tenant_id)
+            )
+            for h in hires
+        ],
     )
 
 
@@ -1732,6 +1757,7 @@ class StudentApplication:
     stage: str
     applied_at: datetime
     updated_at: datetime
+    employer_logo_url: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1766,6 +1792,9 @@ async def open_student_details(
     courses = await repository.student_courses(session, candidate_id=candidate_id)
     applications, reached = await repository.student_applications(
         session, candidate_id=candidate_id
+    )
+    application_logos = await profile_images_service.logo_urls(
+        session, tenant_ids=[a.employer_tenant_id for a in applications]
     )
     await audit_event(
         session,
@@ -1804,7 +1833,13 @@ async def open_student_details(
         ],
         applications=[
             StudentApplication(
-                a.job_title, a.employer_name, a.job_location, a.stage, a.applied_at, a.updated_at
+                a.job_title,
+                a.employer_name,
+                a.job_location,
+                a.stage,
+                a.applied_at,
+                a.updated_at,
+                application_logos.get(a.employer_tenant_id),
             )
             for a in applications
         ],

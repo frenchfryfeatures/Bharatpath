@@ -34,6 +34,7 @@ SUPPORT_AGENT: Final = "SUPPORT_AGENT"
 
 Capability = Literal[
     "kyb",
+    "kyb_policy",
     "integrity",
     "tenants",
     "suspend",
@@ -63,6 +64,10 @@ Capability = Literal[
 #: recorded.
 CONSOLE_ROLES: Final[dict[Capability, frozenset[str]]] = {
     "kyb": frozenset({PLATFORM_ADMIN, KYB_REVIEWER}),
+    # 2026-10-09. Whether employers are reviewed at all is the admin's alone:
+    # switching to automatic approves every employer from then on, unread,
+    # and a reviewer must not be able to switch their own queue off.
+    "kyb_policy": frozenset({PLATFORM_ADMIN}),
     "integrity": frozenset({PLATFORM_ADMIN, INTEGRITY_REVIEWER}),
     "tenants": frozenset({PLATFORM_ADMIN, KYB_REVIEWER, SUPPORT_AGENT}),
     "suspend": frozenset({PLATFORM_ADMIN}),

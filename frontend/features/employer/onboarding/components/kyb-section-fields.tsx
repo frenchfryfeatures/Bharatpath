@@ -1,15 +1,22 @@
 "use client";
 
-import type { KybForm, KybSection } from "@/store/employer/kyb";
+import type { KybForm, KybReviewFlag, KybSection } from "@/store/employer/kyb";
 
 import type { KybAnswers, KybFieldErrors } from "../kyb-form";
-import { isWideField, KybFieldInput } from "./kyb-field";
+import {
+  flaggedFrameClass,
+  FlagNote,
+  isWideField,
+  KybFieldInput,
+} from "./kyb-field";
 
 interface KybSectionFieldsProps {
   form: KybForm;
   section: KybSection;
   answers: KybAnswers;
   errors: KybFieldErrors;
+  /** Fields the reviewer asked to be corrected and that are not yet changed. */
+  flags?: ReadonlyMap<string, KybReviewFlag>;
   disabled?: boolean;
   onChange: (code: string, value: unknown) => void;
 }
@@ -20,6 +27,7 @@ export function KybSectionFields({
   section,
   answers,
   errors,
+  flags,
   disabled,
   onChange,
 }: Readonly<KybSectionFieldsProps>) {
@@ -35,25 +43,34 @@ export function KybSectionFields({
           : "grid grid-cols-1 gap-x-5 gap-y-5 sm:grid-cols-2"
       }
     >
-      {section.fields.map((field) => (
-        <div
-          key={field.code}
-          className={isWideField(field) && !onlyCheckboxes ? "sm:col-span-2" : ""}
-        >
-          <KybFieldInput
-            field={field}
-            value={answers[field.code]}
-            error={errors[field.code]}
-            options={
-              field.options_source
-                ? (form.options[field.options_source] ?? [])
-                : []
-            }
-            disabled={disabled}
-            onChange={(value) => onChange(field.code, value)}
-          />
-        </div>
-      ))}
+      {section.fields.map((field) => {
+        const flag = flags?.get(field.code);
+
+        return (
+          <div
+            key={field.code}
+            id={`kyb-field-${field.code}`}
+            className={[
+              isWideField(field) && !onlyCheckboxes ? "sm:col-span-2" : "",
+              flag ? flaggedFrameClass : "",
+            ].join(" ")}
+          >
+            <KybFieldInput
+              field={field}
+              value={answers[field.code]}
+              error={errors[field.code]}
+              options={
+                field.options_source
+                  ? (form.options[field.options_source] ?? [])
+                  : []
+              }
+              disabled={disabled}
+              onChange={(value) => onChange(field.code, value)}
+            />
+            {flag && <FlagNote note={flag.note} />}
+          </div>
+        );
+      })}
     </div>
   );
 }

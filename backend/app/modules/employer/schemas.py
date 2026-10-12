@@ -163,6 +163,9 @@ class OrganisationResponse(_Base):
         description="DRAFT until KYB is submitted. An organisation "
         "exists before it is verified; publishing a job does not."
     )
+    #: The organisation's logo, a presigned link that expires; null without
+    #: one. Changed at `/employer/organisation/logo`.
+    logo_url: str | None = None
 
 
 class TermResponse(_Base):

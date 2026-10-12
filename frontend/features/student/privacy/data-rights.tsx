@@ -1,5 +1,7 @@
 "use client";
 
+import { humanizeCode } from "@/lib/format/labels";
+
 import { useState } from "react";
 import { FileDown, Trash2 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
@@ -141,7 +143,7 @@ export function DataRights() {
                     <StatusChip
                       tone={STATE_TONE[request.state] ?? "neutral"}
                     >
-                      {STATE_LABEL[request.state] ?? request.state}
+                      {STATE_LABEL[request.state] ?? humanizeCode(request.state)}
                     </StatusChip>
                   </span>
                   <span className="shrink-0 text-[11px] text-[#5F6B80]">

@@ -136,16 +136,54 @@ cleared an item should see it gone.
 ```json
 {
   "items": [
-    { "id": "...", "tenant_id": "...", "organisation": "Acme Pvt Ltd", "state": "APPROVED", "form_version": "kyb-v3", "submitted_at": "...", "reviewed_at": "...", "auto_approved": true, "created_at": "..." }
+    { "id": "...", "tenant_id": "...", "organisation": "Acme Pvt Ltd", "state": "APPROVED", "form_version": "kyb-v3", "submitted_at": "...", "reviewed_at": "...", "auto_approved": true, "created_at": "...", "review_count": 0, "after_rejection": false }
   ],
   "next_cursor": null,
   "review_required": false
 }
 ```
+`review_count` (2026-10-10) is how many decisions have been made on the
+submission: **above zero on a `SUBMITTED` row means it was sent back and
+corrected**, so show it as "Resubmitted". `after_rejection: true` means the
+organisation started this one after a rejection.
+
 `review_required` mirrors the live `kyb.require_approval` config row
 (see [07-kyb-apis.md](07-kyb-apis.md)). **While it's `false`, this whole list is a historical
 record, not a queue** — every submission arriving was approved on the spot
 (R15), and `auto_approved: true` says exactly that on each row.
+
+### `GET /admin/settings/kyb-approval` — manual or automatic KYB
+
+**Auth:** `kyb` capability (Admin or KYB Reviewer). Added 2026-10-09.
+
+**Response** — `200 OK` (`KybApprovalMode`):
+```json
+{ "review_required": false }
+```
+`true` is **manual**: every new submission waits in the queue above for a
+reviewer. `false` is **automatic**: a complete submission is approved as it
+arrives. It is the same value as `review_required` on the list.
+
+### `PUT /admin/settings/kyb-approval` — switch it (audited)
+
+**Auth:** `kyb_policy` capability, **Admin only**. A KYB Reviewer can see
+the switch but cannot turn their own queue off.
+
+**Request body** (`KybApprovalMode`):
+```json
+{ "review_required": true }
+```
+**Response** — `200 OK`, the mode now in force, same shape.
+
+- **It applies to the next submission.** Switching to automatic does
+  *not* approve anything already waiting at `SUBMITTED` / `UNDER_REVIEW`.
+  A reviewer still decides those. Switching to manual does not un-approve
+  anyone.
+- Each real change writes a new version of the `kyb.require_approval`
+  config row and an audit row (`kyb_approval_mode_changed`). Sending the
+  mode already in force writes nothing.
+- If the stored row is malformed, `GET` answers `500 kyb_config_invalid`.
+  A `PUT` replaces the bad row, so that's how it gets fixed.
 
 ### `GET /admin/kyb/submissions/{id}` — one, with its answers and documents (audited)
 
@@ -154,12 +192,37 @@ record, not a queue** — every submission arriving was approved on the spot
 organisation itself (full form answers and document metadata). `404
 kyb_submission_not_found` outside this id.
 
+Since 2026-10-10 it also carries:
+- **`documents[].url`**, a short-lived link to each uploaded file, for the
+  eye icon (the open itself is audited);
+- **`reviews`**, every earlier decision with its reason and flags;
+- **`changed_since_last_review`**: `{"fields": [...], "documents": [...]}`
+  changed since the last decision. **On a resubmission, this is what to
+  re-check**, so highlight those rows. `null` before the first decision.
+
 ### `POST /admin/kyb/submissions/{id}/decision` — record a decision
 
 **Request body** (`KybDecisionRequest`):
 ```json
-{ "decision": "REJECTED", "reason": "GST certificate does not match the legal name given." }
+{
+  "decision": "MORE_INFO_REQUIRED",
+  "reason": "The PAN does not match the card.",
+  "flags": [
+    { "field": "pan", "note": "Use the PAN printed on the card" },
+    { "field": "doc_pan", "note": "The scan is unreadable" }
+  ]
+}
 ```
+- **`MORE_INFO_REQUIRED` is the "Send back" button**: the organisation
+  corrects the same submission and submits it again, and it returns to the
+  queue showing what changed.
+- **`REJECTED` is final** for this submission. The organisation's next one
+  starts filled in from it, answers and documents included.
+- **`flags`** (optional, up to 40) name the form fields or document types
+  (`doc_pan`, `doc_gst`, …) to correct, each with an optional note, for those
+  two decisions only. `422 kyb_flag_unknown_field`, `kyb_flag_duplicate`, or
+  `kyb_flags_not_allowed` (on an approval); `params.fields` names them.
+- Owners are notified in-app and by email, with your reason.
 `decision` is one of `UNDER_REVIEW` / `APPROVED` / `REJECTED` /
 `MORE_INFO_REQUIRED`. `reason` is what the organisation reads back on its
 own `GET /employer/kyb` — required in practice for anything but a plain
@@ -395,7 +458,7 @@ application stands has not thereby read a CV or listened to anyone.
 
 | Endpoint | Capability (roles) | What it returns |
 |---|---|---|
-| `…/onboarding` | `candidate_contact` (admin, support) | Everything given at sign-up and on the profile, **phone and email unmasked**, questionnaire answers in words, college links |
+| `…/onboarding` | `candidate_contact` (admin, support) | Everything given at sign-up and on the profile, **phone and email unmasked**, questionnaire answers in words, college links, and `photo_url` (their profile photo, a link that expires; 2026-10-09) |
 | `…/resume` | `candidate_resume` (+ integrity reviewer) | The newest CV version and the newest confirmed one (what the score was built from): text or form fields, and the uploaded file by presigned GET |
 | `…/score-timeline` | `candidate_drilldown` | Every score, oldest first |
 | `…/interviews` | `candidate_drilldown` | Every mock-interview session |
@@ -659,8 +722,13 @@ didn't my code work" without being able to mint new ones). Added
 ```json
 { "audience": "CANDIDATE", "percent_off": 50, "label": "Launch promo", "usage_limit": 500, "valid_until": "2026-12-31T23:59:59Z" }
 ```
-Leave `code` out to have one generated; `percent_off` is 1–99,
-`amount_off_minor` is paise, `valid_from` defaults to now.
+Leave `code` out to have one generated; `percent_off` is 1–100,
+`amount_off_minor` is paise, `valid_from` defaults to now. **100%, or an
+amount equal to the plan's price, makes the plan free** (client,
+2026-10-09): the payer's checkout settles at once with no gateway (see
+[08 §checkout](08-billing-subscriptions-courses-apis.md)), and the
+redemption log shows `amount_minor: 0`. A free code is still one use per
+person or organisation, and still counts against `usage_limit`.
 
 **Response** — `201 Created` (`DiscountCodeResponse`):
 ```json

@@ -23,6 +23,9 @@ import { CareerForm, type CareerEditSection } from "./career-form";
 import { getApiErrorMessage } from "@/lib/api/error-message";
 import { Modal } from "@/components/ui/modal";
 import { PillButton } from "@/features/student/components";
+import { Avatar } from "@/components/ui";
+import { useGetProfileImageQuery } from "@/store/api/profile-image-api";
+import { ProfilePhotoCard } from "@/components/profile-image/profile-photo-card";
 
 const groups = [
   { id: "headline", title: "Profile headline" },
@@ -58,6 +61,8 @@ export function CareerOverview({
   children?: ReactNode;
 }) {
   const profile = useGetCareerProfileQuery();
+  const photo = useGetProfileImageQuery("photo");
+  const [photoEditorOpen, setPhotoEditorOpen] = useState(false);
   const account = useGetCareerIdentityQuery();
   const versions = useGetResumeVersionsQuery();
   const [prefill, prefillState] = usePrefillCareerProfileMutation();
@@ -100,15 +105,32 @@ export function CareerOverview({
 
   return (
     <div className="flex flex-col gap-5 font-sans text-[13px] leading-5 text-[#0A1931]">
+      <Modal
+        open={photoEditorOpen}
+        title="Profile photo"
+        onClose={() => setPhotoEditorOpen(false)}
+        variant="student"
+        panelClassName="max-w-[400px] !rounded-3xl !p-6"
+      >
+        <ProfilePhotoCard name={fullName} embedded />
+      </Modal>
       <section className="grid gap-4 rounded-[20px] border border-[#E7E0D4] bg-white p-4 lg:grid-cols-[64px_minmax(0,1fr)_240px]">
         <div className="flex flex-col items-center gap-2">
-          <span className="grid h-16 w-16 place-items-center rounded-full border-2 border-[#5F4DB2] bg-[#F1EAF7] text-[22px] font-bold leading-7 text-[#5F4DB2]">
-            {fullName
-              .split(/\s+/)
-              .slice(0, 2)
-              .map((part) => part[0])
-              .join("")}
-          </span>
+          <button
+            type="button"
+            onClick={() => setPhotoEditorOpen(true)}
+            aria-label={photo.data?.url ? "Change profile photo" : "Upload profile photo"}
+            className="relative cursor-pointer rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2] focus-visible:ring-offset-2"
+          >
+            <Avatar
+              name={fullName}
+              src={photo.data?.url}
+              className="!h-16 !w-16 !rounded-full border-2 border-[#5F4DB2] !bg-[#F1EAF7] !text-[22px] !text-[#5F4DB2]"
+            />
+            <span className="absolute -right-1 -top-1 grid h-6 w-6 place-items-center rounded-full border border-[#E7E0D4] bg-white text-[#5F4DB2] shadow-sm">
+              <Pencil size={12} aria-hidden="true" />
+            </span>
+          </button>
           <span className="text-center text-[10px] font-semibold leading-4 text-[#5F6B80]">
             {profile.data ? `${completion}% details added` : "Profile details"}
           </span>

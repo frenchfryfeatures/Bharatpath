@@ -33,6 +33,19 @@ export const paymentApi = baseApi.injectEndpoints({
 
 export const { useSimulatePaymentMutation } = paymentApi;
 
+/**
+ * A 100% discount code takes a checkout to zero. There is no gateway to send
+ * the payer to, so the backend settles it on the spot: no `redirect_url`, and
+ * `status` is already SUCCEEDED.
+ */
+export function isCompleteWithoutPayment(result: {
+  status: string;
+  redirect_url?: string | null;
+  redirectUrl?: string | null;
+}): boolean {
+  return result.status === "SUCCEEDED" && !(result.redirect_url ?? result.redirectUrl);
+}
+
 export function isStubPaymentUrl(url: string | null): boolean {
   if (!url) return false;
 

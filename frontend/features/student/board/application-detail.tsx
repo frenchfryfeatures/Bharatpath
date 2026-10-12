@@ -71,7 +71,7 @@ export function ApplicationDetail() {
         <div className="flex min-w-0 flex-col gap-5">
           <section className="rounded-2xl border border-[#E9E3D9] bg-gradient-to-br from-white to-[#FFFCF7] p-5 shadow-[0_2px_10px_rgba(32,40,56,0.035)] sm:p-6">
             <div className="flex flex-wrap items-center gap-4">
-              <MonogramTile tint="indigo" size={52}>
+              <MonogramTile tint="indigo" size={52} logoUrl={item.employerLogoUrl}>
                 {employerMonogram(item.employerName)}
               </MonogramTile>
               <div className="min-w-0 flex-1">

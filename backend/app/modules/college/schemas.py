@@ -70,6 +70,8 @@ class CollegeResponse(_Base):
     onboarding_submitted_at: datetime | None = None
     verified_at: datetime | None = None
     created_at: datetime
+    #: A presigned link that expires; null when the organisation has no logo.
+    logo_url: str | None = None
 
 
 class TeamMemberResponse(_Base):
@@ -236,6 +238,8 @@ class CollegeLinkResponse(_Base):
 
     college_id: uuid.UUID
     college_name: str | None
+    #: A presigned link that expires; null when the organisation has no logo.
+    college_logo_url: str | None = None
     scope: Literal["ROSTER", "INDIVIDUAL"]
     granted_via: Literal["REFERRAL_CODE", "INVITE", "DIRECT"]
     granted_at: datetime
@@ -246,6 +250,8 @@ class CollegeLinkResponse(_Base):
 class CandidateInvitationResponse(_Base):
     id: uuid.UUID
     college_name: str
+    #: A presigned link that expires; null when the organisation has no logo.
+    college_logo_url: str | None = None
     sent_at: datetime
     expires_at: datetime
 
@@ -303,6 +309,8 @@ class VisibleStudentsPage(_Base):
 class StudentHireResponse(_Base):
     job_title: str
     employer_name: str
+    #: A presigned link that expires; null when the organisation has no logo.
+    employer_logo_url: str | None = None
     hired_at: datetime
     source: Literal["PLATFORM"] = Field(
         default="PLATFORM",
@@ -347,6 +355,8 @@ class StudentCourseResponse(_Base):
 class StudentApplicationResponse(_Base):
     job_title: str
     employer_name: str
+    #: A presigned link that expires; null when the organisation has no logo.
+    employer_logo_url: str | None = None
     job_location: str | None
     stage: str
     applied_at: datetime

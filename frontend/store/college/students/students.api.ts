@@ -26,6 +26,7 @@ interface VisibleStudentsPageResponse {
 interface StudentHireResponse {
   job_title: string;
   employer_name: string;
+  employer_logo_url?: string | null;
   hired_at: string;
   source: "PLATFORM";
 }
@@ -70,6 +71,7 @@ function mapCollegeStudentDetail(
     hires: student.hires.map((hire) => ({
       jobTitle: hire.job_title,
       employerName: hire.employer_name,
+      employerLogoUrl: hire.employer_logo_url ?? null,
       hiredAt: hire.hired_at,
       source: hire.source,
     })),
@@ -84,7 +86,7 @@ export const collegeStudentsApi = baseApi.injectEndpoints({
       questionnaire_submitted_at: string | null; resume_confirmed_at: string | null;
       interviews_completed: number; has_resume_file: boolean;
       courses: Array<{ code: string; title: string; purchased_at: string; percent_complete: number; lessons_completed: number; lessons_total: number; completed_at: string | null }>;
-      applications: Array<{ job_title: string; employer_name: string; job_location: string | null; stage: string; applied_at: string; updated_at: string }>;
+      applications: Array<{ job_title: string; employer_name: string; employer_logo_url?: string | null; job_location: string | null; stage: string; applied_at: string; updated_at: string }>;
       analytics: { total: number; open: number; by_stage: Record<string, number>; reached: Record<string, number> };
     }, string>({ query: (id) => `/college/students/${id}/details` }),
     getCollegeStudentResume: builder.query<{ confirmed_at: string | null; text: string | null; fields: Record<string, unknown>; structured_resume?: StructuredResume | null; structured_status?: StructuredStatus; file_url: string | null; file_mime: string | null; source: string }, string>({ query: (id) => `/college/students/${id}/resume` }),

@@ -13,8 +13,9 @@ import type {
 
 import { useSettings } from "../hooks/use-settings";
 import { DiscountCodeField } from "@/components/billing/discount-code-field";
+import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
 import { SimulatedPaymentDialog } from "@/components/billing/simulated-payment-dialog";
-import { isStubPaymentUrl } from "@/store/api/payment.api";
+import { isCompleteWithoutPayment, isStubPaymentUrl } from "@/store/api/payment.api";
 import { usePreviewCollegeDiscountMutation } from "@/store/college/billing/billing.api";
 
 function formatCurrency(amountMinor: number, currency: string) {
@@ -67,7 +68,12 @@ export function Billing() {
 
   const createCheckout = async (planCode: string, discountCode?: string) => {
     const result = await checkout(planCode, discountCode);
-    if (isStubPaymentUrl(result.redirectUrl)) {
+    if (isCompleteWithoutPayment(result)) {
+      setSimulatedCheckout(null);
+      setSelectedPlanCode(null);
+      await refetchBilling();
+      showSuccessFeedback("Discount applied. Your subscription is active.");
+    } else if (isStubPaymentUrl(result.redirectUrl)) {
       setSimulatedCheckout(result);
     } else if (result.redirectUrl) {
       window.location.assign(result.redirectUrl);

@@ -393,9 +393,11 @@ session opens**; a read whose audit cannot be written returns nothing.
 
 | Method | Path | Roles | Body/Params | Response | Notes |
 |---|---|---|---|---|---|
+| GET | `/admin/settings/kyb-approval` | PLATFORM_ADMIN, KYB_REVIEWER | -- | `KybApprovalMode` | `{review_required}`: true is manual review, false approves on arrival |
+| PUT | `/admin/settings/kyb-approval` | PLATFORM_ADMIN | `{review_required}` | `KybApprovalMode` | New version of `kyb.require_approval` plus an audit row (`kyb_approval_mode_changed`). Applies to the next submission; nothing waiting is approved by it |
 | GET | `/admin/kyb/submissions` | PLATFORM_ADMIN, KYB_REVIEWER | `state`, `cursor`, `limit` | `KybSubmissionsPage` | No answers. `review_required` shows `kyb.require_approval`: while false this is a record, not a queue |
 | GET | `/admin/kyb/submissions/{submission_id}` | same | path | `KybSubmissionResponse` | Answers and documents. Audited (`admin_kyb_submission_opened`) |
-| POST | `/admin/kyb/submissions/{submission_id}/decision` | same | `{decision, reason?}` | `KybSubmissionResponse` | `kyb.service.review`; reason required to reject or ask for more |
+| POST | `/admin/kyb/submissions/{submission_id}/decision` | same | `{decision, reason?, flags?}` | `KybSubmissionResponse` | `kyb.service.review`; reason required to reject or send back (`MORE_INFO_REQUIRED`). `flags` (2026-10-10): `[{field, note?}]` naming form fields or document types to correct. Every decision is a `kyb_reviews` row; the response carries `reviews`, `changed_since_last_review` and a `url` per document. Owners are notified in-app and by email, with the reason |
 | GET | `/admin/integrity/signals` | PLATFORM_ADMIN, INTEGRITY_REVIEWER | `state` (OPEN), `severity`, `cursor` | `IntegritySignalsPage` | Oldest first, no evidence. Audited as a bypass read. Each row (2026-10-05): `rule_title`, `rule_description`, `hides_candidate`, `candidate` {`full_name`, `status`, `phone_masked`, `email_masked`}, `other_open_signals`, `thresholds_version`, `resolved_by`, `resolved_by_email`, `resolution_note` |
 | GET | `/admin/integrity/signals/{signal_id}` | same | path | `IntegritySignalDetail` | Evidence can quote the CV. Audited. Adds (2026-10-05) `resume_version` {dates, `is_latest`}, `score` {display, band}, `visible_to_employers`, `other_signals[]`. The CV text stays at `/admin/candidates/{id}/resume` |
 | POST | `/admin/integrity/signals/{signal_id}/resolve` | same | `{outcome: CLEARED\|CONFIRMED, note?}` | `IntegritySignalDetail` | Only CLEARED restores search visibility. Final (409 twice). Never moves a score |
@@ -485,6 +487,28 @@ so a client holding one should sign the person out rather than retry.
 The export is a zip of JSON, one file per section. It carries the score and
 **not** how it was calculated — the platform never explains a score, and an
 export is not a way round that.
+
+## profile_images — `/profile` (+ extra routers at `/employer/organisation/logo` and `/college/organisation/logo`)
+
+Added 2026-10-09; full reference in [`backend-guide/16`](backend-guide/16-profile-images-apis.md).
+Upload is ticket → PUT to S3 → confirm. At confirm the image is checked,
+decoded, re-encoded at ≤512px with all metadata stripped, and the raw upload
+is deleted. **A student's photo is shown to the student and staff only**,
+never to an employer or a college (`tests/invariants/test_profile_photo_reach.py`).
+Not paywalled.
+
+| Method | Path | Auth | Body/Params | Response | Notes |
+|---|---|---|---|---|---|
+| GET | `/profile/photo` | any signed-in account | -- | `ImageResponse` | All fields null when none. `url` is a presigned GET that expires |
+| POST | `/profile/photo/upload` | any signed-in account | -- | `UploadTicketResponse` (201) | JPEG/PNG/WebP, ≤5 MB |
+| POST | `/profile/photo/confirm` | any signed-in account | `{upload_id}` | `ImageResponse` | Replaces and deletes any earlier photo. 404 `profile_image_upload_not_found`; 422 `profile_image_rejected` with `params.reason` |
+| DELETE | `/profile/photo` | any signed-in account | -- | `ImageResponse` (nulls) | Row, then object |
+| GET | `/employer/organisation/logo` | any employer role | -- | `ImageResponse` | Also on every board job as `employer_logo_url` |
+| POST | `/employer/organisation/logo/upload` · `/confirm` | EMPLOYER_OWNER | -- · `{upload_id}` | as above | A transparent PNG stays PNG |
+| DELETE | `/employer/organisation/logo` | EMPLOYER_OWNER | -- | `ImageResponse` (nulls) | |
+| GET | `/college/organisation/logo` | COLLEGE_ADMIN, COLLEGE_STAFF | -- | `ImageResponse` | |
+| POST | `/college/organisation/logo/upload` · `/confirm` | COLLEGE_ADMIN | -- · `{upload_id}` | as above | |
+| DELETE | `/college/organisation/logo` | COLLEGE_ADMIN | -- | `ImageResponse` (nulls) | |
 
 ## Rate limits (Day 20)
 

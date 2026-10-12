@@ -26,9 +26,10 @@ import {
   useGetStudentProfileViewsQuery,
   useGetStudentScoreQuery,
 } from "@/store/student";
-import { formatDateTime } from "@/features/student/formatters";
+import { employerMonogram, formatDateTime } from "@/features/student/formatters";
 import {
   interactiveCardClass,
+  MonogramTile,
   StudentCard,
   StudentErrorState,
 } from "@/features/student/components";
@@ -317,8 +318,13 @@ function ProfileViewsCard() {
                 key={`${view.employerName}-${view.lastViewedAt}`}
                 className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0"
               >
-                <span className="min-w-0 truncate text-[13px] font-medium text-[#0A1931]">
-                  {view.employerName}
+                <span className="flex min-w-0 items-center gap-2.5">
+                  <MonogramTile size={28} logoUrl={view.employerLogoUrl}>
+                    <span className="text-[10px]">{employerMonogram(view.employerName)}</span>
+                  </MonogramTile>
+                  <span className="min-w-0 truncate text-[13px] font-medium text-[#0A1931]">
+                    {view.employerName}
+                  </span>
                 </span>
                 <span className="shrink-0 text-[11px] text-[#5F6B80]">
                   {formatDateTime(view.lastViewedAt)}

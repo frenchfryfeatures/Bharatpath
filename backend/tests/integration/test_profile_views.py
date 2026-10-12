@@ -33,8 +33,10 @@ MIGRATION = (
 )
 
 #: Widening this tells candidates something new about every employer that
-#: opens them. It is a product decision, not a refactor.
-VIEW_FIELDS = frozenset({"employer_name", "last_viewed_at"})
+#: opens them. It is a product decision, not a refactor. The logo was one
+#: (2026-10-10: every surface naming an organisation carries its logo): it
+#: is the organisation's own face, and says nothing about who in it looked.
+VIEW_FIELDS = frozenset({"employer_name", "employer_logo_url", "last_viewed_at"})
 
 
 async def _open(client: Any, employer: dict[str, Any], candidate_id: Any) -> None:

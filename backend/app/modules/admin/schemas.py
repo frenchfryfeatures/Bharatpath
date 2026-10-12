@@ -34,6 +34,7 @@ from pydantic import Field
 from app.core.schemas import ApiSchema
 from app.modules.admin.domain import MAX_DISPUTE_DESCRIPTION, MAX_RESOLUTION, DisputeKind
 from app.modules.candidate.career import CareerResponse, form_fields
+from app.modules.kyb.schemas import KybReviewFlag
 from app.modules.resume.structuring import StructuredResume, StructuredStatus
 
 
@@ -49,12 +50,19 @@ class KybSubmissionRow(_Base):
     id: uuid.UUID
     tenant_id: uuid.UUID
     organisation: str
+    #: A presigned link that expires; null when the organisation has no logo.
+    organisation_logo_url: str | None = None
     state: str
     form_version: str | None
     submitted_at: datetime | None
     reviewed_at: datetime | None
     auto_approved: bool
     created_at: datetime
+    #: Decisions already made on this submission. Above zero on a submission
+    #: waiting for review means it was sent back and corrected.
+    review_count: int = 0
+    #: True when it was started again after a rejection.
+    after_rejection: bool = False
 
 
 class KybSubmissionsPage(_Base):
@@ -65,9 +73,22 @@ class KybSubmissionsPage(_Base):
     review_required: bool
 
 
+class KybApprovalMode(_Base):
+    """R15's switch, `kyb.require_approval`. True: every submission waits for
+    a reviewer. False: a complete submission is approved on arrival."""
+
+    review_required: bool
+
+
 class KybDecisionRequest(_Base):
+    """`MORE_INFO_REQUIRED` is **Send back**: the organisation corrects the
+    same submission and submits it again. `REJECTED` is final; their next
+    submission starts filled in from this one. Both need a `reason`, and
+    may name the fields and documents to correct in `flags` (2026-10-10)."""
+
     decision: Literal["UNDER_REVIEW", "APPROVED", "REJECTED", "MORE_INFO_REQUIRED"]
     reason: str | None = Field(default=None, max_length=1000)
+    flags: list[KybReviewFlag] = Field(default_factory=list, max_length=40)
 
 
 # ---------------------------------------------------------------------------
@@ -80,6 +101,9 @@ class SignalCandidate(_Base):
     id: uuid.UUID
     status: str
     full_name: str | None
+    #: Their profile photo, a presigned link that expires. Staff only: an
+    #: employer or a college never sees a student's photo (2026-10-09).
+    photo_url: str | None = None
     phone_masked: str | None
     email_masked: str | None
 
@@ -175,6 +199,8 @@ class TenantRow(_Base):
     id: uuid.UUID
     type: str
     name: str
+    #: A presigned link that expires; null when the organisation has no logo.
+    logo_url: str | None = None
     status: str
     created_at: datetime
 
@@ -223,6 +249,9 @@ class CandidateRow(_Base):
     id: uuid.UUID
     status: str
     full_name: str | None
+    #: Their profile photo, a presigned link that expires. Staff only: an
+    #: employer or a college never sees a student's photo (2026-10-09).
+    photo_url: str | None = None
     city: str | None
     state_code: str | None
     phone_masked: str | None
@@ -266,6 +295,8 @@ class SignalCount(_Base):
 class CollegeLinkSummary(_Base):
     tenant_id: uuid.UUID
     college: str
+    #: A presigned link that expires; null when the organisation has no logo.
+    college_logo_url: str | None = None
     scope: str
     granted_at: datetime
 
@@ -276,6 +307,9 @@ class CandidateDrilldown(_Base):
     locale: str
     created_at: datetime
     full_name: str | None
+    #: Their profile photo, a presigned link that expires. Staff only: an
+    #: employer or a college never sees a student's photo (2026-10-09).
+    photo_url: str | None = None
     city: str | None
     state_code: str | None
     phone_masked: str | None
@@ -309,6 +343,8 @@ class KybSummary(_Base):
 class EmployerDrilldown(_Base):
     tenant_id: uuid.UUID
     name: str
+    #: A presigned link that expires; null when the organisation has no logo.
+    logo_url: str | None = None
     status: str
     created_at: datetime
     legal_name: str | None
@@ -338,6 +374,8 @@ class SeatSummary(_Base):
 class CollegeDrilldown(_Base):
     tenant_id: uuid.UUID
     name: str
+    #: A presigned link that expires; null when the organisation has no logo.
+    logo_url: str | None = None
     status: str
     created_at: datetime
     institution_type: str | None
@@ -559,12 +597,13 @@ class InvitationResentResponse(_Base):
 # Discount codes (2026-09-18)
 # ---------------------------------------------------------------------------
 class CreateDiscountCodeRequest(_Base):
-    """Exactly one of `percent_off` (1-99) and `amount_off_minor` (paise).
-    Leave `code` out to have one generated."""
+    """Exactly one of `percent_off` (1-100) and `amount_off_minor` (paise).
+    Leave `code` out to have one generated. 100%, or an amount equal to the
+    price, makes the plan free: checkout settles at once, with no gateway."""
 
     code: str | None = Field(default=None, min_length=4, max_length=32)
     audience: Literal["CANDIDATE", "EMPLOYER", "COLLEGE"]
-    percent_off: int | None = Field(default=None, ge=1, le=99)
+    percent_off: int | None = Field(default=None, ge=1, le=100)
     amount_off_minor: int | None = Field(default=None, gt=0)
     valid_from: datetime | None = Field(default=None, description="Defaults to now.")
     valid_until: datetime | None = None
@@ -608,6 +647,8 @@ class DiscountRedemptionRow(_Base):
     subscriber_type: str
     subscriber_id: uuid.UUID
     organisation: str | None = None
+    #: A presigned link that expires; null when the organisation has no logo.
+    organisation_logo_url: str | None = None
     list_amount_minor: int
     discount_minor: int
     amount_minor: int
@@ -689,6 +730,8 @@ class WaitingItem(_Base):
     waiting_since: datetime
     detail: str
     organisation: str | None = None
+    #: A presigned link that expires; null when the organisation has no logo.
+    organisation_logo_url: str | None = None
     tenant_id: uuid.UUID | None = None
     candidate_id: uuid.UUID | None = None
     severity: Severity | None = None
@@ -795,6 +838,9 @@ class CandidateOnboarding(_Base):
     locale: str
     created_at: datetime
     full_name: str | None
+    #: Their profile photo, a presigned link that expires (2026-10-09).
+    #: Staff see it here; employers and colleges never do.
+    photo_url: str | None = None
     email: str | None
     phone: str | None
     city: str | None
@@ -894,6 +940,8 @@ class CandidateApplicationRow(_Base):
     job_location: str | None
     employer_tenant_id: uuid.UUID
     employer_name: str | None
+    #: A presigned link that expires; null when the organisation has no logo.
+    employer_logo_url: str | None = None
     stage: str
     applied_at: datetime
     updated_at: datetime

@@ -10,11 +10,14 @@ import {
   setSettingsTab,
 } from "@/store/admin";
 import {
-  useGetAdminKybSubmissionsQuery,
+  useGetAdminKybApprovalModeQuery,
   useSetAdminKybApprovalModeMutation,
 } from "@/store/api/admin-api";
 
+import { useSessionIdentity } from "@/lib/auth/use-session-identity";
+
 import type {
+  KybMode,
   SettingsTab,
 } from "../types";
 
@@ -24,7 +27,7 @@ export function useSettings() {
   const state = useAppSelector(
     selectAdminSettings,
   );
-  const configQuery = useGetAdminKybSubmissionsQuery({ limit: 1 });
+  const configQuery = useGetAdminKybApprovalModeQuery();
   const [setApprovalMode, modeMutation] = useSetAdminKybApprovalModeMutation();
 
   const setTab = (
@@ -33,10 +36,13 @@ export function useSettings() {
     dispatch(setSettingsTab(tab));
   };
 
-  const setKybMode = async (mode: "manual" | "auto") => {
-    if (mode !== "auto") return;
+  // Anyone with the kyb capability can read the switch; only a platform
+  // admin can flip it (capability `kyb_policy`).
+  const canChangeKybMode =
+    useSessionIdentity().user?.backendRole === "PLATFORM_ADMIN";
 
-    await setApprovalMode(false).unwrap();
+  const setKybMode = async (mode: KybMode) => {
+    await setApprovalMode(mode === "manual").unwrap();
   };
 
   return {
@@ -48,6 +54,8 @@ export function useSettings() {
     isLoading: configQuery.isLoading,
 
     error: configQuery.error,
+
+    canChangeKybMode,
 
     isSaving: modeMutation.isLoading,
     saveError: modeMutation.error,
