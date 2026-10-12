@@ -26,6 +26,7 @@ import {
   Platform,
   ActivityIndicator,
   RefreshControl,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -349,7 +350,15 @@ function JobCard({ job, onPress }: JobCardProps) {
     >
       <View style={styles.jobCardTop}>
         <View style={[styles.badge, { backgroundColor: bg }]}>
-          <Text style={[styles.badgeText, { color: fg }]}>{initials}</Text>
+          {job.employer_logo_url ? (
+            <Image
+              source={{ uri: job.employer_logo_url }}
+              style={styles.badgeImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <Text style={[styles.badgeText, { color: fg }]}>{initials}</Text>
+          )}
         </View>
         <View style={styles.jobInfo}>
           <Text style={styles.jobTitle} numberOfLines={2}>
@@ -611,6 +620,12 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  badgeImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
   },
   badgeText: {
     fontFamily: 'GeneralSans-Bold',

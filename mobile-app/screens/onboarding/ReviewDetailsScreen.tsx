@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { AppAlert } from '@/components/feedback/AppAlert';
 import {
   Alert,
   View,
@@ -39,9 +40,11 @@ import {
   confirmResumeVersion,
   editResumeVersion,
   getResumeVersionDetails,
+  listResumeVersions,
   ResumeSection,
   ResumeSectionItem,
   ResumeVersionDetailResponse,
+  ResumeVersionResponse,
   SectionKind,
 } from '@/services/api/resume';
 import { ApiError } from '@/services/api/client';
@@ -253,22 +256,120 @@ export function ReviewDetailsScreen({
     [candidateName, manualData, parsed, resumeInfo.name, structuredResume]
   );
 
-  const errorMessage = (error: unknown, fallback: string) =>
-    error instanceof ApiError
-      ? error.problem?.params?.detail || error.problem?.title || error.message
-      : error instanceof Error
-      ? error.message
-      : fallback;
+  const errorMessage = (error: unknown, fallback: string): string => {
+    if (error instanceof ApiError) {
+      const detail = error.problem?.params?.detail;
+      if (Array.isArray(detail)) {
+        const msgs = detail
+          .map((d: any) =>
+            typeof d === 'string'
+              ? d
+              : typeof d?.msg === 'string'
+              ? d.msg
+              : typeof d?.title === 'string'
+              ? d.title
+              : JSON.stringify(d)
+          )
+          .filter(Boolean);
+        if (msgs.length > 0) return msgs.join('. ');
+      } else if (typeof detail === 'string' && detail.trim()) {
+        return detail.trim();
+      } else if (detail && typeof detail === 'object') {
+        return (detail as any).msg || (detail as any).title || JSON.stringify(detail);
+      }
+      if (typeof error.problem?.title === 'string' && error.problem.title.trim())
+        return error.problem.title.trim();
+      if (typeof error.message === 'string' && error.message.trim())
+        return error.message.trim();
+    }
+    if (error instanceof Error && typeof error.message === 'string' && error.message.trim()) {
+      return error.message.trim();
+    }
+    return fallback;
+  };
 
   const isSubscriptionRequiredError = (error: unknown): boolean =>
     error instanceof ApiError && (error.status === 402 || error.code === 'subscription_required');
 
   const adoptEditedVersion = async (newVersionId: string) => {
-    const newDetails = await getResumeVersionDetails(newVersionId);
-    setActiveVersionId(newVersionId);
-    setDetails(newDetails);
-    setHasEdited(true);
-    onVersionUpdated?.(newVersionId, newDetails);
+    try {
+      const newDetails = await getResumeVersionDetails(newVersionId);
+      setActiveVersionId(newVersionId);
+      setDetails(newDetails);
+      setHasEdited(true);
+      onVersionUpdated?.(newVersionId, newDetails);
+    } catch (fetchErr) {
+      console.warn('Adopt version details fetch failed:', fetchErr);
+      setActiveVersionId(newVersionId);
+      setHasEdited(true);
+    }
+  };
+
+  const sanitizeSectionPayload = (s: {
+    kind: SectionKind;
+    heading?: string | null;
+    body: string;
+  }) => {
+    let kind = s.kind;
+    const rawHeading = s.heading?.trim() || '';
+
+    // Reclassify if marked as activities/personal but heading indicates another section
+    if ((kind === 'activities' || kind === 'personal') && rawHeading) {
+      const lower = rawHeading.toLowerCase();
+      if (lower.includes('summary') || lower.includes('profile') || lower.includes('objective')) {
+        kind = 'summary';
+      } else if (lower.includes('skill') || lower.includes('technology') || lower.includes('technologies')) {
+        kind = 'skills';
+      } else if (lower.includes('project')) {
+        kind = 'projects';
+      } else if (lower.includes('certif') || lower.includes('license')) {
+        kind = 'certifications';
+      } else if (lower.includes('language')) {
+        kind = 'languages';
+      } else if (lower.includes('education') || lower.includes('academic')) {
+        kind = 'education';
+      } else if (lower.includes('experience') || lower.includes('employment') || lower.includes('work')) {
+        kind = 'experience';
+      } else if (lower.includes('achievement') || lower.includes('award') || lower.includes('honor')) {
+        kind = 'achievements';
+      } else if (lower.includes('interest') || lower.includes('hobbi') || lower.includes('hobby')) {
+        kind = 'activities';
+      }
+    }
+
+    // Setting heading to null tells the backend to write under the canonical heading for this kind.
+    // Backend schemas strictly require `heading_kind(heading) == kind` when heading is non-null,
+    // so sending null completely prevents any 422 heading mismatch errors.
+    return {
+      kind,
+      heading: null,
+      body: s.body || '',
+    };
+  };
+
+  const executeEditWithRetry = async (
+    performEdit: (targetVersionId: string) => Promise<ResumeVersionResponse>,
+  ): Promise<ResumeVersionResponse> => {
+    if (!activeVersionId) throw new Error('No active resume version to edit.');
+    try {
+      return await performEdit(activeVersionId);
+    } catch (firstErr: any) {
+      const errCode = firstErr?.code || firstErr?.problem?.code || firstErr?.message;
+      const isSuperseded =
+        errCode === 'resume_version_superseded' ||
+        String(firstErr?.message || '').includes('replaced by a newer one') ||
+        firstErr?.status === 409;
+
+      if (isSuperseded) {
+        const freshVersions = await listResumeVersions();
+        const newest = freshVersions.find((v) => !v.superseded) ?? freshVersions[0];
+        if (newest && newest.resume_version_id !== activeVersionId) {
+          setActiveVersionId(newest.resume_version_id);
+          return await performEdit(newest.resume_version_id);
+        }
+      }
+      throw firstErr;
+    }
   };
 
   // Section-based editing
@@ -284,32 +385,36 @@ export function ReviewDetailsScreen({
     try {
       const updatedList = sections.map((s, idx) => {
         if (idx === editingSectionIndex) {
-          return {
-            kind: updatedSection.kind,
-            heading: updatedSection.kind === 'header' ? null : (updatedSection.heading || null),
-            body: updatedSection.body,
-          };
+          return sanitizeSectionPayload(updatedSection);
         }
-        return {
-          kind: s.kind,
-          heading: s.kind === 'header' ? null : (s.heading || null),
-          body: s.body,
-        };
+        return sanitizeSectionPayload(s);
       });
 
-      const res = await editResumeVersion(activeVersionId, {
-        sections: updatedList,
+      // Backend constraint: HEADER kind can only ever appear as the first section
+      const sanitizedList = updatedList.map((s, idx) => {
+        if (idx > 0 && s.kind === 'header') {
+          return { ...s, kind: 'summary' as SectionKind };
+        }
+        return s;
       });
+
+      const res = await executeEditWithRetry((targetId) =>
+        editResumeVersion(targetId, {
+          sections: sanitizedList,
+        }),
+      );
 
       await adoptEditedVersion(res.resume_version_id);
       setEditingSectionIndex(null);
-    } catch (err) {
+    } catch (err: any) {
       if (isSubscriptionRequiredError(err)) {
         setEditingSectionIndex(null);
         onRequireSubscription?.();
         return;
       }
-      setConfirmError(errorMessage(err, 'Failed to save section changes.'));
+      const msg = errorMessage(err, 'Failed to save section changes.');
+      setConfirmError(msg);
+      AppAlert.alert('Save Failed', msg, [{ text: 'OK' }]);
     } finally {
       setIsSavingEdit(false);
     }
@@ -323,25 +428,32 @@ export function ReviewDetailsScreen({
     try {
       const updatedList = sections
         .filter((_, idx) => idx !== editingSectionIndex)
-        .map((s) => ({
-          kind: s.kind,
-          heading: s.kind === 'header' ? null : (s.heading || null),
-          body: s.body,
-        }));
+        .map((s) => sanitizeSectionPayload(s));
 
-      const res = await editResumeVersion(activeVersionId, {
-        sections: updatedList,
+      const sanitizedList = updatedList.map((s, idx) => {
+        if (idx > 0 && s.kind === 'header') {
+          return { ...s, kind: 'summary' as SectionKind };
+        }
+        return s;
       });
+
+      const res = await executeEditWithRetry((targetId) =>
+        editResumeVersion(targetId, {
+          sections: sanitizedList,
+        }),
+      );
 
       await adoptEditedVersion(res.resume_version_id);
       setEditingSectionIndex(null);
-    } catch (err) {
+    } catch (err: any) {
       if (isSubscriptionRequiredError(err)) {
         setEditingSectionIndex(null);
         onRequireSubscription?.();
         return;
       }
-      setConfirmError(errorMessage(err, 'Failed to delete section.'));
+      const msg = errorMessage(err, 'Failed to delete section.');
+      setConfirmError(msg);
+      AppAlert.alert('Delete Failed', msg, [{ text: 'OK' }]);
     } finally {
       setIsSavingEdit(false);
     }
@@ -354,31 +466,38 @@ export function ReviewDetailsScreen({
 
     try {
       const updatedList = [
-        ...sections.map((s) => ({
-          kind: s.kind,
-          heading: s.kind === 'header' ? null : (s.heading || null),
-          body: s.body,
-        })),
-        {
+        ...sections.map((s) => sanitizeSectionPayload(s)),
+        sanitizeSectionPayload({
           kind: newSection.kind,
           heading: null,
           body: newSection.body,
-        },
+        }),
       ];
 
-      const res = await editResumeVersion(activeVersionId, {
-        sections: updatedList,
+      const sanitizedList = updatedList.map((s, idx) => {
+        if (idx > 0 && s.kind === 'header') {
+          return { ...s, kind: 'summary' as SectionKind };
+        }
+        return s;
       });
+
+      const res = await executeEditWithRetry((targetId) =>
+        editResumeVersion(targetId, {
+          sections: sanitizedList,
+        }),
+      );
 
       await adoptEditedVersion(res.resume_version_id);
       setIsAddSectionOpen(false);
-    } catch (err) {
+    } catch (err: any) {
       if (isSubscriptionRequiredError(err)) {
         setIsAddSectionOpen(false);
         onRequireSubscription?.();
         return;
       }
-      setConfirmError(errorMessage(err, 'Failed to add section.'));
+      const msg = errorMessage(err, 'Failed to add section.');
+      setConfirmError(msg);
+      AppAlert.alert('Add Failed', msg, [{ text: 'OK' }]);
     } finally {
       setIsSavingEdit(false);
     }
@@ -403,26 +522,24 @@ export function ReviewDetailsScreen({
 
       const updatedList = sections.map((s, idx) => {
         if (idx === sectionIndex) {
-          return {
+          return sanitizeSectionPayload({
             kind: s.kind,
-            heading: s.kind === 'header' ? null : (s.heading || null),
+            heading: s.heading,
             body: updatedBody,
-          };
+          });
         }
-        return {
-          kind: s.kind,
-          heading: s.kind === 'header' ? null : (s.heading || null),
-          body: s.body,
-        };
+        return sanitizeSectionPayload(s);
       });
 
-      const res = await editResumeVersion(activeVersionId, {
-        sections: updatedList,
-      });
+      const res = await executeEditWithRetry((targetId) =>
+        editResumeVersion(targetId, {
+          sections: updatedList,
+        }),
+      );
 
       await adoptEditedVersion(res.resume_version_id);
       setFixingItemInfo(null);
-    } catch (err) {
+    } catch (err: any) {
       if (isSubscriptionRequiredError(err)) {
         setFixingItemInfo(null);
         onRequireSubscription?.();
@@ -440,7 +557,9 @@ export function ReviewDetailsScreen({
     setConfirmError(null);
     setIsSavingEdit(true);
     try {
-      const created = await editResumeVersion(activeVersionId, { structured: data });
+      const created = await executeEditWithRetry((targetId) =>
+        editResumeVersion(targetId, { structured: data }),
+      );
       await adoptEditedVersion(created.resume_version_id);
       setIsStructuredEditorOpen(false);
     } catch (error) {
@@ -460,7 +579,9 @@ export function ReviewDetailsScreen({
     setConfirmError(null);
     setIsSavingEdit(true);
     try {
-      const created = await editResumeVersion(activeVersionId, { text });
+      const created = await executeEditWithRetry((targetId) =>
+        editResumeVersion(targetId, { text }),
+      );
       await adoptEditedVersion(created.resume_version_id);
       setIsTextEditorOpen(false);
     } catch (error) {
@@ -478,22 +599,46 @@ export function ReviewDetailsScreen({
   // Confirm gate
   const confirmCurrentVersion = async () => {
     setConfirmError(null);
-    if (activeVersionId) {
-      try {
-        setIsConfirming(true);
-        const res = await confirmResumeVersion(activeVersionId);
-        onConfirm?.(activeVersionId, res?.confirmed_at, res?.already_confirmed);
-      } catch (error) {
-        if (isSubscriptionRequiredError(error)) {
-          onRequireSubscription?.();
-          return;
-        }
-        setConfirmError(errorMessage(error, 'Could not confirm this resume version.'));
-      } finally {
-        setIsConfirming(false);
-      }
-    } else {
+    if (!activeVersionId) {
       setConfirmError('Resume version is missing. Please return and submit your resume again.');
+      return;
+    }
+    try {
+      setIsConfirming(true);
+      let targetId = activeVersionId;
+      let res;
+      try {
+        res = await confirmResumeVersion(targetId);
+      } catch (firstErr: any) {
+        const errCode = firstErr?.code || firstErr?.problem?.code || firstErr?.message;
+        const isSuperseded =
+          errCode === 'resume_version_superseded' ||
+          String(firstErr?.message || '').includes('replaced by a newer one') ||
+          firstErr?.status === 409;
+
+        if (isSuperseded) {
+          const freshVersions = await listResumeVersions();
+          const newest = freshVersions.find((v) => !v.superseded) ?? freshVersions[0];
+          if (newest && newest.resume_version_id !== targetId) {
+            targetId = newest.resume_version_id;
+            setActiveVersionId(targetId);
+            res = await confirmResumeVersion(targetId);
+          } else {
+            throw firstErr;
+          }
+        } else {
+          throw firstErr;
+        }
+      }
+      onConfirm?.(targetId, res?.confirmed_at, res?.already_confirmed);
+    } catch (error) {
+      if (isSubscriptionRequiredError(error)) {
+        onRequireSubscription?.();
+        return;
+      }
+      setConfirmError(errorMessage(error, 'Could not confirm this resume version.'));
+    } finally {
+      setIsConfirming(false);
     }
   };
 
@@ -595,7 +740,13 @@ export function ReviewDetailsScreen({
           {confirmError ? (
             <View style={styles.errorBanner}>
               <WarningCircle size={17} color="#8F3B3B" weight="fill" />
-              <Text style={styles.errorBannerText}>{confirmError}</Text>
+              <Text style={styles.errorBannerText}>
+                {typeof confirmError === 'string'
+                  ? confirmError
+                  : typeof (confirmError as any)?.message === 'string'
+                  ? (confirmError as any).message
+                  : JSON.stringify(confirmError)}
+              </Text>
             </View>
           ) : null}
 
@@ -741,7 +892,7 @@ export function ReviewDetailsScreen({
                               </React.Fragment>
                             ))
                           ) : (
-                            section.body.split('\n\n').map((block, blockIdx) => {
+                            (section.body || '').split('\n\n').map((block, blockIdx) => {
                               const lines = block.split('\n').filter(Boolean);
                               const title = lines[0] || '';
                               const subtitle = lines.slice(1).join(' · ');
@@ -783,7 +934,7 @@ export function ReviewDetailsScreen({
                               </React.Fragment>
                             ))
                           ) : (
-                            section.body.split('\n\n').map((block, blockIdx) => {
+                            (section.body || '').split('\n\n').map((block, blockIdx) => {
                               const lines = block.split('\n').filter(Boolean);
                               const title = lines[0] || '';
                               const rest = lines.slice(1);
@@ -806,7 +957,7 @@ export function ReviewDetailsScreen({
                       ) : (
                         /* GENERIC PROSE SECTION (Summary, Achievements, Personal, etc.) */
                         <View style={styles.expList}>
-                          {section.body.split('\n\n').map((para, pIdx) => (
+                          {(section.body || '').split('\n\n').map((para, pIdx) => (
                             <Text key={pIdx} style={styles.bodyText}>
                               {para}
                             </Text>

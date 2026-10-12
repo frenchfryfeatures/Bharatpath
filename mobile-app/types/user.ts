@@ -11,6 +11,7 @@ export interface UserProfile {
   experience: ExperienceEntry[];
   readinessScore: number;
   readinessBand: number; // 1 to 4
+  photoUrl?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }

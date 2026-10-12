@@ -61,6 +61,8 @@ export interface BoardJobSummary {
   published_at: string;
   /** Eligibility of the signed-in candidate for this job. */
   eligibility: EligibilityStatus;
+  /** Employer logo presigned link; null without one. */
+  employer_logo_url?: string | null;
 }
 
 export interface CandidateJobBasics {

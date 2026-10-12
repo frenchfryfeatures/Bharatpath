@@ -58,6 +58,7 @@ export interface ApplicationResponse {
   job_id: string;
   job_title: string | null;
   employer_name: string | null;
+  employer_logo_url?: string | null;
   stage: ApplicationStage;
   hire_confirmation: HireConfirmation;
   interview: InterviewDetails | null;

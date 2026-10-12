@@ -20,6 +20,7 @@ import {
   Modal,
   ActivityIndicator,
   Platform,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -431,9 +432,17 @@ export function CollegeScreen({ onBack }: CollegeScreenProps) {
                     <View key={item.id} style={styles.invitationItem}>
                       <View style={styles.invitationHeader}>
                         <View style={styles.invitationMonogram}>
-                          <Text style={styles.invitationMonogramText}>
-                            {collegeMonogram(item.college_name)}
-                          </Text>
+                          {item.college_logo_url ? (
+                            <Image
+                              source={{ uri: item.college_logo_url }}
+                              style={styles.invitationLogoImage}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <Text style={styles.invitationMonogramText}>
+                              {collegeMonogram(item.college_name)}
+                            </Text>
+                          )}
                         </View>
                         <View style={styles.invitationInfo}>
                           <Text style={styles.invitationTitle} numberOfLines={1}>
@@ -522,9 +531,17 @@ export function CollegeScreen({ onBack }: CollegeScreenProps) {
                       {/* Top Header */}
                       <View style={styles.collegeCardHeader}>
                         <View style={styles.collegeMonogramBadge}>
-                          <Text style={styles.collegeMonogramText}>
-                            {collegeMonogram(college.name)}
-                          </Text>
+                          {college.logoUrl ? (
+                            <Image
+                              source={{ uri: college.logoUrl }}
+                              style={styles.collegeLogoImage}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <Text style={styles.collegeMonogramText}>
+                              {collegeMonogram(college.name)}
+                            </Text>
+                          )}
                         </View>
                         <View style={styles.collegeInfoCol}>
                           <Text style={styles.collegeNameText} numberOfLines={1}>
@@ -1073,6 +1090,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#F4F1FC',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  invitationLogoImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
   },
   invitationMonogramText: {
     fontFamily: 'GeneralSans-Bold',
@@ -1216,6 +1239,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#5F4DB2',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  collegeLogoImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
   },
   collegeMonogramText: {
     fontFamily: 'GeneralSans-Bold',

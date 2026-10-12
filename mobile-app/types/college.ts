@@ -19,6 +19,7 @@ export type CollegeLinkGrantedVia = 'REFERRAL_CODE' | 'INVITATION';
 export interface CollegeLinkResponse {
   college_id: string;
   college_name: string;
+  college_logo_url?: string | null;
   scope: CollegeConsentScope;
   granted_via: CollegeLinkGrantedVia;
   granted_at: string;
@@ -29,6 +30,7 @@ export interface CollegeLinkResponse {
 export interface LinkedCollege {
   collegeId: string;
   name: string;
+  logoUrl?: string | null;
   byName: boolean;
   seatHeld: boolean;
   since: string;
@@ -44,6 +46,7 @@ export interface ConsentTermsResponse {
 export interface CandidateInvitationResponse {
   id: string;
   college_name: string;
+  college_logo_url?: string | null;
   sent_at: string;
   expires_at: string;
 }

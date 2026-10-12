@@ -18,6 +18,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { Alert } from 'react-native';
 import { ProfileScreen } from '@/screens/profile/ProfileScreen';
 import { ChangePasswordModal } from '@/screens/profile/ChangePasswordModal';
+import { ProfilePhotoModal } from '@/components/profile/ProfilePhotoModal';
 import { TabName } from '@/components/navigation/BottomTabBar';
 import { useAuthContext } from '@/context/AuthContext';
 import {
@@ -41,9 +42,28 @@ import {
 
 export default function YouRoute() {
   const router = useRouter();
-  const { session, candidateFullName, setCandidateFullName, signOut, candidateScore, refreshScore } = useAuthContext();
+  const {
+    session,
+    candidateFullName,
+    setCandidateFullName,
+    signOut,
+    candidateScore,
+    refreshScore,
+    candidatePhotoUrl,
+    setCandidatePhotoUrl,
+    refreshPhoto,
+  } = useAuthContext();
   const [activeTab, setActiveTab] = useState<TabName>('you');
   const [changePasswordVisible, setChangePasswordVisible] = useState(false);
+  const [photoModalVisible, setPhotoModalVisible] = useState(false);
+
+  // Automatically refresh photo and score when navigating to You tab
+  useFocusEffect(
+    useCallback(() => {
+      refreshPhoto().catch(() => undefined);
+      refreshScore().catch(() => undefined);
+    }, [refreshPhoto, refreshScore])
+  );
 
   // Seed the name with the email's local part so the header is never blank
   // while the real profile name is still being fetched or filled in.
@@ -178,6 +198,8 @@ export default function YouRoute() {
       <ProfileScreen
       name={profileName || undefined}
       initials={initialsFromName(profileName) || undefined}
+      photoUrl={candidatePhotoUrl}
+      onEditPhotoPress={() => setPhotoModalVisible(true)}
       locationLabel={locationLabel || undefined}
       bandName={bandName}
       score={scoreValue}
@@ -236,6 +258,16 @@ export default function YouRoute() {
             },
           ],
         );
+      }}
+    />
+    <ProfilePhotoModal
+      visible={photoModalVisible}
+      onClose={() => setPhotoModalVisible(false)}
+      currentPhotoUrl={candidatePhotoUrl}
+      candidateName={profileName || 'Candidate'}
+      initials={initialsFromName(profileName) || 'C'}
+      onPhotoUpdated={(newUrl) => {
+        setCandidatePhotoUrl(newUrl);
       }}
     />
     <ChangePasswordModal

@@ -146,6 +146,7 @@ export function consolidateCollegeLinks(
     byCollege.set(item.college_id, {
       collegeId: item.college_id,
       name: existing?.name ?? item.college_name ?? 'College',
+      logoUrl: existing?.logoUrl ?? item.college_logo_url ?? null,
       byName: Boolean(existing?.byName) || item.scope === 'INDIVIDUAL',
       seatHeld: Boolean(existing?.seatHeld) || item.seat_held,
       since:

@@ -176,7 +176,7 @@ export function structuredResumeSections(
     { kind: 'certifications', heading: 'Certifications', items: resume.certifications },
     { kind: 'languages', heading: 'Languages', items: resume.languages },
     { kind: 'achievements', heading: 'Achievements', items: resume.achievements },
-    { kind: 'personal', heading: 'Interests', items: resume.interests },
+    { kind: 'activities', heading: 'Interests', items: resume.interests },
   ];
   for (const group of groups) {
     const body = bodyForItems(group.items);

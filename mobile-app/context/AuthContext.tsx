@@ -7,6 +7,7 @@ import {
   signOut as apiSignOut,
   onSessionChange,
 } from '@/services/api/auth';
+import { getProfilePhoto } from '@/services/api/profilePhoto';
 import { bandIndex, CandidateScoreResponse, getMyScore, SCORE_BANDS } from '@/services/api/scoring';
 import { UserProfile } from '@/types/user';
 import {
@@ -26,14 +27,18 @@ interface AuthContextType {
   candidateFullName: string | null;
   /** Current verified candidate score from GET /candidate/score/me */
   candidateScore: CandidateScoreResponse | null;
+  /** Candidate profile photo URL from GET /profile/photo */
+  candidatePhotoUrl: string | null;
   isLoading: boolean;
   setSession: React.Dispatch<React.SetStateAction<AuthSession | null>>;
   setProfile: React.Dispatch<React.SetStateAction<UserProfile | null>>;
   setCandidateFullName: React.Dispatch<React.SetStateAction<string | null>>;
   setCandidateScore: React.Dispatch<React.SetStateAction<CandidateScoreResponse | null>>;
+  setCandidatePhotoUrl: React.Dispatch<React.SetStateAction<string | null>>;
   rememberCandidate: (session: AuthSession, profile?: CandidateProfileResponse | null, fullName?: string | null) => void;
   updateCandidateScore: (score: number, band?: string | number | null, computedAt?: string | null) => void;
   refreshScore: () => Promise<CandidateScoreResponse | null>;
+  refreshPhoto: () => Promise<string | null>;
   signOut: () => Promise<void>;
 }
 
@@ -44,8 +49,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [candidateFullName, setCandidateFullName] = useState<string | null>(null);
   const [candidateScore, setCandidateScore] = useState<CandidateScoreResponse | null>(null);
+  const [candidatePhotoUrl, setCandidatePhotoUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const scoreRefreshSequence = useRef(0);
+
+  const refreshPhoto = useCallback(async (): Promise<string | null> => {
+    try {
+      const res = await getProfilePhoto();
+      const url = res?.url || null;
+      setCandidatePhotoUrl(url);
+      setProfile((curr) => (curr ? { ...curr, photoUrl: url } : curr));
+      return url;
+    } catch {
+      return null;
+    }
+  }, []);
 
   const refreshScore = useCallback(async (): Promise<CandidateScoreResponse | null> => {
     const requestSequence = ++scoreRefreshSequence.current;
@@ -131,6 +149,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .catch(() => undefined);
 
           refreshScore();
+          refreshPhoto();
         }
       } catch (err) {
         console.warn('[AuthContext] initAuth failed:', err);
@@ -145,7 +164,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       isMounted = false;
     };
-  }, [refreshScore]);
+  }, [refreshScore, refreshPhoto]);
 
   useEffect(() => {
     const unsubscribe = onSessionChange((newSession) => {
@@ -154,6 +173,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setProfile(null);
         setCandidateFullName(null);
         setCandidateScore(null);
+        setCandidatePhotoUrl(null);
       } else {
         setSession(newSession);
       }
@@ -179,6 +199,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
     setSession(mergedSession);
     saveStoredSession(mergedSession);
+    if (candidateProfile?.photo_url) {
+      setCandidatePhotoUrl(candidateProfile.photo_url);
+    }
     if (resolved) {
       setCandidateFullName(resolved);
       saveStoredCandidateName(resolved);
@@ -261,6 +284,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setProfile(null);
     setCandidateFullName(null);
     setCandidateScore(null);
+    setCandidatePhotoUrl(null);
     await clearAllAuthData();
   }, []);
 
@@ -271,14 +295,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         profile,
         candidateFullName,
         candidateScore,
+        candidatePhotoUrl,
         isLoading,
         setSession,
         setProfile,
         setCandidateFullName,
         setCandidateScore,
+        setCandidatePhotoUrl,
         rememberCandidate,
         updateCandidateScore,
         refreshScore,
+        refreshPhoto,
         signOut: handleSignOut,
       }}
     >

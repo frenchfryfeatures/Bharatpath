@@ -14,6 +14,7 @@ import {
   Bell,
   ArrowRight,
   TrendUp,
+  TrendDown,
   RocketLaunch,
   Briefcase,
   CaretRight,
@@ -68,13 +69,14 @@ const MONOGRAM_FG = ['#4A3E8F', '#7A5C0E', '#1F6B45', '#5F6B80', '#993A22'];
 export interface HomeScreenProps {
   candidateName?: string;
   candidateInitials?: string;
+  photoUrl?: string | null;
   currentDate?: string;
   score?: number;
   maxScore?: number;
   bandName?: string;
   bandNumber?: number;
   bandTotal?: number;
-  scoreGain?: number;
+  scoreGain?: number | null;
   fixesLeft?: number;
   fixesWorth?: number;
   pointsToNextBand?: number;
@@ -96,6 +98,7 @@ export interface HomeScreenProps {
 export function HomeScreen({
   candidateName,
   candidateInitials,
+  photoUrl,
   currentDate,
   // No default score. It comes from `GET /candidate/score/me`, and the card
   // shows a dash until there is a real one - see the note above.
@@ -104,7 +107,7 @@ export function HomeScreen({
   bandName,
   bandNumber = 1,
   bandTotal = 4,
-  scoreGain = 26,
+  scoreGain,
   fixesLeft = 2,
   fixesWorth = 32,
   pointsToNextBand = 28,
@@ -253,7 +256,11 @@ export function HomeScreen({
                 accessibilityRole="button"
                 accessibilityLabel="Profile"
               >
-                <Text style={styles.avatarText}>{initials}</Text>
+                {photoUrl ? (
+                  <Image source={{ uri: photoUrl }} style={styles.avatarImage} />
+                ) : (
+                  <Text style={styles.avatarText}>{initials}</Text>
+                )}
               </Pressable>
             </View>
           </View>
@@ -325,10 +332,18 @@ export function HomeScreen({
                 {score != null ? String(score) : '—'}
               </Text>
               <Text style={styles.maxScoreText} numberOfLines={1}>/ {maxScore}</Text>
-              <View style={styles.trendBadge}>
-                <TrendUp size={11} color="#FFFFFF" weight="bold" />
-                <Text style={styles.trendText} numberOfLines={1}>+{scoreGain}</Text>
-              </View>
+              {scoreGain != null && scoreGain !== 0 ? (
+                <View style={styles.trendBadge}>
+                  {scoreGain > 0 ? (
+                    <TrendUp size={11} color="#FFFFFF" weight="bold" />
+                  ) : (
+                    <TrendDown size={11} color="#FFFFFF" weight="bold" />
+                  )}
+                  <Text style={styles.trendText} numberOfLines={1}>
+                    {scoreGain > 0 ? `+${scoreGain}` : `−${Math.abs(scoreGain)}`}
+                  </Text>
+                </View>
+              ) : null}
             </View>
 
             {/* 4-segment progress bar */}
@@ -556,9 +571,17 @@ export function HomeScreen({
                     <View
                       style={[styles.companyMonogram, { backgroundColor: bg }]}
                     >
-                      <Text style={[styles.monogramText, { color: fg }]}>
-                        {monogram}
-                      </Text>
+                      {job.employer_logo_url ? (
+                        <Image
+                          source={{ uri: job.employer_logo_url }}
+                          style={styles.companyLogoImage}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <Text style={[styles.monogramText, { color: fg }]}>
+                          {monogram}
+                        </Text>
+                      )}
                     </View>
 
                     <View style={styles.jobInfoCol}>
@@ -673,6 +696,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#5F4DB2',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
   },
   avatarText: {
     fontFamily: 'GeneralSans-Bold',
@@ -1022,6 +1051,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1EAF7',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  companyLogoImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
   },
   monogramText: {
     fontFamily: 'GeneralSans-Bold',

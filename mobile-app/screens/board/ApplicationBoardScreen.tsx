@@ -30,6 +30,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   Linking,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -337,9 +338,17 @@ function EmployerHeader({
   return (
     <View style={styles.cardHeader}>
       <View style={[styles.badgeMonogram, { backgroundColor: bg }]}>
-        <Text style={[styles.badgeMonogramText, { color: fg }]}>
-          {initials}
-        </Text>
+        {application.employer_logo_url ? (
+          <Image
+            source={{ uri: application.employer_logo_url }}
+            style={styles.badgeLogoImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <Text style={[styles.badgeMonogramText, { color: fg }]}>
+            {initials}
+          </Text>
+        )}
       </View>
       <View style={styles.roleInfo}>
         <Text style={styles.roleTitle} numberOfLines={1}>
@@ -882,6 +891,12 @@ const styles = StyleSheet.create({
     borderRadius: 13,
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  badgeLogoImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
   },
   badgeMonogramText: {
     fontFamily: 'GeneralSans-Bold',

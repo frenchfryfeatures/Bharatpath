@@ -7,6 +7,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { HomeScreen } from '@/screens/home/HomeScreen';
 import { TabName } from '@/components/navigation/BottomTabBar';
 import { useAuthContext } from '@/context/AuthContext';
+import { useScoreChange } from '@/hooks/useScoreChange';
 import {
   getMyScore,
   CandidateScoreResponse,
@@ -18,14 +19,23 @@ import {
 
 export default function HomeRoute() {
   const router = useRouter();
-  const { candidateFullName, candidateScore, refreshScore } = useAuthContext();
+  const {
+    session,
+    candidateFullName,
+    candidateScore,
+    refreshScore,
+    candidatePhotoUrl,
+    refreshPhoto,
+  } = useAuthContext();
   const [activeTab, setActiveTab] = useState<TabName>('home');
+  const scoreGain = useScoreChange(session?.userId, candidateScore);
 
-  // Re-fetch score on screen focus so newly confirmed resumes immediately reflect
+  // Re-fetch score and photo on screen focus
   useFocusEffect(
     useCallback(() => {
-      refreshScore();
-    }, [refreshScore])
+      refreshScore().catch(() => undefined);
+      refreshPhoto().catch(() => undefined);
+    }, [refreshScore, refreshPhoto])
   );
 
   const handleTabPress = (tab: TabName, href: string) => {
@@ -38,12 +48,14 @@ export default function HomeRoute() {
   return (
     <HomeScreen
       candidateName={candidateFullName || undefined}
+      photoUrl={candidatePhotoUrl}
       score={
         candidateScore?.status === 'READY'
           ? (candidateScore.value ?? undefined)
           : undefined
       }
       maxScore={999}
+      scoreGain={scoreGain}
       bandName={bandLabel(candidateScore?.band) || undefined}
       bandNumber={bandIndex(candidateScore?.band)}
       bandTotal={4}

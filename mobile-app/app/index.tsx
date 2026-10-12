@@ -56,6 +56,7 @@ import {
 } from '@/services/api/scoring';
 import { HomeScreen } from '@/screens/home/HomeScreen';
 import { useAuthContext } from '@/context/AuthContext';
+import { useScoreChange } from '@/hooks/useScoreChange';
 import { getCandidateSubscription } from '@/services/api/subscription';
 import {
   confirmSignUpWithCode,
@@ -130,6 +131,7 @@ export default function FoundationPreview() {
 
   // Synchronize score with AuthContext
   const candidateScore = authCandidateScore || localCandidateScore;
+  const scoreGain = useScoreChange(session?.userId, candidateScore);
 
   // Refresh candidate score on screen focus so newly scored resumes are reflected
   useFocusEffect(
@@ -660,7 +662,7 @@ export default function FoundationPreview() {
       bandName={bandLabel(candidateScore?.band) || undefined}
       bandNumber={bandIndex(candidateScore?.band)}
       bandTotal={4}
-      scoreGain={26}
+      scoreGain={scoreGain}
       fixesLeft={2}
       fixesWorth={32}
       pointsToNextBand={

@@ -25,6 +25,7 @@ import {
   Pressable,
   Platform,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -42,6 +43,7 @@ import {
   GraduationCap,
   CreditCard,
   BookOpen,
+  PencilSimple,
 } from 'phosphor-react-native';
 import { Colors, Spacing } from '@/theme/tokens';
 import { BottomTabBar, TabName } from '@/components/navigation/BottomTabBar';
@@ -51,6 +53,10 @@ export interface ProfileScreenProps {
   name?: string;
   /** Avatar initials, derived from the name. */
   initials?: string;
+  /** Pre-signed or active profile photo URL. */
+  photoUrl?: string | null;
+  /** Callback when candidate taps avatar or edit photo. */
+  onEditPhotoPress?: () => void;
   /** "City, ST" subtitle from `GET /candidate/profile`. No phone number. */
   locationLabel?: string;
   /** Score band label (e.g. "Solid"). Currently unused on this card - the
@@ -93,6 +99,8 @@ export interface ProfileScreenProps {
 export function ProfileScreen({
   name,
   initials,
+  photoUrl,
+  onEditPhotoPress,
   locationLabel,
   bandName,
   score,
@@ -141,13 +149,45 @@ export function ProfileScreen({
         >
           {/* Header with avatar badge and candidate info */}
           <View style={styles.header}>
-            <View style={styles.avatarBadge}>
-              <Text style={styles.avatarText}>{displayInitials}</Text>
-            </View>
+            <Pressable
+              style={({ pressed }) => [
+                styles.avatarWrapper,
+                pressed && Boolean(onEditPhotoPress) && styles.cardPressed,
+              ]}
+              onPress={onEditPhotoPress}
+              disabled={!onEditPhotoPress}
+              accessibilityRole="button"
+              accessibilityLabel={photoUrl ? 'Change profile photo' : 'Upload profile photo'}
+            >
+              <View style={styles.avatarBadge}>
+                {photoUrl ? (
+                  <Image source={{ uri: photoUrl }} style={styles.avatarImage} />
+                ) : (
+                  <Text style={styles.avatarText}>{displayInitials}</Text>
+                )}
+              </View>
+              {onEditPhotoPress ? (
+                <View style={styles.avatarPencilBadge}>
+                  <PencilSimple size={12} color="#5F4DB2" weight="bold" />
+                </View>
+              ) : null}
+            </Pressable>
+
             <View style={styles.userInfo}>
               <Text style={styles.userName}>{displayName}</Text>
               {locationLabel ? (
                 <Text style={styles.userSub}>{locationLabel}</Text>
+              ) : null}
+              {onEditPhotoPress ? (
+                <Pressable
+                  onPress={onEditPhotoPress}
+                  hitSlop={6}
+                  style={styles.editPhotoLinkTouch}
+                >
+                  <Text style={styles.editPhotoLink}>
+                    {photoUrl ? 'Change photo' : 'Upload photo'}
+                  </Text>
+                </Pressable>
               ) : null}
             </View>
           </View>
@@ -456,19 +496,58 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 16,
   },
+  avatarWrapper: {
+    position: 'relative',
+  },
   avatarBadge: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: '#F1EAF7',
+    borderWidth: 2,
+    borderColor: '#5F4DB2',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 30,
+  },
+  avatarPencilBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#E7E0D4',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 2,
+    elevation: 2,
   },
   avatarText: {
     fontFamily: 'GeneralSans-Bold',
-    fontSize: 19,
+    fontSize: 20,
     lineHeight: 24,
     color: '#4A3E8F',
+  },
+  editPhotoLinkTouch: {
+    marginTop: 2,
+  },
+  editPhotoLink: {
+    fontFamily: 'GeneralSans-Medium',
+    fontSize: 12,
+    lineHeight: 16,
+    color: '#5F4DB2',
+    fontWeight: '600',
   },
   userInfo: {
     flex: 1,

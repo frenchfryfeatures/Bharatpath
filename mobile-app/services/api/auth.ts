@@ -32,6 +32,8 @@ export interface MeResponse {
   role: string;
   pool: string;
   tenant_id: string | null;
+  full_name?: string | null;
+  photo_url?: string | null;
 }
 
 export interface DevTokenResponse {
@@ -46,6 +48,7 @@ export interface CandidateProfileResponse {
   city: string | null;
   state_code: string | null;
   updated_at: string | null;
+  photo_url?: string | null;
 }
 
 export interface SignUpParams {
