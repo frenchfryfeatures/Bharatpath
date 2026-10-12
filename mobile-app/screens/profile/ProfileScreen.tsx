@@ -41,6 +41,7 @@ import {
   SignOut,
   GraduationCap,
   CreditCard,
+  BookOpen,
 } from 'phosphor-react-native';
 import { Colors, Spacing } from '@/theme/tokens';
 import { BottomTabBar, TabName } from '@/components/navigation/BottomTabBar';
@@ -79,7 +80,9 @@ export interface ProfileScreenProps {
   onAttributeReportPress?: () => void;
   onInterviewReportPress?: () => void;
   onCoursesPress?: () => void;
+  onCollegePress?: () => void;
   onLanguagePress?: () => void;
+  onChangePasswordPress?: () => void;
   onWhoHasSeenMePress?: () => void;
   onDownloadDataPress?: () => void;
   onLogoutPress?: () => void;
@@ -109,7 +112,9 @@ export function ProfileScreen({
   onAttributeReportPress,
   onInterviewReportPress,
   onCoursesPress,
+  onCollegePress,
   onLanguagePress,
+  onChangePasswordPress,
   onWhoHasSeenMePress,
   onDownloadDataPress,
   onLogoutPress,
@@ -132,6 +137,7 @@ export function ProfileScreen({
             { paddingBottom: 130 + Math.max(insets.bottom, 24) },
           ]}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {/* Header with avatar badge and candidate info */}
           <View style={styles.header}>
@@ -291,7 +297,21 @@ export function ProfileScreen({
             </Pressable>
             */}
 
-            {/* Certified skill courses (adjusted in place of attribute report) */}
+            {/* College */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuItem,
+                pressed && styles.cardPressed,
+              ]}
+              onPress={onCollegePress}
+              accessibilityRole="button"
+            >
+              <GraduationCap size={20} color={Colors.navy} weight="duotone" />
+              <Text style={styles.menuItemTitle}>College</Text>
+              <CaretRight size={16} color="#5F6B80" weight="bold" />
+            </Pressable>
+
+            {/* Certified skill courses */}
             <Pressable
               style={({ pressed }) => [
                 styles.menuItem,
@@ -300,7 +320,7 @@ export function ProfileScreen({
               onPress={onCoursesPress}
               accessibilityRole="button"
             >
-              <GraduationCap size={20} color={Colors.navy} weight="duotone" />
+              <BookOpen size={20} color={Colors.navy} weight="duotone" />
               <Text style={styles.menuItemTitle}>Certified skill courses</Text>
               <CaretRight size={16} color="#5F6B80" weight="bold" />
             </Pressable>
@@ -341,6 +361,21 @@ export function ProfileScreen({
               <LockKey size={12} color="#A87C17" weight="bold" />
               <Text style={styles.sectionEyebrowText}>PRIVACY AND DATA</Text>
             </View>
+
+            {/* Change password */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuItem,
+                pressed && styles.cardPressed,
+              ]}
+              onPress={onChangePasswordPress}
+              accessibilityRole="button"
+              accessibilityLabel="Change password"
+            >
+              <LockKey size={20} color={Colors.navy} weight="duotone" />
+              <Text style={styles.menuItemTitle}>Change password</Text>
+              <CaretRight size={16} color="#5F6B80" weight="bold" />
+            </Pressable>
 
             {/* Who has seen me */}
             <Pressable

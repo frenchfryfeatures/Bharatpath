@@ -26,10 +26,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { ArrowLeft, LockOpen, Info, WarningCircle } from 'phosphor-react-native';
+import { ArrowLeft, LockOpen, Info, WarningCircle, ShieldCheck } from 'phosphor-react-native';
 import { Colors, Spacing } from '@/theme/tokens';
 import { useProfileViews } from '@/hooks/useProfileViews';
 import { getInitials, pickFromString } from '@/utils/helpers';
+import { DataRightsSection } from './DataRightsSection';
 
 export interface WhoHasSeenMeScreenProps {
   onBack?: () => void;
@@ -137,6 +138,7 @@ export function WhoHasSeenMeScreen({
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -296,6 +298,20 @@ export function WhoHasSeenMeScreen({
               Your resume file is never shared. Employers see the parsed profile only.
             </Text>
           </View>
+
+          {/* Your privacy is protected Card */}
+          <View style={styles.protectedCard}>
+            <View style={styles.protectedHeader}>
+              <ShieldCheck size={18} color="#1F6B45" weight="fill" />
+              <Text style={styles.protectedTitle}>Your privacy is protected</Text>
+            </View>
+            <Text style={styles.protectedSub}>
+              We show the employer organisation, never the individual recruiter or how many times they opened your profile.
+            </Text>
+          </View>
+
+          {/* Your Data Section (Request export & Account deletion) */}
+          <DataRightsSection />
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -547,6 +563,30 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     color: '#3A4761',
+  },
+  protectedCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E7E0D4',
+    padding: 16,
+    gap: 6,
+  },
+  protectedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  protectedTitle: {
+    fontFamily: 'GeneralSans-Semibold',
+    fontSize: 14,
+    color: Colors.navy,
+  },
+  protectedSub: {
+    fontFamily: 'GeneralSans-Regular',
+    fontSize: 12,
+    lineHeight: 18,
+    color: '#5F6B80',
   },
   buttonPressed: {
     transform: [{ scale: 0.96 }],

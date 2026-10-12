@@ -38,6 +38,14 @@ export function OtpVerificationScreen({
   const [countdown, setCountdown] = useState(24);
   const inputRef = useRef<TextInput>(null);
 
+  // Auto-focus on mount with slight delay
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      inputRef.current?.focus();
+    }, 150);
+    return () => clearTimeout(timer);
+  }, []);
+
   // Countdown timer effect
   useEffect(() => {
     if (countdown <= 0) return;
@@ -141,6 +149,7 @@ export function OtpVerificationScreen({
                 return (
                   <View
                     key={index}
+                    pointerEvents="none"
                     style={[
                       styles.otpBox,
                       isCurrentActive && styles.otpBoxActive,
@@ -315,9 +324,15 @@ const styles = StyleSheet.create({
   },
   hiddenInput: {
     position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     width: '100%',
     height: '100%',
-    opacity: 0,
+    opacity: 0.01,
+    color: 'transparent',
+    zIndex: 10,
   },
   metaRow: {
     flexDirection: 'row',

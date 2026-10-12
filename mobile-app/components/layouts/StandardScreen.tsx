@@ -26,6 +26,7 @@ export function StandardScreen({ children, style, scrollable = true }: StandardS
         style={styles.container}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         bounces={true}
       >
         {content}

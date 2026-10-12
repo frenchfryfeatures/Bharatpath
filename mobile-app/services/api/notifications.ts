@@ -54,3 +54,17 @@ export async function updatePushPreference(
     body: { push_enabled: pushEnabled },
   });
 }
+
+export async function registerPushDevice(token: string, platform: 'android' | 'ios'): Promise<void> {
+  await apiRequest('/notifications/devices', {
+    method: 'POST',
+    body: { token, platform },
+  });
+}
+
+export async function unregisterPushDevice(token: string): Promise<void> {
+  await apiRequest('/notifications/devices', {
+    method: 'DELETE',
+    body: { token },
+  });
+}

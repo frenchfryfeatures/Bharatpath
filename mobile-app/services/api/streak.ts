@@ -17,6 +17,8 @@ import type {
   StreakResponse,
   StreakCheckInResponse,
   StreakPointsChange,
+  StreakCalendarResponse,
+  StreakViewPeriod,
 } from '@/types/streak';
 
 /** Read the candidate's current streak and engagement-points balance. */
@@ -45,6 +47,25 @@ export async function getStreakPointHistory(
   return apiRequest<StreakPointsChange[]>(
     `/candidate/streak/me/points?limit=${limit}`,
   );
+}
+
+/**
+ * Read the candidate's activity calendar for a week, month, year, or explicit range.
+ * Defaults to the current week if neither period nor range is specified.
+ */
+export async function getStreakCalendar(args: {
+  period?: StreakViewPeriod;
+  date?: string;
+  from?: string;
+  to?: string;
+} = {}): Promise<StreakCalendarResponse> {
+  const queryParts: string[] = [];
+  if (args.period) queryParts.push(`period=${encodeURIComponent(args.period)}`);
+  if (args.date) queryParts.push(`date=${encodeURIComponent(args.date)}`);
+  if (args.from) queryParts.push(`from=${encodeURIComponent(args.from)}`);
+  if (args.to) queryParts.push(`to=${encodeURIComponent(args.to)}`);
+  const query = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
+  return apiRequest<StreakCalendarResponse>(`/candidate/streak/me/calendar${query}`);
 }
 
 /**

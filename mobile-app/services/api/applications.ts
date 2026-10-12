@@ -16,6 +16,7 @@ import {
   ApplicationDetailResponse,
   ApplicationPage,
   ApplicationResponse,
+  CandidateApplicationMessage,
 } from '@/types/application';
 
 /**
@@ -76,6 +77,19 @@ export async function getMyApplication(
 ): Promise<ApplicationDetailResponse> {
   return apiRequest<ApplicationDetailResponse>(
     `/candidate/applications/${applicationId}`,
+  );
+}
+
+/**
+ * Messages the employer sent about this application, oldest first.
+ *
+ * `GET /candidate/applications/{id}/messages`. Not paywalled.
+ */
+export async function getApplicationMessages(
+  applicationId: string,
+): Promise<CandidateApplicationMessage[]> {
+  return apiRequest<CandidateApplicationMessage[]>(
+    `/candidate/applications/${applicationId}/messages`,
   );
 }
 

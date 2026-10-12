@@ -1,4 +1,11 @@
-import { apiRequest, setAccessToken, getAccessToken, ApiError, getBaseUrl } from './client';
+import {
+  apiRequest,
+  setAccessToken,
+  getAccessToken,
+  registerTokenRefreshHandler,
+  ApiError,
+  getBaseUrl,
+} from './client';
 import { UserProfile } from '@/types/user';
 import { rememberUnsavedName } from '@/services/profile/pendingName';
 import {
@@ -9,6 +16,9 @@ import {
 
 export interface AuthSession {
   accessToken: string;
+  refreshToken?: string;
+  idToken?: string;
+  expiresAt?: number;
   userId: string;
   email: string;
   role: string;
@@ -208,6 +218,231 @@ async function cognitoRequest<T>(action: string, payload: Record<string, any>): 
 
 let currentSession: AuthSession | null = null;
 
+export type SessionChangeListener = (session: AuthSession | null) => void;
+const sessionChangeListeners = new Set<SessionChangeListener>();
+
+export function onSessionChange(listener: SessionChangeListener): () => void {
+  sessionChangeListeners.add(listener);
+  return () => {
+    sessionChangeListeners.delete(listener);
+  };
+}
+
+function notifySessionListeners(session: AuthSession | null): void {
+  sessionChangeListeners.forEach((fn) => {
+    try {
+      fn(session);
+    } catch (e) {
+      console.warn('[Auth] Error notifying session listener:', e);
+    }
+  });
+}
+
+/** Refresh this long (in ms) before the access token expires (60 seconds leeway) */
+export const REFRESH_LEEWAY_MS = 60_000;
+
+function decodeBase64Url(base64Url: string): string {
+  const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+  if (typeof atob === 'function') {
+    return atob(padded);
+  }
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+  let str = padded.replace(/=+$/, '');
+  let output = '';
+  for (
+    let bc = 0, bs = 0, buffer: number, idx = 0;
+    (buffer = str.charCodeAt(idx++));
+    ~buffer && ((bs = bc % 4 ? bs * 64 + buffer : buffer), bc++ % 4)
+      ? (output += String.fromCharCode(255 & (bs >> ((-2 * bc) & 6))))
+      : 0
+  ) {
+    buffer = chars.indexOf(String.fromCharCode(buffer));
+  }
+  return output;
+}
+
+/**
+ * Extracts expiration timestamp (in milliseconds) from a JWT access token payload.
+ */
+export function parseJwtExpiration(token: string): number | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    const raw = decodeBase64Url(parts[1]);
+    const jsonStr = decodeURIComponent(
+      raw
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    const claims = JSON.parse(jsonStr);
+    return typeof claims.exp === 'number' && Number.isFinite(claims.exp)
+      ? claims.exp * 1000
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Checks if the current access token has at least 60 seconds of validity left.
+ */
+export function isSessionTokenFresh(session: AuthSession | null): boolean {
+  if (!session || !session.accessToken) return false;
+  let expiresAt = session.expiresAt;
+  if (!expiresAt) {
+    const parsed = parseJwtExpiration(session.accessToken);
+    if (parsed) {
+      expiresAt = parsed;
+      session.expiresAt = parsed;
+    }
+  }
+  if (!expiresAt) return true;
+  return expiresAt - Date.now() > REFRESH_LEEWAY_MS;
+}
+
+let inFlightRefreshPromise: Promise<string | null> | null = null;
+
+/**
+ * Silent token renewal:
+ * Trades the 30-day Cognito RefreshToken for a new 1-hour AccessToken.
+ * Concurrent callers share a single in-flight promise to prevent the thundering herd problem.
+ */
+export async function refreshAccessToken(force = false): Promise<string | null> {
+  if (!currentSession) {
+    const stored = await getStoredSession();
+    if (stored) {
+      currentSession = stored;
+      setAccessToken(stored.accessToken);
+    }
+  }
+
+  if (!currentSession) {
+    return null;
+  }
+
+  if (!force && isSessionTokenFresh(currentSession)) {
+    return currentSession.accessToken;
+  }
+
+  if (inFlightRefreshPromise) {
+    return inFlightRefreshPromise;
+  }
+
+  inFlightRefreshPromise = (async () => {
+    try {
+      return await executeTokenRefresh();
+    } finally {
+      inFlightRefreshPromise = null;
+    }
+  })();
+
+  return inFlightRefreshPromise;
+}
+
+async function executeTokenRefresh(): Promise<string | null> {
+  if (!currentSession) return null;
+
+  if (shouldUseDevToken()) {
+    try {
+      const devSubject = currentSession.subject || emailToDevSubject(currentSession.email);
+      const tokenResponse = await apiRequest<DevTokenResponse>('/auth/dev/token', {
+        method: 'POST',
+        skipAuthRefresh: true,
+        body: {
+          pool: 'CANDIDATE',
+          email: currentSession.email,
+          subject: devSubject,
+        },
+      });
+
+      const newAccessToken = tokenResponse.access_token;
+      const expiresIn = tokenResponse.expires_in || 3600;
+      const newExpiresAt = Date.now() + expiresIn * 1000;
+
+      currentSession = {
+        ...currentSession,
+        accessToken: newAccessToken,
+        expiresAt: newExpiresAt,
+      };
+
+      setAccessToken(newAccessToken);
+      await saveStoredSession(currentSession);
+      notifySessionListeners(currentSession);
+      return newAccessToken;
+    } catch (devErr) {
+      console.warn('[Auth] Dev token refresh failed:', devErr);
+      return currentSession.accessToken;
+    }
+  }
+
+  const refreshToken = currentSession.refreshToken;
+  if (!refreshToken) {
+    console.warn('[Auth] No refresh token available in session. Cannot renew 30-day session.');
+    return isSessionTokenFresh(currentSession) ? currentSession.accessToken : null;
+  }
+
+  try {
+    console.log('[Auth] Initiating Cognito REFRESH_TOKEN_AUTH for 30-day session retention...');
+    const authResult = await cognitoRequest<any>('InitiateAuth', {
+      AuthFlow: 'REFRESH_TOKEN_AUTH',
+      ClientId: COGNITO_CLIENT_ID,
+      AuthParameters: {
+        REFRESH_TOKEN: refreshToken,
+      },
+    });
+
+    const authRes = authResult?.AuthenticationResult;
+    if (!authRes?.AccessToken) {
+      console.warn('[Auth] InitiateAuth did not return an AccessToken');
+      return null;
+    }
+
+    const newAccessToken = authRes.AccessToken;
+    const expiresIn = typeof authRes.ExpiresIn === 'number' ? authRes.ExpiresIn : 3600;
+    const newExpiresAt = Date.now() + expiresIn * 1000;
+    const newRefreshToken = authRes.RefreshToken || refreshToken;
+    const newIdToken = authRes.IdToken || currentSession.idToken;
+
+    currentSession = {
+      ...currentSession,
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+      idToken: newIdToken,
+      expiresAt: newExpiresAt,
+    };
+
+    setAccessToken(newAccessToken);
+    await saveStoredSession(currentSession);
+    notifySessionListeners(currentSession);
+    console.log(
+      '[Auth] Token renewed successfully via Cognito RefreshToken. Valid until:',
+      new Date(newExpiresAt).toISOString()
+    );
+    return newAccessToken;
+  } catch (err: any) {
+    console.warn('[Auth] Failed to refresh token via Cognito:', err);
+
+    // If Cognito permanently rejected the refresh token (e.g. 30 days expired or revoked)
+    if (
+      err?.code === 'unauthenticated' ||
+      err?.code === 'NotAuthorizedException' ||
+      err?.code === 'UserNotFoundException'
+    ) {
+      console.warn('[Auth] 30-day refresh token expired or revoked. Signing out.');
+      await signOut();
+      return null;
+    }
+
+    // Network or transient Cognito error: Preserve session so app can retry when network recovers
+    return currentSession?.accessToken || null;
+  }
+}
+
+// Automatically bind token refresh handler to apiRequest client
+registerTokenRefreshHandler(refreshAccessToken);
+
 export type SignUpResult = AuthSession | { unconfirmed: true; email: string };
 
 /**
@@ -258,8 +493,12 @@ export async function signUpWithEmail(params: SignUpParams): Promise<SignUpResul
       }
     }
 
+    const expiresIn = tokenResponse.expires_in || 3600;
+    const expiresAt = Date.now() + expiresIn * 1000;
+
     const session: AuthSession = {
       accessToken,
+      expiresAt,
       userId: me.user_id,
       email: normalizedEmail,
       role: me.role,
@@ -270,6 +509,7 @@ export async function signUpWithEmail(params: SignUpParams): Promise<SignUpResul
 
     currentSession = session;
     await saveStoredSession(session);
+    notifySessionListeners(session);
     return session;
   }
 
@@ -313,6 +553,7 @@ export async function signUpWithEmail(params: SignUpParams): Promise<SignUpResul
  * Sign in existing candidate:
  * - In local dev mode: calls /auth/dev/token
  * - In hosted mode: authenticates against AWS Cognito Candidate Pool via USER_PASSWORD_AUTH
+ * - Captures AccessToken, RefreshToken (valid for 30 days), and ExpiresIn
  * - Then verifies identity on backend via GET /auth/me and fetches candidate profile.
  */
 export async function signInWithEmail(params: SignInParams): Promise<{
@@ -321,12 +562,16 @@ export async function signInWithEmail(params: SignInParams): Promise<{
 }> {
   const normalizedEmail = params.email.trim().toLowerCase();
   let accessToken: string;
+  let refreshToken: string | undefined;
+  let idToken: string | undefined;
+  let expiresAt: number;
   let subject: string | undefined;
 
   if (shouldUseDevToken()) {
     const devSubject = emailToDevSubject(normalizedEmail);
     const tokenResponse = await apiRequest<DevTokenResponse>('/auth/dev/token', {
       method: 'POST',
+      skipAuthRefresh: true,
       body: {
         pool: 'CANDIDATE',
         email: normalizedEmail,
@@ -335,6 +580,8 @@ export async function signInWithEmail(params: SignInParams): Promise<{
     });
     accessToken = tokenResponse.access_token;
     subject = tokenResponse.subject;
+    const expiresIn = tokenResponse.expires_in || 3600;
+    expiresAt = Date.now() + expiresIn * 1000;
   } else {
     // AWS Cognito USER_PASSWORD_AUTH
     const authResult = await cognitoRequest<any>('InitiateAuth', {
@@ -346,7 +593,8 @@ export async function signInWithEmail(params: SignInParams): Promise<{
       },
     });
 
-    if (!authResult.AuthenticationResult?.AccessToken) {
+    const authRes = authResult?.AuthenticationResult;
+    if (!authRes?.AccessToken) {
       throw new ApiError({
         type: 'https://bharatpath.example/problems/unauthenticated',
         title: 'Authentication did not return a valid session token.',
@@ -355,7 +603,11 @@ export async function signInWithEmail(params: SignInParams): Promise<{
       });
     }
 
-    accessToken = authResult.AuthenticationResult.AccessToken;
+    accessToken = authRes.AccessToken;
+    refreshToken = authRes.RefreshToken;
+    idToken = authRes.IdToken;
+    const expiresIn = typeof authRes.ExpiresIn === 'number' ? authRes.ExpiresIn : 3600;
+    expiresAt = Date.now() + expiresIn * 1000;
   }
 
   setAccessToken(accessToken);
@@ -377,6 +629,9 @@ export async function signInWithEmail(params: SignInParams): Promise<{
 
   const session: AuthSession = {
     accessToken,
+    refreshToken,
+    idToken,
+    expiresAt,
     userId: me.user_id,
     email: normalizedEmail,
     role: me.role,
@@ -387,6 +642,7 @@ export async function signInWithEmail(params: SignInParams): Promise<{
 
   currentSession = session;
   await saveStoredSession(session);
+  notifySessionListeners(session);
   return { session, profile };
 }
 
@@ -458,6 +714,45 @@ export async function confirmForgotPassword(
 }
 
 /**
+ * Change password for the signed-in candidate using AWS Cognito.
+ */
+export async function changePassword(
+  oldPassword: string,
+  newPassword: string
+): Promise<boolean> {
+  if (shouldUseDevToken()) {
+    return true;
+  }
+  const token = (await refreshAccessToken(false)) || getAccessToken();
+  if (!token) {
+    throw new ApiError({
+      type: 'https://bharatpath.example/problems/unauthorized',
+      title: 'You must be signed in to change your password.',
+      status: 401,
+      code: 'unauthorized',
+    });
+  }
+  try {
+    await cognitoRequest<any>('ChangePassword', {
+      AccessToken: token,
+      PreviousPassword: oldPassword,
+      ProposedPassword: newPassword,
+    });
+    return true;
+  } catch (err: any) {
+    if (err instanceof ApiError && err.status === 401) {
+      throw new ApiError({
+        type: 'https://bharatpath.example/problems/invalid_password',
+        title: 'Your current password is incorrect.',
+        status: 400,
+        code: 'invalid_current_password',
+      });
+    }
+    throw err;
+  }
+}
+
+/**
  * Get current caller's identity directly from backend (/auth/me)
  */
 export async function getMe(): Promise<MeResponse | null> {
@@ -511,15 +806,24 @@ export async function signOut(): Promise<void> {
   setAccessToken(null);
   currentSession = null;
   await clearAllAuthData();
+  notifySessionListeners(null);
 }
 
 export async function getCurrentSession(): Promise<AuthSession | null> {
-  if (currentSession) return currentSession;
+  if (currentSession) {
+    if (!isSessionTokenFresh(currentSession) && currentSession.refreshToken) {
+      await refreshAccessToken(true).catch(() => null);
+    }
+    return currentSession;
+  }
   const stored = await getStoredSession();
   if (stored) {
     currentSession = stored;
     setAccessToken(stored.accessToken);
-    return stored;
+    if (!isSessionTokenFresh(stored) && stored.refreshToken) {
+      await refreshAccessToken(true).catch(() => null);
+    }
+    return currentSession;
   }
   return null;
 }

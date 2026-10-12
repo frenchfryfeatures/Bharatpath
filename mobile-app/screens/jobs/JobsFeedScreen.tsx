@@ -278,6 +278,7 @@ export function JobsFeedScreen({
         <FlatList
           data={jobs}
           keyExtractor={(item) => item.id}
+          keyboardShouldPersistTaps="handled"
           renderItem={({ item }) => (
             <JobCard job={item} onPress={() => handleJobPress(item.id)} />
           )}

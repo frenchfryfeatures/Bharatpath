@@ -31,6 +31,7 @@ export function LanguageSelectScreen({ onSelectLanguage }: LanguageSelectScreenP
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Step Progress Header */}
         <View style={styles.headerProgressSection}>

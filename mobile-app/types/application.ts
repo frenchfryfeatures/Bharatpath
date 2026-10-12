@@ -79,6 +79,17 @@ export interface ApplicationDetailResponse extends ApplicationResponse {
   history: CandidateHistoryItem[];
 }
 
+/** A message sent by the employer regarding this application. */
+export interface CandidateApplicationMessage {
+  id: string;
+  kind: 'INTERVIEW' | 'ASSESSMENT' | 'GENERAL' | string;
+  body: string;
+  scheduled_at: string | null;
+  link: string | null;
+  employer_name: string | null;
+  created_at: string;
+}
+
 /** A cursor page of applications. `total` is `null` on the board. */
 export interface ApplicationPage {
   items: ApplicationResponse[];

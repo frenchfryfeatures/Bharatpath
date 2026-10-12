@@ -31,6 +31,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
+import { Linking, Platform } from 'react-native';
 import {
   ArrowLeft,
   BellSimpleRinging,
@@ -53,7 +55,9 @@ import {
   InboxItem,
   getInbox,
   markNotificationRead,
+  getNotificationPreferences,
 } from '@/services/api/notifications';
+import { enablePushNotifications, getDeviceNotificationStatus } from '@/services/notifications/device';
 
 export interface NotificationScreenProps {
   onBack?: () => void;
@@ -70,6 +74,12 @@ export function NotificationScreen({
 }: NotificationScreenProps) {
   const router = useRouter();
   const [isEnabled, setIsEnabled] = useState(initialEnabled);
+  const [permissionGranted, setPermissionGranted] = useState(initialEnabled);
+  const [accountPushDisabled, setAccountPushDisabled] = useState(false);
+  const [checkingPermission, setCheckingPermission] = useState(true);
+  const [requestingPermission, setRequestingPermission] = useState(false);
+  const [permissionError, setPermissionError] = useState<string | null>(null);
+  const [openSettings, setOpenSettings] = useState(false);
   const [items, setItems] = useState<InboxItem[]>([]);
   const [unread, setUnread] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -96,6 +106,34 @@ export function NotificationScreen({
   useEffect(() => {
     load();
   }, [load]);
+
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    getDeviceNotificationStatus()
+      .then(async (permission) => {
+        if (!active) return;
+        const granted = permission.status === 'granted';
+        setPermissionGranted(granted);
+        setOpenSettings(permission.status === 'denied' && !permission.canAskAgain);
+        try {
+          const preference = await getNotificationPreferences();
+          if (!active) return;
+          setAccountPushDisabled(granted && !preference.push_enabled);
+          setIsEnabled(granted && preference.push_enabled);
+        } catch {
+          // The phone's granted permission remains true while offline.
+          if (active) setIsEnabled(granted);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setIsEnabled(false);
+          setPermissionGranted(false);
+        }
+      })
+      .finally(() => { if (active) setCheckingPermission(false); });
+    return () => { active = false; };
+  }, []));
 
   const loadMore = useCallback(async () => {
     if (!cursor || loadingMore) return;
@@ -141,9 +179,33 @@ export function NotificationScreen({
     }
   };
 
-  const handleAllow = () => {
-    setIsEnabled(true);
-    if (onAllow) onAllow();
+  const handleAllow = async () => {
+    if (requestingPermission) return;
+    setRequestingPermission(true);
+    setPermissionError(null);
+    try {
+      const result = await enablePushNotifications();
+      if (result.status === 'granted') {
+        setIsEnabled(true);
+        setPermissionGranted(true);
+        setAccountPushDisabled(false);
+        setOpenSettings(false);
+        onAllow?.();
+      } else if (result.status === 'denied') {
+        setOpenSettings(!result.canAskAgain);
+        setPermissionError('Notifications are blocked. Allow them in your phone settings, then return here.');
+      } else {
+        setPermissionError('Phone notifications require an installed Android or iOS app build.');
+      }
+    } catch {
+      // Permission may have succeeded even if token registration failed.
+      // Keep the OS prompt hidden once the phone has already granted it.
+      const current = await getDeviceNotificationStatus().catch(() => null);
+      if (current?.status === 'granted') setPermissionGranted(true);
+      setPermissionError('Could not enable notifications. Check your connection and try again.');
+    } finally {
+      setRequestingPermission(false);
+    }
   };
 
   const handleNotNow = () => {
@@ -186,6 +248,7 @@ export function NotificationScreen({
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           refreshControl={
             <RefreshControl
               refreshing={loading && items.length === 0}
@@ -206,8 +269,26 @@ export function NotificationScreen({
           }}
           scrollEventThrottle={16}
         >
+          {!checkingPermission && permissionGranted && permissionError && (
+            <View style={styles.onboardingCard}>
+              <Text style={styles.onboardingTitle}>Phone permission is on</Text>
+              <Text style={styles.onboardingSubtitle}>{permissionError}</Text>
+              <Pressable style={styles.allowButton} onPress={handleAllow} disabled={requestingPermission} accessibilityRole="button">
+                <Text style={styles.allowButtonText}>{requestingPermission ? 'Trying...' : 'Retry connection'}</Text>
+              </Pressable>
+            </View>
+          )}
           {/* Onboarding banner - only when notifications not yet allowed */}
-          {!isEnabled && (
+          {!checkingPermission && permissionGranted && accountPushDisabled && !permissionError && (
+            <View style={styles.onboardingCard}>
+              <Text style={styles.onboardingTitle}>Account alerts are paused</Text>
+              <Text style={styles.onboardingSubtitle}>Phone permission is on. Enable alerts for your BharatPath account.</Text>
+              <Pressable style={styles.allowButton} onPress={handleAllow} disabled={requestingPermission} accessibilityRole="button">
+                <Text style={styles.allowButtonText}>{requestingPermission ? 'Enabling...' : 'Enable account alerts'}</Text>
+              </Pressable>
+            </View>
+          )}
+          {!checkingPermission && !permissionGranted && (
             <View style={styles.onboardingCard}>
               <Text style={styles.onboardingTitle}>Can we message you?</Text>
               <Text style={styles.onboardingSubtitle}>
@@ -250,11 +331,18 @@ export function NotificationScreen({
                   pressed && styles.buttonPressed,
                 ]}
                 onPress={handleAllow}
+                disabled={requestingPermission}
                 accessibilityRole="button"
               >
-                <BellSimpleRinging size={18} color="#FFFFFF" weight="bold" />
-                <Text style={styles.allowButtonText}>Allow notifications</Text>
+                {requestingPermission ? <ActivityIndicator color="#FFFFFF" /> : <BellSimpleRinging size={18} color="#FFFFFF" weight="bold" />}
+                <Text style={styles.allowButtonText}>{requestingPermission ? 'Enabling...' : 'Allow notifications'}</Text>
               </Pressable>
+              {permissionError && <Text style={styles.onboardingSubtitle}>{permissionError}</Text>}
+              {openSettings && Platform.OS !== 'web' && (
+                <Pressable onPress={() => Linking.openSettings()} accessibilityRole="button">
+                  <Text style={styles.onboardingSubtitle}>Open phone settings</Text>
+                </Pressable>
+              )}
               <Pressable
                 style={({ pressed }) => [
                   styles.notNowButton,

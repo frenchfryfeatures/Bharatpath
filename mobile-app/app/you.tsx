@@ -17,6 +17,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Alert } from 'react-native';
 import { ProfileScreen } from '@/screens/profile/ProfileScreen';
+import { ChangePasswordModal } from '@/screens/profile/ChangePasswordModal';
 import { TabName } from '@/components/navigation/BottomTabBar';
 import { useAuthContext } from '@/context/AuthContext';
 import {
@@ -42,6 +43,7 @@ export default function YouRoute() {
   const router = useRouter();
   const { session, candidateFullName, setCandidateFullName, signOut, candidateScore, refreshScore } = useAuthContext();
   const [activeTab, setActiveTab] = useState<TabName>('you');
+  const [changePasswordVisible, setChangePasswordVisible] = useState(false);
 
   // Seed the name with the email's local part so the header is never blank
   // while the real profile name is still being fetched or filled in.
@@ -172,7 +174,8 @@ export default function YouRoute() {
   const bandName = bandLabel(score?.band) || undefined;
 
   return (
-    <ProfileScreen
+    <>
+      <ProfileScreen
       name={profileName || undefined}
       initials={initialsFromName(profileName) || undefined}
       locationLabel={locationLabel || undefined}
@@ -202,6 +205,7 @@ export default function YouRoute() {
       onAttributeReportPress={() => router.push('/attribute-report' as any)}
       onInterviewReportPress={() => router.push('/interview-sessions' as any)}
       onCoursesPress={() => router.push('/courses' as any)}
+      onCollegePress={() => router.push('/college' as any)}
       onLanguagePress={() => {
         AppAlert.alert(
           'Language Settings',
@@ -209,14 +213,9 @@ export default function YouRoute() {
           [{ text: 'OK' }],
         );
       }}
+      onChangePasswordPress={() => setChangePasswordVisible(true)}
       onWhoHasSeenMePress={() => router.push('/who-has-seen-me' as any)}
-      onDownloadDataPress={() => {
-        AppAlert.alert(
-          'Download Data',
-          'Your data archive is being prepared. It will be ready by 15 Aug.',
-          [{ text: 'Got it' }],
-        );
-      }}
+      onDownloadDataPress={() => router.push('/who-has-seen-me' as any)}
       onLogoutPress={() => {
         AppAlert.alert(
           'Logout',
@@ -239,6 +238,11 @@ export default function YouRoute() {
         );
       }}
     />
+    <ChangePasswordModal
+      visible={changePasswordVisible}
+      onClose={() => setChangePasswordVisible(false)}
+    />
+    </>
   );
 }
 

@@ -53,3 +53,29 @@ export interface StreakCheckInResponse {
   streak: StreakResponse;
   changes: StreakPointsChange[];
 }
+
+export type StreakCalendarDayStatus =
+  | 'ACTIVE'
+  | 'MISSED'
+  | 'TODAY_PENDING'
+  | 'UPCOMING'
+  | 'BEFORE_START'
+  | 'NOT_RETAINED';
+
+export interface StreakCalendarDay {
+  date: string;
+  status: StreakCalendarDayStatus;
+  milestone_days: number | null;
+}
+
+export interface StreakCalendarResponse {
+  start: string;
+  end: string;
+  today: string;
+  days: StreakCalendarDay[];
+  active_days: number;
+  missed_days: number;
+  longest_run: number;
+}
+
+export type StreakViewPeriod = 'week' | 'month' | 'year';

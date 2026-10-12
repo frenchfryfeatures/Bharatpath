@@ -338,6 +338,10 @@ def _create_platform_tables() -> None:
         "notification_preferences",
         "notification_suppressions",
         "profile_nudges",
+        # 2026-10-12: the mobile app's push tokens, and one alert per message
+        # per phone (0018).
+        "push_devices",
+        "push_deliveries",
         # 2026-09-24: the skills and cities the search filter panel offers.
         "search_filter_options",
         # 2026-10-09, also created by 0015 on a database built before it.

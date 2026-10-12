@@ -26,6 +26,7 @@ import {
 } from '@/services/api/resume';
 import { getMyScore, CandidateScoreResponse } from '@/services/api/scoring';
 import { getCandidateSubscription } from '@/services/api/subscription';
+import { resumeFileError } from '@/services/profile/resumeFile';
 
 type Step = 'review' | 'parsing' | 'scoring' | 'score-reveal' | 'subscribe';
 
@@ -67,6 +68,7 @@ export default function ResumeDetailsRoute() {
   const [candidateScore, setLocalCandidateScore] = useState<CandidateScoreResponse | null>(authScore || null);
   const [confirmedAt, setConfirmedAt] = useState<string | null>(null);
   const previousComputedAtRef = React.useRef<string | null>(authScore?.computed_at || null);
+  const isReconfirmRef = React.useRef(false);
 
   const handleBack = () => {
     if (router.canGoBack()) {
@@ -121,6 +123,7 @@ export default function ResumeDetailsRoute() {
 
         const preferred =
           versions.find((v) => v.confirmed && !v.superseded) ??
+          versions.find((v) => !v.superseded) ??
           versions.find((v) => v.confirmed) ??
           versions[0];
 
@@ -151,28 +154,23 @@ export default function ResumeDetailsRoute() {
       const result = await DocumentPicker.getDocumentAsync({
         type: [
           'application/pdf',
-          'application/msword',
           'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-          'text/plain',
         ],
         copyToCacheDirectory: true,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
+        const validationError = resumeFileError(asset);
+        if (validationError) {
+          AppAlert.alert('Cannot use this file', validationError);
+          return;
+        }
         const fileName = asset.name || 'Candidate_Resume.pdf';
         const fileSize = asset.size ? `${(asset.size / 1024).toFixed(0)} KB` : '412 KB';
         const fileSizeBytes = asset.size;
         const fileUri = asset.uri;
         const mimeType = asset.mimeType || 'application/pdf';
-
-        if (fileName.toLowerCase().endsWith('.doc') || mimeType === 'application/msword') {
-          AppAlert.alert(
-            'Unsupported Format',
-            'Old Word files are not supported. Save it as DOCX or PDF, or paste the text.'
-          );
-          return;
-        }
 
         const meta: UploadedFileMeta = {
           fileName,
@@ -191,6 +189,7 @@ export default function ResumeDetailsRoute() {
       }
     } catch (e) {
       console.warn('Document picker error:', e);
+      AppAlert.alert('File selection failed', 'Please choose the file again.');
     }
   };
 
@@ -284,8 +283,8 @@ export default function ResumeDetailsRoute() {
   if (step === 'scoring') {
     return (
       <ScoringScreen
-        minComputedAt={confirmedAt}
-        previousComputedAt={previousComputedAtRef.current}
+        minComputedAt={isReconfirmRef.current ? null : confirmedAt}
+        previousComputedAt={isReconfirmRef.current ? null : previousComputedAtRef.current}
         onReady={(score) => {
           setLocalCandidateScore(score);
           setCandidateScore(score);
@@ -379,6 +378,7 @@ export default function ResumeDetailsRoute() {
         title="Resume details"
         subtitle="Review and edit the details extracted from your resume."
         confirmButtonText="Save & update score"
+        requireEditToSave={false}
         showReadyBadge={false}
         candidateName={candidateFullName || undefined}
         candidateEmail={session?.email}
@@ -393,8 +393,9 @@ export default function ResumeDetailsRoute() {
           setVersionId(newVerId);
           setVersionDetails(newDetails);
         }}
-        onConfirm={async (_confirmedVerId, confAt) => {
+        onConfirm={async (_confirmedVerId, confAt, alreadyConfirmed) => {
           setConfirmedAt(confAt || new Date().toISOString());
+          isReconfirmRef.current = !!alreadyConfirmed;
 
           const hasAccess = await verifySubscription();
           if (!hasAccess) {

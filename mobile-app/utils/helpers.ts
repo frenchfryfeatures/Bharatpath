@@ -157,3 +157,37 @@ export function formatPostedAgo(iso: string | null | undefined): string {
   // Older - short date.
   return then.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 }
+
+/**
+ * Format date and time for candidate messages / scheduled interviews.
+ *
+ * Example: "5 Oct 2026, 12:37 pm" in IST.
+ */
+export function formatMessageDateTime(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  try {
+    return new Intl.DateTimeFormat('en-IN', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+      timeZone: 'Asia/Kolkata',
+    }).format(d);
+  } catch {
+    const date = d.toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      timeZone: 'Asia/Kolkata',
+    });
+    const time = d
+      .toLocaleTimeString('en-IN', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: 'Asia/Kolkata',
+      })
+      .toLowerCase();
+    return `${date}, ${time}`;
+  }
+}

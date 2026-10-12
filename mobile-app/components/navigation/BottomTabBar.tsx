@@ -35,7 +35,10 @@ interface BottomTabBarProps {
 export function BottomTabBar({ activeTab, onTabPress, style }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   return (
-    <View style={[styles.wrapper, { bottom: Math.max(insets.bottom + 8, 12) }, style]}>
+    <View
+      style={[styles.wrapper, { bottom: Math.max(insets.bottom + 8, 12) }, style]}
+      pointerEvents="box-none"
+    >
       <View style={styles.barContainer}>
         {Platform.OS === 'web' ? (
           <View style={styles.bar}>

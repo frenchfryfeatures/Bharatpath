@@ -70,6 +70,19 @@ class UpdatePreferencesRequest(_Base):
     nudges_enabled: bool | None = None
 
 
+class PushDeviceRequest(_Base):
+    token: str = Field(
+        min_length=20,
+        max_length=256,
+        pattern=r"^ExponentPushToken\[[A-Za-z0-9_-]+\]$|^ExpoPushToken\[[A-Za-z0-9_-]+\]$",
+    )
+    platform: Literal["android", "ios"]
+
+
+class PushDeviceDeleteRequest(_Base):
+    token: str = Field(min_length=20, max_length=256)
+
+
 class SuppressRequest(_Base):
     channel: Literal["SMS", "EMAIL", "PUSH", "ALL"]
     reason: Literal["BOUNCED", "COMPLAINED", "SUPPORT_REQUEST"]

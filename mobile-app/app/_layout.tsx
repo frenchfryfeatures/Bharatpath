@@ -7,6 +7,7 @@ import { AuthProvider } from '@/context/AuthContext';
 import { AppProvider } from '@/context/AppContext';
 import { configureNotificationPresentation } from '@/services/notifications/device';
 import { AppAlertRoot } from '@/components/feedback/AppAlert';
+import { PushNotificationBridge } from '@/components/PushNotificationBridge';
 
 export default function RootLayout() {
   const { fontsLoaded, fontError } = useBharatPathFonts();
@@ -23,6 +24,7 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
+      <PushNotificationBridge />
       <AppProvider>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />

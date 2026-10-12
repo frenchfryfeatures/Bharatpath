@@ -60,6 +60,7 @@ async function formName(): Promise<string | null> {
     if (versions.length === 0) return null;
     const preferred =
       versions.find((version) => version.confirmed && !version.superseded) ??
+      versions.find((version) => !version.superseded) ??
       versions.find((version) => version.confirmed) ??
       versions[0];
     const detail = await getResumeVersionDetails(preferred.resume_version_id);

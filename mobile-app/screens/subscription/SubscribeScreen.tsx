@@ -242,7 +242,11 @@ export function SubscribeScreen({
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" animated />
       <View style={styles.container}>
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
           {hasAccess ? (
             <>
               <View style={styles.titleSection}>
