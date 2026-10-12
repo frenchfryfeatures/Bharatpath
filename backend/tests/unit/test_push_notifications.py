@@ -109,3 +109,41 @@ async def test_malformed_expo_response_fails_without_crashing(
     monkeypatch.setattr(push.httpx, "AsyncClient", FakeClient)
     assert await push.send_one(SimpleNamespace()) == "FAILED"
     assert delivery.failure_code == "provider_rejected"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("attempts", "outcome", "state"), [(0, "RETRY", "PENDING"), (2, "FAILED", "FAILED")]
+)
+async def test_unreachable_provider_retries_then_gives_up(
+    monkeypatch: pytest.MonkeyPatch, attempts: int, outcome: str, state: str
+) -> None:
+    delivery = SimpleNamespace(
+        state="PENDING", attempts=attempts, attempted_at=None, failure_code=None
+    )
+    notification = SimpleNamespace(
+        id=uuid.uuid4(), template_code="IN_APP_APPLICATION_UPDATE", read_at=None
+    )
+    device = SimpleNamespace(id=uuid.uuid4(), token="ExpoPushToken[abcdefghijklmnop]")
+
+    async def pending(*args, **kwargs):
+        return [(delivery, notification, device)]
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def post(self, *args, **kwargs):
+            raise push.httpx.ConnectError("unreachable")
+
+    monkeypatch.setattr(push.repository, "pending_push_deliveries", pending)
+    monkeypatch.setattr(push.httpx, "AsyncClient", FakeClient)
+    assert await push.send_one(SimpleNamespace()) == outcome
+    assert delivery.state == state
+    assert delivery.failure_code == "provider_unreachable"

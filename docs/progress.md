@@ -9,6 +9,41 @@ states. Newest entries first.
 
 ---
 
+## 2026-10-12 — Push notifications (PR #68), made mergeable
+
+PR #68 (mobile app) added phone push: `push_devices`, `push_deliveries`,
+`POST`/`DELETE /notifications/devices`, `notifications/push.py` (Expo), and
+beat entry `push-pending` every 30s. CI was red on two counts; the backend
+review fixed both and four things CI could not see.
+
+- **Red tests:** the two tables were never in the baseline's
+  `_create_from_metadata`, so `test_schema_guards` failed twice. **Red
+  lint:** one file unformatted, three mypy errors in the push code.
+- **The migration collided with main.** It was `0014_push_devices`, beside
+  main's `0014_complimentary_discounts`: two heads. Now
+  `0018_push_devices`, after 0017, and written the house way: tables only
+  when missing, and `erase_candidate` replaced whole from 0015's
+  `erase_with_photos()` with an anchor that raises if absent. It patched
+  the live function by string replace, which did nothing if the line had
+  moved, and the next whole replacement would have dropped it.
+- **The baseline's `erase_candidate` edit is gone.** 0005 replaces that
+  function with its own copy, so the edit reached no database.
+- **Every notification dispatch ran the whole push sweep inline**: up to
+  100 sequential Expo calls inside `notifications.dispatch`, racing beat's
+  sweep. Removed; beat alone sends.
+- **An unreachable Expo now stops the sweep** (`RETRY`) rather than
+  waiting out a 10s timeout on each of 100 rows. The row stays PENDING
+  until its third attempt.
+- **Receipts are asked for only within a day of sending.** Expo keeps
+  them about that long; an unanswered ticket used to be asked about
+  forever, and the oldest hundred would have starved the rest.
+
+Not changed, worth knowing: the Expo call runs inside the transaction that
+holds the delivery's row lock (`skip_locked`), so a crash after the send
+can repeat one push. The push body never carries message text.
+
+---
+
 ## 2026-10-10 — Logos wherever an organisation is named; photos stay narrow
 
 Client request via the lead: "return the profile photo/logo wherever we send

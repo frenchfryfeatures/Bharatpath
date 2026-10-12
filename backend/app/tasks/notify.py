@@ -36,7 +36,6 @@ async def run(event_id: str) -> dict[str, int]:
         outgoing = await service.dispatch_event(session, event_id=uuid.UUID(event_id))
 
     outcomes = await send_all(outgoing)
-    await run_push()
     logger.info("notifications_task_done", to_send=len(outgoing), **outcomes)
     return {"to_send": len(outgoing), **outcomes}
 
@@ -103,7 +102,9 @@ async def run_push() -> dict[str, int]:
     for _ in range(100):
         async with factory() as session, session.begin():
             outcome = await push.send_one(session)
-        if outcome == "EMPTY":
+        # Nothing left, or Expo is unreachable: retrying the next row now
+        # would only wait out another timeout. Beat comes back in 30 seconds.
+        if outcome in ("EMPTY", "RETRY"):
             break
         if outcome == "SENT":
             counts["sent"] += 1

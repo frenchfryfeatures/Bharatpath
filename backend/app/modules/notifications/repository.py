@@ -113,8 +113,10 @@ async def queue_push_deliveries(session: AsyncSession, *, since: datetime, limit
     return len(rows)
 
 
-async def pending_push_deliveries(session: AsyncSession, *, before: datetime, limit: int = 100):
-    return (
+async def pending_push_deliveries(
+    session: AsyncSession, *, before: datetime, limit: int = 100
+) -> list[tuple[PushDelivery, Notification, PushDevice]]:
+    rows = (
         await session.execute(
             select(PushDelivery, Notification, PushDevice)
             .join(Notification, Notification.id == PushDelivery.notification_id)
@@ -132,10 +134,16 @@ async def pending_push_deliveries(session: AsyncSession, *, before: datetime, li
             .with_for_update(skip_locked=True, of=PushDelivery)
         )
     ).all()
+    return [(delivery, notification, device) for delivery, notification, device in rows]
 
 
-async def unchecked_push_receipts(session: AsyncSession, *, before: datetime, limit: int = 100):
-    return (
+async def unchecked_push_receipts(
+    session: AsyncSession, *, before: datetime, after: datetime, limit: int = 100
+) -> list[tuple[PushDelivery, PushDevice]]:
+    """Tickets old enough to have a receipt, and young enough that Expo still
+    holds one -- it keeps them about a day. A ticket past that is never
+    answered, and without the lower bound it would be asked about forever."""
+    rows = (
         await session.execute(
             select(PushDelivery, PushDevice)
             .join(PushDevice, PushDevice.id == PushDelivery.device_id)
@@ -144,11 +152,14 @@ async def unchecked_push_receipts(session: AsyncSession, *, before: datetime, li
                 PushDelivery.ticket_id.is_not(None),
                 PushDelivery.receipt_checked_at.is_(None),
                 PushDelivery.attempted_at < before,
+                PushDelivery.attempted_at > after,
             )
+            .order_by(PushDelivery.attempted_at)
             .limit(limit)
             .with_for_update(skip_locked=True, of=PushDelivery)
         )
     ).all()
+    return [(delivery, device) for delivery, device in rows]
 
 
 async def current_config(session: AsyncSession, *, key: str, now: datetime) -> ConfigValue | None:

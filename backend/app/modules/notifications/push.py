@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +14,12 @@ from app.modules.notifications import repository
 logger = get_logger(__name__)
 PUSH_URL = "https://exp.host/--/api/v2/push/send"
 RECEIPTS_URL = "https://exp.host/--/api/v2/push/getReceipts"
+#: Expo keeps a receipt for about a day; after that a ticket is never answered.
+RECEIPT_RETENTION = timedelta(hours=24)
+
+#: `RETRY` means Expo could not be reached: the row stays PENDING (until its
+#: third attempt) and the caller should stop sending for this run.
+SendOutcome = Literal["EMPTY", "SENT", "FAILED", "RETRY"]
 
 
 def push_title(template_code: str) -> str:
@@ -43,7 +49,7 @@ async def queue(session: AsyncSession) -> int:
     )
 
 
-async def send_one(session: AsyncSession) -> str:
+async def send_one(session: AsyncSession) -> SendOutcome:
     now = datetime.now(UTC)
     rows = await repository.pending_push_deliveries(
         session, before=now - timedelta(minutes=1), limit=1
@@ -89,15 +95,17 @@ async def send_one(session: AsyncSession) -> str:
         return "SENT"
     except (httpx.HTTPError, ValueError, TypeError, AttributeError) as exc:
         delivery.failure_code = "provider_unreachable"
+        logger.warning("push_send_failed", error_type=type(exc).__name__)
         if delivery.attempts >= 3:
             delivery.state = "FAILED"
-        logger.warning("push_send_failed", error_type=type(exc).__name__)
-        return delivery.state
+            return "FAILED"
+        return "RETRY"
 
 
 async def check_receipts(session: AsyncSession) -> int:
+    now = datetime.now(UTC)
     rows = await repository.unchecked_push_receipts(
-        session, before=datetime.now(UTC) - timedelta(minutes=15)
+        session, before=now - timedelta(minutes=15), after=now - RECEIPT_RETENTION
     )
     if not rows:
         return 0

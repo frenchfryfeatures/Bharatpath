@@ -200,9 +200,7 @@ async def test_registered_phone_receives_one_push_for_a_new_inbox_event(
     async with sessions(_seed_url())() as session:
         deliveries = (
             await session.execute(
-                text(
-                    "SELECT state, ticket_id FROM push_deliveries WHERE notification_id = :id"
-                ),
+                text("SELECT state, ticket_id FROM push_deliveries WHERE notification_id = :id"),
                 {"id": notification_id},
             )
         ).all()
