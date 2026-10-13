@@ -418,6 +418,60 @@ async def recommendation_pool(
     return list(result.scalars().all())
 
 
+async def search_pool(
+    session: AsyncSession,
+    *,
+    candidate_id: uuid.UUID,
+    terms: MatchTerms,
+    locations: Sequence[str],
+    work_mode: str | None,
+    min_salary_minor: int | None,
+    max_experience_months: int | None,
+    eligible_at_score: int | None,
+    eligible_only: bool,
+    pool: int,
+) -> list[Job]:
+    """The chat assistant's search (2026-10-13): the recommendation pool with
+    the board's filters on it, newest first.
+
+    Terms narrow only when there are some; with none this is the board's
+    newest jobs under the filters. Locations are any-of, each a substring of
+    the job's location as the board's filter matches one. Jobs already
+    applied to are left out, as in `recommendation_pool`.
+    """
+    applied = select(_applications.c.job_id).where(
+        _applications.c.candidate_id == candidate_id,
+        _applications.c.job_id == Job.id,
+    )
+    stmt = select(Job).where(Job.status == "PUBLISHED", _listed(), ~applied.exists())
+    if not terms.is_empty:
+        stmt = stmt.where(_shares_a_term(terms))
+    if locations:
+        stmt = stmt.where(
+            or_(*(Job.location.ilike(_contains(place), escape="\\") for place in locations))
+        )
+    if work_mode:
+        stmt = stmt.where(Job.work_mode == work_mode)
+    if min_salary_minor is not None:
+        stmt = stmt.where(Job.salary_max_minor >= min_salary_minor)
+    if max_experience_months is not None:
+        stmt = stmt.where(
+            or_(
+                Job.experience_min_months.is_(None),
+                Job.experience_min_months <= max_experience_months,
+            )
+        )
+    if eligible_only:
+        if eligible_at_score is None:
+            stmt = stmt.where(false())
+        else:
+            stmt = stmt.where(or_(Job.min_score.is_(None), Job.min_score <= eligible_at_score))
+    result = await session.execute(
+        stmt.order_by(Job.published_at.desc(), Job.id.desc()).limit(pool)
+    )
+    return list(result.scalars().all())
+
+
 async def recently_applied_job_ids(
     session: AsyncSession, *, candidate_id: uuid.UUID, exclude_stages: Sequence[str], limit: int
 ) -> list[uuid.UUID]:

@@ -114,6 +114,11 @@ STATIC_POLICIES: Final[Mapping[str, Policy]] = {
     "applications.shortlist_invite": Policy(
         "applications:shortlist_invite", Scope.TENANT, 60, 3600
     ),
+    # A message to the candidate's job-search chat (2026-10-13). Per person,
+    # and a cost control: every message is a paid model call. A real
+    # conversation is a few dozen messages; this stops a script, not a
+    # person. The number is ours, not the client's.
+    "assistant.message": Policy("assistant:message", Scope.USER, 120, 3600),
 }
 
 
