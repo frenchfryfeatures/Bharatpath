@@ -14,6 +14,8 @@ import type {
 import { useSettings } from "../hooks/use-settings";
 import { DiscountCodeField } from "@/components/billing/discount-code-field";
 import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
+import { showFormError } from "@/lib/feedback/form-error";
+import { getApiErrorMessage } from "@/lib/api/error-message";
 import { SimulatedPaymentDialog } from "@/components/billing/simulated-payment-dialog";
 import { isCompleteWithoutPayment, isStubPaymentUrl } from "@/store/api/payment.api";
 import { usePreviewCollegeDiscountMutation } from "@/store/college/billing/billing.api";
@@ -82,7 +84,11 @@ export function Billing() {
 
   const handleCheckout = async (planCode: string) => {
     setSelectedPlanCode(planCode);
-    await createCheckout(planCode);
+    try {
+      await createCheckout(planCode);
+    } catch (error) {
+      showFormError(getApiErrorMessage(error, "Checkout could not be started."), { portal: "college" });
+    }
   };
 
   return (
@@ -102,7 +108,7 @@ export function Billing() {
         />
       </div>
 
-      <CancelSubscriptionDialog open={cancelOpen} planCode={subscription?.planCode} periodEnd={subscription?.currentPeriodEnd} onCancel={cancelSubscription} onClose={() => setCancelOpen(false)} />
+      <CancelSubscriptionDialog open={cancelOpen} portal="college" planCode={subscription?.planCode} periodEnd={subscription?.currentPeriodEnd} onCancel={cancelSubscription} onClose={() => setCancelOpen(false)} />
       {/* Plans */}
       <section className="overflow-hidden rounded-[12px] border border-[#e1e5eb] bg-white shadow-[0_4px_12px_rgba(19,26,38,0.024)]">
         <div className="border-b border-[#e1e5eb] px-5 py-4 text-[14px] font-semibold leading-[18px] text-[#131A26]">
@@ -128,7 +134,7 @@ export function Billing() {
           />
         ))}
       </section>
-      {simulatedCheckout && selectedPlanCode ? <SimulatedPaymentDialog paymentId={simulatedCheckout.paymentId} amountMinor={simulatedCheckout.amountMinor} currency={simulatedCheckout.currency} title="College subscription" checkoutContent={<DiscountCodeField planCode={selectedPlanCode} preview={(args) => previewDiscount(args).unwrap()} onChange={(code) => createCheckout(selectedPlanCode, code ?? undefined)} />} onComplete={refetchBilling} onClose={() => { setSimulatedCheckout(null); setSelectedPlanCode(null); }} /> : null}
+      {simulatedCheckout && selectedPlanCode ? <SimulatedPaymentDialog paymentId={simulatedCheckout.paymentId} amountMinor={simulatedCheckout.amountMinor} currency={simulatedCheckout.currency} title="College subscription" checkoutContent={<DiscountCodeField portal="college" planCode={selectedPlanCode} preview={(args) => previewDiscount(args).unwrap()} onChange={(code) => createCheckout(selectedPlanCode, code ?? undefined)} />} onComplete={refetchBilling} onClose={() => { setSimulatedCheckout(null); setSelectedPlanCode(null); }} /> : null}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { PORTAL_TYPES } from "@/config/portal";
 import { authService } from "@/features/auth/services/auth.service";
 import type { LoginResponse } from "@/features/auth/types";
 import { getApiErrorCode, getApiErrorMessage } from "@/lib/api/error-message";
+import { showFormError } from "@/lib/feedback/form-error";
 import { clearStoredToken, setStoredToken } from "@/lib/auth/token";
 import { baseApi } from "@/store/api/base-api";
 import { notificationApi } from "@/store/api/notification-api";
@@ -111,7 +112,7 @@ export function StudentSignup() {
   const [saveCareer] = useSaveCareerProfileMutation();
   const [intakeResume] = useIntakeCareerResumeMutation();
   const career = useGetCareerProfileQuery(undefined, { skip: !signedIn });
-  const { subscription, hasAccess } = useStudentHasAccess(!signedIn);
+  const { hasAccess } = useStudentHasAccess(!signedIn);
 
   const [loadProfile] = studentApi.endpoints.getStudentProfile.useLazyQuery();
   const [loadVersions] = useLazyGetResumeVersionsQuery();
@@ -576,12 +577,9 @@ function ReferralConsentStep({
       await linkCollege(code, terms.data.consent_version);
       onDone();
     } catch (linkError) {
-      setError(
-        getApiErrorMessage(
-          linkError,
-          "The college referral code could not be applied.",
-        ),
-      );
+      const message = getApiErrorMessage(linkError, "The college referral code could not be applied.");
+      setError(message);
+      showFormError(message, { portal: "student", fieldId: "student-referral-consent" });
       if (getApiErrorCode(linkError) === "consent_version_outdated")
         void terms.refetch();
     } finally {
@@ -590,7 +588,7 @@ function ReferralConsentStep({
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div id="student-referral-consent" tabIndex={-1} className={`flex flex-col gap-6 ${error ? "rounded-xl outline outline-1 outline-red-400" : ""}`}>
       <div>
         <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#5F4DB2]">
           College referral
@@ -610,10 +608,9 @@ function ReferralConsentStep({
           ? "Loading consent terms…"
           : (terms.data?.text ?? "The consent terms could not be loaded.")}
       </section>
-      {(error || terms.error) && (
+      {terms.error && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          {error ??
-            getApiErrorMessage(
+          {getApiErrorMessage(
               terms.error,
               "The consent terms could not be loaded.",
             )}

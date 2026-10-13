@@ -2,9 +2,11 @@
 
 import { Check, LockKeyhole, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { getApiErrorMessage } from "@/lib/api/error-message";
+import { showFormError } from "@/lib/feedback/form-error";
 import { useSimulatePaymentMutation } from "@/store/api/payment.api";
 
 type SimulatedPaymentDialogProps = {
@@ -33,8 +35,9 @@ export function SimulatedPaymentDialog({
   onClose,
   checkoutContent,
 }: SimulatedPaymentDialogProps) {
+  const pathname = usePathname();
+  const portal = pathname.startsWith("/student") ? "student" : pathname.startsWith("/college") ? "college" : pathname.startsWith("/admin") ? "admin" : "employer";
   const [stage, setStage] = useState<"ready" | "processing" | "success" | "error">("ready");
-  const [message, setMessage] = useState<string | null>(null);
   const [simulate] = useSimulatePaymentMutation();
   const completionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -44,7 +47,6 @@ export function SimulatedPaymentDialog({
 
   async function pay() {
     setStage("processing");
-    setMessage(null);
 
     try {
       // Keep the processing state visible briefly so the simulated checkout
@@ -57,7 +59,7 @@ export function SimulatedPaymentDialog({
       await onComplete();
       completionTimer.current = setTimeout(onClose, 1900);
     } catch (error) {
-      setMessage(getApiErrorMessage(error, "The payment could not be completed. Please try again."));
+      showFormError(getApiErrorMessage(error, "The payment could not be completed. Please try again."), { portal });
       setStage("error");
     }
   }
@@ -99,7 +101,6 @@ export function SimulatedPaymentDialog({
 
               {checkoutContent}
 
-              {message ? <p className="mt-4 rounded-lg bg-red-50 p-3 text-xs text-red-700">{message}</p> : null}
 
               <button type="button" onClick={() => void pay()} disabled={stage === "processing"} className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-[#16845b] px-4 py-3.5 text-sm font-bold text-white transition hover:bg-[#116d4b] disabled:cursor-wait disabled:opacity-80">
                 {stage === "processing" ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" /> Processing securely…</> : stage === "error" ? "Try payment again" : `Pay ${money(amountMinor, currency)}`}

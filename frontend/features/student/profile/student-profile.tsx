@@ -43,7 +43,7 @@ export function StudentProfile() {
   const accountEmail = useAppSelector((state) => state.auth.user?.email ?? "");
   const profile = useGetStudentProfileQuery();
   const score = useGetStudentScoreQuery();
-  const applications = useGetStudentApplicationsQuery({ limit: 100 });
+  const applications = useGetStudentApplicationsQuery({ limit: 100, status: "ACTIVE" });
   const courses = useGetStudentCoursesQuery();
   if (
     profile.isLoading ||
@@ -73,11 +73,7 @@ export function StudentProfile() {
                 onClick={() => router.push("/student/score")}
               />
               <StatTile
-                value={String(
-                  applications.data?.items.filter(
-                    (item) => !["WITHDRAWN", "REJECTED", "EXPIRED"].includes(item.stage),
-                  ).length ?? 0,
-                )}
+                value={String(applications.data?.items.length ?? 0)}
                 label="Active applications"
                 onClick={() => router.push("/student/board")}
               />

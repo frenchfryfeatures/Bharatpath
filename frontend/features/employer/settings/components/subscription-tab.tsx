@@ -11,9 +11,10 @@ import { DiscountCodeField } from "@/components/billing/discount-code-field";
 import { SimulatedPaymentDialog } from "@/components/billing/simulated-payment-dialog";
 import { isCompleteWithoutPayment, isStubPaymentUrl } from "@/store/api/payment.api";
 import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
+import { showFormError } from "@/lib/feedback/form-error";
+import { getApiErrorMessage } from "@/lib/api/error-message";
 import type { CheckoutResponse } from "@/store/employer/billing/billing.api";
 import { useConfirmDialog } from "@/features/employer/components/use-confirm-dialog";
-import { EmployerErrorState } from "@/features/employer/components/employer-error-state";
 import { Skeleton } from "@/components/common/loading";
 
 function SubscriptionTabSkeleton() {
@@ -80,8 +81,8 @@ export function SubscriptionTab() {
     setSelectedPlanCode(planCode);
     try {
       await createCheckout(planCode);
-    } catch {
-      // Surfaced through the billing error banner below.
+    } catch (error) {
+      showFormError(getApiErrorMessage(error, "The billing request could not be completed."), { portal: "employer" });
     }
   };
   const [mandateNotice, setMandateNotice] = useState<string | null>(null);
@@ -93,8 +94,8 @@ export function SubscriptionTab() {
         return;
       }
       window.location.assign(result.authorisation_url);
-    } catch {
-      // Surfaced through the billing error banner below.
+    } catch (error) {
+      showFormError(getApiErrorMessage(error, "The billing request could not be completed."), { portal: "employer" });
     }
   };
 
@@ -143,7 +144,6 @@ export function SubscriptionTab() {
           </section>; })}
         </div>
       )}
-      {(checkoutState.isError || cancelState.isError || mandateState.isError) && <EmployerErrorState variant="inline" error={checkoutState.error || cancelState.error || mandateState.error} fallback="The billing request could not be completed." />}
       <CancelSubscriptionDialog open={cancelOpen} planCode={subscription?.plan_code} periodEnd={subscription?.current_period_end} onCancel={() => cancel().unwrap()} onClose={() => setCancelOpen(false)} />
       {dialog}
       {simulatedCheckout && selectedPlanCode ? <SimulatedPaymentDialog paymentId={simulatedCheckout.payment_id} amountMinor={simulatedCheckout.amount_minor} currency={simulatedCheckout.currency} title="Employer subscription" checkoutContent={<DiscountCodeField planCode={selectedPlanCode} preview={(args) => previewDiscount(args).unwrap()} onChange={(code) => createCheckout(selectedPlanCode, code ?? undefined)} />} onComplete={() => refetchSubscription()} onClose={() => { setSimulatedCheckout(null); setSelectedPlanCode(null); }} /> : null}

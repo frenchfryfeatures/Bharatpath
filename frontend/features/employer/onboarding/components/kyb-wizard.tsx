@@ -9,6 +9,7 @@ import { ArrowRight, ShieldCheck } from "lucide-react";
 import { FormSkeleton } from "@/components/common/loading";
 import { Button, ErrorState } from "@/components/ui";
 import { getApiErrorMessage, getApiErrorStatus } from "@/lib/api/error-message";
+import { showFormError } from "@/lib/feedback/form-error";
 import {
   useGetEmployerKybFormQuery,
   useGetEmployerKybQuery,
@@ -197,7 +198,6 @@ function KybFlow({
   );
   const [maxVisited, setMaxVisited] = useState(stepIndex);
   const [errors, setErrors] = useState<KybFieldErrors>({});
-  const [banner, setBanner] = useState<string | null>(null);
 
   const [saveAnswers, { isLoading: isSaving }] = useSaveEmployerKybAnswersMutation();
   const [submitKyb, { isLoading: isSubmitting }] = useSubmitEmployerKybMutation();
@@ -242,7 +242,6 @@ function KybFlow({
   const goTo = (index: number) => {
     setStepIndex(index);
     setMaxVisited((current) => Math.max(current, index));
-    setBanner(null);
     scrollToTop();
   };
 
@@ -284,12 +283,19 @@ function KybFlow({
           .filter((index) => index >= 0),
       );
 
-      if (Number.isFinite(firstInvalid) && firstInvalid !== stepIndex) {
-        goTo(firstInvalid);
+      if (Number.isFinite(firstInvalid)) {
+        setStepIndex(firstInvalid);
+        setMaxVisited((current) => Math.max(current, firstInvalid));
+        const firstField = sections[firstInvalid].fields.find((field) => fieldErrors[field.code]);
+        showFormError("Check the highlighted fields before continuing.", {
+          portal: "employer",
+          fieldId: firstField ? `kyb-field-${firstField.code}` : undefined,
+        });
+        return;
       }
     }
 
-    setBanner(getApiErrorMessage(error, "We could not save your details."));
+    showFormError(getApiErrorMessage(error, "We could not save your details."), { portal: "employer" });
   };
 
   const next = async () => {
@@ -299,7 +305,11 @@ function KybFlow({
 
     if (Object.keys(sectionErrors).length > 0) {
       setErrors(sectionErrors);
-      setBanner("Some details need attention. Check the highlighted fields.");
+      const firstField = section.fields.find((field) => sectionErrors[field.code]);
+      showFormError("Some details need attention. Check the highlighted fields.", {
+        portal: "employer",
+        fieldId: firstField ? `kyb-field-${firstField.code}` : undefined,
+      });
       return;
     }
 
@@ -332,8 +342,13 @@ function KybFlow({
       const firstInvalid = sections.findIndex((item) =>
         item.fields.some((field) => allErrors[field.code]),
       );
-      goTo(firstInvalid);
-      setBanner("A few details are still missing. Complete them to submit.");
+      setStepIndex(firstInvalid);
+      setMaxVisited((current) => Math.max(current, firstInvalid));
+      const firstField = sections[firstInvalid].fields.find((field) => allErrors[field.code]);
+      showFormError("A few details are still missing. Complete them to submit.", {
+        portal: "employer",
+        fieldId: firstField ? `kyb-field-${firstField.code}` : undefined,
+      });
       return;
     }
 
@@ -352,7 +367,6 @@ function KybFlow({
       const result = await submitKyb().unwrap();
       setSubmission(result);
       setEditing(EDITABLE_KYB_STATES.has(result.state));
-      setBanner(null);
       scrollToTop();
     } catch (error) {
       await handleFailure(error);
@@ -485,7 +499,6 @@ function KybFlow({
           </>
         }
       >
-        {banner && <ErrorState className="mb-5" message={banner} />}
 
         {onReview ? (
           <KybReview

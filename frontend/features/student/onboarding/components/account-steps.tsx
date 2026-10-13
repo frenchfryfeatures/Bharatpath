@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Check,
@@ -24,6 +24,7 @@ import {
 import { AppSelect } from "@/components/ui/app-select";
 import { StudentBackButton } from "@/features/student/components/student-back-button";
 import { getApiErrorMessage } from "@/lib/api/error-message";
+import { showFormError } from "@/lib/feedback/form-error";
 import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
 import {
   MIN_CANDIDATE_PASSWORD_LENGTH,
@@ -81,6 +82,7 @@ export function AccountStep({
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [confirmTouched, setConfirmTouched] = useState(false);
   const [code, setCode] = useState("");
+  const [codeError, setCodeError] = useState("");
   const [referralCode, setReferralCode] = useState(
     existingAccount?.referralCode ?? "",
   );
@@ -104,6 +106,8 @@ export function AccountStep({
     fullName?: string;
     email?: string;
     password?: string;
+    phone?: string;
+    workStatus?: string;
   }>({});
   const passwordRequirements = [
     {
@@ -130,14 +134,22 @@ export function AccountStep({
     );
   });
 
+  useEffect(() => {
+    if (flow.error) showFormError(flow.error, {
+      portal: "student",
+      fieldId: flow.phase === "CONFIRM" ? "signup-code-field" : undefined,
+    });
+  }, [flow.error, flow.phase]);
+
   const submitDetails = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!existingAccount && (!/^\+[1-9]\d{7,14}$/.test(phone) || !workStatus)) {
-      setDetailsError(
-        !workStatus
-          ? "Choose experienced or fresher."
-          : "Enter your mobile number in international format, for example +919876543210.",
-      );
+      setErrors((current) => ({
+        ...current,
+        phone: /^\+[1-9]\d{7,14}$/.test(phone) ? undefined : "Use international format, for example +919876543210.",
+        workStatus: workStatus ? undefined : "Choose experienced or fresher.",
+      }));
+      showFormError("Check the highlighted account fields.", { portal: "student", container: event.currentTarget });
       return;
     }
     if (previewState.isLoading) return;
@@ -145,7 +157,10 @@ export function AccountStep({
     if (existingAccount) {
       const problem = nameError(fullName);
       setErrors({ fullName: problem });
-      if (problem) return;
+      if (problem) {
+        showFormError("Check the highlighted name.", { portal: "student", container: event.currentTarget });
+        return;
+      }
       const normalized = fullName.split(/\s+/).join(" ").trim();
       setDetailsError(undefined);
       void saveName(normalized)
@@ -153,14 +168,10 @@ export function AccountStep({
         .then(() =>
           onDetailsSaved?.(normalized, referralCode.trim().toUpperCase()),
         )
-        .catch((failure) =>
-          setDetailsError(
-            getApiErrorMessage(
-              failure,
-              "We could not save your details. Please try again.",
-            ),
-          ),
-        );
+        .catch((failure) => showFormError(
+          getApiErrorMessage(failure, "We could not save your details. Please try again."),
+          { portal: "student" },
+        ));
       return;
     }
 
@@ -173,13 +184,21 @@ export function AccountStep({
     };
     setErrors(next);
     setConfirmTouched(true);
-    if (next.fullName || next.email || next.password || !passwordsMatch) return;
+    if (next.fullName || next.email || next.password || !passwordsMatch) {
+      showFormError("Check the highlighted account fields.", { portal: "student", container: event.currentTarget });
+      return;
+    }
 
     void flow.register(email.trim(), password);
   };
 
   const submitCode = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (code.trim().length < 4) {
+      setCodeError("Enter the confirmation code from your email.");
+      showFormError("Check the highlighted confirmation code.", { portal: "student", fieldId: "signup-code-field" });
+      return;
+    }
     void flow.confirm(code.trim());
   };
 
@@ -214,7 +233,7 @@ export function AccountStep({
           <p className="m-0 text-[13px] text-green-700">{flow.notice}</p>
         )}
 
-        <Field id="signup-code" label="Confirmation code">
+        <Field id="signup-code" label="Confirmation code" error={codeError || flow.error || undefined}>
           <div className="relative">
             <KeyRound
               className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[#3A4761]"
@@ -222,13 +241,15 @@ export function AccountStep({
             />
             <input
               id="signup-code"
+              aria-invalid={Boolean(codeError || flow.error)}
+              aria-describedby={codeError || flow.error ? "signup-code-error" : undefined}
               inputMode="numeric"
               autoComplete="one-time-code"
               autoFocus
               placeholder="Code from your email"
               value={code}
-              onChange={(event) => setCode(event.target.value)}
-              className={`${fieldClass} ${fieldBorder(false)} pl-12 text-[17px] font-semibold`}
+              onChange={(event) => { setCode(event.target.value); setCodeError(""); }}
+              className={`${fieldClass} ${fieldBorder(Boolean(codeError || flow.error))} pl-12 text-[17px] font-semibold`}
             />
           </div>
         </Field>
@@ -239,7 +260,6 @@ export function AccountStep({
             <PillButton
               type="submit"
               isLoading={flow.busy}
-              disabled={code.trim().length < 4}
               className="flex-[2]"
             >
               {flow.busy ? "Confirming…" : "Confirm"}
@@ -396,6 +416,7 @@ export function AccountStep({
             id="signup-mobile"
             label="Mobile number *"
             hint="Use international format, for example +919876543210."
+            error={errors.phone}
           >
             <div className="relative">
               <Phone
@@ -407,20 +428,23 @@ export function AccountStep({
                 type="tel"
                 autoComplete="tel"
                 value={phone}
+                aria-invalid={Boolean(errors.phone)}
                 onChange={(event) => {
                   touched.current.add("phone");
                   setPhone(event.target.value);
+                  setErrors((current) => ({ ...current, phone: undefined }));
                 }}
-                className={`${fieldClass} ${fieldBorder(false)} pl-12`}
+                className={`${fieldClass} ${fieldBorder(Boolean(errors.phone))} pl-12`}
               />
             </div>
           </Field>
-          <Field id="signup-work-status" label="Work status *">
+          <Field id="signup-work-status" label="Work status *" error={errors.workStatus}>
             <AppSelect
               value={workStatus}
               onChange={(value) => {
                 touched.current.add("workStatus");
                 setWorkStatus(value);
+                setErrors((current) => ({ ...current, workStatus: undefined }));
               }}
               ariaLabel="Work status"
               variant="student"
@@ -429,7 +453,7 @@ export function AccountStep({
                 { value: "EXPERIENCED", label: "I'm experienced" },
                 { value: "FRESHER", label: "I'm a fresher" },
               ]}
-              className={selectClass}
+              className={`${selectClass} ${errors.workStatus ? "[&>button]:!border-[#993A22]" : ""}`}
             />
           </Field>
         </>
@@ -693,18 +717,19 @@ export function LocationStep({
   const [city, setCity] = useState(initial.city);
   const [stateCode, setStateCode] = useState(initial.stateCode);
   const [errors, setErrors] = useState<{ city?: string }>({});
-  const [serverError, setServerError] = useState<unknown>(null);
 
   const [saveLocation, locationState] = useUpdateStudentLocationMutation();
   const saving = locationState.isLoading;
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setServerError(null);
 
     const nextErrors = { city: cityError(city) };
     setErrors(nextErrors);
-    if (nextErrors.city) return;
+    if (nextErrors.city) {
+      showFormError("Check the highlighted city.", { portal: "student", container: event.currentTarget });
+      return;
+    }
 
     try {
       const trimmedCity = city.split(/\s+/).join(" ").trim();
@@ -717,7 +742,7 @@ export function LocationStep({
       showSuccessFeedback("Your location is saved.");
       onDone({ city: trimmedCity, stateCode });
     } catch (error) {
-      setServerError(error);
+      showFormError(getApiErrorMessage(error, "We could not save your details. Please try again."), { portal: "student" });
     }
   };
 
@@ -728,15 +753,6 @@ export function LocationStep({
         title="Where are you based?"
         subtitle="Your city helps employers near you find you."
       />
-
-      {serverError ? (
-        <ErrorNote>
-          {getApiErrorMessage(
-            serverError,
-            "We could not save your details. Please try again.",
-          )}
-        </ErrorNote>
-      ) : null}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field

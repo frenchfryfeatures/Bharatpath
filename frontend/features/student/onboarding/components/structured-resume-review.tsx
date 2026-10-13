@@ -6,9 +6,10 @@ import { Award, BriefcaseBusiness, Check, ContactRound, FolderKanban, Graduation
 import { StructuredResumeSectionView, resumeLabel, type StructuredResume } from "@/components/resume/structured-resume";
 import { structuredResumeToText } from "@/components/resume/structured-resume-text";
 import { getApiErrorCode, getApiErrorMessage } from "@/lib/api/error-message";
+import { showFormError } from "@/lib/feedback/form-error";
 import { useScrollLock } from "@/hooks/use-scroll-lock";
 import { useConfirmResumeVersionMutation, useEditResumeVersionMutation, type ResumeVersionDetail } from "@/store/student";
-import { Card, DoneDot, ErrorNote, fieldBorder, fieldClass, PillButton } from "./ui";
+import { Card, DoneDot, fieldBorder, fieldClass, PillButton } from "./ui";
 
 type Path = Array<string | number>;
 type SectionKey = keyof StructuredResume | "basics";
@@ -122,7 +123,7 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
   const [drawerDraft, setDrawerDraft] = useState<StructuredResume | null>(null);
   const [dirty, setDirty] = useState(false);
   const [createdId, setCreatedId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [contentTooShort, setContentTooShort] = useState(false);
   const [editVersion, editState] = useEditResumeVersionMutation();
   const [confirmVersion, confirmState] = useConfirmResumeVersionMutation();
   const drawerRef = useRef<HTMLElement>(null);
@@ -170,17 +171,21 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
       setDraft(drawerDraft);
       setDirty(true);
       setSaved(false);
-      setError(null);
+      setContentTooShort(false);
     }
     closeDrawer();
   };
   const confirm = async () => {
-    setError(null);
+    setContentTooShort(false);
     try {
       let target = createdId ?? version.resumeVersionId;
       if (dirty) {
         const text = structuredResumeToText(draft);
-        if (text.length < 50) { setError("Add at least 50 characters of resume details before saving."); return; }
+        if (text.length < 50) {
+          setContentTooShort(true);
+          showFormError("Add at least 50 characters of resume details before saving.", { portal: "student", fieldId: "structured-basics-section" });
+          return;
+        }
         const created = await editVersion({ resumeVersionId: target, edit: { text }, __suppressSuccessFeedback: true }).unwrap();
         target = created.resumeVersionId;
         setCreatedId(target);
@@ -192,7 +197,7 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
         onConfirmed(confirmed.confirmedAt);
       }
     } catch (failure) {
-      setError(getApiErrorCode(failure) === "resume_version_superseded" ? "This resume changed in another tab. Reload the latest version." : getApiErrorMessage(failure, "The resume could not be saved. Please try again."));
+      showFormError(getApiErrorCode(failure) === "resume_version_superseded" ? "This resume changed in another tab. Reload the latest version." : getApiErrorMessage(failure, "The resume could not be saved. Please try again."), { portal: "student" });
     }
   };
   return (
@@ -204,14 +209,13 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
         </div>
         <p className="text-[14px] leading-5 text-[#3A4761] lg:text-[13px]">{subtitle}</p>
       </header>
-      {error && <ErrorNote>{error}</ErrorNote>}
       <div className="grid gap-3 xl:grid-cols-2">
         {sections.map(({ key, label, icon: Icon }) => {
           return (
-            <Card key={key} className={`min-w-0 p-4 ${wideSections.has(key) ? "xl:col-span-2" : ""}`}>
+            <Card key={key} className={`min-w-0 p-4 ${wideSections.has(key) ? "xl:col-span-2" : ""} ${contentTooShort && key === "basics" ? "!border-[#993A22] ring-2 ring-[#EBC7BA]" : ""}`}>
               <div className="flex items-center gap-3">
                 <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[12px] bg-[#F1EAF7] text-[#5F4DB2]"><Icon size={18} aria-hidden="true" /></span>
-                <h2 className="min-w-0 flex-1 text-[15px] font-semibold leading-5 text-[#0A1931]">{label}</h2>
+                <h2 id={key === "basics" ? "structured-basics-section" : undefined} tabIndex={key === "basics" ? -1 : undefined} className="min-w-0 flex-1 text-[15px] font-semibold leading-5 text-[#0A1931]">{label}</h2>
                 {hasContent(draft, key) && <DoneDot />}
                 <button
                   type="button"
@@ -234,7 +238,7 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
         </PillButton>
         <div className="flex items-center justify-between gap-3 text-[12px] leading-4 text-[#5F6B80]">
           <span>Your edits create a new resume version.</span>
-          <button type="button" disabled={busy || !canConfirm} onClick={() => { setDraft(structuredClone(version.structuredResume!)); setDirty(false); closeDrawer(); setError(null); onStartOver(); }} className="cursor-pointer font-semibold text-[#3A4761] transition hover:text-[#0A1931] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-[#3A4761]">{startOverLabel}</button>
+          <button type="button" disabled={busy || !canConfirm} onClick={() => { setDraft(structuredClone(version.structuredResume!)); setDirty(false); closeDrawer(); setContentTooShort(false); onStartOver(); }} className="cursor-pointer font-semibold text-[#3A4761] transition hover:text-[#0A1931] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-[#3A4761]">{startOverLabel}</button>
         </div>
       </div>
       {editing && drawerDraft && typeof document !== "undefined" && createPortal(

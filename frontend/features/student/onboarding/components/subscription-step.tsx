@@ -16,6 +16,7 @@ import {
 import { DiscountCodeField } from "@/components/billing/discount-code-field";
 import { SimulatedPaymentDialog } from "@/components/billing/simulated-payment-dialog";
 import { getApiErrorMessage } from "@/lib/api/error-message";
+import { showFormError } from "@/lib/feedback/form-error";
 import { isCompleteWithoutPayment, isStubPaymentUrl } from "@/store/api/payment.api";
 import {
   useCheckoutCandidateSubscriptionMutation,
@@ -50,7 +51,6 @@ export function SubscriptionStep({
   const [checkout, checkoutState] = useCheckoutCandidateSubscriptionMutation();
   const [selected, setSelected] = useState("");
   const [payment, setPayment] = useState<CandidateCheckout | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const selectedPlan = plans.find((plan) => plan.code === selected) ?? plans[0];
 
@@ -88,7 +88,6 @@ export function SubscriptionStep({
   }
 
   async function createCheckout(planCode: string, discountCode?: string) {
-    setError(null);
     const result = await checkout({
       planCode,
       ...(discountCode ? { discountCode } : {}),
@@ -111,9 +110,7 @@ export function SubscriptionStep({
     try {
       await createCheckout(selectedPlan.code);
     } catch (checkoutError) {
-      setError(
-        getApiErrorMessage(checkoutError, "Checkout could not be started."),
-      );
+      showFormError(getApiErrorMessage(checkoutError, "Checkout could not be started."), { portal: "student" });
     }
   }
 
@@ -229,14 +226,6 @@ export function SubscriptionStep({
         })}
       </div>
 
-      {error ? (
-        <p
-          role="alert"
-          className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"
-        >
-          {error}
-        </p>
-      ) : null}
       <div className="flex items-center gap-3">
         {onBack ? (
           <StudentBackButton

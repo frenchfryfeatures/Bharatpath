@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Circle, FileText, Loader2, TriangleAlert } from "lucide-react";
+import { showFormError } from "@/lib/feedback/form-error";
 
 import {
   useGetResumeFileStatusQuery,
@@ -112,6 +113,14 @@ export function ParsingStep({
 
   const failed =
     status.data?.terminal && status.data.parseStatus !== "DONE" ? status.data : null;
+  const issue = error ?? (failed
+    ? failed.parseStatus === "BLOCKED"
+      ? "This file was held by our safety check, so we could not read it. Try a different file, or paste the text instead."
+      : parseFailureMessage(failed.parseErrorCode)
+    : status.isError ? "We lost track of your upload. Try uploading it again." : null);
+  useEffect(() => {
+    if (issue) showFormError(issue, { portal: "student", fieldId: "resume-parsing-error" });
+  }, [issue]);
   const finished = Boolean(versionId && version.data);
   // The parse is done once there is a version; loading its details for the
   // checklist is a nicety, and a failure there must not strand anyone.
@@ -140,25 +149,13 @@ export function ParsingStep({
           : "reading";
 
   return (
-    <div className="flex flex-col gap-5">
+    <div id="resume-parsing-error" tabIndex={-1} data-form-invalid={Boolean(issue)} className={`flex flex-col gap-5 ${issue ? "rounded-xl outline outline-1 outline-[#d92d20]" : ""}`}>
       <StepHeader
         title="Reading your resume"
         subtitle="This takes about ten seconds. Nothing is scored until you confirm it."
       />
 
-      {error && <ErrorNote>{error}</ErrorNote>}
-
-      {failed && (
-        <ErrorNote>
-          {failed.parseStatus === "BLOCKED"
-            ? "This file was held by our safety check, so we could not read it. Try a different file, or paste the text instead."
-            : parseFailureMessage(failed.parseErrorCode)}
-        </ErrorNote>
-      )}
-
-      {status.isError && !failed && (
-        <ErrorNote>We lost track of your upload. Try uploading it again.</ErrorNote>
-      )}
+      {issue && <ErrorNote>{issue}</ErrorNote>}
 
       <Card className="flex flex-col overflow-hidden">
         <div className="flex items-center gap-3 px-4 py-3.5">

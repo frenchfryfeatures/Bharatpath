@@ -3,6 +3,8 @@
 import { Avatar } from "@/components/ui/avatar";
 
 import { humanizeCode } from "@/lib/format/labels";
+import { getApiErrorMessage } from "@/lib/api/error-message";
+import { showFormError } from "@/lib/feedback/form-error";
 
 import { useState } from "react";
 import { X } from "lucide-react";
@@ -83,6 +85,7 @@ export function UserDrawer() {
         const problem = validateRequiredText(reason, "the reason for suspending", 3, 500);
         if (problem) {
           setReasonError(problem);
+          showFormError(problem, { portal: "admin", fieldId: "suspension-reason" });
           return;
         }
         setReasonError(undefined);
@@ -90,8 +93,8 @@ export function UserDrawer() {
         dispatch(showAdminFeedback("Organisation suspended."));
         setReason("");
       }
-    } catch {
-      // Surfaced to the operator through `error` below.
+    } catch (error) {
+      showFormError(getApiErrorMessage(error, "The organisation status could not be updated."), { portal: "admin", fieldId: status === "SUSPENDED" ? undefined : "suspension-reason" });
     }
   };
 
@@ -99,8 +102,8 @@ export function UserDrawer() {
     try {
       await allocateSeats({ tenantId: selectedId, seats }).unwrap();
       dispatch(showAdminFeedback("Seat allocation updated."));
-    } catch {
-      // Surfaced to the operator through `error` below.
+    } catch (error) {
+      showFormError(getApiErrorMessage(error, "The seat allocation could not be saved."), { portal: "admin", fieldId: "college-seat-allocation" });
     }
   };
 
@@ -468,7 +471,7 @@ function CollegeDetails({
                 aria-invalid={seatError !== null}
                 aria-describedby="college-seat-allocation-help"
                 onChange={(event) => setSeatDraft(event.target.value)}
-                className="w-full rounded-lg border border-[#dfe3e9] bg-white px-3 py-2 text-[13px] font-semibold text-[#172033] outline-none focus:border-[#315c9f] focus:ring-2 focus:ring-[#315c9f]/10"
+                className={`w-full rounded-lg border bg-white px-3 py-2 text-[13px] font-semibold text-[#172033] outline-none focus:border-[#315c9f] focus:ring-2 focus:ring-[#315c9f]/10 ${seatError ? "border-[#d92d20]" : "border-[#dfe3e9]"}`}
               />
               <p
                 id="college-seat-allocation-help"
@@ -484,8 +487,8 @@ function CollegeDetails({
             </div>
             <button
               type="button"
-              disabled={isBusy || !allocationChanged}
-              onClick={() => void onSaveSeats(requestedSeats)}
+              disabled={isBusy || (seatError === null && !allocationChanged)}
+              onClick={() => seatError ? showFormError(seatError, { portal: "admin", fieldId: "college-seat-allocation" }) : void onSaveSeats(requestedSeats)}
               className="shrink-0 rounded-lg bg-[#315c9f] px-3 py-2 text-[12px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isSavingSeats ? "Saving..." : "Update seats"}

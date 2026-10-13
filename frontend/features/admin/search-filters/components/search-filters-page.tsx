@@ -16,6 +16,8 @@ import {
   type ColumnDef,
 } from "@/components/ui";
 import { usePageHeader } from "@/components/layout/header-context";
+import { getApiErrorMessage } from "@/lib/api/error-message";
+import { showFormError } from "@/lib/feedback/form-error";
 import { useDebouncedSearch } from "@/lib/hooks/use-debounced-value";
 import { useCursorPagination } from "@/lib/pagination/use-cursor-pagination";
 import {
@@ -130,7 +132,7 @@ export function SearchFiltersPage() {
   } | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FilterErrors>({});
-  const [requestError, setRequestError] = useState<unknown>(null);
+  const [, setRequestError] = useState<unknown>(null);
 
   const {
     currentData,
@@ -177,7 +179,10 @@ export function SearchFiltersPage() {
 
     const parsed = formPayload(kind, editor.form);
     if (!parsed.value) {
-      setFieldErrors(parsed.errors ?? {});
+      const errors = parsed.errors ?? {};
+      setFieldErrors(errors);
+      const first = (Object.keys(errors) as (keyof FilterErrors)[])[0];
+      if (first) showFormError(errors[first] ?? "Check this field.", { portal: "admin", fieldId: `filter-${first}` });
       return;
     }
 
@@ -203,6 +208,7 @@ export function SearchFiltersPage() {
       setEditor(null);
     } catch (mutationError) {
       setRequestError(mutationError);
+      showFormError(getApiErrorMessage(mutationError, "The attribute could not be saved."), { portal: "admin", fieldId: "filter-label" });
     }
   }
 
@@ -213,28 +219,34 @@ export function SearchFiltersPage() {
     if (!file.name.toLowerCase().endsWith(".csv")) {
       setImportFile(null);
       setFormError("Choose a .csv file. Download the template to start.");
+      showFormError("Choose a .csv file. Download the template to start.", { portal: "admin", fieldId: "filter-import-file" });
       return;
     }
 
     try {
+      const parsed = parseImportCsv(kind, await file.text());
       setImportFile({
         name: file.name,
-        parsed: parseImportCsv(kind, await file.text()),
+        parsed,
       });
+      if (parsed.fileError || parsed.errors.length > 0) {
+        const message = parsed.fileError ?? `Row ${parsed.errors[0].line}: ${parsed.errors[0].message}`;
+        setFormError(message);
+        showFormError(message, { portal: "admin", fieldId: "filter-import-file" });
+      }
     } catch {
       setImportFile(null);
       setFormError("The file could not be read. Save it as CSV and try again.");
+      showFormError("The file could not be read. Save it as CSV and try again.", { portal: "admin", fieldId: "filter-import-file" });
     }
   }
 
   async function saveImport() {
     const parsed = importFile?.parsed;
     if (!parsed || parsed.fileError || parsed.errors.length > 0) {
-      setFormError(
-        parsed
-          ? "Fix the rows listed below, then choose the file again."
-          : "Choose a CSV file to import.",
-      );
+      const message = parsed ? "Fix the rows listed below, then choose the file again." : "Choose a CSV file to import.";
+      setFormError(message);
+      showFormError(message, { portal: "admin", fieldId: "filter-import-file" });
       return;
     }
 
@@ -251,6 +263,7 @@ export function SearchFiltersPage() {
       setImportFile(null);
     } catch (mutationError) {
       setRequestError(mutationError);
+      showFormError(getApiErrorMessage(mutationError, "The attributes could not be imported."), { portal: "admin", fieldId: "filter-import-file" });
     }
   }
 
@@ -276,6 +289,7 @@ export function SearchFiltersPage() {
       setPendingToggle(null);
     } catch (mutationError) {
       setRequestError(mutationError);
+      showFormError(getApiErrorMessage(mutationError, "The attribute status could not be changed."), { portal: "admin" });
     }
   }
 
@@ -501,14 +515,6 @@ export function SearchFiltersPage() {
           closeDisabled={isSaving}
           panelClassName="max-w-[640px]"
         >
-          {requestError ? (
-            <ErrorState
-              error={requestError}
-              fallback="The attribute change could not be saved."
-              className="mb-4"
-            />
-          ) : null}
-          {formError ? <ErrorState message={formError} className="mb-4" /> : null}
           <FilterEditor
             kind={kind}
             form={editor.form}
@@ -535,18 +541,11 @@ export function SearchFiltersPage() {
           closeDisabled={isSaving}
           panelClassName="max-w-[680px]"
         >
-          {requestError ? (
-            <ErrorState
-              error={requestError}
-              fallback="The attributes could not be imported."
-              className="mb-4"
-            />
-          ) : null}
-          {formError ? <ErrorState message={formError} className="mb-4" /> : null}
           <CsvImportPanel
             kind={kind}
             file={importFile}
             isSaving={isSaving}
+            error={Boolean(formError)}
             onChooseFile={(file) => void chooseImportFile(file)}
             onClearFile={() => {
               setImportFile(null);
@@ -632,12 +631,6 @@ export function SearchFiltersPage() {
         onConfirm={() => void confirmToggleActive()}
         onClose={closeActionDialog}
       >
-        {requestError ? (
-          <ErrorState
-            error={requestError}
-            fallback="The attribute status could not be changed."
-          />
-        ) : null}
       </ConfirmModal>
     </div>
   );
@@ -665,6 +658,7 @@ function FilterEditor({
       <div className="grid gap-3">
         <Field label="Label" error={errors.label}>
           <input
+            id="filter-label"
             aria-invalid={errors.label ? true : undefined}
             value={form.label}
             maxLength={100}
@@ -680,6 +674,7 @@ function FilterEditor({
         {kind === "CITY" ? (
           <Field label="State code" error={errors.stateCode}>
             <input
+              id="filter-stateCode"
               aria-invalid={errors.stateCode ? true : undefined}
               value={form.stateCode}
               maxLength={2}
@@ -696,6 +691,7 @@ function FilterEditor({
         ) : null}
         <Field label="Aliases (comma separated)" error={errors.aliases}>
           <input
+            id="filter-aliases"
             aria-invalid={errors.aliases ? true : undefined}
             value={form.aliases}
             placeholder={

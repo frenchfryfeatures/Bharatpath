@@ -4,7 +4,8 @@ import { useState } from "react";
 import { ArrowRight, GraduationCap } from "lucide-react";
 
 import { Button } from "@/components/ui";
-import { CollegeErrorState } from "@/features/college/components/college-error-state";
+import { getApiErrorMessage } from "@/lib/api/error-message";
+import { showFormError } from "@/lib/feedback/form-error";
 import { AppSelect } from "@/components/ui/app-select";
 import { problemCode } from "@/features/employer/onboarding/kyb-form";
 import {
@@ -32,12 +33,11 @@ export function InstitutionStep({ onCreated }: Readonly<InstitutionStepProps>) {
   const [name, setName] = useState("");
   const [institutionType, setInstitutionType] = useState("");
   const [errors, setErrors] = useState<{ name?: string; institutionType?: string }>({});
-  const [serverError, setServerError] = useState<unknown>(null);
   const [finishing, setFinishing] = useState(false);
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setServerError(null);
+    const form = event.currentTarget;
 
     const cleaned = name.split(/\s+/).join(" ").trim();
     const next = {
@@ -50,14 +50,17 @@ export function InstitutionStep({ onCreated }: Readonly<InstitutionStepProps>) {
       institutionType: institutionType ? undefined : "Choose what kind of institution this is.",
     };
     setErrors(next);
-    if (next.name || next.institutionType) return;
+    if (next.name || next.institutionType) {
+      showFormError("Check the highlighted fields before continuing.", { portal: "college", container: form });
+      return;
+    }
 
     try {
       await createCollege({ name: cleaned, institutionType }).unwrap();
     } catch (error) {
       // Already admin of one (a retried request, another tab): carry on with it.
       if (problemCode(error) !== "identity_already_in_organisation") {
-        setServerError(error);
+        showFormError(getApiErrorMessage(error, "We could not create your institution. Please try again."), { portal: "college" });
         return;
       }
     }
@@ -66,7 +69,7 @@ export function InstitutionStep({ onCreated }: Readonly<InstitutionStepProps>) {
     try {
       await onCreated();
     } catch (error) {
-      setServerError(error);
+      showFormError(getApiErrorMessage(error, "We could not finish creating your institution."), { portal: "college" });
     } finally {
       setFinishing(false);
     }
@@ -79,14 +82,6 @@ export function InstitutionStep({ onCreated }: Readonly<InstitutionStepProps>) {
       description="You become its administrator. You can add placement staff to your team after onboarding."
     >
       <form onSubmit={submit} noValidate className="space-y-5">
-        {serverError ? (
-          <CollegeErrorState
-            variant="inline"
-            error={serverError}
-            fallback="We could not create your institution. Please try again."
-          />
-        ) : null}
-
         <div>
           <label
             htmlFor="college-name"
@@ -121,7 +116,7 @@ export function InstitutionStep({ onCreated }: Readonly<InstitutionStepProps>) {
           <p className="mb-1.5 text-[13px] font-semibold text-[#303747]">
             {renderFieldLabel("What kind of institution is this?", true)}
           </p>
-          <div className={`rounded-[10px] ${errors.institutionType ? "ring-1 ring-[#e5484d]" : ""}`}>
+          <div data-form-invalid={Boolean(errors.institutionType)} className={`rounded-[10px] ${errors.institutionType ? "ring-1 ring-[#e5484d]" : ""}`}>
             <AppSelect
               value={institutionType}
               onChange={(value) => {

@@ -8,6 +8,7 @@ import {
   useSubmitCollegeOnboardingMutation,
 } from "@/store/college/settings/settings.api";
 import { getApiErrorMessage } from "@/lib/api/error-message";
+import { showFormError } from "@/lib/feedback/form-error";
 
 /** One `{ field, code }` problem returned by the server's 422. */
 interface OnboardingIssue {
@@ -48,7 +49,6 @@ export function useCollegeOnboarding() {
 
   const [edits, setEdits] = useState<Record<string, unknown>>({});
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [formError, setFormError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
   const data = onboardingQuery.data;
@@ -81,7 +81,7 @@ export function useCollegeOnboarding() {
   }, []);
 
   const saveDraft = useCallback(async () => {
-    setFormError(null);
+    setSavedAt(null);
     try {
       await saveOnboarding({ answers }).unwrap();
       setFieldErrors({});
@@ -90,14 +90,14 @@ export function useCollegeOnboarding() {
       const issues = extractIssues(error);
       if (issues.length > 0) {
         applyIssues(issues);
+        showFormError("Check the highlighted college details.", { portal: "college", fieldId: `college-onboarding-${issues[0].field}` });
       } else {
-        setFormError(getApiErrorMessage(error, "Could not save. Please try again."));
+        showFormError(getApiErrorMessage(error, "Could not save. Please try again."), { portal: "college" });
       }
     }
   }, [saveOnboarding, answers, applyIssues]);
 
   const submit = useCallback(async () => {
-    setFormError(null);
     try {
       /* Persist the latest answers first, then submit for validation. */
       await saveOnboarding({
@@ -110,9 +110,9 @@ export function useCollegeOnboarding() {
       const issues = extractIssues(error);
       if (issues.length > 0) {
         applyIssues(issues);
-        setFormError("Some answers still need attention.");
+        showFormError("Some answers still need attention.", { portal: "college", fieldId: `college-onboarding-${issues[0].field}` });
       } else {
-        setFormError(getApiErrorMessage(error, "Could not submit. Please try again."));
+        showFormError(getApiErrorMessage(error, "Could not submit. Please try again."), { portal: "college" });
       }
     }
   }, [saveOnboarding, submitOnboarding, answers, applyIssues]);
@@ -129,7 +129,6 @@ export function useCollegeOnboarding() {
       isError: onboardingQuery.isError,
       submittedAt,
       fieldErrors,
-      formError,
       savedAt,
       saveDraft,
       isSaving: saveState.isLoading,
@@ -144,7 +143,6 @@ export function useCollegeOnboarding() {
       onboardingQuery.isError,
       submittedAt,
       fieldErrors,
-      formError,
       savedAt,
       saveDraft,
       saveState.isLoading,

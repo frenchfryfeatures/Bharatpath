@@ -6,8 +6,9 @@ import Link from "next/link";
 import { ArrowRight, KeyRound, Lock, Mail } from "lucide-react";
 import QRCode from "qrcode";
 
-import { Button, ErrorState } from "@/components/ui";
+import { Button } from "@/components/ui";
 import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
+import { showFormError } from "@/lib/feedback/form-error";
 import {
   passwordError,
   useSignupFlow,
@@ -55,11 +56,20 @@ export function AccountStep({
   const [totpCode, setTotpCode] = useState("");
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [errors, setErrors] = useState<{ email?: string; password?: string; confirmPassword?: string }>({});
+  const [codeError, setCodeError] = useState("");
+  const [totpError, setTotpError] = useState("");
 
   const flow = useSignupFlow("BUSINESS", (session, signedUpEmail) => {
     showSuccessFeedback(copy.successMessage);
     onSignedUp(session, signedUpEmail);
   });
+
+  useEffect(() => {
+    if (flow.error) showFormError(flow.error, {
+      portal: "employer",
+      fieldId: flow.phase === "CONFIRM" ? "signup-code" : flow.phase === "TOTP_SETUP" || flow.phase === "TOTP_CODE" ? "signup-totp-code" : undefined,
+    });
+  }, [flow.error, flow.phase]);
 
   useEffect(() => {
     if (!flow.totpSetup) return;
@@ -79,19 +89,32 @@ export function AccountStep({
       confirmPassword: !confirmPassword ? "Confirm your password." : password !== confirmPassword ? "Passwords do not match." : undefined,
     };
     setErrors(next);
-    if (next.email || next.password || next.confirmPassword) return;
+    if (next.email || next.password || next.confirmPassword) {
+      showFormError("Check the highlighted account fields.", { portal: "employer", container: event.currentTarget });
+      return;
+    }
 
     void flow.register(email.trim(), password);
   };
 
   const submitCode = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (code.trim().length < 4) {
+      setCodeError("Enter the confirmation code from your email.");
+      showFormError("Check the highlighted confirmation code.", { portal: "employer", fieldId: "signup-code" });
+      return;
+    }
     void flow.confirm(code.trim());
   };
 
   const submitTotp = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (totpCode.length === 6) void flow.completeTotp(totpCode);
+    if (totpCode.length !== 6) {
+      setTotpError("Enter the 6-digit authenticator code.");
+      showFormError("Check the highlighted authenticator code.", { portal: "employer", fieldId: "signup-totp-code" });
+      return;
+    }
+    void flow.completeTotp(totpCode);
   };
 
   return (
@@ -102,7 +125,6 @@ export function AccountStep({
     >
       {flow.phase === "DETAILS" && (
         <form onSubmit={submitDetails} noValidate className="max-w-md space-y-5">
-          {flow.error && <ErrorState message={flow.error} />}
 
           {flow.existingAccount && (
             <Link
@@ -225,7 +247,6 @@ export function AccountStep({
 
       {flow.phase === "CONFIRM" && (
         <form onSubmit={submitCode} noValidate className="max-w-md space-y-5">
-          {flow.error && <ErrorState message={flow.error} />}
           {flow.notice && <p className="text-xs text-green-600">{flow.notice}</p>}
 
           <div>
@@ -242,14 +263,17 @@ export function AccountStep({
               />
               <input
                 id="signup-code"
+                aria-invalid={Boolean(codeError || flow.error)}
+                aria-describedby={codeError ? "signup-code-error" : undefined}
                 inputMode="numeric"
                 autoComplete="one-time-code"
                 placeholder="Code from your email"
                 value={code}
-                onChange={(event) => setCode(event.target.value)}
-                className={`${kybInputClass} ${inputBorder(false)} pl-10`}
+                onChange={(event) => { setCode(event.target.value); setCodeError(""); }}
+                className={`${kybInputClass} ${inputBorder(Boolean(codeError || flow.error))} pl-10`}
               />
             </div>
+            {codeError && <FieldError id="signup-code-error" message={codeError} />}
             <p className="mt-1.5 text-xs leading-5 text-[#7b8493]">
               We emailed a code to {flow.email}.
             </p>
@@ -273,7 +297,6 @@ export function AccountStep({
               className="flex-1"
               isLoading={flow.busy}
               loadingText="Confirming…"
-              disabled={code.trim().length < 4}
             >
               Confirm
             </Button>
@@ -283,7 +306,6 @@ export function AccountStep({
 
       {(flow.phase === "TOTP_SETUP" || flow.phase === "TOTP_CODE") && (
         <form onSubmit={submitTotp} noValidate className="max-w-md space-y-5">
-          {flow.error && <ErrorState message={flow.error} />}
           {flow.phase === "TOTP_SETUP" && flow.totpSetup && (
             <div className="space-y-3">
               {qrCode && (
@@ -301,16 +323,19 @@ export function AccountStep({
             <label htmlFor="signup-totp-code" className="mb-1.5 block text-[13px] font-semibold text-[#303747]">Authenticator code</label>
             <input
               id="signup-totp-code"
+              aria-invalid={Boolean(totpError || flow.error)}
+              aria-describedby={totpError ? "signup-totp-code-error" : undefined}
               inputMode="numeric"
               autoComplete="one-time-code"
               maxLength={6}
               placeholder="6-digit code"
               value={totpCode}
-              onChange={(event) => setTotpCode(event.target.value.replace(/\D/g, ""))}
-              className={`${kybInputClass} ${inputBorder(false)}`}
+              onChange={(event) => { setTotpCode(event.target.value.replace(/\D/g, "")); setTotpError(""); }}
+              className={`${kybInputClass} ${inputBorder(Boolean(totpError || flow.error))}`}
             />
+            {totpError && <FieldError id="signup-totp-code-error" message={totpError} />}
           </div>
-          <Button type="submit" variant="dark" size="lg" className="w-full" isLoading={flow.busy} loadingText="Verifying…" disabled={totpCode.length !== 6}>
+          <Button type="submit" variant="dark" size="lg" className="w-full" isLoading={flow.busy} loadingText="Verifying…">
             Verify and continue
           </Button>
           <p className="text-xs text-[#7b8493]">

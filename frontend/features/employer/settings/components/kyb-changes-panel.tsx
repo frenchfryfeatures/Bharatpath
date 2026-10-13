@@ -7,6 +7,7 @@ import { ArrowRight, Loader2, RotateCcw, ShieldAlert } from "lucide-react";
 
 import { ErrorState } from "@/components/ui";
 import { getApiErrorMessage } from "@/lib/api/error-message";
+import { showFormError } from "@/lib/feedback/form-error";
 import { openFreshDocument } from "@/lib/open-document";
 import {
   useGetEmployerKybFormQuery,
@@ -264,7 +265,6 @@ function ChangesForm({
 
   const [answers, setAnswers] = useState<KybAnswers>(() => ({ ...kyb.answers }));
   const [errors, setErrors] = useState<KybFieldErrors>({});
-  const [banner, setBanner] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
   // Flagged fields and documents the owner has changed since the review.
   const [resolved, setResolved] = useState<ReadonlySet<string>>(new Set());
@@ -334,16 +334,17 @@ function ChangesForm({
 
     if (Object.keys(found).length > 0) {
       setErrors(found);
-      setBanner("Some details need attention. Check the highlighted fields.");
       const first = sections
         .flatMap((section) => section.fields)
         .find((field) => found[field.code]);
-      if (first) jumpTo(first.code);
+      showFormError("Some details need attention. Check the highlighted fields.", {
+        portal: "employer",
+        fieldId: first ? `kyb-field-${first.code}` : undefined,
+      });
       return;
     }
 
     setErrors({});
-    setBanner(null);
 
     const payload = Object.assign(
       {},
@@ -361,10 +362,13 @@ function ChangesForm({
       if (Object.keys(fieldErrors).length > 0) {
         setErrors(fieldErrors);
       }
-      setBanner(
+      const first = sections.flatMap((section) => section.fields)
+        .find((field) => fieldErrors[field.code]);
+      showFormError(
         problemCode(error) === "kyb_not_editable"
           ? "This verification has already been submitted and can no longer be edited."
           : getApiErrorMessage(error, "We could not submit your changes."),
+        { portal: "employer", fieldId: first ? `kyb-field-${first.code}` : undefined },
       );
     }
   };
@@ -393,7 +397,6 @@ function ChangesForm({
         onJump={jumpTo}
       />
 
-      {banner && <ErrorState className="mb-4" message={banner} />}
 
       <div className="space-y-6">
         {sections.map((section) => (

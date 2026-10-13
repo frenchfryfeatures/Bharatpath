@@ -2,7 +2,7 @@
 
 import { ImageTile } from "@/features/admin/shared/image-tile";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertCircle,
   Check,
@@ -19,6 +19,8 @@ import { ErrorState } from "@/components/ui";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { useScrollLock } from "@/hooks/use-scroll-lock";
 import { openFreshDocument } from "@/lib/open-document";
+import { getApiErrorMessage } from "@/lib/api/error-message";
+import { showFormError } from "@/lib/feedback/form-error";
 import { choiceLabel, fieldLabel, humanizeCode } from "@/lib/format/labels";
 import { INDIAN_STATES } from "@/features/student/onboarding/constants";
 import { FieldError } from "../../shared/form";
@@ -216,6 +218,9 @@ function QueueDrawerBody() {
   useScrollLock(Boolean(openReviewId));
   const [note, setNote] = useState("");
   const [noteError, setNoteError] = useState<string | undefined>();
+  useEffect(() => {
+    if (noteError) showFormError(noteError, { portal: "admin", fieldId: noteError.startsWith("Untick") || noteError.startsWith("Flag at most") ? "decision-flags" : "decision-note" });
+  }, [noteError]);
   // Fields and documents the reviewer wants corrected, each with an optional note.
   const [flags, setFlags] = useState<Record<string, string>>({});
   const [pending, setPending] = useState<Decision | null>(null);
@@ -379,8 +384,8 @@ function QueueDrawerBody() {
       } else {
         await resolveSignal({ signalId: item.id, outcome: decision as "CLEARED" | "CONFIRMED", note: note.trim() || undefined }).unwrap();
       }
-    } catch {
-      // Surfaced to the operator through `actionError` below.
+    } catch (error) {
+      showFormError(getApiErrorMessage(error, "The decision could not be saved. Try again."), { portal: "admin", fieldId: "decision-note" });
       setPending(null);
       setConfirmation(null);
       return;
@@ -622,7 +627,7 @@ function QueueDrawerBody() {
                 VERIFICATION CHECKS
                 ====================================================== */}
 
-            <section className="flex flex-col gap-3">
+            <section id="decision-flags" tabIndex={-1} className={`flex flex-col gap-3 ${noteError?.startsWith("Untick") || noteError?.startsWith("Flag at most") ? "rounded-lg outline outline-1 outline-[#d92d20]" : ""}`}>
               <div className="flex items-baseline justify-between gap-3">
                 <h3 className="text-[11px] font-bold uppercase leading-[14px] tracking-[0.06em] text-[#7b8494]">
                   Verification checks
@@ -899,6 +904,7 @@ function QueueDrawerBody() {
               </span>
 
               <textarea
+                id="decision-note"
                 rows={3}
                 value={note}
                 onChange={(event) => { setNote(event.target.value); setNoteError(undefined); }}
@@ -920,7 +926,6 @@ function QueueDrawerBody() {
               ) : null}
               {actionError ? (
                 <>
-                  <ErrorState error={actionError} fallback="The decision could not be saved. Try again." />
                   {refused.length > 0 ? (
                     <p className="text-[11px] leading-[15px] text-[#c92f3f]">
                       Refused: {refused.map(fieldLabel).join(", ")}

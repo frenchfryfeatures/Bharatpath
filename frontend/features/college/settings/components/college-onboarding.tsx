@@ -94,12 +94,13 @@ function Field({
 
   if (field.type === "CHECKBOX") {
     return (
-      <label className="flex items-start gap-3">
+      <label id={`college-onboarding-${field.code}`} data-form-field data-form-invalid={Boolean(error)} tabIndex={-1} className={`flex items-start gap-3 ${error ? "rounded-lg outline outline-1 outline-[#e02424]" : ""}`}>
         <input
           type="checkbox"
           checked={value === true}
           disabled={disabled}
           aria-label={field.label}
+          aria-invalid={Boolean(error)}
           onChange={(event) => onChange(event.target.checked)}
           className="mt-[2px] h-4 w-4 rounded border-[#e1e5eb] text-[#3566b8] focus:ring-[#3566b8]/30"
         />
@@ -127,7 +128,7 @@ function Field({
   const Wrapper = field.type === "SELECT" ? "div" : "label";
 
   return (
-    <Wrapper className="flex flex-col gap-2">
+    <Wrapper id={`college-onboarding-${field.code}`} data-form-field data-form-invalid={Boolean(error)} tabIndex={-1} className="flex flex-col gap-2">
       <span className="text-[13px] font-semibold leading-[17px] text-[#131A26]">
         {renderFieldLabel(field.label, field.required, { asteriskColor: "text-[#e02424]" })}
       </span>
@@ -138,6 +139,7 @@ function Field({
           disabled={disabled}
           rows={3}
           aria-label={field.label}
+          aria-invalid={Boolean(error)}
           maxLength={field.max_length ?? undefined}
           onChange={(event) => onChange(event.target.value)}
           className={`${controlClass} resize-y`}
@@ -169,6 +171,7 @@ function Field({
           value={stringValue}
           disabled={disabled}
           aria-label={field.label}
+          aria-invalid={Boolean(error)}
           maxLength={field.max_length ?? undefined}
           onChange={(event) => onChange(event.target.value)}
           className={controlClass}
@@ -199,7 +202,6 @@ export function CollegeOnboarding() {
     isError,
     submittedAt,
     fieldErrors,
-    formError,
     savedAt,
     saveDraft,
     isSaving,
@@ -287,10 +289,7 @@ export function CollegeOnboarding() {
 
       {!isSubmitted && (
         <div className="flex flex-col gap-3">
-          {formError && (
-            <CollegeErrorState variant="inline" message={formError} />
-          )}
-          {savedAt !== null && !formError && (
+          {savedAt !== null && (
             <p className="text-[13px] font-medium leading-[17px] text-[#23805d]">
               Draft saved.
             </p>

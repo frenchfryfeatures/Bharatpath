@@ -46,6 +46,7 @@ import {
 } from "@/features/jobs";
 import { getApiErrorMessage } from "@/lib/api/error-message";
 import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
+import { showFormError } from "@/lib/feedback/form-error";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 
 import { useJobCreateForm } from "../hooks/use-job-create-form";
@@ -170,9 +171,6 @@ export function JobCreatePage({
     isPausing ||
     isClosing;
 
-  const [toast, setToast] =
-    useState<string | null>(null);
-
   usePageHeader(
     heading,
     isClosed
@@ -180,23 +178,12 @@ export function JobCreatePage({
       : "Set requirements once. Every applicant is matched against them",
   );
 
-  const showToast = (message: string) => {
-    setToast(message);
-
-    window.setTimeout(
-      () => setToast(null),
-      6000,
-    );
-  };
-
   /** Validate, and if anything is wrong, say so and show the first one. */
   const checkForm = () => {
     if (validate()) return true;
-    showToast("Some required details are missing. Check the fields in red.");
-    window.requestAnimationFrame(() => {
-      document
-        .querySelector('[role="alert"], [aria-invalid="true"]')
-        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    showFormError("Some required details are missing. Check the fields in red.", {
+      portal: "employer",
+      container: document.getElementById("job-editor-form"),
     });
     return false;
   };
@@ -215,7 +202,7 @@ export function JobCreatePage({
       showSuccessFeedback("Job saved as a draft.");
       window.setTimeout(() => router.push("/employer/jobs"), 450);
     } catch (error) {
-      showToast(getApiErrorMessage(error, "Could not save the job"));
+      showFormError(getApiErrorMessage(error, "Could not save the job"), { portal: "employer" });
     }
   };
 
@@ -224,7 +211,7 @@ export function JobCreatePage({
       return;
     }
 
-    if (!validate()) {
+    if (!checkForm()) {
       return;
     }
 
@@ -239,7 +226,7 @@ export function JobCreatePage({
         window.setTimeout(() => router.push("/employer/jobs"), 650);
       }
     } catch (error) {
-      showToast(getApiErrorMessage(error, "Could not publish the job"));
+      showFormError(getApiErrorMessage(error, "Could not publish the job"), { portal: "employer" });
     }
   };
 
@@ -250,7 +237,7 @@ export function JobCreatePage({
       const paused = await pauseJob(jobId).unwrap();
       setStatusOverride(paused.status);
     } catch (error) {
-      showToast(getApiErrorMessage(error, "Could not pause the job"));
+      showFormError(getApiErrorMessage(error, "Could not pause the job"), { portal: "employer" });
     }
   };
 
@@ -261,7 +248,7 @@ export function JobCreatePage({
       const closed = await closeJob(jobId).unwrap();
       setStatusOverride(closed.status);
     } catch (error) {
-      showToast(getApiErrorMessage(error, "Could not close the job"));
+      showFormError(getApiErrorMessage(error, "Could not close the job"), { portal: "employer" });
     }
   };
 
@@ -331,7 +318,7 @@ export function JobCreatePage({
     setDetail("skills", "experience", rows);
 
   return (
-    <main className="min-h-full bg-[#f7f8fa]">
+    <main id="job-editor-form" className="min-h-full bg-[#f7f8fa]">
       <div className="w-full max-w-[860px]">
         <button
           type="button"
@@ -1297,15 +1284,6 @@ export function JobCreatePage({
             />
           </div>
         </Modal>
-
-        {toast ? (
-          <div
-            role="status"
-            className="fixed bottom-5 right-5 rounded-[10px] bg-[#151b2b] px-4 py-3 text-sm font-semibold text-white shadow-lg"
-          >
-            {toast}
-          </div>
-        ) : null}
 
         {dialog}
       </div>

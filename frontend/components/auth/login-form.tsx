@@ -23,8 +23,8 @@ import QRCode from "qrcode";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
-import { ErrorState } from "@/components/ui";
 import { Modal } from "@/components/ui/modal";
+import { showFormError } from "@/lib/feedback/form-error";
 import { AccountDestinationLoading } from "@/components/common/account-destination-loading";
 import { PORTAL_TYPES, PortalType } from "@/config/portal";
 import {
@@ -87,7 +87,8 @@ export function LoginForm() {
   const [accountType, setAccountType] = useState<AccountType>("CANDIDATE");
   const [showPassword, setShowPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
-  const [serverError, setServerError] = useState("");
+  const [, setServerError] = useState("");
+  const [invalidField, setInvalidField] = useState("");
   const [authStep, setAuthStep] = useState<AuthStep>("CREDENTIALS");
   const [submittingChallenge, setSubmittingChallenge] = useState(false);
   const [completingSignIn, setCompletingSignIn] = useState(false);
@@ -154,6 +155,12 @@ export function LoginForm() {
 
   const enteredEmail = watch("email");
 
+  const fail = (message: string, fieldId?: string) => {
+    setServerError(message);
+    setInvalidField(fieldId ?? "");
+    showFormError(message, { portal: "auth", fieldId });
+  };
+
   const handleAccountTypeChange = (nextAccountType: AccountType) => {
     const nextPool: CognitoPoolType =
       nextAccountType === "CANDIDATE" ? "CANDIDATE" : "BUSINESS";
@@ -161,6 +168,7 @@ export function LoginForm() {
     setPool(nextPool);
     setValue("pool", nextPool);
     setServerError("");
+    setInvalidField("");
     setNotice("");
     setAuthStep("CREDENTIALS");
   };
@@ -214,6 +222,7 @@ export function LoginForm() {
 
   const onSubmit = async (values: LoginFormValues) => {
     setServerError("");
+    setInvalidField("");
 
     try {
       const result = await signInWithCognito({
@@ -260,7 +269,7 @@ export function LoginForm() {
         return;
       }
     } catch (error) {
-      setServerError(formatCognitoError(error));
+      fail(formatCognitoError(error), "password");
     }
   };
 
@@ -268,11 +277,11 @@ export function LoginForm() {
     e.preventDefault();
     const validationError = passwordError(newPassword, pool);
     if (validationError) {
-      setServerError(validationError);
+      fail(validationError, "newPassword");
       return;
     }
     if (newPassword !== confirmNewPassword) {
-      setServerError("The two passwords do not match.");
+      fail("The two passwords do not match.", "confirmNewPassword");
       return;
     }
 
@@ -297,7 +306,7 @@ export function LoginForm() {
         setAuthStep("TOTP_SETUP");
       }
     } catch (err) {
-      setServerError(formatCognitoError(err));
+      fail(formatCognitoError(err), "newPassword");
     } finally {
       setSubmittingChallenge(false);
     }
@@ -306,7 +315,7 @@ export function LoginForm() {
   const handleConfirmTotp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!totpCode || totpCode.trim().length !== 6) {
-      setServerError("Please enter a valid 6-digit TOTP code.");
+      fail("Please enter a valid 6-digit TOTP code.", "totpCode");
       return;
     }
 
@@ -318,7 +327,7 @@ export function LoginForm() {
         await completeSessionWithToken(result.accessToken, enteredEmail);
       }
     } catch (err) {
-      setServerError(formatCognitoError(err));
+      fail(formatCognitoError(err), "totpCode");
     } finally {
       setSubmittingChallenge(false);
     }
@@ -327,7 +336,7 @@ export function LoginForm() {
   const handleVerifyTotpSetup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!totpCode || totpCode.trim().length !== 6) {
-      setServerError("Please enter the 6-digit verification code from your authenticator app.");
+      fail("Please enter the 6-digit verification code from your authenticator app.", "verifyTotp");
       return;
     }
 
@@ -339,7 +348,7 @@ export function LoginForm() {
         await completeSessionWithToken(result.accessToken, enteredEmail);
       }
     } catch (err) {
-      setServerError(formatCognitoError(err));
+      fail(formatCognitoError(err), "verifyTotp");
     } finally {
       setSubmittingChallenge(false);
     }
@@ -348,7 +357,7 @@ export function LoginForm() {
   const handleConfirmSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!confirmationCode || confirmationCode.trim().length < 4) {
-      setServerError("Please enter the confirmation code sent to your email.");
+      fail("Please enter the confirmation code sent to your email.", "confirmationCode");
       return;
     }
 
@@ -360,7 +369,7 @@ export function LoginForm() {
       setServerError("");
       setEmailConfirmedOpen(true);
     } catch (err) {
-      setServerError(formatCognitoError(err));
+      fail(formatCognitoError(err), "confirmationCode");
     } finally {
       setSubmittingChallenge(false);
     }
@@ -372,7 +381,7 @@ export function LoginForm() {
       setResendSuccess(true);
       setTimeout(() => setResendSuccess(false), 4000);
     } catch (err) {
-      setServerError(formatCognitoError(err));
+      fail(formatCognitoError(err), "confirmationCode");
     }
   };
 
@@ -387,7 +396,7 @@ export function LoginForm() {
     e.preventDefault();
     const address = forgotEmail.trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) {
-      setServerError("Enter the email address you signed up with.");
+      fail("Enter the email address you signed up with.", "forgotEmail");
       return;
     }
 
@@ -401,7 +410,7 @@ export function LoginForm() {
       setResetCodeSent(false);
       setAuthStep("FORGOT_RESET");
     } catch (err) {
-      setServerError(formatPasswordError(err, "reset"));
+      fail(formatPasswordError(err, "reset"), "forgotEmail");
     } finally {
       setSubmittingChallenge(false);
     }
@@ -412,7 +421,7 @@ export function LoginForm() {
   const handleVerifyResetCode = (e: React.FormEvent) => {
     e.preventDefault();
     if (resetCode.trim().length < 4) {
-      setServerError("Enter the verification code sent to your email.");
+      fail("Enter the verification code sent to your email.", "resetCode");
       return;
     }
     setServerError("");
@@ -425,11 +434,11 @@ export function LoginForm() {
     e.preventDefault();
     const validationError = passwordError(resetPasswordValue, pool);
     if (validationError) {
-      setServerError(validationError);
+      fail(validationError, "resetNewPassword");
       return;
     }
     if (resetPasswordValue !== resetConfirmValue) {
-      setServerError("The new passwords do not match.");
+      fail("The new passwords do not match.", "resetConfirmPassword");
       return;
     }
 
@@ -450,7 +459,7 @@ export function LoginForm() {
       if (name === "CodeMismatchException" || name === "ExpiredCodeException") {
         setAuthStep("FORGOT_RESET");
       }
-      setServerError(formatPasswordError(err, "reset"));
+      fail(formatPasswordError(err, "reset"), name === "CodeMismatchException" || name === "ExpiredCodeException" ? "resetCode" : "resetNewPassword");
     } finally {
       setSubmittingChallenge(false);
     }
@@ -463,7 +472,7 @@ export function LoginForm() {
       setResetCodeSent(true);
       setTimeout(() => setResetCodeSent(false), 4000);
     } catch (err) {
-      setServerError(formatPasswordError(err, "reset"));
+      fail(formatPasswordError(err, "reset"), "resetCode");
     }
   };
 
@@ -479,7 +488,7 @@ export function LoginForm() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 [&_input[aria-invalid=true]]:border-[#d92d20] [&_input[aria-invalid=true]]:ring-2 [&_input[aria-invalid=true]]:ring-[#d92d20]/10">
       {completingSignIn && (
         <div className="fixed inset-0 z-[120]">
           <AccountDestinationLoading portal={destinationPortal ?? portalByAccountType[accountType]} />
@@ -541,8 +550,6 @@ export function LoginForm() {
         </button>
       </div>
 
-      {serverError && <ErrorState message={serverError} />}
-
       {notice && authStep === "CREDENTIALS" && (
         <div
           role="status"
@@ -556,7 +563,10 @@ export function LoginForm() {
       {/* Primary Credentials Form */}
       {authStep === "CREDENTIALS" && (
         <form
-          onSubmit={handleSubmit(onSubmit)}
+          onSubmit={handleSubmit(onSubmit, (validation) => {
+            const fieldId = validation.email ? "email" : "password";
+            showFormError(validation.email?.message ?? validation.password?.message ?? "Check your details.", { portal: "auth", fieldId });
+          })}
           noValidate
           className="space-y-4"
         >
@@ -698,7 +708,7 @@ export function LoginForm() {
 
       {/* Challenge Step 1: New Password Required */}
       {authStep === "NEW_PASSWORD" && (
-        <form onSubmit={handleConfirmNewPassword} className="space-y-4">
+        <form onSubmit={handleConfirmNewPassword} noValidate className="space-y-4">
           <div className="rounded-lg border border-[#fef3c7] bg-[#fffbeb] p-3 text-sm text-[#92400e]">
             <p className="font-semibold">Temporary Password Detected</p>
             <p className="mt-1 text-xs">
@@ -721,6 +731,7 @@ export function LoginForm() {
               />
               <input
                 id="newPassword"
+                aria-invalid={invalidField === "newPassword"}
                 type={showNewPassword ? "text" : "password"}
                 placeholder="Choose a strong new password"
                 value={newPassword}
@@ -753,6 +764,7 @@ export function LoginForm() {
             </label>
             <input
               id="confirmNewPassword"
+              aria-invalid={invalidField === "confirmNewPassword"}
               type={showNewPassword ? "text" : "password"}
               autoComplete="new-password"
               placeholder="Re-enter the new password"
@@ -784,7 +796,7 @@ export function LoginForm() {
 
       {/* Challenge Step 2: TOTP Code Verification */}
       {authStep === "TOTP_CODE" && (
-        <form onSubmit={handleConfirmTotp} className="space-y-4">
+        <form onSubmit={handleConfirmTotp} noValidate className="space-y-4">
           <div className="rounded-lg border border-[#e0e7ff] bg-[#eef2ff] p-3 text-sm text-[#3730a3]">
             <p className="font-semibold">Two-Factor Authentication Required</p>
             <p className="mt-1 text-xs">
@@ -801,6 +813,7 @@ export function LoginForm() {
             </label>
             <input
               id="totpCode"
+              aria-invalid={invalidField === "totpCode"}
               type="text"
               maxLength={6}
               placeholder="123456"
@@ -832,7 +845,7 @@ export function LoginForm() {
 
       {/* Challenge Step 3: Setup TOTP Authenticator */}
       {authStep === "TOTP_SETUP" && (
-        <form onSubmit={handleVerifyTotpSetup} className="space-y-4">
+        <form onSubmit={handleVerifyTotpSetup} noValidate className="space-y-4">
           <div className="rounded-lg border border-[#e0e7ff] bg-[#eef2ff] p-3 text-sm text-[#3730a3]">
             <p className="font-semibold">Set Up Authenticator App (MFA)</p>
             <p className="mt-1 text-xs">
@@ -891,6 +904,7 @@ export function LoginForm() {
             </label>
             <input
               id="verifyTotp"
+              aria-invalid={invalidField === "verifyTotp"}
               type="text"
               maxLength={6}
               placeholder="6-digit code"
@@ -922,7 +936,7 @@ export function LoginForm() {
 
       {/* Challenge Step 4: Confirm Sign-up Code */}
       {authStep === "CONFIRM_SIGN_UP" && (
-        <form onSubmit={handleConfirmSignUp} className="space-y-4">
+        <form onSubmit={handleConfirmSignUp} noValidate className="space-y-4">
           <div className="rounded-lg border border-[#fef3c7] bg-[#fffbeb] p-3 text-sm text-[#92400e]">
             <p className="font-semibold">Confirm Your Email Address</p>
             <p className="mt-1 text-xs">
@@ -940,6 +954,7 @@ export function LoginForm() {
             </label>
             <input
               id="confirmationCode"
+              aria-invalid={invalidField === "confirmationCode"}
               type="text"
               placeholder="Verification code"
               value={confirmationCode}
@@ -999,6 +1014,7 @@ export function LoginForm() {
               />
               <input
                 id="forgotEmail"
+                aria-invalid={invalidField === "forgotEmail"}
                 type="email"
                 autoComplete="email"
                 autoFocus
@@ -1052,6 +1068,7 @@ export function LoginForm() {
             </label>
             <input
               id="resetCode"
+              aria-invalid={invalidField === "resetCode"}
               type="text"
               inputMode="numeric"
               autoComplete="one-time-code"
@@ -1112,6 +1129,7 @@ export function LoginForm() {
               />
               <input
                 id="resetNewPassword"
+                aria-invalid={invalidField === "resetNewPassword"}
                 type={showResetPassword ? "text" : "password"}
                 autoComplete="new-password"
                 autoFocus
@@ -1153,6 +1171,7 @@ export function LoginForm() {
               />
               <input
                 id="resetConfirmPassword"
+                aria-invalid={invalidField === "resetConfirmPassword"}
                 type={showResetPassword ? "text" : "password"}
                 autoComplete="new-password"
                 placeholder="Re-enter your new password"

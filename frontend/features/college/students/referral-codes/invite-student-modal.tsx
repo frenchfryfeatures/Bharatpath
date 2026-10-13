@@ -4,6 +4,8 @@ import React, { useState } from "react";
 import { Copy, Check, Link2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
+import { getApiErrorMessage } from "@/lib/api/error-message";
+import { showFormError } from "@/lib/feedback/form-error";
 import type { ReferralCode } from "@/store/college/referral-codes";
 
 export interface InviteStudentModalProps {
@@ -27,20 +29,20 @@ export function InviteStudentModal({
   onIssueCode,
   isIssuing = false,
 }: InviteStudentModalProps) {
-  const [expiresInDays, setExpiresInDays] = useState(90);
+  const [expiresInDays, setExpiresInDays] = useState("90");
   const [maxUses, setMaxUses] = useState("");
   const [issuedCode, setIssuedCode] = useState<ReferralCode | null>(null);
   const [copied, setCopied] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{ expiresInDays?: string; maxUses?: string }>({});
 
   if (!isOpen) return null;
 
   const reset = () => {
     setIssuedCode(null);
     setCopied(false);
-    setError(null);
+    setFieldErrors({});
     setMaxUses("");
-    setExpiresInDays(90);
+    setExpiresInDays("90");
   };
 
   const handleClose = () => {
@@ -48,27 +50,28 @@ export function InviteStudentModal({
     onClose();
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setError(null);
-
-    if (!Number.isInteger(expiresInDays) || expiresInDays < 1) {
-      setError("Choose at least 1 day before the code expires.");
-      return;
-    }
-    if (maxUses.trim() && (!Number.isInteger(Number(maxUses)) || Number(maxUses) < 1)) {
-      setError("Maximum uses must be a whole number of 1 or more, or left empty.");
+    const errors = {
+      expiresInDays: !/^\d+$/.test(expiresInDays) || Number(expiresInDays) < 1 || Number(expiresInDays) > 365
+        ? "Choose 1 to 365 days." : undefined,
+      maxUses: maxUses.trim() && (!/^\d+$/.test(maxUses) || Number(maxUses) < 1 || Number(maxUses) > 10_000)
+        ? "Enter a whole number from 1 to 10,000, or leave blank." : undefined,
+    };
+    setFieldErrors(errors);
+    if (errors.expiresInDays || errors.maxUses) {
+      showFormError("Check the highlighted referral code settings.", { portal: "college", container: e.currentTarget });
       return;
     }
 
     try {
       const code = await onIssueCode({
-        expiresInDays,
+        expiresInDays: Number(expiresInDays),
         maxUses: maxUses.trim() ? Number(maxUses) : null,
       });
       setIssuedCode(code);
-    } catch {
-      setError("Could not issue a code. An active subscription is required.");
+    } catch (error) {
+      showFormError(getApiErrorMessage(error, "Could not issue a referral code."), { portal: "college" });
     }
   };
 
@@ -148,19 +151,24 @@ export function InviteStudentModal({
             </Button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+          <form onSubmit={handleSubmit} noValidate className="mt-4 space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-[12px] font-semibold text-[#303747] mb-1.5">
                   Expires in (days)
                 </label>
                 <input
+                  id="referral-expiry-days"
                   type="number"
                   min={1}
+                  max={365}
                   value={expiresInDays}
-                  onChange={(e) => setExpiresInDays(Number(e.target.value))}
-                  className="h-[40px] w-full rounded-xl border border-[#dfe2e8] px-3.5 text-[13px] text-[#151b2b] outline-none focus:border-[#5b4fcf] focus:ring-1 focus:ring-[#5b4fcf]/20"
+                  aria-invalid={Boolean(fieldErrors.expiresInDays)}
+                  aria-describedby={fieldErrors.expiresInDays ? "referral-expiry-error" : undefined}
+                  onChange={(e) => { setExpiresInDays(e.target.value); setFieldErrors((current) => ({ ...current, expiresInDays: undefined })); }}
+                  className={`h-[40px] w-full rounded-xl border px-3.5 text-[13px] text-[#151b2b] outline-none focus:border-[#5b4fcf] focus:ring-1 focus:ring-[#5b4fcf]/20 ${fieldErrors.expiresInDays ? "border-[#c92f3f]" : "border-[#dfe2e8]"}`}
                 />
+                {fieldErrors.expiresInDays && <p id="referral-expiry-error" className="mt-1 text-xs text-[#c92f3f]">{fieldErrors.expiresInDays}</p>}
               </div>
 
               <div>
@@ -168,19 +176,20 @@ export function InviteStudentModal({
                   Max uses (optional)
                 </label>
                 <input
+                  id="referral-max-uses"
                   type="number"
                   min={1}
+                  max={10000}
                   value={maxUses}
-                  onChange={(e) => setMaxUses(e.target.value)}
+                  aria-invalid={Boolean(fieldErrors.maxUses)}
+                  aria-describedby={fieldErrors.maxUses ? "referral-max-uses-error" : undefined}
+                  onChange={(e) => { setMaxUses(e.target.value); setFieldErrors((current) => ({ ...current, maxUses: undefined })); }}
                   placeholder="Unlimited"
-                  className="h-[40px] w-full rounded-xl border border-[#dfe2e8] px-3.5 text-[13px] text-[#151b2b] placeholder:text-[#8a91a0] outline-none focus:border-[#5b4fcf] focus:ring-1 focus:ring-[#5b4fcf]/20"
+                  className={`h-[40px] w-full rounded-xl border px-3.5 text-[13px] text-[#151b2b] placeholder:text-[#8a91a0] outline-none focus:border-[#5b4fcf] focus:ring-1 focus:ring-[#5b4fcf]/20 ${fieldErrors.maxUses ? "border-[#c92f3f]" : "border-[#dfe2e8]"}`}
                 />
+                {fieldErrors.maxUses && <p id="referral-max-uses-error" className="mt-1 text-xs text-[#c92f3f]">{fieldErrors.maxUses}</p>}
               </div>
             </div>
-
-            {error && (
-              <p className="text-[12px] font-medium text-[#e02424]">{error}</p>
-            )}
 
             <div className="pt-3 flex items-center justify-end gap-2 border-t border-[#e7e9ee]">
               <Button

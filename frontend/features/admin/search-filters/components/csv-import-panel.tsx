@@ -26,12 +26,14 @@ export function CsvImportPanel({
   kind,
   file,
   isSaving,
+  error = false,
   onChooseFile,
   onClearFile,
 }: {
   kind: SearchFilterKind;
   file: { name: string; parsed: ParsedImport } | null;
   isSaving: boolean;
+  error?: boolean;
   onChooseFile: (file: File) => void;
   onClearFile: () => void;
 }) {
@@ -105,9 +107,11 @@ export function CsvImportPanel({
 
       {/* File */}
       <div
+        id="filter-import-file"
         role="button"
         tabIndex={isSaving ? -1 : 0}
         aria-disabled={isSaving}
+        data-form-invalid={error || hasProblems}
         aria-label="Choose a CSV file to import"
         onClick={() => !isSaving && inputRef.current?.click()}
         onKeyDown={(event) => {
@@ -124,7 +128,9 @@ export function CsvImportPanel({
         onDrop={onDrop}
         className={[
           "flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed px-4 py-6 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#315c9f]/25",
-          isDragging
+          error || hasProblems
+            ? "border-[#d92d20] bg-[#fff6f6]"
+            : isDragging
             ? "border-[#315c9f] bg-[#eef3fb]"
             : "border-[#d9dee7] bg-white hover:border-[#b9c6dc] hover:bg-[#f8f9fb]",
         ].join(" ")}

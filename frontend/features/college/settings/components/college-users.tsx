@@ -5,6 +5,8 @@ import { UserPlus, X } from "lucide-react";
 
 import { ListSkeleton } from "@/components/common/loading";
 import { Dropdown } from "@/components/ui/dropdown";
+import { getApiErrorMessage, getApiErrorStatus } from "@/lib/api/error-message";
+import { showFormError } from "@/lib/feedback/form-error";
 
 import type { CollegeTeamRole } from "@/store/college/types";
 
@@ -25,7 +27,9 @@ export function CollegeUsers() {
   const [error, setError] = useState<string | null>(null);
 
   const handleInvite = async () => {
-    if (!email.trim()) {
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) {
+      setError("Enter a valid email address.");
+      showFormError("Check the highlighted email address.", { portal: "college", fieldId: "college-invite-email" });
       return;
     }
 
@@ -36,8 +40,10 @@ export function CollegeUsers() {
       setEmail("");
       setRole("COLLEGE_STAFF");
       setShowInvite(false);
-    } catch {
-      setError("Could not add this member. Check the email and try again.");
+    } catch (failure) {
+      const message = getApiErrorMessage(failure, "Could not add this member. Check the email and try again.");
+      if (getApiErrorStatus(failure) === 422) setError(message);
+      showFormError(message, { portal: "college", fieldId: getApiErrorStatus(failure) === 422 ? "college-invite-email" : undefined });
     }
   };
 
@@ -176,12 +182,16 @@ export function CollegeUsers() {
                 </span>
 
                 <input
+                  id="college-invite-email"
                   type="email"
                   value={email}
-                  onChange={(event) => setEmail(event.target.value)}
+                  aria-invalid={Boolean(error)}
+                  aria-describedby={error ? "college-invite-email-error" : undefined}
+                  onChange={(event) => { setEmail(event.target.value); setError(null); }}
                   placeholder="name@college.edu"
-                  className="w-full rounded-[10px] border border-[#e1e5eb] bg-white px-4 py-3 text-[14px] font-medium leading-5 text-[#131A26] outline-none transition placeholder:text-[#64748b] focus:border-[#5a4bd6] focus:ring-2 focus:ring-[#5a4bd6]/10"
+                  className={`w-full rounded-[10px] border bg-white px-4 py-3 text-[14px] font-medium leading-5 text-[#131A26] outline-none transition placeholder:text-[#64748b] focus:border-[#5a4bd6] focus:ring-2 focus:ring-[#5a4bd6]/10 ${error ? "border-[#c43d3d]" : "border-[#e1e5eb]"}`}
                 />
+                {error && <span id="college-invite-email-error" className="text-xs text-[#c43d3d]">{error}</span>}
               </label>
 
               {/* Role */}
@@ -200,16 +210,10 @@ export function CollegeUsers() {
                 />
               </div>
 
-              {error && (
-                <p className="text-[12px] font-medium text-[#c43d3d]">
-                  {error}
-                </p>
-              )}
-
               {/* Submit */}
               <button
                 type="button"
-                disabled={isInvitingUser || !email.trim()}
+                disabled={isInvitingUser}
                 onClick={handleInvite}
                 className="mt-1 self-start rounded-[8px] border-0 bg-[#5a4bd6] px-4 py-[10px] text-[13px] font-semibold leading-[17px] text-white transition hover:bg-[#4f41c8] disabled:cursor-not-allowed disabled:opacity-50"
               >

@@ -19,6 +19,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { StudentErrorState } from "@/features/student/components";
 import { StudentPage, StudentTopBar } from "@/features/student/shell";
 import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
+import { showFormError } from "@/lib/feedback/form-error";
 import { getApiErrorCode, getApiErrorMessage } from "@/lib/api/error-message";
 import {
   useAcceptCollegeInvitationMutation,
@@ -102,15 +103,19 @@ function CodeInput({
   value,
   onChange,
   onEnter,
+  error,
 }: {
   value: string;
   onChange: (next: string) => void;
   onEnter: () => void;
+  error?: boolean;
 }) {
   const shown = [value.slice(0, 4), value.slice(4, 8), value.slice(8, 12)].filter(Boolean).join("-");
 
   return (
     <input
+      id="student-college-code"
+      aria-invalid={error}
       value={shown}
       maxLength={14}
       autoComplete="off"
@@ -125,7 +130,7 @@ function CodeInput({
           onEnter();
         }
       }}
-      className="h-14 w-full rounded-2xl border border-[#D9D2C3] bg-[#FFFCF7] px-4 text-center font-mono text-[20px] font-bold tracking-[0.18em] text-[#2D2466] outline-none transition placeholder:text-[#B9B2A0] focus:border-[#5F4DB2] focus:ring-4 focus:ring-[#5F4DB2]/15"
+      className={`h-14 w-full rounded-2xl border bg-[#FFFCF7] px-4 text-center font-mono text-[20px] font-bold tracking-[0.18em] text-[#2D2466] outline-none transition placeholder:text-[#B9B2A0] focus:border-[#5F4DB2] focus:ring-4 focus:ring-[#5F4DB2]/15 ${error ? "border-[#d92d20] ring-2 ring-[#d92d20]/10" : "border-[#D9D2C3]"}`}
     />
   );
 }
@@ -173,10 +178,11 @@ export function CollegePage() {
   const [revoke] = useRevokeCollegeConsentMutation();
 
   const [code, setCode] = useState("");
+  const [codeError, setCodeError] = useState(false);
   const [pending, setPending] = useState<Pending | null>(null);
   const [disconnecting, setDisconnecting] = useState<LinkedCollege | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [, setError] = useState<string | null>(null);
 
   const scope = pending?.kind === "individual" ? "INDIVIDUAL" : "ROSTER";
   const terms = useGetCollegeConsentTermsQuery(scope, { skip: !pending });
@@ -212,7 +218,13 @@ export function CollegePage() {
       setPending(null);
       setDisconnecting(null);
     } catch (failure) {
-      setError(getApiErrorMessage(failure, "That did not go through. Please try again."));
+      const message = getApiErrorMessage(failure, "That did not go through. Please try again.");
+      setError(message);
+      if (pending?.kind === "link") {
+        setCodeError(true);
+        setPending(null);
+      }
+      showFormError(message, { portal: "student", fieldId: pending?.kind === "link" ? "student-college-code" : undefined });
       if (getApiErrorCode(failure) === "consent_version_outdated") void terms.refetch();
     } finally {
       setBusy(false);
@@ -229,7 +241,13 @@ export function CollegePage() {
   }
 
   function submitCode() {
-    if (code.length === 12) start({ kind: "link", code: formatted(code) });
+    if (code.length !== 12) {
+      setCodeError(true);
+      showFormError("Enter the full 12-character college code.", { portal: "student", fieldId: "student-college-code" });
+      return;
+    }
+    setCodeError(false);
+    start({ kind: "link", code: formatted(code) });
   }
 
   function confirm() {
@@ -307,11 +325,6 @@ export function CollegePage() {
           </div>
         </header>
 
-        {error && !pending && !disconnecting ? (
-          <p role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            {error}
-          </p>
-        ) : null}
 
         {/* Disconnect prompt */}
         {disconnecting ? (
@@ -325,11 +338,6 @@ export function CollegePage() {
                 ? " Your college seat will be released, so you may lose access unless you have a membership."
                 : ""}
             </p>
-            {error ? (
-              <p role="alert" className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                {error}
-              </p>
-            ) : null}
             <div className="mt-5 flex justify-end gap-3">
               <button type="button" disabled={busy} onClick={() => setDisconnecting(null)} className={secondary}>
                 Cancel
@@ -364,11 +372,6 @@ export function CollegePage() {
             <p className="mt-3 rounded-2xl border border-[#E7E0D4] bg-[#FFFCF7] p-4 text-sm leading-6 text-[#3A4761]">
               {terms.isLoading ? "Loading consent terms…" : (terms.data?.text ?? "The consent terms could not be loaded.")}
             </p>
-            {error ? (
-              <p role="alert" className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                {error}
-              </p>
-            ) : null}
             <div className="mt-5 flex justify-end gap-3">
               <button type="button" disabled={busy} onClick={() => setPending(null)} className={secondary}>
                 Cancel
@@ -487,7 +490,7 @@ export function CollegePage() {
                 Your college gives you a 12-character code. Type or paste it below.
               </p>
               <div className="mt-4">
-                <CodeInput value={code} onChange={setCode} onEnter={submitCode} />
+                <CodeInput value={code} error={codeError} onChange={(next) => { setCode(next); setCodeError(false); }} onEnter={submitCode} />
               </div>
               <button
                 type="button"

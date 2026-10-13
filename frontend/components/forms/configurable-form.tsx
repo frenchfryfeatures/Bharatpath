@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 
 import { Dropdown } from "@/components/ui/dropdown";
 import { renderFieldLabel } from "@/features/employer/onboarding/components/kyb-field";
+import { showFormError } from "@/lib/feedback/form-error";
 
 import type {
   ConfigurableFormProps,
@@ -12,7 +14,7 @@ import type {
 } from "./configurable-form.types";
 
 const inputClasses =
-  "w-full rounded-[10px] border border-[#e1e5ea] bg-white px-4 py-3 text-[14px] font-medium leading-5 text-[#151b2b] outline-none transition placeholder:text-[#7b8493] focus:border-[#2f5da8] focus:ring-2 focus:ring-[#2f5da8]/10 disabled:cursor-not-allowed disabled:bg-[#f7f8fa]";
+  "w-full rounded-[10px] border border-[#e1e5ea] bg-white px-4 py-3 text-[14px] font-medium leading-5 text-[#151b2b] outline-none transition placeholder:text-[#7b8493] focus:border-[#2f5da8] focus:ring-2 focus:ring-[#2f5da8]/10 aria-[invalid=true]:border-[#d92d20] aria-[invalid=true]:ring-[#d92d20]/10 disabled:cursor-not-allowed disabled:bg-[#f7f8fa]";
 
 export function ConfigurableForm<TValues extends FormValues>({
   values,
@@ -27,6 +29,8 @@ export function ConfigurableForm<TValues extends FormValues>({
   disabled = false,
   className = "",
 }: ConfigurableFormProps<TValues>) {
+  const pathname = usePathname();
+  const portal = pathname.startsWith("/student") ? "student" : pathname.startsWith("/college") ? "college" : pathname.startsWith("/admin") ? "admin" : "employer";
   const [submitted, setSubmitted] = useState(false);
   const [validationErrors, setValidationErrors] = useState<
     Partial<Record<keyof TValues & string, string>>
@@ -50,7 +54,11 @@ export function ConfigurableForm<TValues extends FormValues>({
     };
 
     setValidationErrors(nextErrors);
-    if (Object.keys(nextErrors).length > 0) return;
+    if (Object.keys(nextErrors).length > 0) {
+      const first = Object.keys(nextErrors)[0] as keyof TValues & string;
+      showFormError(nextErrors[first] ?? "Check this field.", { portal, container: event.currentTarget, fieldId: `field-${first}` });
+      return;
+    }
     onSubmit(values);
   };
 
@@ -120,7 +128,7 @@ function ConfigurableField<TValues extends FormValues>({
 
   if (field.render) {
     return (
-      <div className={field.className}>
+      <div id={inputId} tabIndex={-1} data-form-invalid={showError && Boolean(error)} className={`${field.className ?? ""} ${showError && error ? "rounded-lg outline outline-1 outline-[#d92d20]" : ""}`}>
         {field.render({ value, error, setValue: onChange })}
         {showError && error ? (
           <p id={describedBy} className="mt-1.5 text-xs font-medium text-[#b42318]">

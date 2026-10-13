@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
+import { getApiErrorMessage } from "@/lib/api/error-message";
+import { showFormError } from "@/lib/feedback/form-error";
 import { useAppDispatch } from "@/store/hooks";
 import {
   closeInviteModal,
@@ -17,16 +19,24 @@ export function InviteMemberModal() {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<TeamRole>("Recruiter");
   const [roleMenuOpen, setRoleMenuOpen] = useState(false);
-  const [addMember, { isLoading, error }] = useAddEmployerTeamMemberMutation();
+  const [emailError, setEmailError] = useState("");
+  const [addMember, { isLoading }] = useAddEmployerTeamMemberMutation();
 
-  const submit = async (event: React.FormEvent) => {
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!email.trim()) return;
+    const form = event.currentTarget;
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) {
+      setEmailError("Enter a valid work email address.");
+      showFormError("Check the highlighted email address.", { portal: "employer", container: form });
+      return;
+    }
     try {
       await addMember({ email: email.trim(), role }).unwrap();
       dispatch(closeInviteModal());
-    } catch {
-      // The API error remains visible below the fields.
+    } catch (error) {
+      const message = getApiErrorMessage(error, "Could not add this team member.");
+      setEmailError(message);
+      showFormError(message, { portal: "employer", container: form, fieldId: "invite-member-email" });
     }
   };
 
@@ -35,6 +45,7 @@ export function InviteMemberModal() {
       <form
         className="w-full max-w-[440px] rounded-[13px] border border-[#dfe4ea] bg-white p-5 shadow-[0_20px_50px_rgba(15,23,42,0.18)]"
         onSubmit={submit}
+        noValidate
         onKeyDown={(event) => {
           if (event.key === "Escape" && roleMenuOpen) {
             event.stopPropagation();
@@ -62,21 +73,23 @@ export function InviteMemberModal() {
           </button>
         </div>
 
-        {error && <p className="text-xs text-[#c0392b]">Could not add this team member.</p>}
-
         <div className="mb-3 flex flex-col gap-1.5">
           <span className="text-[11px] font-semibold leading-[15px] text-[#526074]">
             Work email
           </span>
           <input
+            id="invite-member-email"
             autoFocus
             type="email"
             aria-label="Work email"
             placeholder="name@company.com"
             value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            className={inputClass}
+            aria-invalid={Boolean(emailError)}
+            aria-describedby={emailError ? "invite-member-email-error" : undefined}
+            onChange={(event) => { setEmail(event.target.value); setEmailError(""); }}
+            className={`${inputClass} ${emailError ? "!border-[#d92d20]" : ""}`}
           />
+          {emailError && <span id="invite-member-email-error" className="text-xs text-[#c0392b]">{emailError}</span>}
         </div>
 
         <div className="mb-3 flex flex-col gap-1.5">

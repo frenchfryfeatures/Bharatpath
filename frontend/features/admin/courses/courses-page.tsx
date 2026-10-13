@@ -20,6 +20,7 @@ import { ErrorState, Modal, SelectDropdown } from "@/components/ui";
 import { Skeleton } from "@/components/common/loading";
 import { useScrollLock } from "@/hooks/use-scroll-lock";
 import { getApiErrorMessage } from "@/lib/api/error-message";
+import { showFormError } from "@/lib/feedback/form-error";
 import { showAdminFeedback } from "@/store/admin";
 import {
   type AdminCourse,
@@ -89,6 +90,25 @@ function editorError(error: unknown) {
   return getApiErrorMessage(error, "The course could not be updated. Please try again.");
 }
 
+function isYouTubeVideoUrl(value: string) {
+  try {
+    const url = new URL(value.trim());
+    if (!["http:", "https:"].includes(url.protocol)) return false;
+    if (!["youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be", "www.youtube-nocookie.com"].includes(url.hostname)) return false;
+    const parts = url.pathname.split("/").filter(Boolean);
+    const videoId = url.hostname === "youtu.be"
+      ? parts[0]
+      : parts[0] === "watch"
+        ? url.searchParams.get("v")
+        : ["embed", "shorts", "live", "v"].includes(parts[0])
+          ? parts[1]
+          : null;
+    return /^[A-Za-z0-9_-]{11}$/.test(videoId ?? "");
+  } catch {
+    return false;
+  }
+}
+
 export function CoursesPage() {
   usePageHeader("Courses", "Build course modules and lessons, upload videos, and control publishing");
   const { data: courses = [], error, isLoading, isFetching, refetch } = useGetAdminCoursesQuery();
@@ -96,7 +116,6 @@ export function CoursesPage() {
   const [moduleEditor, setModuleEditor] = useState<AdminCourseModule | "new" | null>(null);
   const [lessonEditor, setLessonEditor] = useState<{ moduleId: string; lesson: AdminCourseLesson | null } | null>(null);
   const [publishTarget, setPublishTarget] = useState<AdminCourse | null>(null);
-  const [requestError, setRequestError] = useState<unknown>(null);
 
   const course = courses.find((item) => item.code === selectedCode) ?? courses[0];
   const totals = useMemo(() => {
@@ -138,14 +157,12 @@ export function CoursesPage() {
         </div>
         <button
           type="button"
-          onClick={() => { setRequestError(null); setModuleEditor("new"); }}
+          onClick={() => setModuleEditor("new")}
           className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#151b2b] px-4 text-[12px] font-semibold text-white hover:bg-[#20283d]"
         >
           <Plus size={16} /> Add module
         </button>
       </div>
-
-      {requestError ? <ErrorState error={requestError} fallback={editorError(requestError)} /> : null}
 
       <section className="rounded-xl border border-[#e3e6eb] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.03)]">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -177,9 +194,9 @@ export function CoursesPage() {
           <ModuleCard
             key={module.id}
             module={module}
-            onEdit={() => { setRequestError(null); setModuleEditor(module); }}
-            onAddLesson={() => { setRequestError(null); setLessonEditor({ moduleId: module.id, lesson: null }); }}
-            onEditLesson={(lesson) => { setRequestError(null); setLessonEditor({ moduleId: module.id, lesson }); }}
+            onEdit={() => setModuleEditor(module)}
+            onAddLesson={() => setLessonEditor({ moduleId: module.id, lesson: null })}
+            onEditLesson={(lesson) => setLessonEditor({ moduleId: module.id, lesson })}
           />
         )) : (
           <div className="rounded-xl border border-dashed border-[#dfe2e8] bg-white px-6 py-12 text-center">
@@ -194,7 +211,7 @@ export function CoursesPage() {
           course={course}
           module={moduleEditor === "new" ? null : moduleEditor}
           onClose={() => setModuleEditor(null)}
-          onError={setRequestError}
+          onError={(error) => showFormError(editorError(error), { portal: "admin" })}
         />
       ) : null}
       {lessonEditor ? (
@@ -202,14 +219,14 @@ export function CoursesPage() {
           moduleId={lessonEditor.moduleId}
           lesson={lessonEditor.lesson}
           onClose={() => setLessonEditor(null)}
-          onError={setRequestError}
+          onError={(error) => showFormError(editorError(error), { portal: "admin" })}
         />
       ) : null}
       {publishTarget ? (
         <PublishDialog
           course={publishTarget}
           onClose={() => setPublishTarget(null)}
-          onError={setRequestError}
+          onError={(error) => showFormError(editorError(error), { portal: "admin" })}
         />
       ) : null}
       {isFetching ? <span className="sr-only" role="status">Refreshing courses</span> : null}
@@ -264,17 +281,25 @@ function ModuleCard({ module, onEdit, onAddLesson, onEditLesson }: {
 function ModuleEditor({ course, module, onClose, onError }: { course: AdminCourse; module: AdminCourseModule | null; onClose: () => void; onError: (error: unknown) => void }) {
   const dispatch = useAppDispatch();
   const [draft, setDraft] = useState<ModuleDraft>(module ? { title: module.title, sortOrder: String(module.sort_order) } : emptyModule());
-  const [fieldError, setFieldError] = useState<string | null>(null);
+  const [fieldError, setFieldError] = useState<{ field: "title" | "sortOrder"; message: string } | null>(null);
   const [create, createState] = useCreateAdminCourseModuleMutation();
   const [update, updateState] = useUpdateAdminCourseModuleMutation();
   const saving = createState.isLoading || updateState.isLoading;
 
-  async function submit(event: FormEvent) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const title = draft.title.trim();
     const order = Number(draft.sortOrder);
-    if (!title || title.length > 200) return setFieldError(!title ? "Enter a module title." : "Use 200 characters or fewer.");
-    if (!Number.isInteger(order) || order < 0 || order > 10_000) return setFieldError("Order must be a whole number from 0 to 10,000.");
+    if (!title || title.length > 200) {
+      setFieldError({ field: "title", message: !title ? "Enter a module title." : "Use 200 characters or fewer." });
+      showFormError("Check the highlighted module field.", { portal: "admin", container: event.currentTarget });
+      return;
+    }
+    if (!draft.sortOrder.trim() || !Number.isInteger(order) || order < 0 || order > 10_000) {
+      setFieldError({ field: "sortOrder", message: "Order must be a whole number from 0 to 10,000." });
+      showFormError("Check the highlighted module field.", { portal: "admin", container: event.currentTarget });
+      return;
+    }
     try {
       if (module) await update({ moduleId: module.id, body: { title, sort_order: order } }).unwrap();
       else await create({ code: course.code, body: { title, sort_order: order } }).unwrap();
@@ -295,11 +320,11 @@ function ModuleEditor({ course, module, onClose, onError }: { course: AdminCours
   return (
     <CourseDrawer title={module ? "Edit module" : "Add module"} description={`Organise lessons within ${course.title}.`} onClose={onClose} closeDisabled={saving}>
       <form onSubmit={submit} noValidate className="space-y-4">
-        <FormField id="module-title" label="Module title" error={fieldError ?? undefined}>
-          <input {...a11y("module-title", fieldError ?? undefined)} value={draft.title} onChange={(e) => { setDraft({ ...draft, title: e.target.value }); setFieldError(null); }} maxLength={200} className={inputClass(Boolean(fieldError), INPUT_HEIGHT)} placeholder="e.g. Getting started" autoFocus />
+        <FormField id="module-title" label="Module title" error={fieldError?.field === "title" ? fieldError.message : undefined}>
+          <input {...a11y("module-title", fieldError?.field === "title" ? fieldError.message : undefined)} value={draft.title} onChange={(e) => { setDraft({ ...draft, title: e.target.value }); setFieldError(null); }} maxLength={200} className={inputClass(fieldError?.field === "title", INPUT_HEIGHT)} placeholder="e.g. Getting started" autoFocus />
         </FormField>
-        <FormField id="module-order" label="Display order" hint="Lower numbers appear first.">
-          <input id="module-order" type="number" min={0} max={10000} value={draft.sortOrder} onChange={(e) => setDraft({ ...draft, sortOrder: e.target.value })} className={inputClass(false, INPUT_HEIGHT)} />
+        <FormField id="module-order" label="Display order" error={fieldError?.field === "sortOrder" ? fieldError.message : undefined} hint="Lower numbers appear first.">
+          <input {...a11y("module-order", fieldError?.field === "sortOrder" ? fieldError.message : undefined)} type="number" min={0} max={10000} value={draft.sortOrder} onChange={(e) => { setDraft({ ...draft, sortOrder: e.target.value }); setFieldError(null); }} className={inputClass(fieldError?.field === "sortOrder", INPUT_HEIGHT)} />
         </FormField>
         <div className="flex items-center justify-between gap-3 border-t border-[#edf0f3] pt-4">
           {module ? <button type="button" onClick={toggleActive} disabled={saving} className="inline-flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold text-[#a83d44] disabled:opacity-50"><CircleOff size={14} /> {module.active ? "Deactivate" : "Activate"} module</button> : <span />}
@@ -316,7 +341,8 @@ function ModuleEditor({ course, module, onClose, onError }: { course: AdminCours
 function LessonEditor({ moduleId, lesson, onClose, onError }: { moduleId: string; lesson: AdminCourseLesson | null; onClose: () => void; onError: (error: unknown) => void }) {
   const dispatch = useAppDispatch();
   const [draft, setDraft] = useState<LessonDraft>(lesson ? lessonDraft(lesson) : emptyLesson());
-  const [formError, setFormError] = useState<string | null>(null);
+  type LessonField = "title" | "description" | "sortOrder" | "youtubeUrl" | "file";
+  const [fieldError, setFieldError] = useState<{ field: LessonField; message: string } | null>(null);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [create, createState] = useCreateAdminCourseLessonMutation();
   const [update, updateState] = useUpdateAdminCourseLessonMutation();
@@ -336,18 +362,25 @@ function LessonEditor({ moduleId, lesson, onClose, onError }: { moduleId: string
     await confirmUpload(lessonId).unwrap();
   }
 
-  async function submit(event: FormEvent) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setFormError(null);
+    const form = event.currentTarget;
+    setFieldError(null);
     const title = draft.title.trim();
     const description = draft.description.trim();
     const order = Number(draft.sortOrder);
-    if (!title) return setFormError("Enter a lesson title.");
-    if (title.length > 200) return setFormError("The lesson title must be 200 characters or fewer.");
-    if (description.length > 2000) return setFormError("The description must be 2,000 characters or fewer.");
-    if (!Number.isInteger(order) || order < 0 || order > 10_000) return setFormError("Order must be a whole number from 0 to 10,000.");
-    if (draft.media === "YOUTUBE" && !draft.youtubeUrl.trim()) return setFormError("Enter a YouTube video URL.");
-    if (draft.media === "UPLOAD" && (!lesson || lesson.media_kind !== "UPLOAD") && !draft.file) return setFormError("Choose an MP4 or WebM video to upload.");
+    const fail = (field: LessonField, message: string) => {
+      setFieldError({ field, message });
+      showFormError("Check the highlighted lesson field.", { portal: "admin", container: form });
+    };
+    if (!title) return fail("title", "Enter a lesson title.");
+    if (title.length > 200) return fail("title", "The lesson title must be 200 characters or fewer.");
+    if (description.length > 2000) return fail("description", "The description must be 2,000 characters or fewer.");
+    if (!draft.sortOrder.trim() || !Number.isInteger(order) || order < 0 || order > 10_000) return fail("sortOrder", "Order must be a whole number from 0 to 10,000.");
+    if (draft.media === "YOUTUBE" && !draft.youtubeUrl.trim()) return fail("youtubeUrl", "Enter a YouTube video URL.");
+    if (draft.media === "YOUTUBE" && !isYouTubeVideoUrl(draft.youtubeUrl)) return fail("youtubeUrl", "Enter a valid YouTube video URL.");
+    if (draft.media === "UPLOAD" && (!lesson || lesson.media_kind !== "UPLOAD") && !draft.file) return fail("file", "Choose an MP4 or WebM video to upload.");
+    if (draft.media === "UPLOAD" && draft.file && !["video/mp4", "video/webm"].includes(draft.file.type)) return fail("file", "Choose an MP4 or WebM video.");
     try {
       let lessonId = lesson?.id;
       const body = { title, description: description || null, sort_order: order };
@@ -362,8 +395,10 @@ function LessonEditor({ moduleId, lesson, onClose, onError }: { moduleId: string
       onClose();
     } catch (error) {
       setUploadProgress(null);
-      if (error instanceof Error) setFormError(error.message);
-      else onError(error);
+      if (error instanceof Error && draft.media === "UPLOAD") {
+        setFieldError({ field: "file", message: error.message });
+        showFormError(error.message, { portal: "admin", container: form, fieldId: "lesson-file" });
+      } else onError(error);
     }
   }
 
@@ -379,15 +414,14 @@ function LessonEditor({ moduleId, lesson, onClose, onError }: { moduleId: string
   return (
     <CourseDrawer title={lesson ? "Edit lesson" : "Add lesson"} description="Add a YouTube link or upload an MP4/WebM video." onClose={onClose} closeDisabled={saving} wide>
       <form onSubmit={submit} noValidate className="space-y-4">
-        {formError ? <p role="alert" className="rounded-lg border border-[#f2c8c5] bg-[#fff7f6] px-3 py-2.5 text-[12px] text-[#b42318]">{formError}</p> : null}
-        <FormField id="lesson-title" label="Lesson title">
-          <input id="lesson-title" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} maxLength={200} className={inputClass(false, INPUT_HEIGHT)} placeholder="e.g. Writing a strong profile" autoFocus />
+        <FormField id="lesson-title" label="Lesson title" error={fieldError?.field === "title" ? fieldError.message : undefined}>
+          <input {...a11y("lesson-title", fieldError?.field === "title" ? fieldError.message : undefined)} value={draft.title} onChange={(e) => { setDraft({ ...draft, title: e.target.value }); setFieldError(null); }} maxLength={200} className={inputClass(fieldError?.field === "title", INPUT_HEIGHT)} placeholder="e.g. Writing a strong profile" autoFocus />
         </FormField>
-        <FormField id="lesson-description" label="Description" hint={`${draft.description.length}/2,000 characters`}>
-          <textarea id="lesson-description" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} maxLength={2000} rows={3} className={inputClass(false, "resize-y py-2.5")} placeholder="What will the student learn?" />
+        <FormField id="lesson-description" label="Description" error={fieldError?.field === "description" ? fieldError.message : undefined} hint={`${draft.description.length}/2,000 characters`}>
+          <textarea {...a11y("lesson-description", fieldError?.field === "description" ? fieldError.message : undefined)} value={draft.description} onChange={(e) => { setDraft({ ...draft, description: e.target.value }); setFieldError(null); }} maxLength={2000} rows={3} className={inputClass(fieldError?.field === "description", "resize-y py-2.5")} placeholder="What will the student learn?" />
         </FormField>
-        <FormField id="lesson-order" label="Display order">
-          <input id="lesson-order" type="number" min={0} max={10000} value={draft.sortOrder} onChange={(e) => setDraft({ ...draft, sortOrder: e.target.value })} className={inputClass(false, INPUT_HEIGHT)} />
+        <FormField id="lesson-order" label="Display order" error={fieldError?.field === "sortOrder" ? fieldError.message : undefined}>
+          <input {...a11y("lesson-order", fieldError?.field === "sortOrder" ? fieldError.message : undefined)} type="number" min={0} max={10000} value={draft.sortOrder} onChange={(e) => { setDraft({ ...draft, sortOrder: e.target.value }); setFieldError(null); }} className={inputClass(fieldError?.field === "sortOrder", INPUT_HEIGHT)} />
         </FormField>
         <fieldset>
           <legend className="mb-2 text-[12px] font-semibold text-[#344054]">Video source</legend>
@@ -400,12 +434,12 @@ function LessonEditor({ moduleId, lesson, onClose, onError }: { moduleId: string
           </div>
         </fieldset>
         {draft.media === "YOUTUBE" ? (
-          <FormField id="youtube-url" label="YouTube URL" hint="Public or unlisted YouTube links are supported.">
-            <input id="youtube-url" type="url" value={draft.youtubeUrl} onChange={(e) => setDraft({ ...draft, youtubeUrl: e.target.value })} maxLength={500} className={inputClass(false, INPUT_HEIGHT)} placeholder="https://www.youtube.com/watch?v=…" />
+          <FormField id="youtube-url" label="YouTube URL" error={fieldError?.field === "youtubeUrl" ? fieldError.message : undefined} hint="Public or unlisted YouTube links are supported.">
+            <input {...a11y("youtube-url", fieldError?.field === "youtubeUrl" ? fieldError.message : undefined)} type="url" value={draft.youtubeUrl} onChange={(e) => { setDraft({ ...draft, youtubeUrl: e.target.value }); setFieldError(null); }} maxLength={500} className={inputClass(fieldError?.field === "youtubeUrl", INPUT_HEIGHT)} placeholder="https://www.youtube.com/watch?v=…" />
           </FormField>
         ) : (
-          <FormField id="lesson-file" label={lesson?.media_kind === "UPLOAD" && lesson.media_ready ? "Replace video (optional)" : "Video file"} hint={lesson?.media_kind === "UPLOAD" && lesson.media_ready ? "Leave empty to keep the current video. MP4 or WebM only." : "MP4 or WebM only. The server checks the file after upload."}>
-            <input id="lesson-file" type="file" accept="video/mp4,video/webm" onChange={(e) => setDraft({ ...draft, file: e.target.files?.[0] ?? null })} className="block w-full cursor-pointer rounded-lg border border-[#dfe2e8] bg-white text-[12px] text-[#687182] file:mr-3 file:h-10 file:border-0 file:border-r file:border-[#dfe2e8] file:bg-[#f7f8fa] file:px-3 file:text-[11px] file:font-semibold file:text-[#344054]" />
+          <FormField id="lesson-file" label={lesson?.media_kind === "UPLOAD" && lesson.media_ready ? "Replace video (optional)" : "Video file"} error={fieldError?.field === "file" ? fieldError.message : undefined} hint={lesson?.media_kind === "UPLOAD" && lesson.media_ready ? "Leave empty to keep the current video. MP4 or WebM only." : "MP4 or WebM only. The server checks the file after upload."}>
+            <input {...a11y("lesson-file", fieldError?.field === "file" ? fieldError.message : undefined)} type="file" accept="video/mp4,video/webm" onChange={(e) => { setDraft({ ...draft, file: e.target.files?.[0] ?? null }); setFieldError(null); }} className={`block w-full cursor-pointer rounded-lg border bg-white text-[12px] text-[#687182] file:mr-3 file:h-10 file:border-0 file:border-r file:border-[#dfe2e8] file:bg-[#f7f8fa] file:px-3 file:text-[11px] file:font-semibold file:text-[#344054] ${fieldError?.field === "file" ? "border-[#d92d20]" : "border-[#dfe2e8]"}`} />
           </FormField>
         )}
         {uploadProgress ? <p role="status" className="text-[11px] font-semibold text-[#315c9f]">{uploadProgress}</p> : null}

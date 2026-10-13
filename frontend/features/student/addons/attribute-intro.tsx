@@ -1,6 +1,8 @@
 "use client";
 
 import { choiceLabel } from "@/lib/format/labels";
+import { getApiErrorCode, getApiErrorMessage, getApiErrorParams } from "@/lib/api/error-message";
+import { showErrorFeedback } from "@/lib/feedback/error-feedback";
 
 import { useMemo, useState } from "react";
 import { Check, Info, Pencil, Search, X } from "lucide-react";
@@ -74,20 +76,18 @@ function QuestionnaireForm({
     questionnaire.answers,
   );
   const [isEditing, setIsEditing] = useState(!questionnaire.submitted);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
 
   const questions = useMemo(
     () => questionnaire.sections.flatMap((section) => section.questions),
     [questionnaire.sections],
   );
-  const sectionRanges = useMemo(() => {
-    let next = 1;
-    return questionnaire.sections.map((section) => {
-      const start = next;
-      next += section.questions.length;
-      return { section, start, end: next - 1 };
-    });
-  }, [questionnaire.sections]);
+  const sectionRanges = useMemo(() => questionnaire.sections.map((section, index) => {
+    const start = questionnaire.sections.slice(0, index)
+      .reduce((count, previous) => count + previous.questions.length, 1);
+    return { section, start, end: start + section.questions.length - 1 };
+  }), [questionnaire.sections]);
   const missingRequired = questions.some((question) => {
     const answer = answers[question.code];
     return (
@@ -98,34 +98,102 @@ function QuestionnaireForm({
         (Array.isArray(answer) && answer.length === 0))
     );
   });
-  const actionError = saveState.error ?? submitState.error;
   const cleanedAnswers = Object.fromEntries(
-    Object.entries(answers).map(([code, answer]) => [
-      code,
-      answer === "" || (Array.isArray(answer) && answer.length === 0)
-        ? null
-        : answer,
-    ]),
+    Object.entries(answers).map(([code, answer]) => {
+      if (answer === "" || (Array.isArray(answer) && answer.length === 0)) {
+        return [code, null];
+      }
+      const question = questions.find((item) => item.code === code);
+      return [code, question?.type === "NUMBER" && typeof answer === "string"
+        ? Number(answer)
+        : answer];
+    }),
   );
 
+  const showFieldErrors = (errors: Record<string, string>) => {
+    setFieldErrors(errors);
+    showErrorFeedback("Please check the highlighted answer and try again.");
+    const firstQuestion = questions.find((question) => errors[question.code]);
+    if (firstQuestion) {
+      window.requestAnimationFrame(() => {
+        const field = document.getElementById(`attribute-question-${firstQuestion.code}`);
+        field?.scrollIntoView({ behavior: "smooth", block: "center" });
+        field?.focus({ preventScroll: true });
+      });
+    }
+  };
+
+  const validateAnswers = () => {
+    const errors: Record<string, string> = {};
+    for (const question of questions) {
+      const value = answers[question.code];
+      if (value === null || value === undefined || value === "") continue;
+      if (question.type === "NUMBER" &&
+          (typeof value !== "number" && typeof value !== "string" ||
+            !/^\d+$/.test(String(value)) || Number(value) > 100_000)) {
+        errors[question.code] = "Enter a whole number from 0 to 100,000.";
+      } else if (question.type === "TEXT" && typeof value === "string" &&
+          (value.trim().length === 0 || value.trim().length > 1_000)) {
+        errors[question.code] = "Enter between 1 and 1,000 characters.";
+      }
+    }
+    return errors;
+  };
+
+  const handleSaveError = (error: unknown) => {
+    if (getApiErrorCode(error) === "questionnaire_answers_invalid") {
+      const issues = getApiErrorParams(error)?.issues;
+      if (Array.isArray(issues)) {
+        const errors: Record<string, string> = {};
+        for (const issue of issues) {
+          if (typeof issue !== "object" || issue === null) continue;
+          const { question, code } = issue as { question?: unknown; code?: unknown };
+          if (typeof question !== "string" || !questions.some((item) => item.code === question)) continue;
+          errors[question] = code === "invalid_number_answer"
+            ? "Enter a whole number from 0 to 100,000."
+            : code === "invalid_text_answer"
+              ? "Enter between 1 and 1,000 characters."
+              : "Choose a valid answer.";
+        }
+        if (Object.keys(errors).length > 0) {
+          showFieldErrors(errors);
+          return;
+        }
+      }
+    }
+    showErrorFeedback(getApiErrorMessage(error, "Could not save your answers."));
+  };
+
   const save = async () => {
+    const errors = validateAnswers();
+    if (Object.keys(errors).length > 0) {
+      showFieldErrors(errors);
+      return;
+    }
     try {
       await saveAnswers({ answers: cleanedAnswers }).unwrap();
+      setFieldErrors({});
       if (questionnaire.submitted) setIsEditing(false);
-    } catch {
-      // Mutation state renders the error.
+    } catch (error) {
+      handleSaveError(error);
     }
   };
 
   const finish = async () => {
+    const errors = validateAnswers();
+    if (Object.keys(errors).length > 0) {
+      showFieldErrors(errors);
+      return;
+    }
     try {
       await saveAnswers({
         answers: cleanedAnswers,
         __suppressSuccessFeedback: true,
       }).unwrap();
       await submit().unwrap();
-    } catch {
-      // Mutation state renders the error.
+      setFieldErrors({});
+    } catch (error) {
+      handleSaveError(error);
     }
   };
 
@@ -140,6 +208,7 @@ function QuestionnaireForm({
               icon={<Pencil size={16} aria-hidden="true" />}
               onClick={() => {
                 setAnswers(questionnaire.answers);
+                setFieldErrors({});
                 setIsEditing(true);
               }}
             >
@@ -190,12 +259,19 @@ function QuestionnaireForm({
                       number={start + index}
                       question={question}
                       value={answers[question.code]}
-                      onChange={(value) =>
+                      error={fieldErrors[question.code]}
+                      onChange={(value) => {
+                        setFieldErrors((current) => {
+                          if (!current[question.code]) return current;
+                          const next = { ...current };
+                          delete next[question.code];
+                          return next;
+                        });
                         setAnswers((current) => ({
                           ...current,
                           [question.code]: value,
-                        }))
-                      }
+                        }));
+                      }}
                     />
                   ))}
                 </section>
@@ -207,18 +283,12 @@ function QuestionnaireForm({
               These answers never change your resume score.
             </div>
 
-            {actionError ? (
-              <StudentErrorState
-                variant="inline"
-                error={actionError}
-                fallback="Could not save your answers."
-              />
-            ) : null}
             <div className="sticky bottom-0 z-10 -mx-1 flex max-w-3xl gap-3 border-t border-[#E7E0D4] bg-[#FFFCF7] px-1 py-3">
               {questionnaire.submitted ? (
                 <>
                   <PillButton variant="secondary" className="flex-1" disabled={saveState.isLoading} onClick={() => {
                     setAnswers(questionnaire.answers);
+                    setFieldErrors({});
                     setIsEditing(false);
                   }}>
                     Cancel
@@ -258,11 +328,13 @@ function QuestionField({
   number,
   question,
   value,
+  error,
   onChange,
 }: {
   number: number;
   question: QuestionnaireQuestion;
   value: unknown;
+  error?: string;
   onChange: (value: unknown) => void;
 }) {
   const answered =
@@ -272,8 +344,12 @@ function QuestionField({
     !(Array.isArray(value) && value.length === 0);
   return (
     <fieldset
+      id={`attribute-question-${question.code}`}
       aria-label={`Question ${number}`}
-      className="flex flex-col gap-3 rounded-2xl border border-[#E7E0D4] bg-white p-5"
+      aria-invalid={Boolean(error)}
+      aria-describedby={error ? `attribute-error-${question.code}` : undefined}
+      tabIndex={-1}
+      className={`flex scroll-mt-28 flex-col gap-3 rounded-2xl border bg-white p-5 outline-none ${error ? "border-[#C34A2E] bg-[#FFF8F5] ring-2 ring-[#EBC7BA]" : "border-[#E7E0D4]"}`}
     >
       <legend className="float-left w-full text-[15px] font-semibold leading-snug text-[#0A1931]">
         {question.prompt}
@@ -335,21 +411,31 @@ function QuestionField({
       {question.type === "NUMBER" ? (
         <input
           type="number"
-          value={typeof value === "number" ? value : ""}
+          min={0}
+          max={100000}
+          step={1}
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? `attribute-error-${question.code}` : undefined}
+          value={typeof value === "number" || typeof value === "string" ? value : ""}
           placeholder="Enter a number"
-          onChange={(event) =>
-            onChange(event.target.value === "" ? "" : Number(event.target.value))
-          }
-          className="rounded-xl border border-[#E7E0D4] bg-[#FFFCF7] px-3.5 py-2.5 text-[14px] outline-none placeholder:text-[#8891A0] focus:border-[#5F4DB2]"
+          onChange={(event) => onChange(event.target.value)}
+          className={`rounded-xl border bg-[#FFFCF7] px-3.5 py-2.5 text-[14px] outline-none placeholder:text-[#8891A0] focus:border-[#5F4DB2] ${error ? "border-[#C34A2E]" : "border-[#E7E0D4]"}`}
         />
       ) : null}
       {question.type === "TEXT" ? (
         <textarea
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? `attribute-error-${question.code}` : undefined}
           value={typeof value === "string" ? value : ""}
           onChange={(event) => onChange(event.target.value)}
           rows={3}
-          className="rounded-xl border border-[#E7E0D4] bg-[#FFFCF7] px-3.5 py-2.5 text-[14px] outline-none focus:border-[#5F4DB2]"
+          className={`rounded-xl border bg-[#FFFCF7] px-3.5 py-2.5 text-[14px] outline-none focus:border-[#5F4DB2] ${error ? "border-[#C34A2E]" : "border-[#E7E0D4]"}`}
         />
+      ) : null}
+      {error ? (
+        <p id={`attribute-error-${question.code}`} className="text-[13px] font-medium text-[#993A22]">
+          {error}
+        </p>
       ) : null}
       {answered && question.code !== "PREFERRED_LOCATIONS" ? (
         <button

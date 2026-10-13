@@ -21,6 +21,7 @@ import {
   type KybFieldErrors,
 } from "@/features/employer/onboarding/kyb-form";
 import { getApiErrorMessage } from "@/lib/api/error-message";
+import { showFormError } from "@/lib/feedback/form-error";
 import {
   useGetCollegeOnboardingQuery,
   useSaveCollegeOnboardingMutation,
@@ -73,7 +74,6 @@ export function CollegeDetailsWizard({
   const [stepIndex, setStepIndex] = useState(0);
   const [maxVisited, setMaxVisited] = useState(0);
   const [errors, setErrors] = useState<KybFieldErrors>({});
-  const [banner, setBanner] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const data = onboarding.data;
@@ -145,17 +145,31 @@ export function CollegeDetailsWizard({
     const first = sections.findIndex((item) =>
       item.fields.some((field) => next[field.code]),
     );
-    if (first >= 0) setStepIndex(first);
+    if (first >= 0) {
+      setStepIndex(first);
+      const firstField = sections[first].fields.find((field) => next[field.code]);
+      showFormError("Check the highlighted fields before continuing.", {
+        portal: "college",
+        fieldId: firstField ? `kyb-field-${firstField.code}` : undefined,
+      });
+    } else {
+      showFormError("Some details could not be saved. Refresh the form and try again.", { portal: "college" });
+    }
     return true;
   };
 
   const next = async () => {
     if (!section) return;
-    setBanner(null);
-
     const problems = validateSection(section, answers, NO_UPLOADS);
     setErrors(problems);
-    if (Object.keys(problems).length > 0) return;
+    if (Object.keys(problems).length > 0) {
+      const firstField = section.fields.find((field) => problems[field.code]);
+      showFormError("Check the highlighted fields before continuing.", {
+        portal: "college",
+        fieldId: firstField ? `kyb-field-${firstField.code}` : undefined,
+      });
+      return;
+    }
 
     setBusy(true);
     try {
@@ -175,7 +189,7 @@ export function CollegeDetailsWizard({
       scrollToTop();
     } catch (error) {
       if (!showIssues(error)) {
-        setBanner(getApiErrorMessage(error, "We could not save your details. Please try again."));
+        showFormError(getApiErrorMessage(error, "We could not save your details. Please try again."), { portal: "college" });
       }
     } finally {
       setBusy(false);
@@ -270,7 +284,6 @@ export function CollegeDetailsWizard({
           </>
         }
       >
-        {banner ? <CollegeErrorState variant="inline" className="mb-5" message={banner} /> : null}
         <KybSectionFields
           form={form}
           section={section}

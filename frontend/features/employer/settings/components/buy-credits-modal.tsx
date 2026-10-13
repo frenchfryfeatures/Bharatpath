@@ -1,5 +1,8 @@
 "use client";
 
+import { useState } from "react";
+import { showFormError } from "@/lib/feedback/form-error";
+
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   closeCheckoutModal,
@@ -13,6 +16,7 @@ export function BuyCreditsModal() {
   const dispatch = useAppDispatch();
   const packs = useAppSelector(selectEmployerCreditPacks);
   const selected = useAppSelector(selectSelectedCreditPack);
+  const [selectionError, setSelectionError] = useState(false);
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/35 p-5">
@@ -35,7 +39,7 @@ export function BuyCreditsModal() {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+        <div id="credit-pack-options" tabIndex={-1} data-form-invalid={selectionError} className={`grid grid-cols-1 gap-2.5 sm:grid-cols-3 ${selectionError ? "rounded-lg outline outline-1 outline-[#d92d20]" : ""}`}>
           {packs.map((pack) => {
             const isSelected = selected?.id === pack.id;
 
@@ -49,7 +53,7 @@ export function BuyCreditsModal() {
                     ? "border-[#5a4bd1] shadow-[0_0_0_2px_rgba(90,75,209,0.12)]"
                     : "border-[#dfe4ea]",
                 ].join(" ")}
-                onClick={() => dispatch(setSelectedCreditPack(pack.id))}
+                onClick={() => { setSelectionError(false); dispatch(setSelectedCreditPack(pack.id)); }}
               >
                 {pack.popular && (
                   <span className="absolute right-2 top-2 rounded-full bg-[#edf1fb] px-1.5 py-1 text-[8px] font-extrabold text-[#3b5596]">
@@ -92,9 +96,15 @@ export function BuyCreditsModal() {
 
           <button
             type="button"
-            disabled={!selected}
             className="min-h-9 cursor-pointer rounded-lg border border-[#5a4bd1] bg-[#5b4ed0] px-3.5 text-xs font-bold text-white hover:bg-[#4f43bd] disabled:cursor-not-allowed disabled:opacity-50"
-            onClick={() => dispatch(completeCreditPurchase())}
+            onClick={() => {
+              if (!selected) {
+                setSelectionError(true);
+                showFormError("Choose a credit pack.", { portal: "employer", fieldId: "credit-pack-options" });
+                return;
+              }
+              dispatch(completeCreditPurchase());
+            }}
           >
             Pay &amp; buy credits
           </button>

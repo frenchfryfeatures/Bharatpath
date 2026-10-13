@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { showFormError } from "@/lib/feedback/form-error";
 import { useAppDispatch } from "@/store/hooks";
 import {
   addPaymentMethod,
@@ -13,10 +14,16 @@ const inputClass =
 export function AddPaymentMethodModal() {
   const dispatch = useAppDispatch();
   const [upiId, setUpiId] = useState("");
+  const [upiError, setUpiError] = useState("");
 
-  const submit = (event: React.FormEvent) => {
+  const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!upiId.trim()) return;
+    if (!upiId.trim()) {
+      setUpiError("Enter a UPI ID.");
+      showFormError("Check the highlighted UPI ID.", { portal: "employer", container: event.currentTarget });
+      return;
+    }
+    setUpiError("");
     dispatch(addPaymentMethod({ upiId }));
   };
 
@@ -52,12 +59,16 @@ export function AddPaymentMethodModal() {
           </span>
 
           <input
+            id="payment-upi-id"
             autoFocus
             placeholder="yourname@upi"
             value={upiId}
-            onChange={(event) => setUpiId(event.target.value)}
-            className={inputClass}
+            aria-invalid={Boolean(upiError)}
+            aria-describedby={upiError ? "payment-upi-error" : undefined}
+            onChange={(event) => { setUpiId(event.target.value); setUpiError(""); }}
+            className={`${inputClass} ${upiError ? "!border-[#d92d20]" : ""}`}
           />
+          {upiError && <span id="payment-upi-error" className="text-xs text-[#c0392b]">{upiError}</span>}
         </label>
 
         <div className="mt-[18px] flex justify-end gap-2">

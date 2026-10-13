@@ -4,6 +4,7 @@ import React, { useRef, useState, DragEvent, ChangeEvent } from "react";
 import { Upload, CheckCircle2, FileText, AlertCircle } from "lucide-react";
 
 import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
+import { showFormError } from "@/lib/feedback/form-error";
 import type { RosterImport } from "@/store/college/roster-imports";
 
 export interface BulkUploadCardProps {
@@ -50,6 +51,7 @@ export function BulkUploadCard({ onUpload }: BulkUploadCardProps) {
         status: "error",
         errorMsg: "Please upload a valid .csv file",
       });
+      showFormError("Please upload a valid .csv file", { portal: "college", fieldId: "roster-upload-field" });
       return;
     }
 
@@ -90,6 +92,7 @@ export function BulkUploadCard({ onUpload }: BulkUploadCardProps) {
           fileName: file.name,
           errorMsg: "The roster could not be read. Check the header row.",
         });
+        showFormError("The roster could not be read. Check the header row.", { portal: "college", fieldId: "roster-upload-field" });
       } finally {
         if (fileInputRef.current) {
           fileInputRef.current.value = "";
@@ -101,6 +104,7 @@ export function BulkUploadCard({ onUpload }: BulkUploadCardProps) {
         status: "error",
         errorMsg: "Failed to read file",
       });
+      showFormError("Failed to read file", { portal: "college", fieldId: "roster-upload-field" });
     };
     reader.readAsText(file);
   };
@@ -152,12 +156,17 @@ export function BulkUploadCard({ onUpload }: BulkUploadCardProps) {
 
         {/* DROPZONE */}
         <div
+          id="roster-upload-field"
+          tabIndex={-1}
+          data-form-invalid={uploadState.status === "error"}
           onClick={() => fileInputRef.current?.click()}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           className={`mt-6 rounded-xl border border-dashed p-8 text-center transition-colors cursor-pointer flex flex-col items-center justify-center ${
-            isDragging
+            uploadState.status === "error"
+              ? "border-[#e02424] bg-[#fff6f6]"
+              : isDragging
               ? "border-[#5b4fcf] bg-[#edf2fa]"
               : uploadState.status === "success"
               ? "border-[#23805d]/40 bg-[#eaf5ef]/40"

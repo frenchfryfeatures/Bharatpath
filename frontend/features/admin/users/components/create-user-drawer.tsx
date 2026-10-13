@@ -11,6 +11,7 @@ import { INDIAN_STATES } from "@/features/student/onboarding/constants";
 import { KybFieldInput } from "@/features/employer/onboarding/components/kyb-field";
 import { problemParam, validateField, wireValue } from "@/features/employer/onboarding/kyb-form";
 import { getApiErrorCode, getApiErrorMessage } from "@/lib/api/error-message";
+import { showFormError } from "@/lib/feedback/form-error";
 import { showAdminFeedback } from "@/store/admin";
 import {
   useProvisionAdminCandidateMutation,
@@ -86,7 +87,6 @@ export function CreateUserDrawer({ segment, mode, onClose }: CreateUserDrawerPro
   const [city, setCity] = useState("");
   const [stateCode, setStateCode] = useState("");
   const [draftAnswers, setDraftAnswers] = useState<Record<string, unknown>>({});
-  const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [touched, setTouched] = useState<ReadonlySet<string>>(new Set());
   // Refusals from the server, keyed like `errors`; cleared when the field changes.
@@ -157,11 +157,11 @@ export function CreateUserDrawer({ segment, mode, onClose }: CreateUserDrawerPro
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSubmitError(null);
+    const form = event.currentTarget;
     setSubmitted(true);
 
     if (hasErrors(errors)) {
-      setSubmitError("Fix the highlighted fields to continue.");
+      showFormError("Fix the highlighted fields to continue.", { portal: "admin", container: form });
       return;
     }
 
@@ -224,7 +224,7 @@ export function CreateUserDrawer({ segment, mode, onClose }: CreateUserDrawerPro
       if (code === "identity_account_exists" || code === "identity_already_in_organisation" || code === "account_contact_in_use") {
         // The address is the problem, so say so on the address.
         setServerErrors((current) => ({ ...current, email: message }));
-        setSubmitError(null);
+        showFormError(message, { portal: "admin", container: form, fieldId: "account-email" });
         return;
       }
       const issues = problemParam(error, "issues");
@@ -234,10 +234,10 @@ export function CreateUserDrawer({ segment, mode, onClose }: CreateUserDrawerPro
           if (issue && typeof issue.field === "string") byField[`answer:${issue.field}`] = "This value was not accepted.";
         }
         setServerErrors((current) => ({ ...current, ...byField }));
-        setSubmitError("Some profile answers were not accepted. Fix the highlighted fields.");
+        showFormError("Some profile answers were not accepted. Fix the highlighted fields.", { portal: "admin", container: form });
         return;
       }
-      setSubmitError(message);
+      showFormError(message, { portal: "admin" });
     }
   }
 
@@ -418,14 +418,6 @@ export function CreateUserDrawer({ segment, mode, onClose }: CreateUserDrawerPro
               />
             ) : null}
 
-            {submitError ? (
-              <p
-                role="alert"
-                className="rounded-lg border border-[#f1c0c0] bg-[#fff5f5] px-3 py-2 text-[12px] text-[#9f2d2d]"
-              >
-                {submitError}
-              </p>
-            ) : null}
           </div>
 
           <footer className="flex justify-end gap-2 border-t border-[#e5e7eb] p-4">

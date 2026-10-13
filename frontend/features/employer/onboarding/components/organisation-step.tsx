@@ -6,6 +6,7 @@ import { ArrowRight, Building2 } from "lucide-react";
 import { Button, ErrorState } from "@/components/ui";
 import { AppSelect } from "@/components/ui/app-select";
 import { getApiErrorMessage } from "@/lib/api/error-message";
+import { showFormError } from "@/lib/feedback/form-error";
 import {
   useCreateEmployerOrganisationMutation,
   useGetEmployerReferenceQuery,
@@ -67,7 +68,6 @@ export function OrganisationStep({ onCreated }: Readonly<OrganisationStepProps>)
     industry: "",
   });
   const [errors, setErrors] = useState<OrganisationErrors>({});
-  const [serverError, setServerError] = useState<unknown>(null);
   const [finishing, setFinishing] = useState(false);
 
   const set = (field: keyof OrganisationValues) => (value: string) => {
@@ -77,12 +77,13 @@ export function OrganisationStep({ onCreated }: Readonly<OrganisationStepProps>)
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setServerError(null);
+    const form = event.currentTarget;
 
     const nextErrors = validate(values);
     setErrors(nextErrors);
 
     if (Object.values(nextErrors).some(Boolean)) {
+      showFormError("Check the highlighted fields before continuing.", { portal: "employer", container: form });
       return;
     }
 
@@ -95,7 +96,7 @@ export function OrganisationStep({ onCreated }: Readonly<OrganisationStepProps>)
     } catch (error) {
       // Already owns one (a retried request, another tab): carry on with it.
       if (problemCode(error) !== "identity_already_in_organisation") {
-        setServerError(error);
+        showFormError(getApiErrorMessage(error, "We could not create your organisation. Please try again."), { portal: "employer" });
         return;
       }
     }
@@ -104,7 +105,7 @@ export function OrganisationStep({ onCreated }: Readonly<OrganisationStepProps>)
     try {
       await onCreated();
     } catch (error) {
-      setServerError(error);
+      showFormError(getApiErrorMessage(error, "We could not finish creating your organisation."), { portal: "employer" });
     } finally {
       setFinishing(false);
     }
@@ -126,16 +127,6 @@ export function OrganisationStep({ onCreated }: Readonly<OrganisationStepProps>)
       description="You become its owner. You can invite recruiters and colleagues after verification."
     >
       <form onSubmit={submit} noValidate className="space-y-5">
-        {serverError ? (
-          <ErrorState
-            error={serverError}
-            fallback="We could not create your organisation. Please try again."
-            message={
-              serverError instanceof Error ? serverError.message : undefined
-            }
-          />
-        ) : null}
-
         {reference.isError && (
           <ErrorState
             message={getApiErrorMessage(
@@ -181,7 +172,7 @@ export function OrganisationStep({ onCreated }: Readonly<OrganisationStepProps>)
             <p className="mb-1.5 text-[13px] font-semibold text-[#303747]">
               {renderFieldLabel("What kind of organisation is this?", true)}
             </p>
-            <div className={`rounded-[10px] ${errors.businessType ? "ring-1 ring-[#e5484d]" : ""}`}>
+          <div data-form-invalid={Boolean(errors.businessType)} className={`rounded-[10px] ${errors.businessType ? "ring-1 ring-[#e5484d]" : ""}`}>
               <AppSelect
                 value={values.businessType}
                 onChange={set("businessType")}
@@ -198,7 +189,7 @@ export function OrganisationStep({ onCreated }: Readonly<OrganisationStepProps>)
             <p className="mb-1.5 text-[13px] font-semibold text-[#303747]">
               {renderFieldLabel("Which sector do you work in?", true)}
             </p>
-            <div className={`rounded-[10px] ${errors.industry ? "ring-1 ring-[#e5484d]" : ""}`}>
+          <div data-form-invalid={Boolean(errors.industry)} className={`rounded-[10px] ${errors.industry ? "ring-1 ring-[#e5484d]" : ""}`}>
               <AppSelect
                 value={values.industry}
                 onChange={set("industry")}

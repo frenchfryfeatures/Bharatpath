@@ -11,6 +11,7 @@ import {
 } from "@/store/student";
 import { useAppSelector } from "@/store/hooks";
 import { getApiErrorCode, getApiErrorMessage } from "@/lib/api/error-message";
+import { showFormError } from "@/lib/feedback/form-error";
 import {
   Field,
   fieldClass,
@@ -275,14 +276,16 @@ export function CareerForm({
     setErrors(
       Object.fromEntries(missing.map((key) => [key, "This field is required."])),
     );
-    setError("Complete the highlighted profile fields to continue.");
     const sectionKey =
       first === "full_name"
         ? "basic"
         : fields.data.find((field) => field.key === first)?.section;
     const targetStep = sections.findIndex((item) => item.key === sectionKey);
     if (targetStep >= 0) setStep(targetStep);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    showFormError("Complete the highlighted profile fields to continue.", {
+      portal: "student",
+      fieldId: `${first === "full_name" ? "career-full-name" : `career-${first}`}-field`,
+    });
     return true;
   };
   return (
@@ -385,7 +388,13 @@ export function CareerForm({
         )
           nextErrors.employment_start = "Enter a valid month between 1900 and 2099.";
         setErrors(nextErrors);
-        if (Object.keys(nextErrors).length) return;
+        if (Object.keys(nextErrors).length) {
+          showFormError("Check the highlighted profile fields before continuing.", {
+            portal: "student",
+            container: event.currentTarget,
+          });
+          return;
+        }
         setError("");
         setDraft(employmentDetails);
         setLocationInput("");
@@ -430,9 +439,7 @@ export function CareerForm({
         } catch (failure) {
           const missing = incompleteCareerFields(failure);
           if (missing.length && showMissingFields(missing)) return;
-          setError(
-            getApiErrorMessage(failure, "Check your details and try again."),
-          );
+          showFormError(getApiErrorMessage(failure, "Check your details and try again."), { portal: "student" });
         }
       }}
     >

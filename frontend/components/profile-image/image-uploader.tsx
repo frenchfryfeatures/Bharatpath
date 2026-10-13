@@ -7,6 +7,7 @@ import { ImagePlus, Trash2 } from "lucide-react";
 import { Avatar, Button } from "@/components/ui";
 import { getApiErrorMessage } from "@/lib/api/error-message";
 import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
+import { showFormError } from "@/lib/feedback/form-error";
 import { PhotoCropper } from "./photo-cropper";
 import {
   useConfirmProfileImageMutation,
@@ -69,6 +70,11 @@ export function ImageUploader({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [cropFile, setCropFile] = useState<File | null>(null);
+  const feedbackPortal = portal === "student" || portal === "college" || portal === "admin" ? portal : "employer";
+  const fail = (message: string, field = true) => {
+    setError(message);
+    showFormError(message, { portal: feedbackPortal, fieldId: field ? `profile-image-${target}` : undefined });
+  };
 
   const image = useGetProfileImageQuery(target);
   const [createUpload] = useCreateProfileImageUploadMutation();
@@ -83,11 +89,11 @@ export function ImageUploader({
     if (!file) return;
     setError(null);
     if (!ACCEPT.split(",").includes(file.type)) {
-      setError("Use a JPEG, PNG or WebP image.");
+      fail("Use a JPEG, PNG or WebP image.");
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      setError("That image is too large. The limit is 5 MB.");
+      fail("That image is too large. The limit is 5 MB.");
       return;
     }
     setCropFile(file);
@@ -101,11 +107,11 @@ export function ImageUploader({
       const ticket = await createUpload(target).unwrap();
 
       if (file.size > ticket.maxBytes) {
-        setError(`That image is too large. The limit is ${formatBytes(ticket.maxBytes)}.`);
+        fail(`That image is too large. The limit is ${formatBytes(ticket.maxBytes)}.`);
         return;
       }
       if (!ticket.acceptedTypes.includes(file.type)) {
-        setError("Use a JPEG, PNG or WebP image.");
+        fail("Use a JPEG, PNG or WebP image.");
         return;
       }
 
@@ -115,7 +121,7 @@ export function ImageUploader({
       showSuccessFeedback(`${title} updated successfully.`);
       onUploadComplete?.();
     } catch (caught) {
-      setError(getApiErrorMessage(caught, "Could not upload the image. Please try again."));
+      fail(getApiErrorMessage(caught, "Could not upload the image. Please try again."));
     } finally {
       setBusy(false);
     }
@@ -126,12 +132,12 @@ export function ImageUploader({
     try {
       await remove(target).unwrap();
     } catch (caught) {
-      setError(getApiErrorMessage(caught, "Could not remove the image. Please try again."));
+      fail(getApiErrorMessage(caught, "Could not remove the image. Please try again."), false);
     }
   };
 
   return (
-    <section style={themeStyle} className={`${embedded ? "min-w-0" : "min-w-0 rounded-[12px] border border-[#e5e8ee] bg-white p-5"} ${className}`}>
+    <section id={`profile-image-${target}`} tabIndex={-1} data-form-invalid={Boolean(error)} style={themeStyle} className={`${embedded ? "min-w-0" : "min-w-0 rounded-[12px] border border-[#e5e8ee] bg-white p-5"} ${error ? "rounded-lg outline outline-1 outline-[#d92d20]" : ""} ${className}`}>
       {!embedded && <>
         <h2 className="text-[14px] font-semibold leading-[18px] text-[#172033]">{title}</h2>
         <p className="mt-1 max-w-[530px] text-[12px] leading-[17px] text-[#7b8494]">{description}</p>
@@ -190,11 +196,6 @@ export function ImageUploader({
       {image.error ? (
         <p role="alert" className="mt-2 text-[12px] text-[#b42318]">
           {getApiErrorMessage(image.error, "Could not load the current image.")}
-        </p>
-      ) : null}
-      {error ? (
-        <p role="alert" className="mt-2 text-[12px] text-[#b42318]">
-          {error}
         </p>
       ) : null}
     </section>

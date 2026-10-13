@@ -1,11 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import { CollegeLogoCard } from "./college-logo-card";
 
 import { BadgeCheck, Loader2 } from "lucide-react";
 
 import { Skeleton } from "@/components/common/loading";
 import { Dropdown } from "@/components/ui/dropdown";
+import { getApiErrorMessage } from "@/lib/api/error-message";
+import { showFormError } from "@/lib/feedback/form-error";
 
 import { useSettings } from "../hooks/use-settings";
 import { INSTITUTION_TYPE_OPTIONS } from "../types";
@@ -27,6 +30,7 @@ function formatDate(iso: string): string {
 }
 
 export function CollegeProfile() {
+  const [nameError, setNameError] = useState("");
   const {
     organisation,
     isLoadingProfile,
@@ -37,6 +41,20 @@ export function CollegeProfile() {
     saveProfile,
     isSavingProfile,
   } = useSettings("profile");
+
+  const submit = async () => {
+    const name = draftName.trim();
+    if (name.length < 2 || name.length > 255) {
+      setNameError(name.length < 2 ? "Enter at least 2 characters." : "Use 255 characters or fewer.");
+      showFormError("Check the highlighted institution name.", { portal: "college", fieldId: "college-profile-name" });
+      return;
+    }
+    try {
+      await saveProfile();
+    } catch (error) {
+      showFormError(getApiErrorMessage(error, "We could not save the college profile."), { portal: "college" });
+    }
+  };
 
   if (isLoadingProfile) {
     return (
@@ -88,13 +106,17 @@ export function CollegeProfile() {
         </span>
 
         <input
+          id="college-profile-name"
           type="text"
           value={draftName}
           placeholder="Sinhgad Technical Education Society"
           aria-label="Institution name"
-          onChange={(event) => setDraftName(event.target.value)}
-          className="w-full rounded-[10px] border border-[#e1e5eb] bg-white px-4 py-3 text-[14px] font-medium leading-5 text-[#131A26] outline-none transition placeholder:text-[#64748b] focus:border-[#3566b8] focus:ring-2 focus:ring-[#3566b8]/10"
+          aria-invalid={Boolean(nameError)}
+          aria-describedby={nameError ? "college-profile-name-error" : undefined}
+          onChange={(event) => { setDraftName(event.target.value); setNameError(""); }}
+          className={`w-full rounded-[10px] border bg-white px-4 py-3 text-[14px] font-medium leading-5 text-[#131A26] outline-none transition placeholder:text-[#64748b] focus:border-[#3566b8] focus:ring-2 focus:ring-[#3566b8]/10 ${nameError ? "border-[#c43d3d]" : "border-[#e1e5eb]"}`}
         />
+        {nameError && <span id="college-profile-name-error" className="text-xs text-[#c43d3d]">{nameError}</span>}
       </label>
 
       {/* Institution type */}
@@ -134,8 +156,8 @@ export function CollegeProfile() {
       {/* Save */}
       <button
         type="button"
-        disabled={isSavingProfile || !draftName.trim()}
-        onClick={saveProfile}
+        disabled={isSavingProfile}
+        onClick={() => void submit()}
         aria-busy={isSavingProfile || undefined}
         className="inline-flex items-center justify-center gap-1.5 self-start rounded-[8px] border-0 bg-[#5a4bd6] px-4 py-[10px] text-[13px] font-semibold leading-[17px] text-white transition hover:bg-[#4f41c8] disabled:cursor-not-allowed disabled:opacity-60"
       >

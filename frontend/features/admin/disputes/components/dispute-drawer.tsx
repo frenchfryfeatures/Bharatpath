@@ -14,6 +14,8 @@ import { showAdminFeedback } from "@/store/admin";
 import { DetailSkeleton } from "@/components/common/loading";
 import { ErrorState } from "@/components/ui";
 import { useScrollLock } from "@/hooks/use-scroll-lock";
+import { getApiErrorMessage } from "@/lib/api/error-message";
+import { showFormError } from "@/lib/feedback/form-error";
 
 import {
   selectAdminDisputes,
@@ -61,23 +63,26 @@ export function DisputeDrawer() {
     ] : [],
   };
   const actionLoading = assignState.isLoading || resolveState.isLoading;
-  const actionError = assignState.error || resolveState.error;
 
   const finish = async (outcome: "RESOLVED" | "REJECTED") => {
     // The raiser reads this, so it cannot be empty; the backend allows 1-2000 characters.
     if (!resolutionNote.trim()) {
-      setNoteError("Write the answer the person who raised this will read.");
+      const message = "Write the answer the person who raised this will read.";
+      setNoteError(message);
+      showFormError(message, { portal: "admin", fieldId: "resolution-note" });
       return;
     }
     if (resolutionNote.trim().length > 2000) {
-      setNoteError(`Use 2000 characters or fewer. This is ${resolutionNote.trim().length}.`);
+      const message = `Use 2000 characters or fewer. This is ${resolutionNote.trim().length}.`;
+      setNoteError(message);
+      showFormError(message, { portal: "admin", fieldId: "resolution-note" });
       return;
     }
     setNoteError(undefined);
     try {
       await resolveDispute({ disputeId: openId, outcome, resolution: resolutionNote.trim() }).unwrap();
-    } catch {
-      // Surfaced to the operator through `actionError` below.
+    } catch (error) {
+      showFormError(getApiErrorMessage(error, "The decision could not be saved."), { portal: "admin", fieldId: "resolution-note" });
       return;
     }
     dispatch(showAdminFeedback(outcome === "RESOLVED" ? "Dispute resolved." : "Dispute rejected."));
@@ -88,8 +93,8 @@ export function DisputeDrawer() {
   const assign = async () => {
     try {
       await assignDispute(openId).unwrap();
-    } catch {
-      // Surfaced to the operator through `actionError` below.
+    } catch (error) {
+      showFormError(getApiErrorMessage(error, "The dispute could not be assigned."), { portal: "admin" });
       return;
     }
     dispatch(showAdminFeedback("Dispute assigned to you."));
@@ -233,6 +238,7 @@ export function DisputeDrawer() {
             </span>
 
             <textarea
+              id="resolution-note"
               rows={3}
               value={resolutionNote}
               onChange={(event) => {
@@ -254,7 +260,6 @@ export function DisputeDrawer() {
             ============================================================ */}
 
         <div className="flex flex-none flex-col gap-[10px] border-t border-[#e5e8ee] p-4">
-          {actionError ? <ErrorState error={actionError} fallback="The action could not be completed. Try again." /> : null}
 
           <div className="flex gap-[10px]">
           {/* Request Evidence */}

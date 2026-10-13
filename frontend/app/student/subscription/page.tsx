@@ -11,6 +11,7 @@ import { useStudentHasAccess } from "@/features/student/onboarding/use-student-a
 import { getApiErrorMessage } from "@/lib/api/error-message";
 import { isCompleteWithoutPayment, isStubPaymentUrl } from "@/store/api/payment.api";
 import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
+import { showFormError } from "@/lib/feedback/form-error";
 import { type CandidateCheckout, useCancelCandidateSubscriptionMutation, useCheckoutCandidateSubscriptionMutation, useGetCandidatePlansQuery, useGetCandidateSubscriptionQuery, usePreviewCandidateDiscountMutation } from "@/store/student";
 
 const money = (amount: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(amount / 100);
@@ -23,12 +24,10 @@ export default function CandidateSubscriptionPage() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancel, cancelState] = useCancelCandidateSubscriptionMutation();
   const { seated } = useStudentHasAccess();
-  const [error, setError] = useState<string | null>(null);
   const [simulatedCheckout, setSimulatedCheckout] = useState<CandidateCheckout | null>(null);
   const [selectedPlanCode, setSelectedPlanCode] = useState<string | null>(null);
 
   async function createCheckout(planCode: string, discountCode?: string) {
-    setError(null);
     const result = await checkout({ planCode, discountCode }).unwrap();
     if (isCompleteWithoutPayment(result)) {
       setSimulatedCheckout(null);
@@ -43,7 +42,7 @@ export default function CandidateSubscriptionPage() {
   async function buy(planCode: string) {
     setSelectedPlanCode(planCode);
     try { await createCheckout(planCode); }
-    catch (checkoutError) { setError(getApiErrorMessage(checkoutError, "Checkout could not be started.")); }
+    catch (checkoutError) { showFormError(getApiErrorMessage(checkoutError, "Checkout could not be started."), { portal: "student" }); }
   }
 
   return <StudentPage><div className="flex flex-col gap-5">
@@ -58,8 +57,6 @@ export default function CandidateSubscriptionPage() {
       {subscription?.cancel_at ? <p role="status" className="mt-3 text-sm text-[#5F6B80]">Renewal cancelled. Access continues until {new Date(subscription.cancel_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}.</p> : null}
     </section>
     <CancelSubscriptionDialog open={cancelOpen} student planCode={subscription?.plan_code} periodEnd={subscription?.current_period_end} onCancel={() => cancel().unwrap()} onClose={() => setCancelOpen(false)} />
-
-    {error ? <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
 
     {subscription?.has_access ? <p className="text-xs text-[#5F6B80]">Buying a plan while one is active adds its length to your current end date.</p> : null}
 

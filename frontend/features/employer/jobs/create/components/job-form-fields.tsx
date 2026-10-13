@@ -76,7 +76,7 @@ export function Field({
   children: ReactNode;
 }) {
   return (
-    <div className={wide ? "sm:col-span-2" : ""}>
+    <div data-form-field data-form-invalid={Boolean(error)} className={wide ? "sm:col-span-2" : ""}>
       <span className="mb-1.5 flex items-center justify-between text-[12px] font-semibold leading-4 text-[#687386]">
         <span>
           {label}

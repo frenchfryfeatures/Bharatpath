@@ -381,7 +381,7 @@ export function Field({
   children,
 }: Readonly<FieldProps>) {
   return (
-    <div className="flex flex-col gap-1.5">
+    <div id={`${id}-field`} data-form-field data-form-invalid={Boolean(error)} tabIndex={-1} className="flex scroll-mt-24 flex-col gap-1.5">
       <label htmlFor={id} className="text-[13px] font-semibold text-[#0A1931]">
         {label}
         {optional && (

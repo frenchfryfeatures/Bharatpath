@@ -6,6 +6,7 @@ import { X } from "lucide-react";
 import { Button, DateTimePicker, SelectDropdown } from "@/components/ui";
 import { useScrollLock } from "@/hooks/use-scroll-lock";
 import { getApiErrorCode, getApiErrorMessage } from "@/lib/api/error-message";
+import { showFormError } from "@/lib/feedback/form-error";
 import { showAdminFeedback } from "@/store/admin";
 import {
   type CreateDiscountCodeRequest,
@@ -53,7 +54,6 @@ export function CreateCodeDrawer({ onClose }: { onClose: () => void }) {
   const [label, setLabel] = useState("");
   const [validFrom, setValidFrom] = useState("");
   const [validUntil, setValidUntil] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [touched, setTouched] = useState<ReadonlySet<Field>>(new Set());
   const [serverErrors, setServerErrors] = useState<Partial<Record<Field, string>>>({});
@@ -119,17 +119,17 @@ export function CreateCodeDrawer({ onClose }: { onClose: () => void }) {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
+    const form = event.currentTarget;
     setSubmitted(true);
 
     if (hasErrors(errors)) {
-      setError("Fix the highlighted fields to continue.");
+      showFormError("Fix the highlighted fields to continue.", { portal: "admin", container: form });
       return;
     }
     // Checked here rather than while typing: it depends on the clock.
     if (validUntil && new Date(validUntil).getTime() <= Date.now()) {
       setServerErrors((current) => ({ ...current, validUntil: "The end is already in the past, so no one could use this code." }));
-      setError("Fix the highlighted fields to continue.");
+      showFormError("Fix the highlighted fields to continue.", { portal: "admin", container: form, fieldId: "discount-until" });
       return;
     }
 
@@ -151,9 +151,10 @@ export function CreateCodeDrawer({ onClose }: { onClose: () => void }) {
       const message = getApiErrorMessage(mutationError, "The discount code could not be created.");
       if (getApiErrorCode(mutationError) === "discount_code_taken") {
         setServerErrors((current) => ({ ...current, code: message }));
+        showFormError(message, { portal: "admin", container: form, fieldId: "discount-code" });
         return;
       }
-      setError(message);
+      showFormError(message, { portal: "admin" });
     }
   }
 
@@ -304,14 +305,6 @@ export function CreateCodeDrawer({ onClose }: { onClose: () => void }) {
               </FormField>
             </div>
 
-            {error ? (
-              <p
-                role="alert"
-                className="rounded-lg border border-[#f1c0c0] bg-[#fff5f5] px-3 py-2 text-[12px] text-[#9f2d2d]"
-              >
-                {error}
-              </p>
-            ) : null}
           </div>
 
           <footer className="flex justify-end gap-2 border-t border-[#e5e7eb] p-4">

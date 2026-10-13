@@ -12,7 +12,7 @@ import {
   signUpWithCognito,
   verifyTotpSetupCognito,
 } from "@/lib/auth/cognito";
-import { getFreshToken, refreshSession } from "@/lib/auth/refresh-session";
+import { getFreshToken, poolOfToken, refreshSession } from "@/lib/auth/refresh-session";
 import { clearBrowserAuthStorage, setStoredToken } from "@/lib/auth/token";
 import { clearSession } from "@/lib/auth/session";
 import { LoginResponse, SignupRequest, SignupResponse } from "../types";
@@ -343,13 +343,14 @@ export const authService = {
       throw new ApiError("You are not signed in.", 401, "AUTH_ERROR");
     }
 
+    const pool = poolOfToken(token) ?? "CANDIDATE";
     try {
-      return await resolveSession(token, "", { pool: "CANDIDATE" });
+      return await resolveSession(token, "", { pool });
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         const renewed = await refreshSession(true);
         if (renewed.status === "OK") {
-          return resolveSession(renewed.token, "", { pool: "CANDIDATE" });
+          return resolveSession(renewed.token, "", { pool });
         }
         if (renewed.status === "EXPIRED") handleSessionExpired();
       }

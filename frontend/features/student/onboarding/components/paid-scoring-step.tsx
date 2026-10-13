@@ -1,7 +1,8 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useConfirmResumeVersionMutation } from "@/store/student";
 import { getApiErrorMessage } from "@/lib/api/error-message";
+import { showFormError } from "@/lib/feedback/form-error";
 import { PillButton } from "./ui";
 import { StudentBackButton } from "@/features/student/components/student-back-button";
 
@@ -15,19 +16,18 @@ export function PaidScoringStep({
   onBack: () => void;
 }) {
   const [confirm, state] = useConfirmResumeVersionMutation();
-  const [error, setError] = useState("");
   const started = useRef(false);
   const start = async () => {
-    setError("");
     try {
       const result = await confirm(versionId).unwrap();
       onConfirmed(result.confirmedAt);
     } catch (failure) {
-      setError(
+      showFormError(
         getApiErrorMessage(
           failure,
           "Scoring could not start. Confirm your membership is active and try again.",
         ),
+        { portal: "student" },
       );
     }
   };
@@ -44,11 +44,6 @@ export function PaidScoringStep({
         Membership access is checked before your reviewed resume is confirmed
         for scoring.
       </p>
-      {error && (
-        <p role="alert" className="text-red-700">
-          {error}
-        </p>
-      )}
       <div className="flex items-center gap-3">
       <StudentBackButton onClick={onBack} disabled={state.isLoading} />
       <PillButton className="flex-1" disabled={state.isLoading} onClick={() => void start()}>

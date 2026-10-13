@@ -8,6 +8,7 @@ import { minPasswordLength, passwordError } from "@/features/auth/hooks/use-sign
 import { formatPasswordError, type CognitoPoolType } from "@/lib/auth/cognito";
 import { changeMyPassword, currentPasswordPool } from "@/lib/auth/password";
 import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
+import { showFormError } from "@/lib/feedback/form-error";
 
 /** Each portal keeps its own look: the same form, that portal's tokens. */
 export type PasswordTheme = "student" | "employer" | "console";
@@ -70,6 +71,7 @@ function PasswordField({
   autoComplete,
   theme,
   autoFocus,
+  error,
 }: {
   id: string;
   label: string;
@@ -78,6 +80,7 @@ function PasswordField({
   autoComplete: string;
   theme: ThemeClasses;
   autoFocus?: boolean;
+  error?: string;
 }) {
   const [visible, setVisible] = useState(false);
 
@@ -93,8 +96,10 @@ function PasswordField({
           autoComplete={autoComplete}
           autoFocus={autoFocus}
           value={value}
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? `${id}-error` : undefined}
           onChange={(event) => onChange(event.target.value)}
-          className={theme.input}
+          className={`${theme.input} ${error ? "!border-[#d92d20]" : ""}`}
         />
         <button
           type="button"
@@ -105,6 +110,7 @@ function PasswordField({
           {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
         </button>
       </div>
+      {error && <p id={`${id}-error`} className="text-[12px] font-medium text-[#b42318]">{error}</p>}
     </div>
   );
 }
@@ -125,14 +131,14 @@ export function ChangePasswordModal({
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<{ current?: string; next?: string; confirm?: string }>({});
   const [busy, setBusy] = useState(false);
 
   const reset = () => {
     setCurrent("");
     setNext("");
     setConfirm("");
-    setError("");
+    setFieldErrors({});
   };
 
   const close = () => {
@@ -141,25 +147,19 @@ export function ChangePasswordModal({
     onClose();
   };
 
-  const submit = async (event: React.FormEvent) => {
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setError("");
-
-    if (!current) {
-      setError("Enter your current password.");
-      return;
-    }
+    const portal = themeName === "student" ? "student" : themeName === "employer" ? "employer"
+      : window.location.pathname.startsWith("/admin") ? "admin" : "college";
     const invalid = passwordError(next, currentPasswordPool(pool));
-    if (invalid) {
-      setError(invalid);
-      return;
-    }
-    if (next === current) {
-      setError("Choose a new password that is different from your current one.");
-      return;
-    }
-    if (next !== confirm) {
-      setError("The new passwords do not match.");
+    const errors = {
+      current: current ? undefined : "Enter your current password.",
+      next: invalid ?? (next === current ? "Choose a password different from your current one." : undefined),
+      confirm: next === confirm ? undefined : "The new passwords do not match.",
+    };
+    setFieldErrors(errors);
+    if (errors.current || errors.next || errors.confirm) {
+      showFormError("Check the highlighted password field.", { portal, container: event.currentTarget });
       return;
     }
 
@@ -171,7 +171,9 @@ export function ChangePasswordModal({
       reset();
       onClose();
     } catch (failure) {
-      setError(formatPasswordError(failure));
+      const message = formatPasswordError(failure);
+      setFieldErrors({ current: message });
+      showFormError(message, { portal, fieldId: "current-password" });
       setBusy(false);
     }
   };
@@ -187,15 +189,9 @@ export function ChangePasswordModal({
       panelClassName="max-w-[440px]"
     >
       <form onSubmit={(event) => void submit(event)} className="flex flex-col gap-4" noValidate>
-        {error ? (
-          <p role="alert" className={theme.error}>
-            {error}
-          </p>
-        ) : null}
-
-        <PasswordField id="current-password" label="Current password" value={current} onChange={setCurrent} autoComplete="current-password" theme={theme} autoFocus />
-        <PasswordField id="new-password" label="New password" value={next} onChange={setNext} autoComplete="new-password" theme={theme} />
-        <PasswordField id="confirm-new-password" label="Confirm new password" value={confirm} onChange={setConfirm} autoComplete="new-password" theme={theme} />
+        <PasswordField id="current-password" label="Current password" value={current} onChange={(value) => { setCurrent(value); setFieldErrors((errors) => ({ ...errors, current: undefined })); }} autoComplete="current-password" theme={theme} error={fieldErrors.current} autoFocus />
+        <PasswordField id="new-password" label="New password" value={next} onChange={(value) => { setNext(value); setFieldErrors((errors) => ({ ...errors, next: undefined })); }} autoComplete="new-password" theme={theme} error={fieldErrors.next} />
+        <PasswordField id="confirm-new-password" label="Confirm new password" value={confirm} onChange={(value) => { setConfirm(value); setFieldErrors((errors) => ({ ...errors, confirm: undefined })); }} autoComplete="new-password" theme={theme} error={fieldErrors.confirm} />
         <p className={theme.hint}>
           At least {minPasswordLength(currentPasswordPool(pool))} characters, with an uppercase letter, a lowercase letter, a number
           {currentPasswordPool(pool) === "BUSINESS" ? " and a symbol." : "."}

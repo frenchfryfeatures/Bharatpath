@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import {
   fetchMFAPreference,
   setUpTOTP,
@@ -15,6 +16,7 @@ import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { AppSelect } from "@/components/ui/app-select";
 import { configureAmplify } from "@/lib/auth/cognito";
 import { useSessionIdentity } from "@/lib/auth/use-session-identity";
+import { showFormError } from "@/lib/feedback/form-error";
 
 type PendingChange = "ON" | "OFF" | null;
 
@@ -36,6 +38,8 @@ function hasTotpEnabled(preference: FetchMFAPreferenceOutput): boolean {
 }
 
 export function MfaSettingsControl() {
+  const pathname = usePathname();
+  const portal = pathname.startsWith("/college") ? "college" : pathname.startsWith("/admin") ? "admin" : "employer";
   const { user } = useSessionIdentity();
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
@@ -88,7 +92,9 @@ export function MfaSettingsControl() {
         const stillEnabled = hasTotpEnabled(preference);
         setEnabled(stillEnabled);
         if (stillEnabled) {
-          setError("Cognito still has authenticator MFA enabled for this account. It may be required by the user pool.");
+          const message = "Cognito still has authenticator MFA enabled for this account. It may be required by the user pool.";
+          setError(message);
+          showFormError(message, { portal });
           return;
         }
         setNotice("Authenticator MFA is off for this account.");
@@ -118,7 +124,9 @@ export function MfaSettingsControl() {
       setSetupVerified(false);
       setSetupOpen(true);
     } catch (caught) {
-      setError(mfaError(caught));
+      const message = mfaError(caught);
+      setError(message);
+      showFormError(message, { portal });
     } finally {
       setBusy(false);
     }
@@ -126,7 +134,9 @@ export function MfaSettingsControl() {
 
   const completeSetup = async () => {
     if (!setupVerified && !/^\d{6}$/.test(code)) {
-      setError("Enter the 6-digit code from your authenticator app.");
+      const message = "Enter the 6-digit code from your authenticator app.";
+      setError(message);
+      showFormError(message, { portal, fieldId: "mfa-setup-code" });
       return;
     }
     setBusy(true);
@@ -144,7 +154,9 @@ export function MfaSettingsControl() {
       setNotice("Authenticator MFA is on.");
       closeSetup();
     } catch (caught) {
-      setError(mfaError(caught));
+      const message = mfaError(caught);
+      setError(message);
+      showFormError(message, { portal, fieldId: "mfa-setup-code" });
     } finally {
       setBusy(false);
     }
@@ -210,7 +222,6 @@ export function MfaSettingsControl() {
         onClose={closeSetup}
         onConfirm={() => void completeSetup()}
       >
-        {error && <p role="alert" className="mb-3 text-xs text-red-700">{error}</p>}
         {qrCode && (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={qrCode} alt="Authenticator setup QR code" className="mx-auto h-44 w-44" />
@@ -225,12 +236,13 @@ export function MfaSettingsControl() {
         </label>
         <input
           id="mfa-setup-code"
+          aria-invalid={Boolean(error)}
           inputMode="numeric"
           autoComplete="one-time-code"
           maxLength={6}
           value={code}
-          onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))}
-          className="mt-1 h-10 w-full rounded-lg border border-[#d6dbe2] px-3 text-sm tracking-[0.2em]"
+          onChange={(event) => { setCode(event.target.value.replace(/\D/g, "")); setError(""); }}
+          className={`mt-1 h-10 w-full rounded-lg border px-3 text-sm tracking-[0.2em] ${error ? "border-[#d92d20] ring-2 ring-[#d92d20]/10" : "border-[#d6dbe2]"}`}
         />
       </ConfirmModal>
     </div>

@@ -50,6 +50,9 @@ export function KybSectionFields({
           <div
             key={field.code}
             id={`kyb-field-${field.code}`}
+            data-form-field
+            data-form-invalid={Boolean(errors[field.code])}
+            tabIndex={-1}
             className={[
               isWideField(field) && !onlyCheckboxes ? "sm:col-span-2" : "",
               flag ? flaggedFrameClass : "",

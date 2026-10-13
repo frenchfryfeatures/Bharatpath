@@ -128,6 +128,9 @@ function DocumentRow({
   return (
     <div
       id={`kyb-field-${docType}`}
+      data-form-field
+      data-form-invalid={Boolean(error)}
+      tabIndex={-1}
       className={`rounded-xl border p-4 transition ${
         error
           ? "border-[#f0c8cc] bg-[#fffafa]"

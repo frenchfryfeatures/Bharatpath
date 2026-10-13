@@ -26,6 +26,8 @@ import { ChangePasswordModal } from "@/components/auth/change-password-modal";
 import { MfaSettingsControl } from "@/components/auth/mfa-settings-control";
 import { Skeleton } from "@/components/common/loading";
 import { EmployerErrorState } from "@/features/employer/components/employer-error-state";
+import { getApiErrorMessage } from "@/lib/api/error-message";
+import { showFormError } from "@/lib/feedback/form-error";
 import { INDIAN_STATES } from "@/features/student/onboarding/constants";
 import { KybReviewHistory } from "@/features/employer/onboarding/components/kyb-review-history";
 import { useGetEmployerKybFormQuery, useGetEmployerKybQuery } from "@/store/employer/kyb";
@@ -252,7 +254,6 @@ export function CompanyTab() {
 
   const [showUndertakings, setShowUndertakings] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
-  const [saveError, setSaveError] = useState<unknown>(null);
 
   // Holds the baseline values when page is loaded or last saved, to calculate isDirty
   const baselineRef = useRef<CompanyProfile | null>(null);
@@ -410,7 +411,11 @@ export function CompanyTab() {
   };
 
   const handleSave = async () => {
-    if (!validateAll() || !baselineRef.current) return;
+    if (!validateAll()) {
+      showFormError("Check the highlighted company field.", { portal: "employer", fieldId: "company-website" });
+      return;
+    }
+    if (!baselineRef.current) return;
     const baseline = baselineRef.current;
     const next: CompanyProfile = { ...company, website: normaliseWebsite(company.website) };
 
@@ -420,11 +425,10 @@ export function CompanyTab() {
       if (next[field] !== baseline[field]) changes[field] = next[field];
     }
 
-    setSaveError(null);
     try {
       await updateOrganisation(changes).unwrap();
     } catch (error) {
-      setSaveError(error);
+      showFormError(getApiErrorMessage(error, "Your changes were not saved. Please try again."), { portal: "employer" });
       return;
     }
 
@@ -585,6 +589,8 @@ export function CompanyTab() {
                 <input
                   id="company-website"
                   type="url"
+                  aria-invalid={Boolean(validationErrors.website)}
+                  aria-describedby={validationErrors.website ? "company-website-error" : undefined}
                   value={company.website}
                   onChange={update("website")}
                   placeholder="https://yourcompany.in"
@@ -592,7 +598,7 @@ export function CompanyTab() {
                 />
               </div>
               {validationErrors.website && (
-                <p className="mt-1 text-xs text-[#b42318]">{validationErrors.website}</p>
+                <p id="company-website-error" className="mt-1 text-xs text-[#b42318]">{validationErrors.website}</p>
               )}
             </div>
           </div>
@@ -952,13 +958,6 @@ export function CompanyTab() {
         </div>
 
         <div className="flex items-center justify-end gap-3">
-          {saveError ? (
-            <EmployerErrorState
-              variant="inline"
-              error={saveError}
-              fallback="Your changes were not saved. Please try again."
-            />
-          ) : null}
           <button
             type="button"
             disabled={!isDirty || isSaving || !isOwner}

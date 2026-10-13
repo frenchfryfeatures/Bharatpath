@@ -11,6 +11,7 @@ import {
   useWithdrawStudentApplicationMutation,
 } from "@/store/student";
 import { getApiErrorMessage } from "@/lib/api/error-message";
+import { showFormError } from "@/lib/feedback/form-error";
 import {
   applicationTimeline,
   employerMonogram,
@@ -24,7 +25,6 @@ import {
   PillButton,
   StatusChip,
   StudentCard,
-  StudentErrorState,
 } from "@/features/student/components";
 import { StudentApplicationDetailSkeleton } from "@/features/student/loading";
 import { StudentPage, StudentTopBar } from "@/features/student/shell";
@@ -36,6 +36,13 @@ export function ApplicationDetail() {
   const [withdraw, withdrawState] = useWithdrawStudentApplicationMutation();
   const [confirmHire, confirmState] = useConfirmStudentHireMutation();
   const [disputeHire, disputeState] = useDisputeStudentHireMutation();
+  const runAction = async (action: () => Promise<unknown>) => {
+    try {
+      await action();
+    } catch (error) {
+      showFormError(getApiErrorMessage(error, "Could not update the application."), { portal: "student" });
+    }
+  };
 
   if (application.isLoading) {
     return <StudentApplicationDetailSkeleton />;
@@ -61,8 +68,6 @@ export function ApplicationDetail() {
   const closed = ["HIRED", "REJECTED", "WITHDRAWN", "EXPIRED"].includes(
     item.stage,
   );
-  const actionError =
-    withdrawState.error ?? confirmState.error ?? disputeState.error;
 
   return (
     <StudentPage>
@@ -139,7 +144,7 @@ export function ApplicationDetail() {
                 className="mt-4 w-full !text-[#3A4761]"
                 disabled={withdrawState.isLoading}
                 onClick={() => {
-                  if (window.confirm("Withdraw this application? The employer will be notified.")) void withdraw(item.id);
+                  if (window.confirm("Withdraw this application? The employer will be notified.")) void runAction(() => withdraw(item.id).unwrap());
                 }}
               >
                 {withdrawState.isLoading ? "Withdrawing…" : "Withdraw application"}
@@ -230,7 +235,7 @@ export function ApplicationDetail() {
                 className="w-full"
                 disabled={confirmState.isLoading}
                 onClick={() => {
-                  if (window.confirm("Confirm that you were hired? This confirms the hire for both sides.")) void confirmHire(item.id);
+                  if (window.confirm("Confirm that you were hired? This confirms the hire for both sides.")) void runAction(() => confirmHire(item.id).unwrap());
                 }}
               >
                 Confirm hire
@@ -239,20 +244,13 @@ export function ApplicationDetail() {
                 variant="secondary"
                 className="w-full"
                 disabled={disputeState.isLoading}
-                onClick={() => void disputeHire(item.id)}
+                onClick={() => void runAction(() => disputeHire(item.id).unwrap())}
               >
                 Dispute hire
               </PillButton>
             </>
           ) : null}
 
-          {actionError ? (
-            <StudentErrorState
-              variant="inline"
-              error={actionError}
-              fallback="Could not update the application."
-            />
-          ) : null}
         </div>
       </div>
     </StudentPage>

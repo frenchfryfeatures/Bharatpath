@@ -8,6 +8,8 @@ import { X } from "lucide-react";
 import { ErrorState } from "@/components/ui";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { useScrollLock } from "@/hooks/use-scroll-lock";
+import { getApiErrorMessage } from "@/lib/api/error-message";
+import { showFormError } from "@/lib/feedback/form-error";
 import { showAdminFeedback } from "@/store/admin";
 import {
   type DiscountCode,
@@ -36,8 +38,8 @@ export function CodeDrawer({ code, canWrite, onClose }: CodeDrawerProps) {
       await disableCode(code.id).unwrap();
       setDisableOpen(false);
       dispatch(showAdminFeedback(`Discount code ${code.code} disabled.`));
-    } catch {
-      // Surfaced through `disableState.error` below.
+    } catch (error) {
+      showFormError(getApiErrorMessage(error, "The code could not be disabled."), { portal: "admin" });
     }
   };
 
@@ -76,9 +78,6 @@ export function CodeDrawer({ code, canWrite, onClose }: CodeDrawerProps) {
             <Detail label="Ends" value={code.valid_until ? formatDate(code.valid_until) : "No end date"} />
           </section>
 
-          {disableState.error ? (
-            <ErrorState error={disableState.error} fallback="The code could not be disabled." />
-          ) : null}
 
           {canWrite && code.status !== "DISABLED" ? (
             <button

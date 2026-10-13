@@ -4,25 +4,25 @@ import { useRef, useState } from "react";
 import { CircleAlert } from "lucide-react";
 import { ConfirmModal } from "@/components/ui";
 import { getApiErrorMessage } from "@/lib/api/error-message";
+import { showFormError } from "@/lib/feedback/form-error";
 
 import { humanizeCode } from "@/lib/format/labels";
 
-export function CancelSubscriptionDialog({ open, planCode, periodEnd, onCancel, onClose, student = false }: {
+export function CancelSubscriptionDialog({ open, planCode, periodEnd, onCancel, onClose, student = false, portal = "employer" }: {
   open: boolean;
   planCode?: string | null;
   periodEnd?: string | null;
   onCancel: () => Promise<unknown>;
   onClose: () => void;
   student?: boolean;
+  portal?: "employer" | "college";
 }) {
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const pending = useRef(false);
   const endDate = periodEnd ? new Date(periodEnd).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : null;
 
   const close = () => {
     if (pending.current) return;
-    setError(null);
     onClose();
   };
 
@@ -30,12 +30,11 @@ export function CancelSubscriptionDialog({ open, planCode, periodEnd, onCancel, 
     if (pending.current) return;
     pending.current = true;
     setBusy(true);
-    setError(null);
     try {
       await onCancel();
       onClose();
     } catch (cause) {
-      setError(getApiErrorMessage(cause, "Subscription cancellation failed. Please try again."));
+      showFormError(getApiErrorMessage(cause, "Subscription cancellation failed. Please try again."), { portal: student ? "student" : portal });
     } finally {
       pending.current = false;
       setBusy(false);
@@ -54,7 +53,5 @@ export function CancelSubscriptionDialog({ open, planCode, periodEnd, onCancel, 
     confirmLoading={busy}
     onClose={close}
     onConfirm={() => void cancel()}
-  >
-    {error ? <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
-  </ConfirmModal>;
+  />;
 }

@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 
 import { getApiErrorMessage } from "@/lib/api/error-message";
+import { showFormError } from "@/lib/feedback/form-error";
 import {
   useEditResumeVersionMutation,
   useSubmitManualResumeMutation,
@@ -31,7 +32,6 @@ import {
 import {
   Card,
   ErrorNote,
-  Eyebrow,
   Field,
   fieldBorder,
   fieldClass,
@@ -229,17 +229,16 @@ export function PasteStep({
   onCreated: (resumeVersionId: string) => void;
 }) {
   const [text, setText] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [tooShort, setTooShort] = useState(false);
   const [submitText, { isLoading }] = useSubmitResumeTextMutation();
   const characterCount = text.trim().length;
   const sampleResume = "Priya Deshmukh\nPune, Maharashtra\n\nWork Experience\nQuality Lab Intern, Sahyadri Dairy, 2023–2024\nAssisted with sample testing, quality reports, and lab documentation.\n\nEducation\nB.Sc Microbiology, Fergusson College, 2022\n\nSkills\nMicrobial culturing, Lab reporting, MS Excel";
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setError(null);
-
     if (characterCount < MIN_PASTE_CHARS) {
-      setError("That is too short to be a resume. Paste the whole thing.");
+      setTooShort(true);
+      showFormError("That is too short to be a resume. Paste the whole thing.", { portal: "student", fieldId: "paste-text" });
       return;
     }
 
@@ -247,7 +246,7 @@ export function PasteStep({
       const created = await submitText(text).unwrap();
       onCreated(created.resumeVersionId);
     } catch (failure) {
-      setError(getApiErrorMessage(failure, "We could not read that text. Please try again."));
+      showFormError(getApiErrorMessage(failure, "We could not read that text. Please try again."), { portal: "student" });
     }
   };
 
@@ -262,17 +261,19 @@ export function PasteStep({
       </header>
 
       <form id="paste-resume-form" onSubmit={submit} noValidate className="flex min-w-0 flex-col gap-5">
-        {error ? <ErrorNote>{error}</ErrorNote> : null}
-        <button type="button" onClick={() => { setText(sampleResume); setError(null); }} className="flex w-fit items-center gap-2 rounded-full border border-[#D9CFF0] bg-[#F1EAF7] px-4 py-2.5 text-[14px] font-medium text-[#5F4DB2] transition hover:bg-[#E8DFF2]"><Sparkles size={17} aria-hidden="true" />Use sample CV</button>
+        <button type="button" onClick={() => { setText(sampleResume); setTooShort(false); }} className="flex w-fit items-center gap-2 rounded-full border border-[#D9CFF0] bg-[#F1EAF7] px-4 py-2.5 text-[14px] font-medium text-[#5F4DB2] transition hover:bg-[#E8DFF2]"><Sparkles size={17} aria-hidden="true" />Use sample CV</button>
         <textarea
           id="paste-text"
           aria-label="Paste your full resume or CV text"
+          aria-invalid={tooShort}
+          aria-describedby={tooShort ? "paste-text-error" : undefined}
           autoFocus
           value={text}
-          onChange={(event) => { setText(event.target.value); setError(null); }}
+          onChange={(event) => { setText(event.target.value); setTooShort(false); }}
           placeholder="Paste your full resume or CV text here... Include your work experience, education, skills, and summary so the scoring engine can analyze your profile accurately."
-          className={`${fieldClass} ${fieldBorder(Boolean(error))} min-h-[42vh] flex-1 resize-y rounded-[24px] border-2 px-5 py-5 text-[16px] font-normal leading-6 shadow-sm placeholder:text-[#8993A1] sm:min-h-[480px] sm:px-6 sm:py-6`}
+          className={`${fieldClass} ${fieldBorder(tooShort)} min-h-[42vh] flex-1 resize-y rounded-[24px] border-2 px-5 py-5 text-[16px] font-normal leading-6 shadow-sm placeholder:text-[#8993A1] sm:min-h-[480px] sm:px-6 sm:py-6`}
         />
+        {tooShort && <p id="paste-text-error" className="text-[12px] font-medium text-[#993A22]">Paste at least 50 characters of resume details.</p>}
         <div className="flex items-center justify-between gap-3 px-1 text-[13px] font-semibold text-[#85650F] sm:text-[14px]">
           <span>{characterCount} / {MIN_PASTE_CHARS} characters min</span>
           <span className="text-right">{characterCount < MIN_PASTE_CHARS ? `${MIN_PASTE_CHARS - characterCount} more characters needed` : "Ready to continue"}</span>
@@ -290,7 +291,7 @@ export function PasteStep({
       <footer className="sticky bottom-0 z-20 border-t border-[#E7E0D4] bg-[#FFFCF7]/95 py-3 backdrop-blur">
         <div className="flex gap-3">
           <StudentBackButton onClick={onBack} />
-          <PillButton type="submit" form="paste-resume-form" isLoading={isLoading} disabled={characterCount < MIN_PASTE_CHARS} className="flex-1 rounded-[16px] py-3.5">Continue &amp; Parse</PillButton>
+          <PillButton type="submit" form="paste-resume-form" isLoading={isLoading} className="flex-1 rounded-[16px] py-3.5">Continue &amp; Parse</PillButton>
         </div>
       </footer>
     </div>
@@ -380,7 +381,6 @@ export function ManualStep({
   const [skills, setSkills] = useState<string[]>(initial?.skills ?? []);
   const [skillDraft, setSkillDraft] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [serverError, setServerError] = useState<string | null>(null);
 
   const [submitManual, createState] = useSubmitManualResumeMutation();
   const [editVersion, editState] = useEditResumeVersionMutation();
@@ -463,10 +463,9 @@ export function ManualStep({
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setServerError(null);
     const resume = build();
     if (!resume) {
-      setServerError("Some details need attention. Check the highlighted fields.");
+      showFormError("Some details need attention. Check the highlighted fields.", { portal: "student", container: event.currentTarget });
       return;
     }
 
@@ -476,7 +475,7 @@ export function ManualStep({
         : await submitManual(resume).unwrap();
       onCreated(created.resumeVersionId);
     } catch (failure) {
-      setServerError(getApiErrorMessage(failure, "We could not save your resume. Please try again."));
+      showFormError(getApiErrorMessage(failure, "We could not save your resume. Please try again."), { portal: "student" });
     }
   };
 
@@ -496,8 +495,6 @@ export function ManualStep({
       </header>
 
       <form id="manual-resume-form" onSubmit={submit} noValidate className="flex min-w-0 flex-col gap-5">
-
-      {serverError && <ErrorNote>{serverError}</ErrorNote>}
 
       <Card className="flex flex-col gap-4 p-5 sm:p-6">
         <ManualSectionTitle number="1" title="Personal Info" icon={<User size={20} />} />
