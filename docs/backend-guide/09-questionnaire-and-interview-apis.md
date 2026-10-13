@@ -346,7 +346,7 @@ This is the part most likely to surprise you, so it gets its own section.
   prompt version that wrote it, so a report, a replay or a dispute always
   shows exactly what was asked.
 
-## 9. `GET /candidate/interview/sessions` and `GET .../sessions/{session_id}`
+## 9. `GET /candidate/interview/sessions` and `GET /candidate/interview/sessions/{session_id}`
 
 **Auth required:** `CANDIDATE` role + active subscription, both.
 

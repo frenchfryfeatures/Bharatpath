@@ -367,6 +367,45 @@ back against its own plan, not a value trusted to grant access on its own.
 
 ---
 
+## 3b. Search filter catalogue — `/admin/search-filters` (2026-09-24)
+
+Capability `search_filters` (PLATFORM_ADMIN and SUPPORT_AGENT). The skills
+and cities the employer search panel suggests
+([05](05-jobs-and-discovery-apis.md) §8b). **The catalogue suggests; it
+never restricts** what employers can search for. And **suggestions come
+from here, never from candidates' own skills**: a rare skill in a dropdown
+would say somebody has it.
+
+An option (`SearchFilterOptionResponse`):
+```json
+{
+  "id": "…", "kind": "CITY", "label": "Bengaluru", "key": "bengaluru",
+  "aliases": ["Bangalore"], "state_code": "KA",
+  "featured": true, "sort_order": 10, "active": true,
+  "created_by": "…", "updated_by": "…", "created_at": "…", "updated_at": "…"
+}
+```
+`kind` is `SKILL` or `CITY`; a city needs `state_code`, a skill has none.
+`key` is derived from the label. Choosing an option searches its label, key
+and every alias. `featured` options (at most 40 per kind) show on the panel
+before anything is typed; lower `sort_order` first.
+
+**One spelling, one option per kind**: a label or alias another option
+already holds, switched off or not, is `409 search_filter_option_conflict`
+naming the spelling. Options are **switched off, never deleted** (there is
+no DELETE).
+
+| Route | What it does |
+|---|---|
+| `GET /admin/search-filters` | List, by kind then key. Query `kind`, `q` (in the key or an alias), `include_inactive`, `cursor`, `limit`. Returns `{ items, next_cursor, catalogue_version }`. |
+| `POST /admin/search-filters` | Add one: `{ kind, label, aliases?, state_code?, featured?, sort_order? }`. `201`. `422 search_filter_option_invalid` with a reason. |
+| `POST /admin/search-filters/import` | Add up to 500 at once, `{ "items": [ … ] }`, **all or none**: one bad item refuses the lot, with `params.index` (422) or the clashing spellings (409). `201 { items }`. |
+| `GET /admin/search-filters/{option_id}` | One option. |
+| `PATCH /admin/search-filters/{option_id}` | Change any of `label`, `aliases` (replaces the whole list), `state_code`, `featured`, `sort_order`, `active`. |
+
+Every change is audited. `catalogue_version` starts `placeholder-` while the
+starter lists are ours, not the client's.
+
 ## 4. Drill-downs — `GET /admin/{candidates,employers,colleges}/{id}`
 
 **The read-everything-about-one-entity screens.** Each is audited on
@@ -458,13 +497,13 @@ application stands has not thereby read a CV or listened to anyone.
 
 | Endpoint | Capability (roles) | What it returns |
 |---|---|---|
-| `…/onboarding` | `candidate_contact` (admin, support) | Everything given at sign-up and on the profile, **phone and email unmasked**, questionnaire answers in words, college links, and `photo_url` (their profile photo, a link that expires; 2026-10-09) |
-| `…/resume` | `candidate_resume` (+ integrity reviewer) | The newest CV version and the newest confirmed one (what the score was built from): text or form fields, and the uploaded file by presigned GET |
-| `…/score-timeline` | `candidate_drilldown` | Every score, oldest first |
-| `…/interviews` | `candidate_drilldown` | Every mock-interview session |
-| `…/interviews/{session_id}/recordings` | `candidate_recordings` (admin, support) | One presigned GET per answer, with the question and transcript |
-| `…/courses` | `candidate_drilldown` | Purchase, lessons watched, percent, completion |
-| `…/applications` | `candidate_drilldown` | Every application with job, employer and stage, plus analytics |
+| `GET /admin/candidates/{user_id}/onboarding` | `candidate_contact` (admin, support) | Everything given at sign-up and on the profile, **phone and email unmasked**, questionnaire answers in words, college links, and `photo_url` (their profile photo, a link that expires; 2026-10-09) |
+| `GET /admin/candidates/{user_id}/resume` | `candidate_resume` (+ integrity reviewer) | The newest CV version and the newest confirmed one (what the score was built from): text or form fields, and the uploaded file by presigned GET |
+| `GET /admin/candidates/{user_id}/score-timeline` | `candidate_drilldown` | Every score, oldest first |
+| `GET /admin/candidates/{user_id}/interviews` | `candidate_drilldown` | Every mock-interview session |
+| `GET /admin/candidates/{user_id}/interviews/{session_id}/recordings` | `candidate_recordings` (admin, support) | One presigned GET per answer, with the question and transcript |
+| `GET /admin/candidates/{user_id}/courses` | `candidate_drilldown` | Purchase, lessons watched, percent, completion |
+| `GET /admin/candidates/{user_id}/applications` | `candidate_drilldown` | Every application with job, employer and stage, plus analytics |
 
 The score timeline shows **what the candidate saw**, never the stored number:
 ```json
@@ -642,6 +681,23 @@ is written first, Cognito is asked to create the login second — invite
 last.** A refusal at our own validation step emails nobody; a Cognito
 failure after our row exists rolls the whole thing back, so there's never
 a Cognito account with no matching row or vice versa.
+
+### `GET /admin/accounts/forms` — the forms staff may fill in
+
+Capability `accounts` (PLATFORM_ADMIN). The field codes and options for
+`kyb_answers` (employer) and `onboarding_answers` (college) on the two
+create calls below, so the console can draw them.
+
+**Response** — `200 OK` (`AccountFormsResponse`):
+```json
+{
+  "employer": { "code": "…", "version": "…", "sections": [ { "…": "the KYB form's sections and fields" } ], "options": { "employee_count_band": [ { "code": "…", "label": "…" } ] } },
+  "college":  { "code": "…", "version": "…", "sections": [ ], "options": { } }
+}
+```
+**Undertakings (checkboxes) and documents are left out**: only the person
+can accept or upload those, and `validate_staff_answers` refuses them if
+sent (2026-10-03). Staff fill a draft; they never submit it.
 
 ### `POST /admin/accounts/candidates` — make a candidate account
 

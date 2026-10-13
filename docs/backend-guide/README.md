@@ -16,7 +16,7 @@ Read in order. Each doc assumes the ones before it.
 |---|---|
 | [00-foundations.md](00-foundations.md) | What a backend/API/database/cache/queue *is*, in general — for absolute beginners. |
 | [01-architecture.md](01-architecture.md) | How *this* backend is shaped: the module template (router → service → repository), FastAPI dependencies, authentication, tenant isolation (RLS), and what "invariants" means here. |
-| [02-api-checklist.md](02-api-checklist.md) | **Every API endpoint (208 operations in a local build), grouped by surface, with a status column.** The tracker that guarantees nothing gets skipped as this series goes on. |
+| [02-api-checklist.md](02-api-checklist.md) | **Every API endpoint (247 operations in a local build), grouped by surface, each linked to the document that walks through it.** Generated from the app's own route table by `backend/scripts/check_api_guide.py`, which also fails on any route no document describes. |
 | [03-login-signup-apis.md](03-login-signup-apis.md) | Login & signup, endpoint by endpoint: exact request/response JSON, field rules, error codes, for candidates, employers, and colleges. |
 | [04-resume-and-scoring-apis.md](04-resume-and-scoring-apis.md) | The core loop: upload/paste/manual CV → review → the mandatory confirm gate → the `resume.version_confirmed` event → background scoring → `GET /candidate/score/me`. |
 | [05-jobs-and-discovery-apis.md](05-jobs-and-discovery-apis.md) | Employer job posting lifecycle, the candidate job board, masked candidate search, and the audited "reveal" that shows name/contact/exact score. |
@@ -31,6 +31,7 @@ Read in order. Each doc assumes the ones before it.
 | [14-notifications-inbox-apis.md](14-notifications-inbox-apis.md) | The in-app inbox and per-channel notification preferences — the reading side of a module that only ever answers, never triggers a send. |
 | [15-privacy-and-data-rights-apis.md](15-privacy-and-data-rights-apis.md) | Export and erasure requests (DPDP Act rights): the 24-hour cooling-off window, the withdraw path, and the one-time-mint download link. |
 | [16-profile-images-apis.md](16-profile-images-apis.md) | Profile photos for every account, and employer and college logos: the three-call upload, what the server keeps (re-encoded, no metadata), and who may see a student's photo (the student and staff only). |
+| [17-assistant-apis.md](17-assistant-apis.md) | The candidate's job-search chat: one endpoint, the model picks an action and the server runs it through the board's own rules; applying is a Confirm button on the ordinary apply endpoint; nothing stored, never the score. |
 
 ## Modules
 
@@ -61,6 +62,8 @@ it). Written as each is covered — not all exist yet.
 | — | `notifications` | — | not yet written |
 | — | `admin` | — | not yet written |
 | — | `privacy` | — | not yet written |
+| — | `profile_images` | — | not yet written (APIs: [16](16-profile-images-apis.md)) |
+| — | `assistant` | — | not yet written (APIs: [17](17-assistant-apis.md)) |
 
 ## Cross-cutting
 

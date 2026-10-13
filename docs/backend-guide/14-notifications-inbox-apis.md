@@ -167,6 +167,44 @@ stop reminders its holder was already going to receive anyway.
 
 ---
 
+## 6. Push notifications — register this phone (2026-10-12)
+
+The mobile app (Expo) registers its push token after sign-in so in-app
+messages also arrive as phone notifications. Any signed-in account.
+
+### `POST /notifications/devices`
+
+**Request:**
+```json
+{ "token": "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]", "platform": "android" }
+```
+`token` must look like an Expo token (`ExponentPushToken[…]` or
+`ExpoPushToken[…]`, 20–256 characters); `platform` is `android` or `ios`.
+
+**Response** — `204 No Content`. Idempotent: call it on every sign-in. A
+token that last belonged to another account moves to this one, and a
+switched-off token is switched back on.
+
+### `DELETE /notifications/devices`
+
+**Request:** `{ "token": "ExponentPushToken[…]" }`. **Response** — `204`.
+Call it on sign-out. It switches the token off for this account only; an
+unknown token is not an error.
+
+### What gets pushed
+
+- **Only in-app messages**, and only ones created while the device was
+  registered: registering never replays the backlog.
+- **The push never carries the message.** The lock screen shows a generic
+  title ("Application update", "Interview update" or "BharatPath update")
+  and "You have a new update. Open BharatPath to read it."; `data` carries
+  `notificationId` so a tap can open it in the inbox.
+- `push_enabled: false` in the preferences (§4), or a staff suppression on
+  `PUSH` or `ALL`, stops it. Sent by beat every 30 seconds
+  (`notifications.push_pending`), so allow that delay.
+
+---
+
 ## Quick reference
 
 | Question | Answer |
