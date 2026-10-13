@@ -127,9 +127,14 @@ async def save_details(
         )
         version_id = version.id
     if version_id:
-        version = await resume_service.get_version_for_profile(
-            session, user_id=ctx.user_id, resume_version_id=version_id, current_only=True
+        # The newest version of this CV, not necessarily the row named: a
+        # client still holding the version it uploaded, after a completed
+        # save or a correction superseded it, would otherwise be refused
+        # `resume_version_superseded` on every save from then on (2026-10-13).
+        version = await resume_service.latest_version_for_profile(
+            session, user_id=ctx.user_id, resume_version_id=version_id
         )
+        version_id = version.id
         file_id = version.resume_file_id
         if payload.complete and (not old.completed or payload.details != old.details):
             # A reviewed profile becomes an unconfirmed resume revision. Creating
@@ -156,13 +161,16 @@ async def save_details(
                 f"{facts.starting_year} to {facts.passing_year}\n"
                 f"Skills: {', '.join(facts.key_skills)}"
             )
-            updated_version = await resume_service.edit_version(
-                session,
-                user_id=ctx.user_id,
-                resume_version_id=version_id,
-                payload=ResumeEditRequest(text=original + reviewed),
-            )
-            version_id = updated_version.id
+            # A change the scored text does not carry -- the city, preferences,
+            # salary -- writes no new version: an identical revision would
+            # only ask the candidate to confirm the same CV again.
+            # Compared as stored: an edit's text is normalised on the way in.
+            edit = ResumeEditRequest(text=original + reviewed)
+            if edit.edited_text() != parsed.get("raw_text"):
+                updated_version = await resume_service.edit_version(
+                    session, user_id=ctx.user_id, resume_version_id=version_id, payload=edit
+                )
+                version_id = updated_version.id
     saved = {
         "details": payload.details.model_dump(mode="json"),
         "resume_version_id": str(version_id) if version_id else None,
@@ -186,9 +194,12 @@ async def prefill(
     session: AsyncSession, *, ctx: TenantContext, resume_version_id: uuid.UUID
 ) -> CareerResponse:
     _candidate(ctx)
-    version = await resume_service.get_version_for_profile(
-        session, user_id=ctx.user_id, resume_version_id=resume_version_id, current_only=True
+    # The newest version of this CV, as in `save_details`: prefilling from an
+    # older version of the CV already linked is the no-op below, not a 409.
+    version = await resume_service.latest_version_for_profile(
+        session, user_id=ctx.user_id, resume_version_id=resume_version_id
     )
+    resume_version_id = version.id
     old = await get_details(session, ctx=ctx)
     if old.resume_version_id == resume_version_id:
         return old

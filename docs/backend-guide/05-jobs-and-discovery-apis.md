@@ -739,11 +739,16 @@ never scored, never an employer filter, never a matching term).
   (`full_name` among them if `PUT /candidate/profile/name` was never called).
   It then writes a reviewed, **unconfirmed** resume version: from the linked
   CV with the reviewed facts appended, or, with no CV, from the form itself.
+  **Only when that text would change**: a change the CV text does not carry
+  (the city, preferences, salary, gender) writes no new version.
 - A fresher declaring experience, an end before a start, or a malformed
   date or phone is `422` from validation. `currently_employed: "NO"` clears
   the current-job fields.
-- `resume_version_id` must be the caller's **latest** version:
-  `404 resume_version_not_found` or `409 resume_version_superseded`.
+- `resume_version_id` may be **any version of the caller's CV**: the save
+  follows it to the newest version in its chain and links that (since
+  2026-10-13; before, an older one was refused `409 resume_version_superseded`
+  on every save). Read the linked id back from the response. Another
+  candidate's version is `404 resume_version_not_found`.
 
 **Response** — `200 OK`, the saved `CareerResponse`.
 
@@ -752,10 +757,10 @@ never scored, never an employer filter, never a matching term).
 Reads the version's text into the profile. **Values the candidate already
 entered win**: a replacement CV never silently overwrites them. Sets the
 profile name from the CV only if none was given. Calling it again for the
-version already linked changes nothing.
+version already linked, or for an older version of that CV, changes nothing.
 
 **Response** — `200 OK`, the saved `CareerResponse` (still a draft).
-Errors: `404 resume_version_not_found`, `409 resume_version_superseded`.
+Errors: `404 resume_version_not_found`.
 If the model cannot be reached the request currently fails with a `500`
 (the signup preview answers `503 resume_prefill_unavailable` instead): treat
 both as "enter the details by hand".

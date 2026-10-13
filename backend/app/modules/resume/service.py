@@ -550,7 +550,6 @@ async def get_version_for_profile(
     *,
     user_id: uuid.UUID,
     resume_version_id: uuid.UUID,
-    current_only: bool = False,
 ) -> Any:
     """Owner-scoped reading before payment, independent of the confirm gate."""
     row = await repository.get_version(
@@ -558,8 +557,26 @@ async def get_version_for_profile(
     )
     if row is None:
         raise VersionNotFoundError()
-    if current_only and await repository.successor_of(session, resume_version_id=row.id):
-        raise VersionSupersededError()
+    return row
+
+
+async def latest_version_for_profile(
+    session: AsyncSession, *, user_id: uuid.UUID, resume_version_id: uuid.UUID
+) -> Any:
+    """The newest version in this version's chain, owner-scoped.
+
+    A client holding an older version of the same CV -- the one it uploaded,
+    before a profile save or a correction superseded it -- means the CV, not
+    that exact row. The chain cannot fork (unique `supersedes_id`), so
+    following it is unambiguous, and it stays within the caller's versions.
+    """
+    row = await get_version_for_profile(
+        session, user_id=user_id, resume_version_id=resume_version_id
+    )
+    while (
+        successor := await repository.successor_of(session, resume_version_id=row.id)
+    ) is not None:
+        row = successor
     return row
 
 
