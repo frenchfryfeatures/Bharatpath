@@ -192,6 +192,7 @@ export function CollegeSignup() {
 
       {stage.name === "account" && (
         <AccountStep
+          portal="college"
           copy={ACCOUNT_COPY}
           onSignedUp={(result, signedUpEmail) => {
             if (result.token) {

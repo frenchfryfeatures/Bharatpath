@@ -41,6 +41,7 @@ interface AccountStepProps {
   onSignedUp: (result: SignupResponse, email: string) => void;
   /** Wording for the page; defaults to the employer sign-up. */
   copy?: AccountStepCopy;
+  portal?: "employer" | "college";
 }
 
 export type { AccountStepCopy };
@@ -48,6 +49,7 @@ export type { AccountStepCopy };
 export function AccountStep({
   onSignedUp,
   copy = EMPLOYER_COPY,
+  portal = "employer",
 }: Readonly<AccountStepProps>) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -66,10 +68,10 @@ export function AccountStep({
 
   useEffect(() => {
     if (flow.error) showFormError(flow.error, {
-      portal: "employer",
+      portal,
       fieldId: flow.phase === "CONFIRM" ? "signup-code" : flow.phase === "TOTP_SETUP" || flow.phase === "TOTP_CODE" ? "signup-totp-code" : undefined,
     });
-  }, [flow.error, flow.phase]);
+  }, [flow.error, flow.phase, portal]);
 
   useEffect(() => {
     if (!flow.totpSetup) return;
@@ -90,7 +92,7 @@ export function AccountStep({
     };
     setErrors(next);
     if (next.email || next.password || next.confirmPassword) {
-      showFormError("Check the highlighted account fields.", { portal: "employer", container: event.currentTarget });
+      showFormError("Check the highlighted account fields.", { portal, container: event.currentTarget });
       return;
     }
 
@@ -101,7 +103,7 @@ export function AccountStep({
     event.preventDefault();
     if (code.trim().length < 4) {
       setCodeError("Enter the confirmation code from your email.");
-      showFormError("Check the highlighted confirmation code.", { portal: "employer", fieldId: "signup-code" });
+      showFormError("Check the highlighted confirmation code.", { portal, fieldId: "signup-code" });
       return;
     }
     void flow.confirm(code.trim());
@@ -111,7 +113,7 @@ export function AccountStep({
     event.preventDefault();
     if (totpCode.length !== 6) {
       setTotpError("Enter the 6-digit authenticator code.");
-      showFormError("Check the highlighted authenticator code.", { portal: "employer", fieldId: "signup-totp-code" });
+      showFormError("Check the highlighted authenticator code.", { portal, fieldId: "signup-totp-code" });
       return;
     }
     void flow.completeTotp(totpCode);
