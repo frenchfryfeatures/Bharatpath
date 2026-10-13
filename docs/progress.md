@@ -9,6 +9,31 @@ states. Newest entries first.
 
 ---
 
+## 2026-10-13 — Career profile: 409 on every save after completing it
+
+Reported from the web profile: changing a student's city answered `409
+resume_version_superseded`, every time, after fresh reloads.
+
+- **Cause.** A completed save writes the reviewed facts as a new version of
+  the CV (A -> B) and links B. The web form sends
+  `selectedVersionId ?? resumeVersionId ?? saved.resume_version_id` --
+  the id it was handed first -- so it kept sending A, and
+  `get_version_for_profile(current_only=True)` refused A for having a
+  successor. A correction on the review screen did the same to the stored id.
+- **Fix.** `resume.service.latest_version_for_profile` follows the
+  candidate's own chain (it cannot fork) to its newest version; save and
+  prefill use it. Another candidate's version is still 404. `current_only`
+  had no other caller and is gone.
+- **And** a completed save whose CV text would not change (city,
+  preferences, salary, gender) writes no new version: each city edit used
+  to mint an identical unconfirmed version.
+- `tests/integration/test_career_profile_versions.py` reproduces the 409
+  (checked against the old code) and holds both behaviours.
+- Worth telling the web team: the form should prefer the id the server
+  returned (`saved.resume_version_id`) over the one it was given.
+
+---
+
 ## 2026-10-13 — Backend guide audited against the route table
 
 Every one of the 247 operations a local build serves was checked against
