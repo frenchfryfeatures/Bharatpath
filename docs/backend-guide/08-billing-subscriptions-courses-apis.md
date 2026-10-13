@@ -251,7 +251,7 @@ everything else** — `GRACE` (an auto-renewal payment is being retried) still
 has `has_access: true` right up to `current_period_end`, so a momentary
 retry doesn't lock anyone out mid-grace.
 
-### `POST /{...}/subscription/checkout/discount-preview` — price a plan with a code, without buying
+### `POST /{candidate,employer,college}/subscription/checkout/discount-preview` — price a plan with a code, without buying
 
 **Auth required:** the "buy" role for that audience (same as checkout —
 previewing a price is gated exactly like spending money, not like reading
@@ -277,7 +277,7 @@ actual checkout even after a successful preview** — nothing here holds or
 reserves anything, so a code that had one use left when previewed can be
 gone by the time checkout actually runs.
 
-### `POST /{...}/subscription/checkout` — buy a period
+### `POST /{candidate,employer,college}/subscription/checkout` — buy a period
 
 **Auth required:** the "buy" role for that audience (Owner / College Admin
 / the candidate themselves — **not** a Recruiter, Viewer, or College Staff).
@@ -328,7 +328,7 @@ A paid checkout still answers `503` then.
 | `422 discount_code_already_used` | This subscriber (this candidate, or this employer's/college's organisation) has already redeemed this code once — one use per subscriber |
 | `422 discount_exceeds_price` | The code would take the price below zero (a fixed amount larger than the plan), or leave less than ₹1 to pay. Exactly zero is allowed: see above |
 
-### `POST /{...}/subscription/cancel` — stop auto-renewing
+### `POST /{candidate,employer,college}/subscription/cancel` — stop auto-renewing
 
 **Auth required:** the "buy" role for that audience (same as checkout).
 
@@ -345,7 +345,7 @@ subscription just returns the same state.
 |---|---|
 | `409 subscription_not_active` | There's no live subscription to cancel at all (e.g. `state: "NONE"` or already `LAPSED`) |
 
-### `POST /{...}/subscription/mandate` — set up automatic renewal (UPI AutoPay)
+### `POST /{candidate,employer,college}/subscription/mandate` — set up automatic renewal (UPI AutoPay)
 
 **Auth required:** the "buy" role for that audience (same as checkout/cancel).
 
@@ -497,6 +497,30 @@ The order of operations:
      bytes really are a video, and deletes them if not).
 3. `PUT /admin/courses/{code}/published` `{ "published": true }` — refused
    (`409 course_not_publishable`) until at least one lesson can play.
+
+Reading and changing what exists:
+
+- **`GET /admin/courses`** — every course, newest version per code, with all
+  its modules and lessons, switched-off ones included (`list[AdminCourseView]`):
+  ```json
+  [{ "id": "…", "code": "INTERVIEW_READY", "title": "…", "version": 2, "price_minor": 49900,
+     "published": true,
+     "modules": [{ "id": "…", "title": "Writing Practice", "sort_order": 0, "active": true,
+       "lessons": [{ "id": "…", "title": "…", "description": null, "sort_order": 0,
+         "duration_seconds": 540, "media_kind": "YOUTUBE", "youtube_video_id": "dQw4w9WgXcQ",
+         "media_ready": true, "mime": null, "size_bytes": null, "active": true,
+         "created_at": "…", "updated_at": "…" }] }] }]
+  ```
+  `media_ready` is whether the lesson can play: a YouTube id, or an upload
+  the server has checked.
+- **`PATCH /admin/course-modules/{module_id}`** — any of `title`,
+  `sort_order` (0–10000, lower first) and `active`. Returns the whole
+  `AdminCourseView`.
+- **`PATCH /admin/course-lessons/{lesson_id}`** — any of `title`,
+  `description`, `duration_seconds` (1–14400), `sort_order`, `active`, and
+  `youtube_url` (a new video for a YouTube lesson). Returns `AdminLessonView`.
+  Switching a lesson off takes it out of the course and out of the
+  "every published lesson watched" rule for completion.
 
 Staff give each lesson's duration because a YouTube embed tells the server
 nothing, and the "watched" rule in §5b is measured against it. Modules and

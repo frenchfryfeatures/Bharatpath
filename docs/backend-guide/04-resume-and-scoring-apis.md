@@ -179,6 +179,39 @@ candidate's row is never confirmed.
 
 ---
 
+## 3b. `POST /candidate/resume/intake` — one-shot upload during onboarding
+
+Requires: `CANDIDATE` role. Not paywalled. The sign-up flow's way in
+([`student-career-onboarding.md`](../student-career-onboarding.md)): the file
+read before the account existed (`POST /auth/resume-preview`, [03](03-login-signup-apis.md))
+is sent again once the person is signed in, and is stored this time.
+
+Unlike steps 1–3 it is **one synchronous request**: the bytes go to the API,
+not to a presigned URL, and the answer is the new version, with no polling
+and no worker.
+
+**Request:** `multipart/form-data`, one part `file` (PDF or `.docx`, at most
+10 MB, sniffed from the bytes).
+
+What the server does, in order: validates the type, reads the text locally
+(**no Textract** on this path), stores the original in the resumes bucket,
+virus-scans it, writes the structured display view (best effort), then the
+`resume_files` and `resume_versions` rows, and emits `resume.version_created`.
+
+**Response** — `201 Created` (`ResumeVersionResponse`):
+```json
+{ "resume_version_id": "3a1c...", "source": "UPLOAD", "confirmed": false, "created_at": "2026-10-13T09:00:00Z" }
+```
+**`confirmed: false`, and nothing is scored.** The version goes through the
+same review and confirm gate (§7, §9) as every other.
+
+**Errors:** 422 with `upload_empty`, `upload_too_large`,
+`upload_unrecognised_type`, `upload_legacy_doc_unsupported` or
+`upload_unsupported_type` (and `params.detail`); 422 `resume_scan_blocked`
+when the scan refuses the file (the stored object is deleted).
+
+---
+
 ## 4. `POST /candidate/resume/text` — paste-text path
 
 Requires: `CANDIDATE` role. No file, no scan, no async wait.
@@ -288,6 +321,52 @@ press.
 
 ---
 
+## 7b. Seeing the CV as it was sent — `/preview` and `/document`
+
+Both require the `CANDIDATE` role and answer only for the caller's own
+versions (another candidate's version is `404 resume_version_not_found`).
+Neither is paywalled and neither depends on the confirm gate: they show the
+person their own CV during onboarding, before they have paid.
+
+### `GET /candidate/resume/versions/{resume_version_id}/preview`
+
+The in-app CV viewer. **A PDF is drawn on the server**, so no third-party
+viewer ever receives the CV or a link to it.
+
+**Response** — `200 OK`:
+```json
+{
+  "pages": ["iVBORw0KGgoAAAANSUhEUgAA..."],
+  "text": "",
+  "truncated": false,
+  "structured_resume": { "...": "the model's display view, as on the review screen" },
+  "structured_status": "READY"
+}
+```
+| Field | Meaning |
+|---|---|
+| `pages` | An uploaded **PDF**: each page as a base64 PNG (no `data:` prefix), at most 20 pages. Empty for anything else. |
+| `text` | A `.docx` upload, pasted text or the manual form: the readable text. Empty when `pages` is filled. |
+| `truncated` | `true` when the PDF has more than 20 pages. |
+| `structured_resume`, `structured_status` | The structured display view (never scored), or `null`. Status `READY`, `FAILED` (the model could not write it) or `UNAVAILABLE` (no model configured, or a version from before 2026-10-06). |
+
+Errors: `404 resume_version_not_found`, `404 resume_upload_not_found` (the
+file row is gone).
+
+### `GET /candidate/resume/versions/{resume_version_id}/document`
+
+The original file, for "Download my CV".
+
+**Response** — `200 OK`:
+```json
+{ "url": "https://...s3...presigned..." }
+```
+A presigned GET that expires (15 minutes by default): open it, don't store
+it. `url` is `null` for a version with no file (pasted text or the manual
+form).
+
+---
+
 ## 8. `POST /candidate/resume/versions/{resume_version_id}/edit` — correct it
 
 Requires: `CANDIDATE` role.
@@ -382,6 +461,35 @@ into structured facts) then Layers 2–3 (ordinary versioned code turns facts
 into a 700–990 number) — is its own topic; this doc stops at "an event
 triggers it and here's what comes back." A dedicated scoring-internals doc
 can go deeper if useful later.
+
+---
+
+## 10b. `GET /candidate/score/scale` — the scale itself
+
+Requires: `CANDIDATE` role. **Not paywalled**: it is the same for everyone
+and says nothing about this candidate. Draw the score's scale and band
+labels from it rather than hard-coding them.
+
+**Response** — `200 OK` (`ScoreScaleResponse`):
+```json
+{
+  "lowest": 700,
+  "highest": 990,
+  "bands": [
+    { "band": "ENTRY", "lowest": 700, "highest": 769 },
+    { "band": "DEVELOPING", "lowest": 770, "highest": 819 },
+    { "band": "SOLID", "lowest": 820, "highest": 864 },
+    { "band": "STRONG", "lowest": 865, "highest": 990 }
+  ]
+}
+```
+Read from `scoring.domain`, so the numbers drawn are the ones the engine
+uses. It must never grow a "points to the next band" or a split of the scale
+into what earns what: that is the breakdown R11 rules out, and
+`test_score_never_explained.py` scans this schema too.
+
+**Never draw it as a red-to-green gauge or speedometer** (`docs/design-system.md` §1):
+that is how an Indian bureau score is drawn.
 
 ---
 

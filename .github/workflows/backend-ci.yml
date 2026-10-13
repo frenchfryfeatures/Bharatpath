@@ -100,6 +100,7 @@ jobs:
       # so verification is exercised; Settings refuses it outside local/dev.
       PAYMENTS_PROVIDER: stub
       INTERVIEW_QUESTION_PROVIDER: stub
+      ASSISTANT_PROVIDER: stub
       # One runner IP makes more requests a minute than any person; the global
       # tier is switched on by tests/integration/test_rate_limits.py.
       RATE_LIMIT_GLOBAL_ENABLED: "false"
@@ -174,6 +175,7 @@ jobs:
           # construct without its key. The schema does not depend on which
           # provider writes the questions.
           INTERVIEW_QUESTION_PROVIDER: stub
+          ASSISTANT_PROVIDER: stub
         run: python scripts/export_openapi.py
       - name: export the Postman collection
         # Generated from the schema above, for the same reason it is: a

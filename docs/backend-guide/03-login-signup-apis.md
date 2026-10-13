@@ -146,6 +146,53 @@ with no real upside for the honest user either.
 
 ---
 
+### `POST /auth/resume-preview` — read a CV before the account exists
+
+Step 1 of candidate sign-up ("Basic details") can start from a CV: the app
+sends the file, gets the facts back, and fills the form with them. **No
+token**: the person has no account yet. The whole flow is in
+[`docs/student-career-onboarding.md`](../student-career-onboarding.md).
+
+**Nothing is kept.** No file is stored, no user is looked up or created, no
+resume version is written and nothing is scored. After sign-up, the app sends
+the same file again to `POST /candidate/resume/intake`
+([04](04-resume-and-scoring-apis.md) §3b), which is where it is stored.
+
+**Request:** `multipart/form-data` with one part, `file`: a PDF or `.docx`,
+at most 10 MB. The type is sniffed from the bytes, never taken from the
+filename.
+
+**Response** — `200 OK`:
+```json
+{
+  "full_name": "Priya Sharma",
+  "email": "priya@example.com",
+  "details": {
+    "phone": "+919876543210",
+    "work_status": "EXPERIENCED",
+    "currently_employed": "YES",
+    "experience_years": 3, "experience_months": 4,
+    "company_name": "Acme", "job_title": "Data Analyst",
+    "current_city": "Pune",
+    "key_skills": ["SQL", "Excel"],
+    "highest_qualification": "B.Tech", "course": "Computer Science",
+    "institution": "COEP", "starting_year": 2016, "passing_year": 2020,
+    "...": "every other CareerDetails field, blank when not found"
+  }
+}
+```
+`details` has the shape of `CareerDetails` (see [05](05-jobs-and-discovery-apis.md)
+§10b). Parsing never guesses salary, gender or preferences; anything it
+cannot read stays blank (`""`, `null` or `0`).
+
+**Errors:**
+
+| Status | `code` | When |
+|---|---|---|
+| 422 | `upload_empty` / `upload_too_large` / `upload_unrecognised_type` / `upload_legacy_doc_unsupported` / `upload_unsupported_type`, with `params.detail` | Not a usable PDF or `.docx`. Legacy `.doc` has its own code so the app can say "save as PDF or .docx" |
+| 429 | `rate_limited` | 30 per hour **per IP** (`resume.preview`) — it calls a model, and there is no account to limit by |
+| 503 | `resume_prefill_unavailable` | The model could not read it. Let the person type their details instead |
+
 ## 2. Whoami (works for every role, once logged in)
 
 ### `GET /auth/me`

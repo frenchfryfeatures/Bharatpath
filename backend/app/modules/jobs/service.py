@@ -582,10 +582,18 @@ async def recommend(
     pool = await repository.recommendation_pool(
         session, candidate_id=user_id, terms=terms, pool=RECOMMENDATION_POOL
     )
+    if eligible_only:
+        pool = [j for j in pool if eligibility(min_score=j.min_score, score=score) == "ELIGIBLE"]
+    top = _ranked(terms, pool)[:size]
+    return RecommendedJobs(items=await _recommended(session, top, score=score), has_basis=True)
+
+
+def _ranked(terms: MatchTerms, pool: list[Any]) -> list[tuple[Any, tuple[str, ...]]]:
+    """`(job, matched skills)` best match first, dropping jobs that share no
+    term. The pool is newest first and the sort is stable, so equal
+    relevance keeps the newer job first."""
     ranked: list[tuple[int, Any, tuple[str, ...]]] = []
     for job in pool:
-        if eligible_only and eligibility(min_score=job.min_score, score=score) != "ELIGIBLE":
-            continue
         found = match(
             terms,
             title=job.title,
@@ -595,23 +603,109 @@ async def recommend(
         )
         if found is not None:
             ranked.append((found.relevance, job, found.matched_skills))
-    # The pool is newest first and the sort is stable, so equal relevance
-    # keeps the newer job first.
     ranked.sort(key=lambda entry: entry[0], reverse=True)
-    top = ranked[:size]
-    tenant_ids = list({job.tenant_id for _, job, _ in top})
+    return [(job, matched) for _, job, matched in ranked]
+
+
+async def _recommended(
+    session: AsyncSession, entries: list[tuple[Any, tuple[str, ...]]], *, score: int | None
+) -> list[RecommendedJob]:
+    tenant_ids = list({job.tenant_id for job, _ in entries})
     names = await employer_service.public_names(session, tenant_ids=tenant_ids)
     logos = await profile_images_service.logo_urls(session, tenant_ids=tenant_ids)
-    return RecommendedJobs(
-        items=[
-            RecommendedJob(
-                **_summary(job, employer_name=names.get(job.tenant_id), score=score, logos=logos),
-                matched_skills=list(matched),
-            )
-            for _, job, matched in top
-        ],
-        has_basis=True,
+    return [
+        RecommendedJob(
+            **_summary(job, employer_name=names.get(job.tenant_id), score=score, logos=logos),
+            matched_skills=list(matched),
+        )
+        for job, matched in entries
+    ]
+
+
+async def search_ranked(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    terms: MatchTerms,
+    locations: tuple[str, ...] = (),
+    work_mode: str | None = None,
+    min_salary_minor: int | None = None,
+    max_experience_months: int | None = None,
+    eligible_only: bool = False,
+    offset: int = 0,
+    limit: int = RECOMMENDATIONS_DEFAULT,
+) -> tuple[list[RecommendedJob], bool]:
+    """The chat assistant's search (2026-10-13): one page of board jobs and
+    whether there is another.
+
+    Ranked by `domain.match` when there are terms, as recommendations are;
+    newest first when there are none. The filters are the board's, and hard:
+    asking for Pune is not asking for Pune first. Jobs already applied to
+    are left out. Eligibility filters as the board's does and never orders.
+
+    Paged by offset into the ranking, not by cursor: the ranking is computed
+    over a bounded pool each time, so an offset into it is as stable as the
+    pool, and a chat's "show me more" never goes far.
+    """
+    user_id = await bind_candidate(session, ctx)
+    score = await current_score(session, user_id=user_id)
+    pool = await repository.search_pool(
+        session,
+        candidate_id=user_id,
+        terms=terms,
+        locations=locations,
+        work_mode=work_mode,
+        min_salary_minor=min_salary_minor,
+        max_experience_months=max_experience_months,
+        eligible_at_score=score,
+        eligible_only=eligible_only,
+        pool=RECOMMENDATION_POOL,
     )
+    ranked: list[tuple[Any, tuple[str, ...]]] = (
+        [(job, ()) for job in pool] if terms.is_empty else _ranked(terms, pool)
+    )
+    page = ranked[offset : offset + limit]
+    more = len(ranked) > offset + limit
+    return await _recommended(session, page, score=score), more
+
+
+async def board_jobs(
+    session: AsyncSession, *, ctx: TenantContext, job_ids: list[uuid.UUID]
+) -> list[BoardJobDetail]:
+    """Several published jobs as `get_board_job` returns one, in the order
+    asked, leaving out any no longer on the board. For the chat assistant's
+    jobs in view, which may have been paused or closed since they were shown.
+    """
+    user_id = await bind_candidate(session, ctx)
+    found = {
+        job.id: job
+        for job in await repository.jobs_by_id(session, job_ids=job_ids)
+        if job.status == "PUBLISHED"
+    }
+    jobs = [found[job_id] for job_id in dict.fromkeys(job_ids) if job_id in found]
+    if not jobs:
+        return []
+    score = await current_score(session, user_id=user_id)
+    tenant_ids = list({job.tenant_id for job in jobs})
+    names = await employer_service.public_names(session, tenant_ids=tenant_ids)
+    logos = await profile_images_service.logo_urls(session, tenant_ids=tenant_ids)
+    visible = await discovery_service.is_candidate_visible(session, candidate_id=user_id)
+    out = []
+    for job in jobs:
+        # The same two conditions as `get_board_job`, for the same reason.
+        eligible = eligibility(min_score=job.min_score, score=score) == "ELIGIBLE"
+        details = for_candidate(parse_stored(job.details), may_apply=eligible and visible)
+        out.append(
+            BoardJobDetail(
+                **_summary(job, employer_name=names.get(job.tenant_id), score=score, logos=logos),
+                description=job.description,
+                details=details,
+                can_apply_externally=bool(
+                    details.application.external_url or details.application.email
+                ),
+            )
+        )
+    return out
 
 
 async def similar_to_applied(

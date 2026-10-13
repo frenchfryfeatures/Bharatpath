@@ -8,6 +8,7 @@ from . import (
     admin,
     analytics,
     applications,
+    assistant,
     billing,
     candidate,
     college,
@@ -52,4 +53,5 @@ ALL_MODULES: tuple[ModuleType, ...] = (
     privacy,
     engagement,
     profile_images,
+    assistant,
 )

@@ -66,6 +66,26 @@ forbidden_modules =
     app.modules.scoring
 
 ; ---------------------------------------------------------------------------
+; The chat assistant never reads the score (2026-10-13).
+;
+; Whatever the assistant holds can end up in front of the model, and the
+; model can end up saying it. A score or a threshold beside a job is the
+; explanation R11 forbids, written in a chat bubble. The assistant reaches
+; jobs and applications through their services, which judge eligibility on
+; the stored score themselves and hand back only the board's three answers.
+; Direct imports only, like notifications: `jobs.service` reading the score
+; for eligibility is the design, not a leak.
+; ---------------------------------------------------------------------------
+[importlinter:contract:assistant-never-imports-scoring]
+name = The chat assistant never imports scoring (R11: the score is never explained)
+type = forbidden
+allow_indirect_imports = True
+source_modules =
+    app.modules.assistant
+forbidden_modules =
+    app.modules.scoring
+
+; ---------------------------------------------------------------------------
 ; Streak points never move the score, and the score never reads streaks.
 ;
 ; The client asked for streak points (2026-09-13): -10 for a missed day, +10 /
@@ -160,6 +180,7 @@ source_modules =
     app.modules.privacy
     app.modules.engagement
     app.modules.profile_images
+    app.modules.assistant
 forbidden_modules =
     app.modules.identity.repository
     app.modules.identity.models
@@ -212,6 +233,7 @@ source_modules =
     app.modules.privacy
     app.modules.engagement
     app.modules.profile_images
+    app.modules.assistant
 forbidden_modules =
     app.modules.resume.repository
     app.modules.resume.models

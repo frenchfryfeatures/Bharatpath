@@ -9,6 +9,78 @@ states. Newest entries first.
 
 ---
 
+## 2026-10-13 — Backend guide audited against the route table
+
+Every one of the 247 operations a local build serves was checked against
+`docs/backend-guide`. **33 had no documented contract anywhere in the
+guide**, and the checklist claimed 209 operations (with older tallies of 160
+and 208 still in it) when the app served 247.
+
+- **New sections, written from the code:** `POST /auth/resume-preview` (03);
+  `POST /candidate/resume/intake`, the CV `/preview` and `/document`, and
+  `GET /candidate/score/scale` (04 §3b, §7b, §10b); the career profile
+  (`/candidate/profile/form`, `/details`, `/prefill`) and the employer filter
+  panel (05 §10b, §8b); the shortlist, both sides (06 §9); the course
+  builder's read and edit routes (08 §7); the streak calendar (12 §4b);
+  `/admin/accounts/forms` and `/admin/search-filters` (13 §7, §3b); push
+  device registration (14 §6).
+- **Shorthand paths spelled out** (`/{...}/subscription`, `…/onboarding`,
+  "the same four routes", `GET .../sessions/{id}`), so every route is named
+  in full somewhere a reader can search for it.
+- **The checklist is generated.** `backend/scripts/check_api_guide.py`
+  rewrites its tables from the app's own route table, links each route to
+  the document describing it, and exits 1 on a route no document describes.
+  **Not in CI** -- run it after adding a route.
+- **Found, not fixed:** `POST /candidate/profile/prefill/{id}` lets a model
+  failure escape as a 500, where `/auth/resume-preview` answers 503
+  `resume_prefill_unavailable`. Documented as it behaves.
+
+---
+
+## 2026-10-13 — Job-search assistant (candidate chat)
+
+Request from the lead: a Naukri-style chatbot that finds jobs and can apply.
+Backend only; app-team contract in `backend-guide/17`. New module
+`assistant`, one endpoint, `POST /candidate/assistant/messages`.
+
+- **Design: the model plans, code acts.** One OpenAI call per message
+  (`openai_planner.py`, low reasoning effort, strict JSON schema) returns
+  one of eight actions (search, more, match my profile, similar to applied,
+  show job, apply, my applications, reply) and the words to say. The server
+  runs the action through `jobs`, `candidate` and `applications` services
+  with their own RLS bindings and rules.
+- **Applying is a proposal, never an act.** The reply carries `apply`; the
+  candidate's Confirm calls the existing `POST /candidate/applications`.
+  Offered only when the job is ELIGIBLE. A prompt injection in a job
+  description can at most show a button.
+- **The model never sees the score or a threshold**, only `open_to_you`
+  (the board's eligibility, renamed, no number). It is told never to explain
+  why a job is closed to someone (R11), and never to filter by age, gender
+  and the like (invariant 5). Links and emails are stripped from its replies.
+  New import-linter contract `assistant-never-imports-scoring`.
+- **Stateless by decision.** The client carries `history` and an opaque
+  `state`. Storing chat transcripts would be a new personal-data table
+  (retention, erasure cascade, RLS) and is left as a client decision.
+- `jobs`: `search_pool` / `search_ranked` (recommendation ranking plus the
+  board's filters, hard; applied jobs left out; offset-paged) and
+  `board_jobs` (several `BoardJobDetail` in one go). `recommend` now shares
+  `_ranked` / `_recommended` with them; its behaviour is unchanged.
+  `identity.service.locale_of` added.
+- Settings `ASSISTANT_PROVIDER` (`openai` default | `stub`, refused in
+  staging/prod) and `ASSISTANT_MODEL_ID`. The deploy needs nothing new: the
+  OpenAI key is already required. CI, `.test-env.sh`, conftest and
+  `.env.local-demo` use the stub. Rate limit `assistant.message`, 120/h per
+  user.
+- **No migration.** No table was added.
+- Tests: `tests/unit/test_assistant_domain.py`,
+  `tests/integration/test_assistant.py`; module count in `test_app_wiring`
+  is now 23.
+- **Not done:** the chat screen itself (mobile team). No real-model run yet:
+  only the stub and a mocked transport were exercised. Try a few Hindi and
+  Hinglish conversations on dev before the client sees it.
+
+---
+
 ## 2026-10-12 — Push notifications (PR #68), made mergeable
 
 PR #68 (mobile app) added phone push: `push_devices`, `push_deliveries`,

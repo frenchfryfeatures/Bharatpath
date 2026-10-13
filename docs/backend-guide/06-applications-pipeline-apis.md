@@ -521,6 +521,128 @@ are not in this feed.
 
 ---
 
+## 9. The shortlist — save a candidate, or invite them to a job (2026-10-05)
+
+Two surfaces: the employer's `/employer/shortlist` and the candidate's
+`/candidate/shortlist-invitations`. **A shortlist entry is a question, not an
+application**: saving someone files nothing, and an invitation becomes an
+application only when the candidate accepts it.
+
+| Status | Meaning |
+|---|---|
+| `SAVED` | Kept privately for later. The candidate is never told. |
+| `INVITED` | Invited to one of your published jobs; the candidate was emailed and told in the app. |
+| `ACCEPTED` | They accepted: the application exists, already at `SHORTLISTED`. |
+| `DECLINED` | They said no. **Final for that job**: you cannot invite them to it again. |
+| `CANCELLED` | You withdrew the invitation before they answered. You may invite them again later. |
+
+**You can only shortlist someone your organisation has opened** through the
+reveal ([05](05-jobs-and-discovery-apis.md) §9). The reveal's response
+carries `shortlist` (`saved_id`, and every invitation you sent them) so the
+button there knows what to show.
+
+### `POST /employer/shortlist` — save, or invite
+
+Owner or recruiter, live subscription, approved KYB.
+
+**Request** (`ShortlistRequest`):
+```json
+{ "candidate_id": "7c1e...", "job_id": "0b6c..." }
+```
+Leave out `job_id` to save privately; include one of your **PUBLISHED** jobs
+to invite.
+
+**Response** — `201 Created` for a new entry, `200 OK` with the existing one
+on a repeat (`ShortlistEntry`):
+```json
+{
+  "id": "5d2a...",
+  "candidate_id": "7c1e...",
+  "job_id": "0b6c...",
+  "job_title": "Junior Data Analyst",
+  "status": "INVITED",
+  "application_id": null,
+  "created_at": "...", "updated_at": "...", "answered_at": null,
+  "candidate": { "full_name": "Priya Sharma", "band": "SOLID", "experience_years": 3, "skills": ["SQL"], "badges": [], "city": "Pune", "state_code": "MH" }
+}
+```
+`candidate` is the same `ApplicantCard` as the applicant list (§6): name,
+band, experience, skills, badges, city and state. **No contact and no score.** It is `null`
+while an integrity review hides the candidate or once their account is closed.
+
+**Errors:**
+
+| Status | `code` | When |
+|---|---|---|
+| 404 | `candidate_not_found` | Not visible, or never opened by your organisation |
+| 404 | `job_not_found` | Not your job |
+| 409 | `shortlist_job_not_open` | The job is not PUBLISHED |
+| 409 | `already_applied` / `already_hired` | They already applied to (or were hired for) this job; `params.application_id` says where |
+| 409 | `shortlist_declined` / `shortlist_already_accepted` | They already answered an invitation to this job |
+| 403 | `kyb_required` | Organisation not verified |
+| 429 | `rate_limited` | 60 invitations an hour per organisation (`applications.shortlist_invite`) |
+
+### `GET /employer/shortlist` — your list, newest first
+
+Any member role, live subscription. Query: `job_id` (invitations to one job),
+`status` (one of the five above), `cursor`, `limit` (≤100).
+
+**Response** — `Page[ShortlistEntry]`. **Every page that names anyone writes
+one `audit_events` row.**
+
+### `POST /employer/shortlist/{shortlist_id}/cancel` — withdraw an invitation
+
+Owner or recruiter. Returns the entry at `CANCELLED`; repeating it returns
+the same. `409 shortlist_not_pending` once the candidate has answered.
+
+### `DELETE /employer/shortlist/{shortlist_id}` — remove a saved candidate
+
+Owner or recruiter. `204 No Content`. `SAVED` entries only: an invitation is
+cancelled instead (`409 shortlist_not_pending`).
+
+### `GET /candidate/shortlist-invitations` — invitations to me
+
+`CANDIDATE` role. **Not paywalled.** Query: `status` (`INVITED`, `ACCEPTED`,
+`DECLINED`, `CANCELLED`), `cursor`, `limit`.
+
+**Response** — `Page[ShortlistInvitation]`:
+```json
+{
+  "items": [
+    {
+      "id": "5d2a...",
+      "job_id": "0b6c...",
+      "job_title": "Junior Data Analyst",
+      "employer_name": "Acme Analytics Pvt Ltd",
+      "employer_logo_url": "https://...presigned...",
+      "status": "INVITED",
+      "application_id": null,
+      "created_at": "...", "answered_at": null
+    }
+  ],
+  "next_cursor": null
+}
+```
+**Never who at the employer sent it.** `job_title` is `null` once the job has
+left the board; such an invitation cannot be accepted.
+
+### `POST /candidate/shortlist-invitations/{shortlist_id}/accept`
+
+Files the application and walks it straight to **`SHORTLISTED`**, with the
+SUBMITTED and VIEWED steps recorded as the employer's. Returns the
+invitation with `application_id` set; repeating it returns the same.
+**No subscription needed and no minimum score**: the employer chose them.
+
+Errors: `409 shortlist_not_pending` (cancelled or declined),
+`409 shortlist_job_not_open`, `409 application_unavailable` (an integrity
+review is holding them back).
+
+### `POST /candidate/shortlist-invitations/{shortlist_id}/decline`
+
+Returns the invitation at `DECLINED`. Final for that job.
+
+---
+
 ## Quick reference: who can reach which stage
 
 | Target stage | Who can set it | How |

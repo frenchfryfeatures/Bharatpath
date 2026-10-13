@@ -185,6 +185,54 @@ only two things that ever move the balance.
 
 ---
 
+## 4b. `GET /candidate/streak/me/calendar` — which days the app was opened
+
+**Auth required:** `CANDIDATE` role. Read-only: it never counts today as a
+visit (only `check-in` does).
+
+**Request** — query parameters, all optional:
+
+| Param | Meaning |
+|---|---|
+| `period` | `week` (Monday to Sunday), `month`, or `year` (the 366 days ending on `date`). Defaults to this week when neither a period nor a range is given. |
+| `date` | The day the period is around. Defaults to today (IST). |
+| `from`, `to` | An explicit range instead of a period, both ends inclusive. |
+
+At most **366 days** at once. `422 streak_calendar_range_invalid`, with
+`params.reason`, for: a range and a period together, only one of
+`from`/`to`, `from` after `to`, more than 366 days, or a `date` out of range.
+
+**Response** — `200 OK` (`StreakCalendarResponse`):
+```json
+{
+  "start": "2026-10-12",
+  "end": "2026-10-18",
+  "today": "2026-10-13",
+  "days": [
+    { "date": "2026-10-12", "status": "ACTIVE", "milestone_days": null },
+    { "date": "2026-10-13", "status": "TODAY_PENDING", "milestone_days": null },
+    { "date": "2026-10-14", "status": "UPCOMING", "milestone_days": null }
+  ],
+  "active_days": 1,
+  "missed_days": 0,
+  "longest_run": 1
+}
+```
+| `status` | Meaning |
+|---|---|
+| `ACTIVE` | The app was opened that day. `milestone_days` is set when a milestone was reached that day. |
+| `MISSED` | A past day it was not opened. |
+| `TODAY_PENDING` | Today, not opened yet: not missed, the day is not over. |
+| `UPCOMING` | A future day. |
+| `BEFORE_START` | Before the first day ever counted. Never `MISSED`. |
+| `NOT_RETAINED` | Older than a year. Opened days are kept for one year (client decision). |
+
+**Opened or not, never how often**: there is no count of opens per day,
+by design. `longest_run` is the longest run of `ACTIVE` days *inside the
+range*, which is not the streak (a streak can start before the range does).
+
+---
+
 ## 5. Where the numbers themselves come from
 
 **The rules are data, not code.** `break_penalty` (default `10`) and the
