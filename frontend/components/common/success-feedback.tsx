@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, X } from "lucide-react";
+import { AlertCircle, CheckCircle2, X } from "lucide-react";
 
 import {
   SUCCESS_FEEDBACK_EVENT,
@@ -44,20 +44,23 @@ export function SuccessFeedback() {
     return null;
   }
 
+  const isError = feedback.kind === "error";
+  const Icon = isError ? AlertCircle : CheckCircle2;
+
   return (
     <div
-      className="fixed bottom-5 right-5 z-100 flex max-w-sm items-center gap-3 rounded-lg border border-[#b9dfc5] bg-[#eef7f1] px-4 py-3 text-[13px] text-[#245f3a] shadow-lg"
-      role="status"
-      aria-live="polite"
+      className={`fixed bottom-5 right-5 z-100 flex max-w-sm items-center gap-3 rounded-lg border px-4 py-3 text-[13px] shadow-lg ${isError ? "border-[#f0c4c4] bg-[#fdf0f0] text-[#9a2f2f]" : "border-[#b9dfc5] bg-[#eef7f1] text-[#245f3a]"}`}
+      role={isError ? "alert" : "status"}
+      aria-live={isError ? "assertive" : "polite"}
       aria-atomic="true"
     >
-      <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+      <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
       <span className="flex-1 font-semibold">{feedback.message}</span>
       <button
         type="button"
         onClick={() => setFeedback(null)}
         aria-label="Dismiss message"
-        className="grid h-7 w-7 place-items-center rounded-md hover:bg-[#dceee2]"
+        className={`grid h-7 w-7 place-items-center rounded-md ${isError ? "hover:bg-[#f7dcdc]" : "hover:bg-[#dceee2]"}`}
       >
         <X className="h-4 w-4" aria-hidden="true" />
       </button>

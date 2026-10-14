@@ -13,7 +13,7 @@ import { ReviewStep } from "@/features/student/onboarding/components/review-step
 import { parseFailureMessage } from "@/features/student/onboarding/constants";
 import { StudentPage } from "@/features/student/shell";
 import { getApiErrorCode, getApiErrorMessage } from "@/lib/api/error-message";
-import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
+import { showErrorFeedback, showSuccessFeedback } from "@/lib/feedback/success-feedback";
 import { useCompleteResumeUploadMutation, useCreateResumeUploadMutation, useGetResumeVersionsQuery, useUploadResumeFileMutation } from "@/store/student";
 import { useGetCareerProfileQuery, useLazyGetProfileResumeDocumentQuery } from "./career-api";
 
@@ -58,9 +58,11 @@ export function ResumeDetails() {
         else window.location.assign(result.url);
       } else {
         preview?.close();
+        showErrorFeedback("Your resume file isn't available to open right now. Try uploading it again.");
       }
-    } catch {
+    } catch (error) {
       preview?.close();
+      showErrorFeedback(getApiErrorMessage(error, "We couldn't open your resume. Please try again."));
     }
   };
 
