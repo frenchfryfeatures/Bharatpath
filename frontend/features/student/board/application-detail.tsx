@@ -67,7 +67,7 @@ export function ApplicationDetail() {
   return (
     <StudentPage>
       <StudentTopBar title={item.jobTitle ?? "Application"} />
-      <div className="mx-auto grid w-full max-w-6xl gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.8fr)] lg:items-start">
+      <div className="grid w-full max-w-6xl gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.8fr)] lg:items-start">
         <div className="flex min-w-0 flex-col gap-5">
           <section className="rounded-2xl border border-[#E9E3D9] bg-gradient-to-br from-white to-[#FFFCF7] p-5 shadow-[0_2px_10px_rgba(32,40,56,0.035)] sm:p-6">
             <div className="flex flex-wrap items-center gap-4">

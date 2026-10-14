@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { useAppDispatch } from "@/store/hooks";
@@ -12,6 +12,7 @@ import { ConfirmModal } from "@/components/ui";
 import { useScrollLock } from "@/hooks/use-scroll-lock";
 import { baseApi } from "@/store/api/base-api";
 import { notificationApi } from "@/store/api/notification-api";
+import { PortalAssistant } from "@/components/assistant/portal-assistant";
 
 import { StudentHeader } from "./student-header";
 import { StudentSidebarContent } from "./student-sidebar";
@@ -33,16 +34,12 @@ export function StudentAppShell({ children }: { children: ReactNode }) {
   const dispatch = useAppDispatch();
 
   const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [mobileDrawerPath, setMobileDrawerPath] = useState<string | null>(null);
+  const mobileOpen = mobileDrawerPath === pathname;
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useScrollLock(mobileOpen);
-
-  // Close the mobile drawer whenever the route changes.
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -88,7 +85,7 @@ export function StudentAppShell({ children }: { children: ReactNode }) {
           type="button"
           aria-label="Close menu"
           tabIndex={mobileOpen ? 0 : -1}
-          onClick={() => setMobileOpen(false)}
+          onClick={() => setMobileDrawerPath(null)}
           className={[
             "absolute inset-0 bg-[#0A1931]/40 transition-opacity duration-200",
             mobileOpen ? "opacity-100" : "opacity-0",
@@ -101,10 +98,10 @@ export function StudentAppShell({ children }: { children: ReactNode }) {
           ].join(" ")}
         >
           <StudentSidebarContent
-            onNavigate={() => setMobileOpen(false)}
-            onClose={() => setMobileOpen(false)}
+            onNavigate={() => setMobileDrawerPath(null)}
+            onClose={() => setMobileDrawerPath(null)}
             onLogout={() => {
-              setMobileOpen(false);
+              setMobileDrawerPath(null);
               setLogoutOpen(true);
             }}
           />
@@ -113,7 +110,7 @@ export function StudentAppShell({ children }: { children: ReactNode }) {
 
       {/* Content column - header above the page content */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <StudentHeader onOpenDrawer={() => setMobileOpen(true)} />
+        <StudentHeader onOpenDrawer={() => setMobileDrawerPath(pathname)} />
 
         <main className="bp-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
           {children}
@@ -131,6 +128,7 @@ export function StudentAppShell({ children }: { children: ReactNode }) {
         onConfirm={handleLogout}
         onClose={() => setLogoutOpen(false)}
       />
+      <PortalAssistant />
       {isLoggingOut && (
         <div className="fixed inset-0 z-[120]">
           <AccountDestinationLoading message="Signing you out…" />
