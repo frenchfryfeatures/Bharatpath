@@ -122,8 +122,9 @@ class ResumeVersion(Base, UUIDPrimaryKey):
             # EDIT is a source in its own right, not a flag on UPLOAD. The
             # question "did a human assert this content?" is the one integrity
             # review and score provenance both ask, and as a source it is one
-            # column rather than a walk up `supersedes_id`.
-            "source IN ('UPLOAD', 'PASTE', 'MANUAL', 'EDIT')",
+            # column rather than a walk up `supersedes_id`. BUILDER: the resume
+            # builder (2026-10-13, migration 0019).
+            "source IN ('UPLOAD', 'PASTE', 'MANUAL', 'EDIT', 'BUILDER')",
             name="ck_resume_versions_source",
         ),
         Index("ix_resume_versions_user", "user_id", "created_at"),

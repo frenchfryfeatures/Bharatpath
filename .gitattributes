@@ -26,3 +26,7 @@
 # Everything else: normalise to LF in the repository, let Git decide the
 # working tree.
 *       text=auto
+
+# Fonts bundled with the resume builder. Binary, never normalised: one
+# rewritten byte and a glyph table no longer parses.
+*.ttf   binary

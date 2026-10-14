@@ -329,6 +329,79 @@ async def candidates(
     )
 
 
+#: Every ACTIVE candidate with the facts their follow-up stage is computed
+#: from, and the stage itself. The CASE is `domain.lead_stage`, in SQL; an
+#: integration test holds the two equal. Shared by the list and the counts so
+#: they cannot disagree.
+_LEADS_CTE = """
+    WITH facts AS (
+        SELECT u.id, u.email, u.locale, u.created_at,
+               COALESCE(NULLIF(u.phone, ''), NULLIF(p.career->'details'->>'phone', ''))
+                   AS phone,
+               p.full_name, p.city,
+               COALESCE((p.career->>'completed')::boolean, false) AS profile_completed,
+               d.template_key, d.first_downloaded_at, d.last_downloaded_at,
+               COALESCE(d.download_count, 0) AS download_count, d.pushed_at,
+               EXISTS (SELECT 1 FROM resume_versions v
+                        WHERE v.user_id = u.id AND v.source = 'UPLOAD') AS has_uploaded_resume,
+               EXISTS (SELECT 1 FROM subscriptions s
+                        WHERE s.subscriber_type = 'USER' AND s.subscriber_id = u.id) AS paid,
+               EXISTS (SELECT 1 FROM college_seat_assignments a
+                        WHERE a.candidate_id = u.id AND a.released_at IS NULL) AS seated,
+               EXISTS (SELECT 1 FROM notification_suppressions n
+                        WHERE n.user_id = u.id AND n.lifted_at IS NULL) AS contact_suppressed
+          FROM users u
+          LEFT JOIN candidate_profiles p ON p.user_id = u.id
+          LEFT JOIN resume_builder_drafts d ON d.user_id = u.id
+         WHERE u.pool = 'CANDIDATE' AND u.status = 'ACTIVE'
+    ), staged AS (
+        SELECT facts.*,
+               CASE WHEN paid THEN 'PAID'
+                    WHEN seated THEN 'COLLEGE_SEAT'
+                    WHEN first_downloaded_at IS NOT NULL THEN 'RESUME_DOWNLOADED'
+                    WHEN profile_completed THEN 'PROFILE_COMPLETE'
+                    ELSE 'SIGNED_UP' END AS stage
+          FROM facts
+    )
+"""
+
+
+async def leads(
+    reader: AsyncSession,
+    *,
+    stages: list[str],
+    after: tuple[datetime, uuid.UUID] | None,
+    limit: int,
+) -> list[RowMapping]:
+    """The sales follow-up list, newest sign-up first, keyset by
+    `(created_at, id)`. Active candidates only: a suspended or erased account
+    is nobody to call."""
+    return await _rows(
+        reader,
+        _LEADS_CTE  # noqa: S608 - module constants, not values
+        + """
+        SELECT * FROM staged
+         WHERE stage = ANY(CAST(:stages AS text[]))
+           AND (CAST(:after_at AS timestamptz) IS NULL
+                OR (created_at, id) < (CAST(:after_at AS timestamptz), CAST(:after_id AS uuid)))
+         ORDER BY created_at DESC, id DESC
+         LIMIT :limit
+        """,
+        stages=stages,
+        after_at=after[0] if after else None,
+        after_id=after[1] if after else None,
+        limit=limit,
+    )
+
+
+async def lead_counts(reader: AsyncSession) -> dict[str, int]:
+    """How many active candidates are at each stage. Counts only."""
+    return await _counts(
+        reader,
+        _LEADS_CTE + "SELECT stage AS key, count(*) AS n FROM staged GROUP BY stage",  # noqa: S608
+    )
+
+
 async def candidate_account(reader: AsyncSession, *, user_id: uuid.UUID) -> RowMapping | None:
     return await _one(
         reader,

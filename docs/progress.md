@@ -9,6 +9,69 @@ states. Newest entries first.
 
 ---
 
+## 2026-10-14 — Resume builder, and the sales follow-up list
+
+The lead's spec: after the onboarding questions and before payment, the
+candidate chooses "upload a CV" or "generate one". Generating means picking
+one of four templates, editing a draft filled in from their answers (form on
+the left, preview on the right), then downloading it or using it as their
+resume. No AI. Staff get a list of who downloaded but did not pay, and who
+signed up but did not download, for sales to call. Backend only; the app
+teams have `backend-guide/18`.
+
+- **New module `resume_builder`**, 7 routes under `/candidate/resume-builder`
+  (templates, draft get/save/reset, preview, download, push). None is
+  paywalled. Table `resume_builder_drafts` (migration `0019`): one draft per
+  candidate, the template, download counts, and the version it last became.
+- **The draft is `StructuredResume`**, the document the review screens
+  already draw, so the editor, the templates and an employer's view share one
+  shape. `domain.prefill` copies the career profile field by field and never
+  copies gender, salary, notice period or preferred locations. A "Personal
+  details" block (date of birth, marital status, ...) is refused with 422.
+- **Typst instead of LaTeX.** TeX Live is 0.5–2 GB on a host already
+  running the API, worker and Redis, and escaping LaTeX is a
+  security problem in its own right. Typst is one pip package, renders in
+  about 50 ms, and its embedded New Computer Modern gives `classic` the
+  LaTeX look. The draft reaches a template only as pre-formatted JSON
+  strings, so nothing typed is compiled. Bundled Noto fonts (4.7 MB, OFL)
+  cover Latin and seven Indian scripts. With system fonts off, renders are
+  byte-identical everywhere. Pinned `typst>=0.13.2,<0.14`.
+- **Push = an unconfirmed `BUILDER` resume version with the PDF as its
+  file**, linked from the career profile. Scoring still waits for the paid
+  confirm. The scored text comes from `domain.scoring_fields` through
+  `render_structured_resume`, which gained summary, projects, certifications,
+  languages and achievements, each printed only when present: manual-form
+  text, and its extraction cache, is unchanged (pinned by a test). No name,
+  contact, link, location or completion year is in the scored text.
+- **Editing a built version on the review screen is now `409
+  resume_version_built`.** An edit carries the file forward, so the PDF
+  would stop matching. `save_details` skips its reviewed-facts revision for
+  `BUILDER` for the same reason.
+- **Kept on purpose:** completing the profile still auto-creates a MANUAL
+  version. Both apps' current onboarding relies on it. Remove it once they
+  ship the upload-or-generate step.
+- **`GET /admin/leads` and `/admin/leads/summary`**, capability
+  `sales_leads` = admin + support, held equal to `candidate_contact` by a
+  test because the list shows **unmasked** phone and email. Stages are
+  PAID > COLLEGE_SEAT > RESUME_DOWNLOADED > PROFILE_COMPLETE > SIGNED_UP,
+  computed in SQL on read, with `admin.domain.lead_stage` as the Python
+  mirror held equal by an integration test. Every page is audited.
+  `contact_suppressed` flags people staff already stopped contacting.
+- Erasure: the draft is ERASE, `erase_candidate` replaced again (0019), a
+  pushed PDF goes with its `resume_files` row, and the draft is in the export.
+- Checks: 63 new tests. Full suite green (integration and invariants 1561,
+  unit 1828). Ruff, mypy, lint-imports (12 contracts, one new), the age and
+  vocabulary scans and `gen_modules --check` all pass. 0019 round-trips on
+  the local database, and a fresh baseline build in a scratch database
+  reaches 0019 cleanly.
+- **Open:** the four designs are placeholders (`TEMPLATES_VERSION`). Sales
+  calling people who did not buy was confirmed by the client through the
+  lead. Whether the sign-up terms cover it under DPDP/TRAI is theirs to
+  confirm. Deploying needs `pip install` on the host (the image picks up
+  `typst` from pyproject) and `alembic upgrade head`.
+
+---
+
 ## 2026-10-13 — Career profile: 409 on every save after completing it
 
 Reported from the web profile: changing a student's city answered `409

@@ -76,6 +76,7 @@ SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Shared — payments (`billing`)", ("/billing",)),
     ("System — health checks (no auth)", ("/health",)),
     ("Candidate — resume (`resume`)", ("/candidate/resume",)),
+    ("Candidate — resume builder (`resume_builder`)", ("/candidate/resume-builder",)),
     ("Candidate — score (`scoring`)", ("/candidate/score",)),
     ("Candidate — profile and career details (`candidate`)", ("/candidate/profile",)),
     (

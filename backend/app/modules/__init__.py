@@ -26,6 +26,7 @@ from . import (
     profile_images,
     questionnaire,
     resume,
+    resume_builder,
     scoring,
     subscriptions,
 )
@@ -54,4 +55,5 @@ ALL_MODULES: tuple[ModuleType, ...] = (
     engagement,
     profile_images,
     assistant,
+    resume_builder,
 )

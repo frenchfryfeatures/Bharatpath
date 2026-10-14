@@ -597,12 +597,21 @@ def render_structured_resume(parsed: dict[str, object]) -> str:
 
     Deterministic by construction -- the same form always renders the same
     text -- because the rendered text is what the extraction cache is keyed on.
+
+    **The resume builder** (2026-10-13) adds `summary`, `projects`,
+    `certifications`, `languages` and `achievements`. Each prints only when
+    present, so a manual-form version, which has none of them, renders exactly
+    as it always did and keeps its cached extraction. A test pins that.
     """
     lines: list[str] = []
 
     headline = parsed.get("headline")
     if isinstance(headline, str) and headline.strip():
         lines.append(f"Headline: {headline.strip()}")
+
+    summary_text = parsed.get("summary")
+    if isinstance(summary_text, str) and summary_text.strip():
+        lines.append(f"Summary: {summary_text.strip()}")
 
     experience = parsed.get("experience")
     roles = [r for r in experience if isinstance(r, dict)] if isinstance(experience, list) else []
@@ -641,5 +650,30 @@ def render_structured_resume(parsed: dict[str, object]) -> str:
     )
     if names:
         lines.append("Skills: " + ", ".join(names))
+
+    projects = parsed.get("projects")
+    built = [p for p in projects if isinstance(p, dict)] if isinstance(projects, list) else []
+    if built:
+        lines.append("Projects:")
+        for project in built:
+            lines.append(f"- {str(project.get('name') or '').strip()}")
+            about = project.get("summary")
+            if isinstance(about, str) and about.strip():
+                lines.append(f"  {about.strip()}")
+
+    for key, label in (
+        ("certifications", "Certifications"),
+        ("languages", "Languages"),
+        ("achievements", "Achievements"),
+    ):
+        value = parsed.get(key)
+        items = (
+            [i.strip() for i in value if isinstance(i, str) and i.strip()]
+            if isinstance(value, list)
+            else []
+        )
+        if items:
+            lines.append(f"{label}:")
+            lines.extend(f"- {item}" for item in items)
 
     return "\n".join(lines)

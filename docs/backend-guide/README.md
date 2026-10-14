@@ -32,6 +32,7 @@ Read in order. Each doc assumes the ones before it.
 | [15-privacy-and-data-rights-apis.md](15-privacy-and-data-rights-apis.md) | Export and erasure requests (DPDP Act rights): the 24-hour cooling-off window, the withdraw path, and the one-time-mint download link. |
 | [16-profile-images-apis.md](16-profile-images-apis.md) | Profile photos for every account, and employer and college logos: the three-call upload, what the server keeps (re-encoded, no metadata), and who may see a student's photo (the student and staff only). |
 | [17-assistant-apis.md](17-assistant-apis.md) | The candidate's job-search chat: one endpoint, the model picks an action and the server runs it through the board's own rules; applying is a Confirm button on the ordinary apply endpoint; nothing stored, never the score. |
+| [18-resume-builder-apis.md](18-resume-builder-apis.md) | Build a resume from the onboarding answers before paying: four templates, live preview, counted PDF download, push as an unconfirmed `BUILDER` version; no AI. Also the console's sales follow-up list (`/admin/leads`). |
 
 ## Modules
 
@@ -64,6 +65,7 @@ it). Written as each is covered — not all exist yet.
 | — | `privacy` | — | not yet written |
 | — | `profile_images` | — | not yet written (APIs: [16](16-profile-images-apis.md)) |
 | — | `assistant` | — | not yet written (APIs: [17](17-assistant-apis.md)) |
+| — | `resume_builder` | — | not yet written (APIs: [18](18-resume-builder-apis.md)) |
 
 ## Cross-cutting
 

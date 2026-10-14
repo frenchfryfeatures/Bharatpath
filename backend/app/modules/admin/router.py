@@ -28,7 +28,7 @@ from fastapi import APIRouter, Depends, Query, Request, status
 
 from app.core.deps import CurrentUser, DbSession, get_request_id, require_role
 from app.modules.admin import service
-from app.modules.admin.domain import CONSOLE_ROLES, DISPUTE_RAISER_ROLES, Capability
+from app.modules.admin.domain import CONSOLE_ROLES, DISPUTE_RAISER_ROLES, Capability, LeadStage
 from app.modules.admin.schemas import (
     AccountFormsResponse,
     AddOrganisationMemberRequest,
@@ -64,6 +64,8 @@ from app.modules.admin.schemas import (
     KybApprovalMode,
     KybDecisionRequest,
     KybSubmissionsPage,
+    LeadsPage,
+    LeadsSummary,
     LessonUploadResponse,
     MyDisputeResponse,
     ProvisionCandidateRequest,
@@ -416,6 +418,46 @@ async def list_candidates(
         limit=limit,
         request_id=get_request_id(request),
     )
+
+
+@router.get(
+    "/leads",
+    response_model=LeadsPage,
+    dependencies=can("sales_leads"),
+    summary="Candidates to follow up: signed up or downloaded a resume, not paid (audited)",
+)
+async def list_leads(
+    request: Request,
+    user: CurrentUser,
+    session: DbSession,
+    stage: list[LeadStage] | None = Query(
+        default=None,
+        description="Repeat to ask for several. Default: every stage before paying.",
+    ),
+    cursor: str | None = None,
+    limit: int | None = Limit,
+) -> LeadsPage:
+    """Unmasked phone and email, because the list exists to make calls. Every
+    page is an audit row naming the stages asked for. `contact_suppressed`
+    marks someone staff already stopped contacting."""
+    return await service.list_leads(
+        session,
+        ctx=user,
+        stages=list(stage) if stage else None,
+        cursor=cursor,
+        limit=limit,
+        request_id=get_request_id(request),
+    )
+
+
+@router.get(
+    "/leads/summary",
+    response_model=LeadsSummary,
+    dependencies=can("sales_leads"),
+    summary="How many active candidates are at each follow-up stage",
+)
+async def lead_summary(request: Request, user: CurrentUser, session: DbSession) -> LeadsSummary:
+    return await service.lead_summary(session, ctx=user, request_id=get_request_id(request))
 
 
 @router.get(

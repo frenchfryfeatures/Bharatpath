@@ -12,10 +12,10 @@ def test_all_modules_registered() -> None:
 
     The client teams generate their code from openapi.json, which only lists
     what is mounted. Twenty modules from the plan, plus `engagement` (streaks),
-    `profile_images` (photos and logos, 2026-10-09) and `assistant` (the
-    candidate's job-search chat, 2026-10-13).
+    `profile_images` (photos and logos, 2026-10-09), `assistant` (the
+    candidate's job-search chat, 2026-10-13) and `resume_builder` (2026-10-13).
     """
-    assert len(ALL_MODULES) == 23
+    assert len(ALL_MODULES) == 24
     for module in ALL_MODULES:
         assert isinstance(module.name, str) and module.name
         assert module.prefix.startswith("/")

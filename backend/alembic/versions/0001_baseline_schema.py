@@ -265,6 +265,8 @@ def _create_candidate_tables() -> None:
     _create_from_metadata(
         "resume_files",
         "resume_versions",
+        # 2026-10-13, also created by 0019 on a database built before it.
+        "resume_builder_drafts",
         "resume_extractions",
         "scores",
         "integrity_signals",
