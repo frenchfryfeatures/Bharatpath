@@ -33,7 +33,9 @@ export type SignupPhase =
   | "score"
   | "employment"
   | "education"
-  | "preferences";
+  | "preferences"
+  /** Every step is done; the aside shows them all as complete. */
+  | "finish";
 
 interface SignupFrameProps {
   children: ReactNode;
@@ -150,9 +152,10 @@ const PHASE_ORDER: SignupPhase[] = [
 ];
 
 function JourneyAside({ phase }: { phase: SignupPhase }) {
-  const current = PHASE_ORDER.indexOf(
-    phase === "resume" || phase === "review" ? "start" : phase,
-  );
+  const current =
+    phase === "finish"
+      ? PHASE_ORDER.length
+      : PHASE_ORDER.indexOf(phase === "resume" || phase === "review" ? "start" : phase);
 
   return (
     <div className="flex flex-col gap-4">
