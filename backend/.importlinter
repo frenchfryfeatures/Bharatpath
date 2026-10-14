@@ -86,6 +86,26 @@ forbidden_modules =
     app.modules.scoring
 
 ; ---------------------------------------------------------------------------
+; A built resume never carries the score (2026-10-13).
+;
+; The resume builder lays out what the candidate typed, and the PDF it draws
+; goes to employers. A score printed on it would reach an employer as a
+; number, where they are only ever given the band, and before the candidate
+; had paid to see it. The builder reaches the profile and the resume
+; through their services; direct imports only, because
+; `candidate.service` reading the score for the candidate's own screens is
+; the design, not a leak.
+; ---------------------------------------------------------------------------
+[importlinter:contract:resume-builder-never-imports-scoring]
+name = The resume builder never imports scoring (a resume never carries the score)
+type = forbidden
+allow_indirect_imports = True
+source_modules =
+    app.modules.resume_builder
+forbidden_modules =
+    app.modules.scoring
+
+; ---------------------------------------------------------------------------
 ; Streak points never move the score, and the score never reads streaks.
 ;
 ; The client asked for streak points (2026-09-13): -10 for a missed day, +10 /
@@ -181,6 +201,7 @@ source_modules =
     app.modules.engagement
     app.modules.profile_images
     app.modules.assistant
+    app.modules.resume_builder
 forbidden_modules =
     app.modules.identity.repository
     app.modules.identity.models
@@ -234,6 +255,7 @@ source_modules =
     app.modules.engagement
     app.modules.profile_images
     app.modules.assistant
+    app.modules.resume_builder
 forbidden_modules =
     app.modules.resume.repository
     app.modules.resume.models

@@ -104,6 +104,11 @@ MODULES: tuple[ModuleSpec, ...] = (
         "/candidate/assistant",
         "The candidate's job-search chat. Never reads the score.",
     ),
+    ModuleSpec(
+        "resume_builder",
+        "/candidate/resume-builder",
+        "Resumes from onboarding answers in four templates. Never the score.",
+    ),
 )
 
 #: What a new module is scaffolded with.

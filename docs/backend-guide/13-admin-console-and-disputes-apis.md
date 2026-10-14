@@ -461,6 +461,14 @@ holds ids. The row says *that* this person searched, not *for whom*.
 `422 invalid_cursor` for a mangled cursor; `422` (FastAPI's shape) for a
 bad `status`.
 
+### The sales follow-up list — `/admin/leads` (2026-10-13)
+
+Who signed up, or downloaded a built resume, and has not paid, with the
+**unmasked** phone and email to call them on. Capability `sales_leads`
+(admin and support, the same roles as `candidate_contact`). Audited on
+every page. The stages, fields and filters are in
+[18 §5](18-resume-builder-apis.md#5-console-the-sales-follow-up-list).
+
 ### `GET /admin/candidates/{user_id}` — `candidate_drilldown` capability
 
 **Response** — `200 OK` (`CandidateDrilldown`):

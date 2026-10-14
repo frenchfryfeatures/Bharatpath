@@ -261,6 +261,11 @@ ever added. `end_year` must not be before `start_year` (validated).
 **Response:** same `ResumeVersionResponse` shape as the paste-text path,
 `source: "MANUAL"`.
 
+> **The resume builder** (2026-10-13) is the fuller way to make a resume
+> without a file: four templates, a draft filled in from the onboarding
+> answers, a PDF download. Its versions have `source: "BUILDER"` and carry
+> the PDF as their file. See [18](18-resume-builder-apis.md).
+
 ---
 
 ## 6. `GET /candidate/resume/versions` — the version list
@@ -383,6 +388,9 @@ Sending both, or neither, is a `422` — there's no rule for how to merge two
 different shapes of "the truth," so the API refuses to guess.
 
 **Response** — `201 Created`, a new `ResumeVersionResponse`, `source: "EDIT"`.
+
+**`409 resume_version_built`** for a `BUILDER` version: a built resume is
+edited in the resume builder, which redraws its PDF ([18](18-resume-builder-apis.md)).
 
 **What actually happens:** this **never modifies** the version you're
 correcting — it creates a **brand-new** version, chained to the old one

@@ -193,6 +193,11 @@ ERASURE_PLAN: Final[Mapping[str, TablePlan]] = {
     "candidate_profiles": _erase("user_id", "Their name, location and career profile details."),
     "resume_files": _erase("user_id", "The uploaded CV. The S3 object goes with the row."),
     "resume_versions": _erase("user_id", "Parsed CV content, every version in the chain."),
+    "resume_builder_drafts": _erase(
+        "user_id",
+        "The resume they were building, and when they downloaded it (2026-10-13). "
+        "A pushed draft's PDF is a `resume_files` object and goes with that row.",
+    ),
     "scores": _erase(
         "user_id",
         "A score is derived entirely from a CV, and carries the model's "
@@ -412,6 +417,7 @@ EXPORT_SECTIONS: Final = (
     "account",
     "profile",
     "resumes",
+    "resume_builder",
     "scores",
     "applications",
     "subscriptions",

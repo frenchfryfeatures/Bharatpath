@@ -139,6 +139,9 @@ ROUTE_CAPABILITY: dict[str, Any] = {
     "candidate_drilldown": "candidate_drilldown",
     # 2026-09-23: whoever may open a candidate may find one.
     "list_candidates": "candidate_drilldown",
+    # 2026-10-13: the sales follow-up list carries whole contacts.
+    "list_leads": "sales_leads",
+    "lead_summary": "sales_leads",
     "employer_drilldown": "employer_drilldown",
     "college_drilldown": "college_drilldown",
     "suppress_notifications": "suppress_notifications",

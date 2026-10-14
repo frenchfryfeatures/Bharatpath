@@ -184,7 +184,11 @@ async def test_unemployed_experienced_candidate_completes_without_job_dates(monk
     monkeypatch.setattr(
         career_service.resume_service,
         "latest_version_for_profile",
-        AsyncMock(return_value=SimpleNamespace(id=version_id, resume_file_id=None, parsed={})),
+        AsyncMock(
+            return_value=SimpleNamespace(
+                id=version_id, resume_file_id=None, parsed={}, source="MANUAL"
+            )
+        ),
     )
     monkeypatch.setattr(
         career_service.resume_service,
@@ -232,6 +236,7 @@ async def test_owner_scoped_resume_and_revision_without_scoring(monkeypatch):
             id=version_id,
             parsed={"raw_text": "Original employment and education resume text"},
             resume_file_id=file_id,
+            source="UPLOAD",
         )
     )
     monkeypatch.setattr(career_service.resume_service, "latest_version_for_profile", version_read)

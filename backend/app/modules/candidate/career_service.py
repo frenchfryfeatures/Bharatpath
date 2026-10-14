@@ -136,7 +136,15 @@ async def save_details(
         )
         version_id = version.id
         file_id = version.resume_file_id
-        if payload.complete and (not old.completed or payload.details != old.details):
+        # A resume-builder version is edited in the builder, which redraws
+        # its PDF; appending profile facts here would refuse (an edit of a
+        # built version is `resume_version_built`) and, if it did not, would
+        # leave the PDF an employer sees saying something else (2026-10-13).
+        if (
+            payload.complete
+            and version.source != "BUILDER"
+            and (not old.completed or payload.details != old.details)
+        ):
             # A reviewed profile becomes an unconfirmed resume revision. Creating
             # it emits no scoring event; paid confirmation is a separate request.
             parsed = version.parsed or {}
@@ -186,6 +194,40 @@ async def save_details(
         user_id=ctx.user_id,
         career=saved,
         city=normalise_city(payload.details.current_city) if payload.details.current_city else None,
+    )
+    return _response(row)
+
+
+async def attach_resume(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    resume_version_id: uuid.UUID,
+    resume_file_id: uuid.UUID | None,
+    resume_filename: str,
+) -> CareerResponse:
+    """Link the profile to a resume the candidate made in the resume builder.
+
+    Only the link moves: the answers, and whether the profile is complete,
+    stay as they were. Not `save_details`, which would append the answers to
+    the version as reviewed facts -- a built resume is already the
+    candidate's own words, and the builder is where it is edited.
+    """
+    _candidate(ctx)
+    old = await get_details(session, ctx=ctx)
+    saved = {
+        "details": old.details.model_dump(mode="json"),
+        "resume_version_id": str(resume_version_id),
+        "resume_file_id": str(resume_file_id) if resume_file_id else None,
+        "resume_filename": resume_filename,
+        "completed": old.completed,
+    }
+    city = old.details.current_city
+    row = await repository.set_career(
+        session,
+        user_id=ctx.user_id,
+        career=saved,
+        city=normalise_city(city) if city else None,
     )
     return _response(row)
 
