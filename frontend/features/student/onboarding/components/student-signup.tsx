@@ -37,6 +37,7 @@ import {
   type CareerDetails,
   type CareerProfile,
 } from "@/features/student/profile/career-api";
+import { ResumeBuilderStep } from "./resume-builder-step";
 import { ResumeRequiredStep } from "./resume-required-step";
 import { PaidScoringStep } from "./paid-scoring-step";
 import { useStudentHasAccess } from "../use-student-access";
@@ -68,6 +69,7 @@ type Stage =
     }
   | { name: "review"; resumeVersionId?: string }
   | { name: "resume-required"; profile: CareerProfile; error?: string }
+  | { name: "resume-builder"; profile: CareerProfile }
   | { name: "computing"; confirmedAt: string | null };
 
 const PHASE_OF: Record<Stage["name"], SignupPhase> = {
@@ -85,6 +87,7 @@ const PHASE_OF: Record<Stage["name"], SignupPhase> = {
   parsing: "resume",
   review: "review",
   "resume-required": "finish",
+  "resume-builder": "finish",
   computing: "score",
 };
 
@@ -580,9 +583,26 @@ export function StudentSignup() {
         <ResumeRequiredStep
           busy={requiredBusy}
           error={stage.error}
+          onGenerate={() => go({ name: "resume-builder", profile: stage.profile })}
           onFile={(file) => void uploadRequiredResume(file, stage.profile)}
           onBack={() => go({ name: "review", resumeVersionId: stage.profile.resume_version_id ?? undefined })}
         />,
+      );
+
+    case "resume-builder":
+      // A full-width workspace, so it sits outside the signup frame.
+      return (
+        <ResumeBuilderStep
+          onBack={() => go({ name: "resume-required", profile: stage.profile })}
+          onSubmitted={(built) =>
+            afterProfileSaved({
+              ...stage.profile,
+              resume_version_id: built.resume_version_id,
+              resume_file_id: built.resume_file_id,
+              resume_filename: stage.profile.resume_filename ?? "Generated resume.pdf",
+            })
+          }
+        />
       );
 
     case "paid-scoring":

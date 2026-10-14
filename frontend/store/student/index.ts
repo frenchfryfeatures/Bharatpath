@@ -6,6 +6,7 @@ export { studentReducer };
 export * from "./student.slice";
 export * from "./student.api";
 export * from "./resume.api";
+export * from "./resume-builder.api";
 export * from "./learning.api";
 export * from "./billing.api";
 
