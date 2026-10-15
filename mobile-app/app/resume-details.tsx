@@ -69,6 +69,7 @@ export default function ResumeDetailsRoute() {
   const [confirmedAt, setConfirmedAt] = useState<string | null>(null);
   const previousComputedAtRef = React.useRef<string | null>(authScore?.computed_at || null);
   const isReconfirmRef = React.useRef(false);
+  const [hasEdited, setHasEdited] = useState(false);
 
   const handleBack = () => {
     if (router.canGoBack()) {
@@ -271,6 +272,7 @@ export default function ResumeDetailsRoute() {
         onReviewFound={(newVerId, newDetails) => {
           setVersionId(newVerId);
           setVersionDetails(newDetails);
+          setHasEdited(true);
           setError(null);
           setStep('review');
         }}
@@ -378,7 +380,8 @@ export default function ResumeDetailsRoute() {
         title="Resume details"
         subtitle="Review and edit the details extracted from your resume."
         confirmButtonText="Save & update score"
-        requireEditToSave={false}
+        requireEditToSave={true}
+        initialHasEdited={hasEdited}
         showReadyBadge={false}
         candidateName={candidateFullName || undefined}
         candidateEmail={session?.email}
@@ -390,6 +393,7 @@ export default function ResumeDetailsRoute() {
           setStep('subscribe');
         }}
         onVersionUpdated={(newVerId, newDetails) => {
+          setHasEdited(true);
           setVersionId(newVerId);
           setVersionDetails(newDetails);
         }}

@@ -17,6 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, FileText, PencilSimple, X } from 'phosphor-react-native';
 import { WebView } from 'react-native-webview';
+import { useRouter } from 'expo-router';
 import { OnboardingProgress } from '@/screens/onboarding/OnboardingProgress';
 import { AppAlert } from '@/components/feedback/AppAlert';
 import { useAuthContext } from '@/context/AuthContext';
@@ -64,6 +65,7 @@ export function CareerDetailsScreen({
   onboarding = false,
   onBack,
   onDone,
+  onUpdateResume,
   initialSection = 0,
 }: {
   versionId?: string;
@@ -71,8 +73,10 @@ export function CareerDetailsScreen({
   onboarding?: boolean;
   onBack: () => void;
   onDone: (profile: CareerProfile) => void | Promise<void>;
+  onUpdateResume?: () => void;
   initialSection?: number;
 }) {
+  const router = useRouter();
   const { candidateFullName, session, rememberCandidate } = useAuthContext();
   const [fullName, setFullName] = useState(candidateFullName ?? '');
   const [fields, setFields] = useState<CareerField[]>([]);
@@ -214,20 +218,19 @@ export function CareerDetailsScreen({
       } else {
         AppAlert.alert(
           'Resume Uploaded',
-          'Your new resume has been uploaded and details extracted. Would you like to recalculate your score now, or review and edit details first?',
+          'Your new resume has been uploaded and details extracted.',
           [
             {
-              text: 'Calculate score now',
-              style: 'default',
-              onPress: () => onDone(saved),
-            },
-            {
               text: 'Review & edit details',
-              style: 'secondary',
+              style: 'default',
               onPress: () => {
                 setStep(0);
                 setEditing(true);
               },
+            },
+            {
+              text: 'OK',
+              style: 'secondary',
             },
           ]
         );
@@ -320,7 +323,7 @@ export function CareerDetailsScreen({
     setErrors((current) => ({ ...current, [key]: '' }));
   };
 
-  const save = async () => {
+  const save = async (finishNow: boolean = false) => {
     const nextErrors: Record<string, string> = {};
     for (const field of fields.filter(
       (f) => f.section === groups[step].key && fieldVisible(f, draft),
@@ -358,15 +361,21 @@ export function CareerDetailsScreen({
         const identity = await updateCandidateName(fullName.trim());
         if (session) rememberCandidate(session, identity, fullName.trim());
       }
+      const isLastStep = step === groups.length - 1;
+      const shouldFinish = finishNow || isLastStep;
       const saved = await saveCareerProfile(
         careerDetailsForSave(draft),
         activeVersionId,
-        step === groups.length - 1,
+        isLastStep,
         selectedFilename,
       );
       setProfile(saved);
       setActiveVersionId(saved.resume_version_id);
-      if (step === groups.length - 1) {
+      if (shouldFinish) {
+        if (!onboarding) {
+          setEditing(false);
+          setStep(0);
+        }
         await onDone(saved);
       } else {
         setStep(step + 1);
@@ -437,6 +446,21 @@ export function CareerDetailsScreen({
         <Text style={styles.title}>
           {onboarding ? 'Create your profile' : 'Profile details'}
         </Text>
+        {editing && !onboarding && (
+          <Pressable
+            disabled={busy}
+            onPress={() => void save(true)}
+            style={[styles.headerSaveButton, busy && styles.primaryDisabled]}
+            accessibilityRole="button"
+            accessibilityLabel="Save profile"
+          >
+            {busy ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.headerSaveText}>Save</Text>
+            )}
+          </Pressable>
+        )}
       </View>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -477,11 +501,13 @@ export function CareerDetailsScreen({
             </Pressable>
             <Pressable
               disabled={busy}
-              onPress={() =>
-                void uploadResume().catch(() =>
-                  setError('The file picker could not open. Please try again.'),
-                )
-              }
+              onPress={() => {
+                if (onUpdateResume) {
+                  onUpdateResume();
+                } else {
+                  router.push('/resume-details' as any);
+                }
+              }}
               style={styles.back}
             >
               <Text style={styles.label}>Update resume</Text>
@@ -501,6 +527,37 @@ export function CareerDetailsScreen({
         {editing ? (
           <>
             {onboarding && <OnboardingProgress step={step} />}
+            {!onboarding && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.sectionTabs}
+              >
+                {groups.map((g, idx) => (
+                  <Pressable
+                    key={g.key}
+                    disabled={busy}
+                    onPress={() => {
+                      setStep(idx);
+                      scrollRef.current?.scrollTo({ y: 0, animated: true });
+                    }}
+                    style={[
+                      styles.sectionTab,
+                      step === idx && styles.sectionTabActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.sectionTabText,
+                        step === idx && styles.sectionTabActiveText,
+                      ]}
+                    >
+                      {g.title}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            )}
             <Text style={onboarding ? {fontFamily:'GeneralSans-Bold',fontSize:26,lineHeight:32,letterSpacing:-0.4,color:'#0A1931'} : styles.sectionTitle}>
               {groups[step].title}
             </Text>
@@ -683,16 +740,16 @@ export function CareerDetailsScreen({
                       {step === groups.length - 1
                         ? onboarding
                           ? 'Saving profile…'
-                          : 'Updating score…'
+                          : 'Saving…'
                         : 'Saving…'}
                     </Text>
                   </View>
                 ) : (
                   <Text style={styles.primaryText}>
-                    {step === 3
+                    {step === groups.length - 1
                       ? onboarding
                         ? 'Save and continue to membership'
-                        : 'Save & update score'
+                        : 'Save'
                       : 'Save and continue'}
                   </Text>
                 )}
@@ -700,9 +757,23 @@ export function CareerDetailsScreen({
             </View>
           </>
         ) : (
-          groups.map((group) => (
+          groups.map((group, groupIdx) => (
             <View key={group.key} style={styles.card}>
-              <Text style={styles.sectionTitle}>{group.title}</Text>
+              <View style={styles.cardHeaderRow}>
+                <Text style={styles.sectionTitle}>{group.title}</Text>
+                <Pressable
+                  hitSlop={8}
+                  onPress={() => {
+                    setStep(groupIdx);
+                    setEditing(true);
+                  }}
+                  style={styles.cardEditButton}
+                  accessibilityLabel={`Edit ${group.title}`}
+                >
+                  <PencilSimple size={14} color="#5F4DB2" weight="bold" />
+                  <Text style={styles.cardEditText}>Edit</Text>
+                </Pressable>
+              </View>
               {fields
                 .filter(
                   (field) =>
@@ -875,5 +946,66 @@ const styles = StyleSheet.create({
     fontFamily: 'GeneralSans-Medium',
     fontSize: 15,
     color: '#5F6B80',
+  },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  cardEditButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    backgroundColor: '#F1EAF7',
+  },
+  cardEditText: {
+    fontFamily: 'GeneralSans-Semibold',
+    fontSize: 13,
+    color: '#5F4DB2',
+  },
+  headerSaveButton: {
+    marginLeft: 'auto',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 18,
+    backgroundColor: '#5F4DB2',
+    minWidth: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerSaveText: {
+    fontFamily: 'GeneralSans-Semibold',
+    fontSize: 14,
+    color: '#FFFFFF',
+  },
+  sectionTabs: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingVertical: 4,
+    marginBottom: 4,
+  },
+  sectionTab: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#DDD6C7',
+  },
+  sectionTabActive: {
+    backgroundColor: '#5F4DB2',
+    borderColor: '#5F4DB2',
+  },
+  sectionTabText: {
+    fontFamily: 'GeneralSans-Medium',
+    fontSize: 13,
+    color: '#5F6B80',
+  },
+  sectionTabActiveText: {
+    color: '#FFFFFF',
+    fontFamily: 'GeneralSans-Semibold',
   },
 });

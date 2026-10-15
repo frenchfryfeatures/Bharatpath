@@ -152,7 +152,13 @@ export function ReviewDetailsScreen({
     }
   }, [versionId]);
 
-  const canSave = !requireEditToSave || hasEdited || !details?.confirmed;
+  useEffect(() => {
+    if (initialHasEdited) {
+      setHasEdited(true);
+    }
+  }, [initialHasEdited]);
+
+  const canSave = requireEditToSave ? hasEdited : (hasEdited || !details?.confirmed);
 
   // Modals state
   const [editingSectionIndex, setEditingSectionIndex] = useState<number | null>(null);
@@ -1154,6 +1160,8 @@ export function ReviewDetailsScreen({
             ]}
             onPress={confirmCurrentVersion}
             disabled={isConfirming || (requireEditToSave && !canSave)}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: isConfirming || (requireEditToSave && !canSave) }}
           >
             {isConfirming ? (
               <View style={styles.buttonLoadingRow}>
@@ -1161,12 +1169,21 @@ export function ReviewDetailsScreen({
                 <Text style={styles.confirmButtonText}>Confirming...</Text>
               </View>
             ) : (
-              <Text style={styles.confirmButtonText}>
+              <Text
+                style={[
+                  styles.confirmButtonText,
+                  requireEditToSave && !canSave && styles.confirmButtonTextDisabled,
+                ]}
+              >
                 {confirmButtonText || 'Confirm'}
               </Text>
             )}
           </Pressable>
-          <Text style={styles.bottomSubtext}>You can edit any of this later</Text>
+          <Text style={styles.bottomSubtext}>
+            {requireEditToSave && !canSave
+              ? 'Make changes or edit sections to save and update score'
+              : 'You can edit any of this later'}
+          </Text>
         </View>
 
         {/* Modal: Section Editor */}
@@ -1582,7 +1599,12 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   buttonDisabled: {
-    backgroundColor: '#C8C1EC',
+    backgroundColor: '#D1CCEC',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  confirmButtonTextDisabled: {
+    color: '#8E85BF',
   },
   buttonLoadingRow: {
     flexDirection: 'row',
