@@ -181,6 +181,16 @@ class IntegritySignalDetail(IntegritySignalRow):
     #: What the rule saw. Can quote the CV, which is why opening a signal is
     #: audited and the queue above never carries it.
     evidence: dict[str, Any]
+    finding: str | None = Field(
+        default=None,
+        description="What the rule saw, as one sentence built from `evidence`. Can name "
+        "employers from the CV, so detail only. Null when the evidence cannot be read.",
+    )
+    next_steps: list[str] = Field(
+        default_factory=list,
+        description="What the reviewer checks and decides, in order. The last step says "
+        "what Clear and Confirm do for this rule.",
+    )
     resume_version: SignalResumeVersion | None = None
     score: SignalScore | None = None
     visible_to_employers: bool | None = Field(

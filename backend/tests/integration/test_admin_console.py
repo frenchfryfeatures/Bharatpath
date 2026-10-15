@@ -484,6 +484,7 @@ async def test_a_reviewer_opens_and_clears_a_high_signal(client: Any, mint_token
         client, f"{ADMIN}/integrity/signals", reviewer["headers"], signal_id, severity="HIGH"
     )
     assert queued is not None and "evidence" not in queued
+    assert "finding" not in queued and "next_steps" not in queued, "they quote the evidence"
     phone = await _scalar("SELECT phone FROM users WHERE id = :u", u=candidate_id)
     assert queued["rule_title"] == "Instructions aimed at the scorer"
     assert queued["rule_description"]
@@ -498,6 +499,9 @@ async def test_a_reviewer_opens_and_clears_a_high_signal(client: Any, mint_token
     detail = opened.json()
     assert detail["candidate_id"] == str(candidate_id)
     assert "evidence" in detail
+    assert detail["finding"].startswith("The CV contains wording that")
+    assert len(detail["next_steps"]) > 1
+    assert "out of employer search" in detail["next_steps"][-1]
     assert detail["visible_to_employers"] is False
     assert detail["resume_version"]["id"] == str(version_id)
     assert detail["resume_version"]["is_latest"] is True
@@ -515,6 +519,8 @@ async def test_a_reviewer_opens_and_clears_a_high_signal(client: Any, mint_token
     assert cleared.json()["state"] == "CLEARED"
     assert cleared.json()["hides_candidate"] is False
     assert cleared.json()["resolved_by"] == str(reviewer["user_id"])
+    assert cleared.json()["finding"] == detail["finding"]
+    assert cleared.json()["next_steps"] == detail["next_steps"]
     assert await _visible(candidate_id)
 
     resolved = await _find(

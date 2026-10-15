@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import base64
 import io
+import json
 import uuid
 from typing import Any
 
@@ -134,6 +135,79 @@ async def test_the_first_draft_is_filled_in_from_the_answers_and_not_stored(
 
     again = await client.get(DRAFT, headers=me["headers"])
     assert again.json()["saved"] is False  # reading never writes
+
+
+async def _read_version(
+    user_id: Any, *, document: dict[str, Any] | None, supersedes: str | None = None
+) -> str:
+    """A CV version as an upload leaves it: text, and the structured view
+    (READY with `document`, else UNAVAILABLE)."""
+    version_id = str(uuid.uuid4())
+    view = (
+        {"status": "READY", "data": document} if document is not None else {"status": "UNAVAILABLE"}
+    )
+    async with sessions(_seed_url())() as session, session.begin():
+        await session.execute(
+            text(
+                "INSERT INTO resume_versions (id, user_id, source, parsed, supersedes_id) "
+                "VALUES (:v, :u, :s, CAST(:p AS jsonb), :sup)"
+            ),
+            {
+                "v": version_id,
+                "u": str(user_id),
+                "s": "EDIT" if supersedes else "PASTE",
+                "sup": supersedes,
+                "p": json.dumps(
+                    {"raw_text": "A CV.", "extractor": {"name": "paste"}, "structured_resume": view}
+                ),
+            },
+        )
+    return version_id
+
+
+async def test_a_candidate_with_a_read_cv_gets_all_of_it_in_the_first_draft(
+    client: Any, mint_token: Any
+) -> None:
+    me = await _onboarded(client, mint_token)
+    cv = {
+        "full_name": "Priya Sharma",
+        "summary": "Four years in retail analytics.",
+        "experience": [
+            {"job_title": "Data Analyst", "company": "Reliance Retail", "start_date": "2022-07"},
+            {"job_title": "Analyst Intern", "company": "Tata Consumer", "start_date": "2021"},
+        ],
+        "projects": [{"name": "Sales dashboard"}],
+        "certifications": [{"name": "Google Data Analytics"}],
+    }
+    first = await _read_version(me["id"], document=cv)
+    # A correction whose view could not be written: the CV before it stands.
+    await _read_version(me["id"], document=None, supersedes=first)
+
+    body = (await client.get(DRAFT, headers=me["headers"])).json()
+    content = body["content"]
+    assert body["saved"] is False
+    assert [e["company"] for e in content["experience"]] == ["Reliance Retail", "Tata Consumer"]
+    assert content["summary"] == cv["summary"]
+    assert content["projects"][0]["name"] == "Sales dashboard"
+    assert content["certifications"][0]["name"] == "Google Data Analytics"
+    assert content["contacts"]["phone"] == "+919876543210"  # from the answers
+    assert "FEMALE" not in str(content) and "900000" not in str(content)
+
+    reset = await client.post(f"{DRAFT}/reset", headers=me["headers"])
+    assert reset.status_code == 200, reset.text
+    assert reset.json()["content"]["projects"][0]["name"] == "Sales dashboard"
+
+
+async def test_a_newer_cv_with_no_view_is_not_replaced_by_an_older_one(
+    client: Any, mint_token: Any
+) -> None:
+    me = await _onboarded(client, mint_token)
+    await _read_version(me["id"], document={"projects": [{"name": "From the old CV"}]})
+    await _read_version(me["id"], document=None)  # a different, newer CV
+
+    content = (await client.get(DRAFT, headers=me["headers"])).json()["content"]
+    assert "From the old CV" not in str(content)
+    assert content["experience"][0]["company"] == "Reliance Retail"  # the answers
 
 
 async def test_saving_stores_it_and_edits_never_reach_the_profile(

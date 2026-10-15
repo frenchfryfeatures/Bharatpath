@@ -9,6 +9,59 @@ states. Newest entries first.
 
 ---
 
+## 2026-10-15 — Integrity signals say what was found and what to do next
+
+Asked for by the frontend team (Rishabh): an admin opening a flag saw the
+rule's name and a raw `evidence` dump, and nothing about what to do.
+
+`GET /admin/integrity/signals/{id}` (and the resolve response) gained
+`finding`, one sentence built from the stored evidence (*"Full-time roles
+held at the same time: Infosys and TCS for 1 year 5 months."*), and
+`next_steps`, the reviewer's checks per rule from
+`integrity.domain.RULE_GUIDANCE`. **The last step of every list says what the
+decision does**: Clear/Confirm on the six MEDIUM and LOW rules hide nobody,
+and the reviewer needs to know that before deciding. The finding is computed
+at read time and never stored (`Signal`'s evidence stays structured), and is
+`null` rather than a 500 for evidence it cannot read -- a signal can be from
+an older rule version. Detail only: it can name employers from the CV, like
+the evidence it is built from. Guide 13 §2 now shows the real queue row
+(upper-case `rule_id`s, `rule_title`, `hides_candidate`, the `candidate`
+block); it showed `hidden_text` and none of those.
+
+**Not built, by decision pending:** telling the candidate, or a "send back
+to the candidate" outcome. Hiding is candidate-wide on purpose
+(`discovery/repository.py`), so a clean re-upload must never clear a flag on
+its own; a send-back would be a new signal state, reviewed again by a human,
+on the KYB send-back pattern, and its candidate-facing words are the
+client's.
+
+---
+
+## 2026-10-15 — Assistant 503s; resume builder starts from the read CV
+
+Both reported by the frontend developer.
+
+**The chat's occasional 503 was the model, not OpenAI being down.** The live
+logs showed every 503 as two `assistant_plan_refused` / `reply was empty` in a
+row. Reproduced against `gpt-5.4-mini`: "show more" and "next" returned
+`MORE_RESULTS` with `reply: ""` every time -- the prompt said "do not list job
+details, the cards show them", and the model took that as "say nothing", and
+did so again on the retry. The prompt now says `reply` is never empty
+(`PROMPT_VERSION` v2) and the refusal reason fed back says what to write.
+18 sample messages × 2 runs after the change: all 36 accepted. The two
+`no_output` answers in the same logs were each rescued by the retry.
+
+**The builder's first draft ignored the CV.** It copied only the onboarding
+answers (one job, one qualification), so a candidate who had uploaded a CV
+saw most of it missing. `domain.prefill` now takes the newest text-read
+version's `structured_resume` and fills its gaps from the answers; rules in
+guide 18 §4 and CLAUDE.md. Still no model call: a CV read before 2026-10-06
+has no structured view and gets the answers-only draft. **A draft already
+saved is not refilled** -- the frontend's "Fill in from my profile" (reset)
+rebuilds it.
+
+---
+
 ## 2026-10-15 — Admin dashboard: integrity items name the candidate
 
 `GET /admin/dashboard` → `oldest_waiting` gained `candidate_name` on
