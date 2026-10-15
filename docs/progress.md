@@ -9,6 +9,27 @@ states. Newest entries first.
 
 ---
 
+## 2026-10-15 — Admin dashboard: integrity items name the candidate
+
+`GET /admin/dashboard` → `oldest_waiting` gained `candidate_name` on
+INTEGRITY items: `candidate_profiles.full_name`, null until the person gives
+one (asked for from the console, where a row read only as a uuid).
+
+- **This reverses "ids, never a person's name"** from the dashboard's first
+  version, on purpose. The integrity section is shown only to roles that can
+  open the integrity queue, and that queue already shows them `full_name`, so
+  nobody sees anything new. The load is still one audit row.
+- **Still no contact** on any item, and KYB and dispute items name an
+  organisation, never a person (`candidate_name` null). The dispute queue
+  shows no raiser's name, so the dashboard does not either.
+- Test `test_oldest_waiting_is_oldest_first_and_names_no_person` renamed
+  `…_carries_no_contact` (same assertions); new
+  `test_an_integrity_item_names_its_candidate_from_the_profile` checks each
+  name against the profile row. Guide 13 §0 updated. **The console UI must
+  render the field** -- frontend's change, not made here.
+
+---
+
 ## 2026-10-14 — Resume builder, and the sales follow-up list
 
 The lead's spec: after the onboarding questions and before payment, the

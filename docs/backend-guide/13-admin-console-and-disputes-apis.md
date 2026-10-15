@@ -98,11 +98,11 @@ page shows each person what their other capabilities already let them work:
                        "jobs_published": 95, "applications": 3120, "hires": 58 },
   "oldest_waiting": [
     { "type": "INTEGRITY", "id": "...", "waiting_since": "2026-09-19T06:10:00Z",
-      "detail": "INJECTED_INSTRUCTIONS", "candidate_id": "9f2e...", "severity": "HIGH",
-      "organisation": null, "tenant_id": null, "party": null },
+      "detail": "INJECTED_INSTRUCTIONS", "candidate_id": "9f2e...", "candidate_name": "Asha Rao",
+      "severity": "HIGH", "organisation": null, "tenant_id": null, "party": null },
     { "type": "DISPUTE", "id": "...", "waiting_since": "2026-09-20T11:00:00Z",
       "detail": "PAYMENT", "party": "EMPLOYER", "organisation": "Acme Pvt Ltd",
-      "tenant_id": "...", "candidate_id": null, "severity": null }
+      "tenant_id": "...", "candidate_id": null, "candidate_name": null, "severity": null }
   ],
   "throughput": [ { "date": "2026-09-10", "intake": 2, "cleared": 1 }, "... 14 entries ..." ]
 }
@@ -116,7 +116,7 @@ page shows each person what their other capabilities already let them work:
 | `disputes.unassigned` | Open or in review, nobody assigned |
 | `organisations` / `platform_totals.employers` | "Active employers" is `organisations.employers.active` (or `platform_totals.employers`, which every role sees) |
 | `platform_totals.candidates` | Active candidate accounts. `hires` counts only hires confirmed by both sides |
-| `oldest_waiting` | Up to 5, oldest first, from the KYB, integrity and dispute queues the caller sees. `detail` is the KYB state, the integrity rule, or the dispute kind. **Ids, never a person's name**; open the item for the rest |
+| `oldest_waiting` | Up to 5, oldest first, from the KYB, integrity and dispute queues the caller sees. `detail` is the KYB state, the integrity rule, or the dispute kind. An integrity item carries `candidate_name`, the profile name as the integrity queue shows it (null until the person gives one); **never a contact**, and the other types name an organisation, never a person. Open the item for the rest |
 | `throughput` | 14 **IST** days ending today (today is partial), zeros included. `intake` = items that entered those queues that day; `cleared` = items decided. Auto-approved KYB is neither |
 
 Everything is read live on each request, never cached: a reviewer who has just
