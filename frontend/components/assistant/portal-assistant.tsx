@@ -43,6 +43,7 @@ const STARTERS = [
 
 export function PortalAssistant() {
   const [open, setOpen] = useState(false);
+  const [closing, setClosing] = useState(false);
   const [draft, setDraft] = useState("");
   const [entries, setEntries] = useState<Entry[]>([]);
   const [busy, setBusy] = useState(false);
@@ -58,8 +59,13 @@ export function PortalAssistant() {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
+  const closingTimer = useRef<number | null>(null);
 
-  useScrollLock(open);
+  useScrollLock(open || closing);
+
+  useEffect(() => () => {
+    if (closingTimer.current !== null) window.clearTimeout(closingTimer.current);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -71,8 +77,16 @@ export function PortalAssistant() {
   }, [open, entries, busy, error]);
 
   const close = () => {
+    if (!open) return;
     setOpen(false);
-    window.requestAnimationFrame(() => triggerRef.current?.focus());
+    setClosing(true);
+    if (closingTimer.current !== null) window.clearTimeout(closingTimer.current);
+    const duration = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 280;
+    closingTimer.current = window.setTimeout(() => {
+      setClosing(false);
+      closingTimer.current = null;
+      window.requestAnimationFrame(() => triggerRef.current?.focus());
+    }, duration);
   };
 
   const reset = () => {
@@ -155,7 +169,7 @@ export function PortalAssistant() {
 
   return (
     <div className="bp-assistant">
-      {!open && (
+      {!open && !closing && (
         <button
           ref={triggerRef}
           type="button"
@@ -173,10 +187,10 @@ export function PortalAssistant() {
         </button>
       )}
 
-      {open && (
-        <div data-scroll-lock-root className="fixed inset-0 z-[110]">
-          <button type="button" tabIndex={-1} aria-label="Close assistant" onClick={close} className="bp-assistant-scrim absolute inset-0 bg-[#0A1931]/35 backdrop-blur-[2px]" />
-          <section ref={dialogRef} role="dialog" aria-modal="true" aria-label="BharatPath job assistant" onKeyDown={onDialogKeyDown} className="bp-assistant-panel absolute inset-x-0 bottom-0 flex h-[min(780px,96dvh)] flex-col overflow-hidden rounded-t-[28px] border bg-white shadow-[0_28px_90px_rgba(10,25,49,.24)] sm:inset-x-auto sm:bottom-5 sm:right-5 sm:h-[min(730px,calc(100dvh-40px))] sm:w-[min(455px,calc(100vw-40px))] sm:rounded-[28px]">
+      {(open || closing) && (
+        <div data-scroll-lock-root className="fixed inset-0 z-[110]" inert={closing}>
+          <button type="button" tabIndex={-1} aria-label="Close assistant" onClick={close} data-state={closing ? "closing" : "open"} className="bp-assistant-scrim absolute inset-0 bg-[#0A1931]/35 backdrop-blur-[2px]" />
+          <section ref={dialogRef} role="dialog" aria-modal="true" aria-label="BharatPath job assistant" onKeyDown={onDialogKeyDown} data-state={closing ? "closing" : "open"} className="bp-assistant-panel absolute inset-x-0 bottom-0 flex h-[min(780px,96dvh)] flex-col overflow-hidden rounded-t-[28px] border bg-white shadow-[0_28px_90px_rgba(10,25,49,.24)] sm:inset-x-auto sm:bottom-5 sm:right-5 sm:h-[min(730px,calc(100dvh-40px))] sm:w-[min(455px,calc(100vw-40px))] sm:rounded-[28px]">
             <header className="bp-assistant-header relative flex shrink-0 items-center gap-3 border-b border-[#EEE8E0] bg-white px-5 py-4">
               <span className="grid size-11 shrink-0 place-items-center rounded-[15px] bg-[#5F4DB2] text-white shadow-[0_7px_18px_rgba(95,77,178,.24)]"><Sparkles size={21} /></span>
               <div className="min-w-0 flex-1">

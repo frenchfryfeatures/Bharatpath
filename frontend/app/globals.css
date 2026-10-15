@@ -65,12 +65,20 @@
   transform: translateY(-2px);
 }
 
-.bp-assistant-panel {
+.bp-assistant-panel[data-state="open"] {
   animation: bpAssistantOpen 380ms cubic-bezier(.2, 1, .28, 1) both;
 }
 
-.bp-assistant-scrim {
+.bp-assistant-panel[data-state="closing"] {
+  animation: bpAssistantClose 280ms cubic-bezier(.4, 0, 1, 1) both;
+}
+
+.bp-assistant-scrim[data-state="open"] {
   animation: bpFadeIn 220ms ease-out both;
+}
+
+.bp-assistant-scrim[data-state="closing"] {
+  animation: bpAssistantFadeOut 280ms ease-in both;
 }
 
 .bp-assistant-answer,
@@ -102,6 +110,16 @@
 @keyframes bpAssistantOpen {
   from { opacity: 0; transform: translateY(22px) scale(.96); }
   to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes bpAssistantClose {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(28px) scale(.96); }
+}
+
+@keyframes bpAssistantFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 
 @keyframes bpAssistantFloat {

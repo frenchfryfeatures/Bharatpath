@@ -408,7 +408,11 @@ export function StudentSignup() {
             remember(result, email);
             setSignedIn(true);
             const normalizedName = fullName.split(/\s+/).join(" ").trim();
-            setProfile((current) => ({ ...current, fullName: normalizedName }));
+            setProfile((current) => ({
+              ...current,
+              fullName: normalizedName,
+              city: String(details.current_city ?? ""),
+            }));
             await saveStudentName(normalizedName).unwrap();
             setBasicDraft(details);
             setInitialProfileSection(1);
