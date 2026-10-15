@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowUpRight, CheckCircle2, FileText, History, ShieldCheck, Upload } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, CheckCircle2, FilePenLine, FileText, History, ShieldCheck, Upload } from "lucide-react";
 
 import { FormSkeleton } from "@/components/common/loading";
 import { StudentErrorState } from "@/features/student/components";
@@ -16,6 +16,7 @@ import { getApiErrorCode, getApiErrorMessage } from "@/lib/api/error-message";
 import { showErrorFeedback, showSuccessFeedback } from "@/lib/feedback/success-feedback";
 import { useCompleteResumeUploadMutation, useCreateResumeUploadMutation, useGetResumeVersionsQuery, useUploadResumeFileMutation } from "@/store/student";
 import { useGetCareerProfileQuery, useLazyGetProfileResumeDocumentQuery } from "./career-api";
+import { ResumeTemplateDialog } from "./resume-template-dialog";
 
 type View =
   | { name: "review"; versionId: string }
@@ -39,6 +40,7 @@ export function ResumeDetails() {
     [versions.data],
   );
   const [view, setView] = useState<View | null>(null);
+  const [resumeTemplatePromptOpen, setResumeTemplatePromptOpen] = useState(false);
   const activeView: View | null =
     view ?? (current ? { name: "review", versionId: current.resumeVersionId } : null);
 
@@ -150,6 +152,11 @@ export function ResumeDetails() {
                   </span>
                 </header>
                 <div className="grid gap-3 sm:grid-cols-2">
+                  <button type="button" onClick={() => setResumeTemplatePromptOpen(true)} className="group relative flex min-h-[88px] min-w-0 cursor-pointer items-center gap-3 rounded-[20px] border border-[#D9D0F5] bg-[#F8F5FF] px-4 py-3 text-left transition hover:border-[#8D79D8] hover:shadow-md">
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[13px] bg-[#EEE8FA] text-[#5F4DB2]"><FilePenLine className="h-5 w-5" aria-hidden="true" /></span>
+                    <span className="min-w-0 flex-1"><span className="block text-[14px] font-bold text-[#0A1931]">Build resume</span><span className="mt-1 block text-[12px] leading-4 text-[#5F6B80]">Edit your generated resume and preview</span></span>
+                    <ArrowUpRight className="h-4 w-4 shrink-0 text-[#5F4DB2]" aria-hidden="true" />
+                  </button>
                   <button type="button" onClick={() => fileInput.current?.click()} className="group relative flex min-h-[88px] min-w-0 cursor-pointer items-center gap-3 overflow-hidden rounded-[20px] border border-[#D9D0F5] bg-gradient-to-br from-white via-white to-[#F7F3FF] px-4 py-3 text-left shadow-[0_4px_16px_rgba(58,43,112,0.07)] transition duration-200 hover:-translate-y-0.5 hover:border-[#8D79D8] hover:shadow-[0_10px_24px_rgba(58,43,112,0.13)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/40 focus-visible:ring-offset-2">
                     <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[13px] bg-[#EEE8FA] text-[#5F4DB2] ring-1 ring-inset ring-[#DED5F4] transition group-hover:bg-[#E7DFFA]"><Upload className="h-5 w-5" aria-hidden="true" /></span>
                     <span className="min-w-0 flex-1"><span className="block text-[14px] font-bold text-[#0A1931]">Upload new resume</span><span className="mt-1 block text-[12px] leading-4 text-[#5F6B80]">PDF or DOCX to update your profile</span></span>
@@ -194,6 +201,12 @@ export function ResumeDetails() {
           </aside>
         </div>
       </div>
+      <ResumeTemplateDialog
+        open={resumeTemplatePromptOpen}
+        onClose={() => setResumeTemplatePromptOpen(false)}
+        onKeep={() => { setResumeTemplatePromptOpen(false); router.replace("/student/profile/resume/edit?template=keep"); }}
+        onTemplateSelected={(template) => { setResumeTemplatePromptOpen(false); router.replace(`/student/profile/resume/edit?template=${template}`); }}
+      />
     </StudentPage>
   );
 }

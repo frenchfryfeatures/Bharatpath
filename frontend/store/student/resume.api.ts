@@ -10,7 +10,7 @@ import type { StructuredResume, StructuredStatus } from "@/components/resume/str
  * ever scored (SRS 1.4.4).
  */
 
-export type ResumeVersionSource = "UPLOAD" | "PASTE" | "MANUAL" | "EDIT";
+export type ResumeVersionSource = "UPLOAD" | "PASTE" | "MANUAL" | "EDIT" | "BUILDER";
 export type ResumeParseStatus = "QUEUED" | "DONE" | "FAILED" | "BLOCKED";
 export type ResumeSectionKind =
   | "header"

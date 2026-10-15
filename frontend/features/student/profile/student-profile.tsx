@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChangePasswordModal } from "@/components/auth/change-password-modal";
 import { CareerOverview } from "./career-overview";
+import { ResumeTemplateDialog } from "./resume-template-dialog";
 import { useAppSelector } from "@/store/hooks";
 import {
   BookOpen,
@@ -11,6 +12,7 @@ import {
   ChevronRight,
   Eye,
   FileText,
+  FilePenLine,
   KeyRound,
   ClipboardList,
   GraduationCap,
@@ -40,6 +42,7 @@ import { StudentPage } from "@/features/student/shell";
 export function StudentProfile() {
   const router = useRouter();
   const [passwordOpen, setPasswordOpen] = useState(false);
+  const [resumeTemplatePromptOpen, setResumeTemplatePromptOpen] = useState(false);
   const accountEmail = useAppSelector((state) => state.auth.user?.email ?? "");
   const profile = useGetStudentProfileQuery();
   const score = useGetStudentScoreQuery();
@@ -103,6 +106,13 @@ export function StudentProfile() {
                   detail="Review your document and scoring history"
                   tone="violet"
                   onClick={() => router.push("/student/profile/resume")}
+                />
+                <ProfileAction
+                  icon={FilePenLine}
+                  title="Build resume"
+                  detail="Choose a template, edit details and update your score"
+                  tone="violet"
+                  onClick={() => setResumeTemplatePromptOpen(true)}
                 />
 
                 <ProfileAction
@@ -200,6 +210,12 @@ export function StudentProfile() {
         onClose={() => setPasswordOpen(false)}
         theme="student"
         pool="CANDIDATE"
+      />
+      <ResumeTemplateDialog
+        open={resumeTemplatePromptOpen}
+        onClose={() => setResumeTemplatePromptOpen(false)}
+        onKeep={() => { setResumeTemplatePromptOpen(false); router.push("/student/profile/resume/edit?template=keep"); }}
+        onTemplateSelected={(template) => { setResumeTemplatePromptOpen(false); router.push(`/student/profile/resume/edit?template=${template}`); }}
       />
     </StudentPage>
   );

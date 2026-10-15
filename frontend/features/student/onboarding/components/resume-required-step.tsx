@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ArrowRight, CheckCircle2, Loader2, ShieldCheck, Upload } from "lucide-react";
+import { ArrowRight, CheckCircle2, FilePenLine, Loader2, ShieldCheck, Upload } from "lucide-react";
 
 import { StudentBackButton } from "@/features/student/components/student-back-button";
 import { RESUME_MAX_BYTES, resumeFileProblem } from "./intake-steps";
@@ -16,11 +16,13 @@ export function ResumeRequiredStep({
   error,
   onFile,
   onBack,
+  onGenerate,
 }: {
   busy: boolean;
   error?: string;
   onFile: (file: File) => void;
   onBack: () => void;
+  onGenerate: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -95,6 +97,24 @@ export function ResumeRequiredStep({
           </span>
           <ArrowRight className="h-4 w-4 text-[#FFFCF7]" aria-hidden="true" />
         </span>
+      </button>
+
+      <button
+        type="button"
+        disabled={busy}
+        onClick={onGenerate}
+        className="flex items-center gap-4 rounded-[20px] border border-[#DDD6C7] bg-white p-5 text-left transition hover:border-[#5F4DB2] hover:bg-[#F8F5FF] active:scale-[0.99] disabled:opacity-60"
+      >
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#5F4DB2]">
+          <FilePenLine className="h-[21px] w-[21px] text-[#FFFCF7]" aria-hidden="true" />
+        </span>
+        <span className="flex flex-1 flex-col gap-0.5">
+          <span className="text-[17px] font-bold text-[#0A1931]">Generate a resume instead</span>
+          <span className="text-[13px] leading-5 text-[#3A4761]">
+            No file? We build one from your answers. Edit it, add projects, preview and download it.
+          </span>
+        </span>
+        <ArrowRight className="h-4 w-4 shrink-0 text-[#5F4DB2]" aria-hidden="true" />
       </button>
 
       <ul className="grid gap-3 rounded-2xl border border-[#EFE9DB] bg-white p-4 text-[13px] text-[#3A4761]">
