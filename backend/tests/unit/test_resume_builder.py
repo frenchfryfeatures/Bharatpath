@@ -168,6 +168,73 @@ def test_the_first_draft_never_carries_gender_salary_or_preferences() -> None:
         assert leaked not in text
 
 
+#: A CV as the review screen shows it, with more than the answers hold.
+READ_CV: dict[str, Any] = {
+    "full_name": "PRIYA SHARMA",
+    "headline": "",
+    "location": "Pune, Maharashtra",
+    "summary": "Analyst with four years in retail.",
+    "contacts": {"email": "priya.cv@example.com", "phone": "", "linkedin": "https://x.example/p"},
+    "experience": [
+        {"job_title": "Data Analyst", "company": "Reliance Retail", "start_date": "2022-07"},
+        {"job_title": "Intern", "company": "Tata", "start_date": "2021", "end_date": "July 2021"},
+    ],
+    "education": [{"qualification": "B.Com", "institution": "Fergusson College"}],
+    "skills": ["sql", "Excel"],
+    "projects": [{"name": "Sales dashboard"}],
+    "certifications": [{"name": "Google Data Analytics"}],
+    "languages": [{"name": "Marathi"}],
+    "achievements": ["Top analyst 2023"],
+    "interests": ["Chess", "Married, two children"],
+    "other_sections": [
+        {"heading": "Personal details", "items": ["Born 1998"]},
+        {"heading": "Volunteering", "items": ["NSS", "Father: R. Sharma"]},
+    ],
+}
+
+
+def test_a_read_cv_fills_the_draft_and_the_answers_fill_its_gaps() -> None:
+    draft = domain.prefill(
+        full_name="Priya Sharma", email="priya@example.com", details=CAREER, resume=READ_CV
+    )
+    StructuredResume.model_validate(draft)
+    # Everything the CV states is kept.
+    assert [e["company"] for e in draft["experience"]] == ["Reliance Retail", "Tata"]
+    assert draft["summary"] == READ_CV["summary"]
+    assert draft["projects"] == READ_CV["projects"]
+    assert draft["certifications"] == READ_CV["certifications"]
+    assert draft["languages"] == READ_CV["languages"]
+    assert draft["achievements"] == READ_CV["achievements"]
+    assert draft["contacts"]["linkedin"] == "https://x.example/p"
+    # The CV's contact first; the answers only where it is blank.
+    assert draft["contacts"]["email"] == "priya.cv@example.com"
+    assert draft["contacts"]["phone"] == "+919876543210"
+    # Name, headline and city: what they told us.
+    assert (draft["full_name"], draft["headline"], draft["location"]) == (
+        "Priya Sharma",
+        "Data analyst",
+        "Pune",
+    )
+    assert draft["skills"] == ["sql", "Excel", "Power BI"]  # one of each, CV's first
+
+
+def test_a_read_cv_never_makes_a_draft_the_builder_would_refuse() -> None:
+    draft = domain.prefill(full_name="P", email="", details=CAREER, resume=READ_CV)
+    assert domain.personal_detail_fields(draft) == []
+    assert domain.malformed_date_fields(draft) == []
+    assert draft["interests"] == ["Chess"]
+    assert draft["other_sections"] == [{"heading": "Volunteering", "items": ["NSS"]}]
+    assert draft["experience"][1]["end_date"] == ""  # "July 2021", left for them
+    assert READ_CV["experience"][1]["end_date"] == "July 2021"  # the input is untouched
+
+
+def test_a_cv_with_no_jobs_keeps_the_job_from_the_answers() -> None:
+    cv = {**READ_CV, "experience": [], "education": []}
+    draft = domain.prefill(full_name="P", email="", details=CAREER, resume=cv)
+    assert draft["experience"][0]["company"] == "Reliance Retail"
+    assert draft["education"][0]["institution"] == "Fergusson College"
+
+
 def test_a_fresher_gets_no_invented_job() -> None:
     fresher = {**CAREER, "work_status": "FRESHER", "currently_employed": "", "company_name": ""}
     assert domain.prefill(full_name="P", email="", details=fresher)["experience"] == []

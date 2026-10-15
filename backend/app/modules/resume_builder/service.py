@@ -5,9 +5,10 @@ questions and before payment, a candidate either uploads a CV or builds one
 here: picks one of four templates, edits a draft filled in from their
 answers, and downloads it or makes it their resume ("push").
 
-**No model is involved anywhere.** The first draft is a field-by-field copy
-of the career profile (`domain.prefill`), and the templates print what was
-typed.
+**No model is called here.** The first draft is the candidate's own CV as
+the review screen shows it -- the structured view written when it was read
+-- with the onboarding answers in its gaps, or the answers alone for someone
+with no CV read (`domain.prefill`). The templates print what is in the draft.
 
 **Nothing here scores.** A push creates an unconfirmed `BUILDER` resume
 version, exactly as an upload creates an unconfirmed `UPLOAD` one, and the
@@ -34,7 +35,7 @@ from app.modules.candidate import career_service
 from app.modules.candidate import service as candidate_service
 from app.modules.identity import service as identity_service
 from app.modules.resume import service as resume_service
-from app.modules.resume.structuring import StructuredResume
+from app.modules.resume.structuring import StructuredResume, structured_view
 from app.modules.resume_builder import domain, rendering, repository
 from app.modules.resume_builder.models import ResumeBuilderDraft
 from app.modules.resume_builder.schemas import (
@@ -232,6 +233,39 @@ async def _prefilled(session: AsyncSession, ctx: TenantContext) -> dict[str, Any
         full_name=profile.full_name or "",
         email=email or "",
         details=career.details.model_dump(mode="json"),
+        resume=await _read_cv(session, ctx),
+    )
+
+
+async def _read_cv(session: AsyncSession, ctx: TenantContext) -> dict[str, Any] | None:
+    """Their newest CV as the review screen shows it, or None.
+
+    Only a CV read from text: a form-built version holds no more than the
+    answers, and a built one is this builder's own output. Within that CV's
+    chain the newest view wins (a correction is structured afresh); an older,
+    different CV is never used in its place. A version read before
+    structuring existed (2026-10-06) has no view -- nothing is read again
+    here, so the builder calls no model.
+    """
+    versions = [
+        v for v, _superseded in await resume_service.list_versions(session, user_id=ctx.user_id)
+    ]
+    by_id = {v.id: v for v in versions}
+    version = next((v for v in versions if _read_from_text(v)), None)
+    while version is not None and _read_from_text(version):
+        structured, structured_status = structured_view(version.parsed)
+        if structured is not None and structured_status == "READY":
+            return structured.model_dump(mode="json")
+        version = by_id.get(version.supersedes_id)
+    return None
+
+
+def _read_from_text(version: Any) -> bool:
+    parsed = version.parsed
+    return (
+        version.source != "BUILDER"
+        and isinstance(parsed, dict)
+        and isinstance(parsed.get("raw_text"), str)
     )
 
 

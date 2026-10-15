@@ -542,14 +542,19 @@ and reports applications.
 
 `app/modules/resume_builder` (`backend-guide/18`). Before payment, a
 candidate uploads a CV or builds one: four Typst templates, a draft filled
-in from the onboarding answers, a live preview, a counted PDF download, and
-"push" to make it their resume. **No model anywhere.**
+in from their read CV and the onboarding answers, a live preview, a counted
+PDF download, and "push" to make it their resume. **No model is called.**
 
 - **The draft is `StructuredResume`**, the review screen's document. It has
   no age, gender, photo or score field, and must never get one. `prefill`
   never copies gender, salary, notice period or preferred locations.
   `other_sections`/`interests` stating a date of birth, marital status and
   the like are refused (422), not silently dropped.
+- **A candidate with a CV starts from it** (2026-10-15): the newest
+  text-read version's `structured_resume` (owner's screen, so allowed),
+  answers in its gaps, never an older different CV. What we read is
+  cleaned, not refused: personal lines dropped, unprintable dates emptied.
+  It reaches scoring only as any draft does -- pushed and confirmed.
 - **Typst, not LaTeX** (`typst` on PyPI, pinned to a minor version): no
   system packages, about 50 ms a render, and a candidate's text reaches a
   template only as a JSON string, already formatted by
