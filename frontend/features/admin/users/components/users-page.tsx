@@ -12,7 +12,8 @@ import { useUsers } from "../hooks/use-users";
 
 import { ErrorState } from "@/components/ui";
 
-import { CandidatesTab } from "./candidates-tab";
+import { LeadsTab, LEAD_TABS, type LeadTab } from "./leads-tab";
+import { useLeads } from "../hooks/use-leads";
 import { EmployersTab } from "./employers-tab";
 import { InstitutionsTab } from "./institutions-tab";
 import { UserDrawer } from "./user-drawer";
@@ -23,7 +24,9 @@ import type { UserSegment } from "../types";
 export function UsersPage({ section = "candidates" }: { section?: "candidates" | "organisations" }) {
   const isOrganisations = section === "organisations";
   const [drawerMode, setDrawerMode] = useState<"create" | "invite" | null>(null);
-  const requestedSegment = useSearchParams().get("segment");
+  const searchParams = useSearchParams();
+  const requestedSegment = searchParams.get("segment");
+  const leadTab: LeadTab = searchParams.get("tab") === "signed_up" ? "signed_up" : "others";
   const selectedSegment: UserSegment = isOrganisations
     ? requestedSegment === "institutions" ? "institutions" : "employers"
     : "candidates";
@@ -52,6 +55,8 @@ export function UsersPage({ section = "candidates" }: { section?: "candidates" |
     goToNextPage,
     goToPreviousPage,
   } = useUsers(selectedSegment);
+
+  const leads = useLeads(leadTab, !isOrganisations, search);
 
   // Organisation links can select a tab; old Users links still reach it.
   const dispatch = useAppDispatch();
@@ -117,6 +122,42 @@ export function UsersPage({ section = "candidates" }: { section?: "candidates" |
       </div> : null}
 
       {/* ================================================================ */}
+      {/* CANDIDATE TABS: signed up and not paid, and everyone else         */}
+      {/* ================================================================ */}
+
+      {!isOrganisations ? <div className="overflow-x-auto border-b border-[#e7e9ee]">
+        <div className="flex min-w-max items-center gap-1" role="tablist" aria-label="Candidates">
+          {LEAD_TABS.map(({ key, label }) => {
+            const active = leadTab === key;
+            const count = leads.counts[key];
+
+            return (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => router.replace(`/admin/users?tab=${key}`, { scroll: false })}
+                className={[
+                  "relative inline-flex shrink-0 cursor-pointer items-center gap-2 px-4 py-3",
+                  "text-[13px] font-semibold transition-colors",
+                  active ? "text-[#172033]" : "text-[#687182] hover:text-[#172033]",
+                ].join(" ")}
+              >
+                {label}
+                {count !== null ? (
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${active ? "bg-[#eef0ff] text-[#385da8]" : "bg-[#f0f2f5] text-[#687182]"}`}>
+                    {count.toLocaleString("en-IN")}
+                  </span>
+                ) : null}
+                {active && <span className="absolute inset-x-0 bottom-0 h-[2px] bg-[#315c9f]" />}
+              </button>
+            );
+          })}
+        </div>
+      </div> : null}
+
+      {/* ================================================================ */}
       {/* SEARCH                                                            */}
       {/* ================================================================ */}
 
@@ -158,14 +199,16 @@ export function UsersPage({ section = "candidates" }: { section?: "candidates" |
       {/* TAB CONTENT                                                       */}
       {/* ================================================================ */}
 
-      {error ? <ErrorState error={error} fallback={isOrganisations ? "Could not load organisations." : "Could not load candidates."} className="mb-3" /> : null}
+      {isOrganisations && error ? <ErrorState error={error} fallback="Could not load organisations." className="mb-3" /> : null}
+      {!isOrganisations && leads.error ? <ErrorState error={leads.error} fallback="Could not load candidates." className="mb-3" /> : null}
 
       {segment === "candidates" && (
-        <CandidatesTab
-          users={filteredUsers}
-          isLoading={isLoading}
-          onOpen={openUser}
-          pagination={pagination}
+        <LeadsTab
+          tab={leadTab}
+          leads={leads.rows}
+          isLoading={leads.isLoading}
+          searching={search.trim().length > 0}
+          pagination={leads.pagination}
         />
       )}
 

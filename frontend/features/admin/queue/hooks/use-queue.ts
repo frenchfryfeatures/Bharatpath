@@ -116,7 +116,7 @@ export function useQueue() {
     imageUrl: item.candidate?.photo_url ?? item.photo_url,
     imageFit: "cover",
     submitted: relativeTime(item.created_at, "Flagged"),
-    secondary: humanise(item.rule_id),
+    secondary: item.rule_title || humanise(item.rule_id),
     risk: (item.severity[0] + item.severity.slice(1).toLowerCase()) as QueueRisk,
     date: formatDate(item.created_at),
     approval: null,
