@@ -9,6 +9,16 @@ states. Newest entries first.
 
 ---
 
+## 2026-10-15 — Admin users and organisations are separate pages
+
+`/admin/users` now shows only candidates, without a category tab strip.
+`/admin/organisations` shows Employers and Institutions tabs with their existing
+lists and account actions. Both pages have separate sidebar links and headings;
+the dashboard's Active employers card opens the Organisation page. Legacy
+`/admin/users?segment=employers|institutions` links redirect to the new page.
+
+---
+
 ## 2026-10-15 — Dashboard throughput dates clarified
 
 The intake/cleared chart now labels its x axis as calendar dates and shows the

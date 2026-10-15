@@ -45,17 +45,17 @@ function candidateState(status: AdminCandidateRow["status"]): UserState {
   return "Active";
 }
 
-export function useUsers() {
+export function useUsers(segment: UserSegment) {
   const dispatch = useAppDispatch();
 
   const state = useAppSelector(
     selectAdminUsers,
   );
   const debouncedSearch = useDebouncedSearch(state.search);
-  const isCandidates = state.segment === "candidates";
-  const tenantType = state.segment === "employers" ? "EMPLOYER" : "COLLEGE";
+  const isCandidates = segment === "candidates";
+  const tenantType = segment === "employers" ? "EMPLOYER" : "COLLEGE";
 
-  const pagination = useCursorPagination([state.segment, debouncedSearch]);
+  const pagination = useCursorPagination([segment, debouncedSearch]);
 
   // Candidates come from GET /admin/candidates; employers and institutions
   // stay on GET /admin/tenants. Exactly one query runs per segment.
@@ -135,7 +135,7 @@ export function useUsers() {
   return {
     state,
 
-    segment: state.segment,
+    segment,
 
     search: state.search,
 
@@ -143,7 +143,7 @@ export function useUsers() {
 
     filteredUsers: users,
 
-    selectedId: state.selectedId,
+    selectedId: state.segment === segment ? state.selectedId : null,
 
     isLoading: activeQuery.isLoading || activeQuery.isFetching,
 

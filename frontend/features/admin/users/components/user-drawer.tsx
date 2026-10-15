@@ -23,12 +23,19 @@ import {
   type CollegeDrilldown,
 } from "@/store/api/admin-api";
 
-import { useUsers } from "../hooks/use-users";
+import type { UserSegment } from "../types";
 import { FieldError, a11y, validateRequiredText } from "../../shared/form";
 
-export function UserDrawer() {
+export function UserDrawer({
+  segment,
+  selectedId,
+  closeUser,
+}: {
+  segment: UserSegment;
+  selectedId: string | null;
+  closeUser: () => void;
+}) {
   const dispatch = useAppDispatch();
-  const { segment, selectedId, closeUser } = useUsers();
   useScrollLock(Boolean(selectedId));
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState<string | undefined>();

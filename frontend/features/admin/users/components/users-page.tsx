@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, Search } from "lucide-react";
 
 import { usePageHeader } from "@/components/layout/header-context";
@@ -18,11 +18,20 @@ import { InstitutionsTab } from "./institutions-tab";
 import { UserDrawer } from "./user-drawer";
 import { CreateUserDrawer } from "./create-user-drawer";
 
-export function UsersPage() {
+import type { UserSegment } from "../types";
+
+export function UsersPage({ section = "candidates" }: { section?: "candidates" | "organisations" }) {
+  const isOrganisations = section === "organisations";
   const [drawerMode, setDrawerMode] = useState<"create" | "invite" | null>(null);
+  const requestedSegment = useSearchParams().get("segment");
+  const selectedSegment: UserSegment = isOrganisations
+    ? requestedSegment === "institutions" ? "institutions" : "employers"
+    : "candidates";
   usePageHeader(
-    "Users",
-    "Candidates, employers and institutions on the platform",
+    isOrganisations ? "Organisation" : "Users",
+    isOrganisations
+      ? "Employers and institutions on the platform"
+      : "Candidates on the platform",
   );
 
   const {
@@ -32,6 +41,8 @@ export function UsersPage() {
     isLoading,
     error,
     openUser,
+    selectedId,
+    closeUser,
     setSegment,
     setSearch,
     pageSize,
@@ -40,20 +51,18 @@ export function UsersPage() {
     setPageSize,
     goToNextPage,
     goToPreviousPage,
-  } = useUsers();
+  } = useUsers(selectedSegment);
 
-  // Links such as the dashboard's "Active employers" card name the segment.
+  // Organisation links can select a tab; old Users links still reach it.
   const dispatch = useAppDispatch();
-  const requestedSegment = useSearchParams().get("segment");
+  const router = useRouter();
   useEffect(() => {
-    if (
-      requestedSegment === "candidates" ||
-      requestedSegment === "employers" ||
-      requestedSegment === "institutions"
-    ) {
-      dispatch(setUserSegment(requestedSegment));
+    if (!isOrganisations && (requestedSegment === "employers" || requestedSegment === "institutions")) {
+      router.replace(`/admin/organisations?segment=${requestedSegment}`);
+      return;
     }
-  }, [dispatch, requestedSegment]);
+    dispatch(setUserSegment(selectedSegment));
+  }, [dispatch, isOrganisations, requestedSegment, router, selectedSegment]);
 
   const pagination = {
     pageSize,
@@ -67,18 +76,15 @@ export function UsersPage() {
   return (
     <div className="min-w-0 space-y-0">
       {/* ================================================================ */}
-      {/* SEGMENT TABS                                                     */}
+      {/* ORGANISATION TABS                                                */}
       {/* ================================================================ */}
 
-      <div className="overflow-x-auto border-b border-[#e7e9ee]">
+      {isOrganisations ? <div className="overflow-x-auto border-b border-[#e7e9ee]">
         <div className="flex min-w-max items-center gap-1">
-          {(
-            [
-              ["candidates", "Candidates"],
-              ["employers", "Employers"],
-              ["institutions", "Institutions"],
-            ] as const
-          ).map(([key, label]) => {
+          {([
+            ["employers", "Employers"],
+            ["institutions", "Institutions"],
+          ] as const).map(([key, label]) => {
             const active =
               segment === key;
 
@@ -86,9 +92,11 @@ export function UsersPage() {
               <button
                 key={key}
                 type="button"
-                onClick={() =>
-                  setSegment(key)
-                }
+                aria-pressed={active}
+                onClick={() => {
+                  setSegment(key);
+                  router.replace(`/admin/organisations?segment=${key}`, { scroll: false });
+                }}
                 className={[
                   "relative shrink-0 cursor-pointer px-4 py-3",
                   "text-[13px] font-semibold transition-colors",
@@ -106,7 +114,7 @@ export function UsersPage() {
             );
           })}
         </div>
-      </div>
+      </div> : null}
 
       {/* ================================================================ */}
       {/* SEARCH                                                            */}
@@ -150,7 +158,7 @@ export function UsersPage() {
       {/* TAB CONTENT                                                       */}
       {/* ================================================================ */}
 
-      {error ? <ErrorState error={error} fallback="Could not load users." className="mb-3" /> : null}
+      {error ? <ErrorState error={error} fallback={isOrganisations ? "Could not load organisations." : "Could not load candidates."} className="mb-3" /> : null}
 
       {segment === "candidates" && (
         <CandidatesTab
@@ -178,7 +186,7 @@ export function UsersPage() {
           pagination={pagination}
         />
       )}
-      <UserDrawer />
+      <UserDrawer segment={segment} selectedId={selectedId} closeUser={closeUser} />
       {drawerMode ? (
         <CreateUserDrawer
           segment={segment}

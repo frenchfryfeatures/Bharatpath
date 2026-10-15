@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Building2,
   LayoutGrid,
   Settings,
   Users,
@@ -95,6 +96,12 @@ export const adminNavigation = [
     label: "Users",
     href: "/admin/users",
     icon: Users,
+  },
+  {
+    key: "organisations",
+    label: "Organisation",
+    href: "/admin/organisations",
+    icon: Building2,
   },
   {
     key: "disputes",
