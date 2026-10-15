@@ -54,7 +54,7 @@ export function UsersPage({ section = "candidates" }: { section?: "candidates" |
     setPageSize,
     goToNextPage,
     goToPreviousPage,
-  } = useUsers(selectedSegment);
+  } = useUsers(selectedSegment, isOrganisations ? "" : leadTab);
 
   const leads = useLeads(leadTab, !isOrganisations, search);
 
@@ -76,6 +76,22 @@ export function UsersPage({ section = "candidates" }: { section?: "candidates" |
     onNextPage: goToNextPage,
     onPreviousPage: goToPreviousPage,
     onPageSizeChange: setPageSize,
+  };
+
+  const leadsPagination = {
+    ...leads.pagination,
+    onNextPage: () => {
+      setSearch("");
+      leads.pagination.onNextPage();
+    },
+    onPreviousPage: () => {
+      setSearch("");
+      leads.pagination.onPreviousPage();
+    },
+    onPageSizeChange: (size: number) => {
+      setSearch("");
+      leads.pagination.onPageSizeChange(size);
+    },
   };
 
   return (
@@ -208,7 +224,7 @@ export function UsersPage({ section = "candidates" }: { section?: "candidates" |
           leads={leads.rows}
           isLoading={leads.isLoading}
           searching={search.trim().length > 0}
-          pagination={leads.pagination}
+          pagination={leadsPagination}
         />
       )}
 

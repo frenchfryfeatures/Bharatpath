@@ -1,12 +1,12 @@
 "use client";
 
+import { usePageSearch } from "@/lib/hooks/use-page-search";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { useDebouncedSearch } from "@/lib/hooks/use-debounced-value";
 
 import {
   closeUser,
   openUser,
-  setUserSearch,
   setUserSegment,
 } from "@/store/admin/users/slice";
 
@@ -45,13 +45,14 @@ function candidateState(status: AdminCandidateRow["status"]): UserState {
   return "Active";
 }
 
-export function useUsers(segment: UserSegment) {
+export function useUsers(segment: UserSegment, tab = "") {
   const dispatch = useAppDispatch();
 
   const state = useAppSelector(
     selectAdminUsers,
   );
-  const debouncedSearch = useDebouncedSearch(state.search);
+  const [search, setSearch] = usePageSearch(`${segment}:${tab}`);
+  const debouncedSearch = useDebouncedSearch(search);
   const isCandidates = segment === "candidates";
   const tenantType = segment === "employers" ? "EMPLOYER" : "COLLEGE";
 
@@ -126,18 +127,12 @@ export function useUsers(segment: UserSegment) {
     dispatch(setUserSegment(segment));
   };
 
-  const setSearch = (
-    search: string,
-  ) => {
-    dispatch(setUserSearch(search));
-  };
-
   return {
     state,
 
     segment,
 
-    search: state.search,
+    search,
 
     users,
 

@@ -1,5 +1,7 @@
 "use client";
 
+import { usePageSearch } from "@/lib/hooks/use-page-search";
+
 import {
   useCallback,
   useEffect,
@@ -13,9 +15,7 @@ import { StudentJobCardSkeleton, StudentJobGridSkeleton } from "@/features/stude
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   selectJobQualifiedOnly,
-  selectJobSearch,
   selectJobWorkMode,
-  setJobSearch,
   setJobWorkMode,
   toggleQualifiedOnly,
   useLazyGetStudentJobsQuery,
@@ -30,7 +30,7 @@ const JOBS_PAGE_SIZE = 10;
 
 export function JobFeed() {
   const dispatch = useAppDispatch();
-  const search = useAppSelector(selectJobSearch);
+  const [search, setSearch] = usePageSearch();
   const debouncedSearch = useDebouncedSearch(search);
   const qualifiedOnly = useAppSelector(selectJobQualifiedOnly);
   const workMode = useAppSelector(selectJobWorkMode);
@@ -94,7 +94,7 @@ export function JobFeed() {
           <div className="flex gap-2">
             <label className="flex min-w-0 flex-1 items-center gap-3 rounded-full border border-[#E7E0D4] bg-white px-4 py-3">
               <Search size={16} className="text-[#5F6B80]" />
-              <input value={search} onChange={(event) => dispatch(setJobSearch(event.target.value))} placeholder="Role, company or skill" aria-label="Search jobs" className="min-w-0 flex-1 bg-transparent text-[15px] leading-5 text-[#0A1931] outline-none placeholder:text-[#8891a0]" />
+              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Role, company or skill" aria-label="Search jobs" className="min-w-0 flex-1 bg-transparent text-[15px] leading-5 text-[#0A1931] outline-none placeholder:text-[#8891a0]" />
             </label>
             <button type="button" onClick={() => setFiltersOpen(true)} aria-label="Open job filters" className="relative grid h-12 w-12 shrink-0 cursor-pointer place-items-center rounded-full border border-[#E7E0D4] bg-white text-[#0A1931] transition hover:border-[#C9BEEB] hover:bg-[#F7F4EC]">
               <SlidersHorizontal size={19} />

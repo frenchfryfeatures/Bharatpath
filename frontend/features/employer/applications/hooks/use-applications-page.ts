@@ -1,5 +1,7 @@
 "use client";
 
+import { usePageSearch } from "@/lib/hooks/use-page-search";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
@@ -81,7 +83,7 @@ export function useApplicationsPage() {
   }, [jobIdParam, dispatch]);
 
   const selectedJobId = jobFilter === "all" ? undefined : jobFilter;
-  const [jobSearch, setJobSearch] = useState("");
+  const [jobSearch, setJobSearch] = usePageSearch();
   const [jobMenuOpen, setJobMenuOpen] = useState(false);
   const typedJobSearch = jobSearch.trim();
   const debouncedJobSearch = useDebouncedSearch(jobSearch);
@@ -289,7 +291,7 @@ export function useApplicationsPage() {
   );
   const handleJobSearchChange = useCallback((value: string) => {
     setJobSearch(value);
-  }, []);
+  }, [setJobSearch]);
   const handleJobMenuOpenChange = useCallback((open: boolean) => {
     setJobMenuOpen(open);
   }, []);

@@ -1,5 +1,6 @@
 "use client";
 
+import { usePageSearch } from "@/lib/hooks/use-page-search";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { SlidersHorizontal } from "lucide-react";
 
@@ -53,7 +54,7 @@ export function CandidatesPage() {
     : 10;
   // The box is local; the store (and with it the query and its cursor
   // reset) only hears the text once typing has settled.
-  const [searchInput, setSearchInput] = useState(filters.search);
+  const [searchInput, setSearchInput] = usePageSearch();
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   useScrollLock(mobileFiltersOpen);
 

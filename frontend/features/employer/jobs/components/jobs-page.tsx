@@ -1,5 +1,6 @@
 "use client";
 
+import { usePageSearch } from "@/lib/hooks/use-page-search";
 import { Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Dropdown } from "@/components/ui/dropdown";
@@ -9,9 +10,7 @@ import { usePageHeader } from "@/components/layout/header-context";
 import { JobsTable } from "./jobs-table";
 import {
     useGetEmployerJobsQuery,
-    selectJobsSearch,
     selectJobsStatusFilter,
-    setJobsSearch,
     setJobsStatusFilter,
 } from "@/store/employer/jobs";
 import type { JobsStatusFilter } from "@/store/employer/jobs";
@@ -47,7 +46,7 @@ export function JobsPage() {
         "Manage job postings and track how each one is performing"
     );
 
-    const search = useAppSelector(selectJobsSearch);
+    const [search, setSearch] = usePageSearch();
     const statusFilter = useAppSelector(
         selectJobsStatusFilter
     );
@@ -105,7 +104,7 @@ export function JobsPage() {
     }[];
 
     function handleSearch(value: string) {
-        dispatch(setJobsSearch(value));
+        setSearch(value);
     }
 
     function handleStatusChange(
