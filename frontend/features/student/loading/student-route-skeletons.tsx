@@ -118,7 +118,7 @@ export function StudentApplicationDetailSkeleton() {
     <StudentPage>
       <LoadingRegion label="Loading application">
         <TopBarSkeleton />
-        <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+        <div className="grid w-full max-w-6xl gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.8fr)]">
           <div className="flex flex-col gap-4">
             <div className="flex items-center gap-3">
               <Skeleton width={48} height={48} radius={14} />

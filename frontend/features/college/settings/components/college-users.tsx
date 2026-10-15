@@ -3,12 +3,13 @@
 import { useState } from "react";
 import { UserPlus, X } from "lucide-react";
 
-import { ListSkeleton } from "@/components/common/loading";
 import { Dropdown } from "@/components/ui/dropdown";
+import { DataTable, type ColumnDef } from "@/components/ui/table";
 
 import type { CollegeTeamRole } from "@/store/college/types";
 
 import { useSettings } from "../hooks/use-settings";
+import type { CollegeUser } from "../types";
 
 const ROLE_OPTIONS: { value: CollegeTeamRole; label: string }[] = [
   { value: "COLLEGE_ADMIN", label: "Admin" },
@@ -41,6 +42,65 @@ export function CollegeUsers() {
     }
   };
 
+  const columns: ColumnDef<CollegeUser>[] = [
+    {
+      id: "user",
+      header: "User",
+      headerClassName: "min-w-[240px]",
+      cellClassName: "min-w-[240px]",
+      cell: (user) => (
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#edf3fb] text-[11px] font-bold text-[#24559d]">
+            {user.initials}
+          </div>
+          <div className="min-w-0">
+            <span className="block truncate text-[13px] font-semibold text-[#131A26]">
+              {user.displayName}
+            </span>
+            <span className="block truncate text-[11px] text-[#64748b]">
+              {user.email}
+            </span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "role",
+      header: "Role",
+      headerClassName: "min-w-[120px]",
+      cellClassName: "min-w-[120px]",
+      cell: (user) => (
+        <span
+          className={[
+            "inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold",
+            user.role === "COLLEGE_ADMIN"
+              ? "bg-[#131A26] text-white"
+              : "bg-[#edf3fb] text-[#131A26]",
+          ].join(" ")}
+        >
+          {user.roleLabel}
+        </span>
+      ),
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      headerClassName: "w-[96px] min-w-[96px] text-right",
+      cellClassName: "w-[96px] min-w-[96px] text-right",
+      cell: (user) => (
+        <button
+          type="button"
+          aria-label={`Remove ${user.displayName}`}
+          title="Remove user"
+          onClick={() => removeUser(user.userId)}
+          className="inline-grid h-8 w-8 place-items-center rounded-lg border border-[#e1e5eb] bg-white text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#131A26]"
+        >
+          <X size={14} strokeWidth={2.2} />
+        </button>
+      ),
+    },
+  ];
+
   return (
     <div
       className="flex w-full flex-col gap-4"
@@ -48,98 +108,38 @@ export function CollegeUsers() {
         fontFamily: "'General Sans', sans-serif",
       }}
     >
-      {/* Portal Users Card */}
-      <section className="w-full max-w-[760px] overflow-hidden rounded-[12px] border border-[#e1e5eb] bg-white shadow-[0_4px_12px_rgba(19,26,38,0.024)]">
-        {/* Card Header */}
-        <div className="flex items-center gap-3 border-b border-[#e1e5eb] px-5 py-4">
-          <div className="flex min-w-0 flex-1 flex-col gap-[2px]">
-            <h2 className="text-[14px] font-semibold leading-[18px] text-[#131A26]">
-              Portal users
-            </h2>
-
-            <p className="text-[12px] font-normal leading-[17px] text-[#64748b]">
-              Placement cell staff who can see cohort analytics.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setShowInvite(true)}
-            className="flex shrink-0 items-center gap-2 rounded-[8px] border-0 bg-[#5a4bd6] px-4 py-[10px] text-[13px] font-semibold leading-[17px] text-white transition hover:bg-[#4f41c8]"
-          >
-            <UserPlus size={16} strokeWidth={2} />
-            Add user
-          </button>
-        </div>
-
-        {/* Users */}
-        <div>
-          {isLoadingUsers ? (
-            <div className="px-5 py-4">
-              <ListSkeleton rows={3} avatar trailing />
+      <DataTable<CollegeUser>
+        className="w-full max-w-[760px]"
+        columns={columns}
+        data={users}
+        keyExtractor={(user) => user.userId}
+        isLoading={isLoadingUsers}
+        skeletonRows={3}
+        pageSize={10}
+        itemLabel="users"
+        emptyTitle="No portal users yet"
+        emptySubtitle="Add a placement cell member to get started."
+        header={
+          <div className="flex items-center gap-3 border-b border-[#e1e5eb] px-5 py-4">
+            <div className="flex min-w-0 flex-1 flex-col gap-[2px]">
+              <h2 className="text-[14px] font-semibold leading-[18px] text-[#131A26]">
+                Portal users
+              </h2>
+              <p className="text-[12px] leading-[17px] text-[#64748b]">
+                Placement cell staff who can see cohort analytics.
+              </p>
             </div>
-          ) : (
-            <>
-              {users.length === 0 && (
-                <p className="px-5 py-6 text-[13px] text-[#64748b]">
-                  No portal users yet. Add a placement cell member to get started.
-                </p>
-              )}
-
-              {users.map((user, index) => (
-            <div
-              key={user.userId}
-              className={[
-                "grid min-h-[56px] grid-cols-[32px_minmax(0,1fr)_128px_32px]",
-                "items-center gap-3 px-5 py-3",
-                index > 0 ? "border-t border-[#eef0f3]" : "",
-              ].join(" ")}
+            <button
+              type="button"
+              onClick={() => setShowInvite(true)}
+              className="flex shrink-0 items-center gap-2 rounded-lg bg-[#5a4bd6] px-4 py-2.5 text-[13px] font-semibold text-white transition hover:bg-[#4f41c8]"
             >
-              {/* Avatar */}
-              <div className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] bg-[#edf3fb] text-[11px] font-bold leading-[14px] text-[#24559d]">
-                {user.initials}
-              </div>
-
-              {/* User information */}
-              <div className="flex min-w-0 flex-1 flex-col gap-[2px]">
-                <span className="truncate text-[13px] font-semibold leading-[17px] text-[#131A26]">
-                  {user.displayName}
-                </span>
-
-                <span className="truncate text-[11px] font-normal leading-[14px] text-[#64748b]">
-                  {user.email}
-                </span>
-              </div>
-
-              {/* Role */}
-              <span
-                className={[
-                  "justify-self-start whitespace-nowrap rounded-full px-[10px] py-1",
-                  "text-[11px] font-semibold leading-[14px]",
-                  user.role === "COLLEGE_ADMIN"
-                    ? "bg-[#131A26] text-white"
-                    : "bg-[#edf3fb] text-[#131A26]",
-                ].join(" ")}
-              >
-                {user.roleLabel}
-              </span>
-
-              {/* Remove */}
-              <button
-                type="button"
-                aria-label={`Remove ${user.displayName}`}
-                title="Remove user"
-                onClick={() => removeUser(user.userId)}
-                className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] border border-[#e1e5eb] bg-white text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#131A26]"
-              >
-                <X size={14} strokeWidth={2.2} />
-              </button>
-            </div>
-          ))}
-            </>
-          )}
-        </div>
-      </section>
+              <UserPlus size={16} strokeWidth={2} />
+              Add user
+            </button>
+          </div>
+        }
+      />
 
       {/* Invite Modal */}
       {showInvite && (

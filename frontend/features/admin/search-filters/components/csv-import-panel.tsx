@@ -202,7 +202,7 @@ export function CsvImportPanel({
             ready to import
           </p>
           <div className="max-h-56 overflow-auto">
-            <table className="w-full text-left text-[12px]">
+            <table className="w-full min-w-[600px] text-left text-[12px]">
               <thead className="sticky top-0 bg-[#fafbfc] text-[10px] font-semibold uppercase tracking-[0.06em] text-[#7b8494]">
                 <tr>
                   <th className="px-3 py-2">Label</th>
