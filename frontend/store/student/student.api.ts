@@ -551,6 +551,20 @@ export const studentApi = baseApi.injectEndpoints({
       }),
       providesTags: [{ type: "Application", id: "STUDENT_LIST" }],
     }),
+    getStudentApplicationCount: builder.query<
+      { count: number; hasMore: boolean },
+      "ALL" | "ACTIVE" | "CLOSED"
+    >({
+      query: (status) => ({
+        url: "/candidate/applications",
+        params: { limit: 100, status: status === "ALL" ? undefined : status },
+      }),
+      transformResponse: (page: ApiPage<ApplicationResponse>) => ({
+        count: page.items.length,
+        hasMore: Boolean(page.next_cursor),
+      }),
+      providesTags: [{ type: "Application", id: "STUDENT_LIST" }],
+    }),
     getStudentApplication: builder.query<JobApplication, string>({
       query: (applicationId) =>
         `/candidate/applications/${applicationId}`,
@@ -740,6 +754,7 @@ export const {
   useLazyGetStudentJobsQuery,
   useGetStudentJobQuery,
   useGetStudentApplicationsQuery,
+  useGetStudentApplicationCountQuery,
   useLazyGetStudentApplicationsQuery,
   useGetStudentApplicationQuery,
   useApplyToStudentJobMutation,
