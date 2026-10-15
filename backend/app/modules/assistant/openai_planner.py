@@ -34,7 +34,7 @@ from app.modules.assistant.planner import AssistantUnavailableError
 
 logger = get_logger(__name__)
 
-PROMPT_VERSION: Final = "openai-assistant-v1-2026-10-13"
+PROMPT_VERSION: Final = "openai-assistant-v2-2026-10-15"
 REASONING_EFFORT: Final = "low"
 MAX_OUTPUT_TOKENS: Final = 3_000
 SCHEMA_NAME: Final = "assistant_plan"
@@ -47,7 +47,9 @@ search the wider internet.
 
 Each turn you choose ONE action and write what to say. The app carries out \
 the action and shows the results as cards under your reply, so do not list \
-job details in the reply for a search -- the cards show them.
+job details in the reply for a search -- the cards show them. "reply" is \
+never empty, whatever the action: for a list it is one short line that \
+introduces the cards ("Here are more jobs for you.").
 
 Actions:
 - SEARCH: find jobs. Fill "search": "keywords" are role words ("data \
