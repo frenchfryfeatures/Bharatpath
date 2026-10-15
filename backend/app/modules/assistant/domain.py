@@ -305,7 +305,10 @@ def parse_plan(raw: object, *, jobs_in_view: int) -> Plan:
         raise PlanRefusedError(f"action must be one of {', '.join(ACTIONS)}")
     reply = _text(raw.get("reply"))
     if not reply:
-        raise PlanRefusedError("reply was empty")
+        raise PlanRefusedError(
+            "reply was empty; write one short line for the candidate, "
+            "even when cards show the results"
+        )
     if len(reply) > MAX_REPLY_CHARS:
         raise PlanRefusedError(f"reply was longer than {MAX_REPLY_CHARS} characters")
     reply_if_empty = _text(raw.get("reply_if_no_results"))[:MAX_REPLY_CHARS] or reply
