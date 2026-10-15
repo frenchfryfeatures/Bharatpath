@@ -111,7 +111,7 @@ export function useQueue() {
     const fullName = item.candidate?.full_name?.trim();
     return {
     id: item.id,
-    name: fullName || `Candidate · ${item.candidate_id.slice(0, 8)}`,
+    name: fullName || "Candidate",
     initials: fullName ? initials(fullName) : "CA",
     imageUrl: item.candidate?.photo_url ?? item.photo_url,
     imageFit: "cover",

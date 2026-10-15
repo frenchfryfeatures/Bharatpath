@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingImage } from "@/components/common/loading/loading-image";
 import { useState } from "react";
 
 interface ImageTileProps {
@@ -18,8 +19,7 @@ export function ImageTile({ src, initials, className, fit = "cover" }: Readonly<
 
   if (src && failedSrc !== src) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element -- presigned, expiring URL
-      <img
+      <LoadingImage
         src={src}
         alt=""
         onError={() => setFailedSrc(src)}

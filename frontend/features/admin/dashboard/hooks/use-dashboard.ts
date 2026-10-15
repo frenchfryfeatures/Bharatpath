@@ -62,10 +62,6 @@ function riskOf(
   return "-";
 }
 
-function shortId(value: string | null): string | null {
-  return value ? value.slice(0, 8) : null;
-}
-
 function subjectOf(item: AdminOldestWaitingItem): string {
   if (item.organisation) {
     return item.organisation;
@@ -73,17 +69,17 @@ function subjectOf(item: AdminOldestWaitingItem): string {
 
   if (item.type === "INTEGRITY") {
     return item.candidate_name?.trim() ||
-      `Candidate ${shortId(item.candidate_id) ?? shortId(item.id)}`;
+      "Candidate";
   }
 
   if (item.type === "KYB") {
-    return `Organisation ${shortId(item.tenant_id) ?? shortId(item.id)}`;
+    return "Organisation";
   }
 
   const party = item.party
     ? `${item.party[0]}${item.party.slice(1).toLowerCase()}`
     : "Platform";
-  return `${party} dispute ${shortId(item.id)}`;
+  return `${party} dispute`;
 }
 
 function humaniseCode(value: string): string {

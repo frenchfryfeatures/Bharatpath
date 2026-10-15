@@ -256,8 +256,8 @@ function QueueDrawerBody() {
   const signal = integrityDetail.data;
   const candidateName = signal?.candidate?.full_name?.trim();
   const fallbackName = isKyb
-    ? `Organisation ${(openReviewId ?? "").slice(0, 8)}`
-    : candidateName || `Candidate ${(signal?.candidate_id ?? openReviewId ?? "").slice(0, 8)}`;
+    ? "Organisation"
+    : candidateName || "Candidate";
   const fallbackItem: QueueItem = {
     id: openReviewId ?? "",
     name: fallbackName,

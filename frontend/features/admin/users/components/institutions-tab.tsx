@@ -46,15 +46,6 @@ export function InstitutionsTab({
     },
 
     {
-      id: "identifier",
-      header: "Identifier",
-      headerClassName: "min-w-[185px]",
-      cellClassName:
-        "min-w-[185px] whitespace-nowrap text-[12px] text-[#344054]",
-      cell: (user) => user.identifier,
-    },
-
-    {
       id: "state",
       header: "State",
       headerClassName: "min-w-[135px]",
@@ -82,7 +73,7 @@ export function InstitutionsTab({
         <button
           type="button"
           onClick={() => onOpen(user.id)}
-          className="cursor-pointer rounded-lg border border-[#e2e5eb] bg-white px-3 py-2 text-[11px] font-semibold text-[#172033] transition-colors hover:bg-[#f8f9fb]"
+          className="cursor-pointer whitespace-nowrap rounded-lg border border-[#e2e5eb] bg-white px-3 py-2 text-[11px] font-semibold text-[#172033] transition-colors hover:bg-[#f8f9fb]"
         >
           View
         </button>

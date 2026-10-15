@@ -61,13 +61,12 @@ export function DisputeDrawer() {
   const detail = detailQuery.data;
   const selectedDispute = {
     title: detail ? `${detail.kind[0]}${detail.kind.slice(1).toLowerCase()} dispute` : "Loading dispute",
-    parties: detail ? `${detail.party} · ${detail.tenant_id ?? detail.raised_by}` : "",
+    parties: detail ? detail.party : "",
     raised: detail ? new Date(detail.created_at).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "",
     status: detail?.state === "IN_REVIEW" ? "Investigating" : detail ? `${detail.state[0]}${detail.state.slice(1).toLowerCase()}` : "Pending",
     claim: detail?.description ?? "",
     evidence: detail ? [
-      ...(detail.links.application ? [{ label: "Application", meta: `${detail.links.application.id} · ${detail.links.application.stage}` }] : []),
-      ...(detail.links.candidate_id ? [{ label: "Candidate", meta: detail.links.candidate_id }] : []),
+      ...(detail.links.application ? [{ label: "Application", meta: detail.links.application.stage }] : []),
       ...Object.entries(detail.links.live_integrity_signals).map(([severity, count]) => ({ label: `${severity} integrity signals`, meta: String(count) })),
     ] : [],
   };

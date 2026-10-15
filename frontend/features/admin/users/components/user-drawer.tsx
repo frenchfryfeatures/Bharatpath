@@ -120,7 +120,7 @@ export function UserDrawer({
             <Avatar name={title} src={isCandidate ? candidateQuery.data?.photo_url : organisationDetail?.logo_url} fit={isCandidate ? "cover" : "contain"} size="lg" />
             <div>
             <h2 className="text-[18px] font-bold text-[#172033]">{title}</h2>
-            <p className="mt-1 text-[12px] text-[#7b8494]">{subjectType} · {selectedId}</p>
+            <p className="mt-1 text-[12px] text-[#7b8494]">{subjectType}</p>
             </div>
           </div>
           <button type="button" onClick={closeUser} aria-label="Close" className="grid h-8 w-8 place-items-center rounded-lg text-[#7b8494] hover:bg-[#f5f6f8]"><X className="h-4 w-4" /></button>
