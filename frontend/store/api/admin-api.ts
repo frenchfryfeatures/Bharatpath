@@ -386,15 +386,15 @@ export type OrganisationStatusCounts = {
 };
 
 export type AdminOldestWaitingItem = {
-  logo_url?: string | null;
-  photo_url?: string | null;
   type: "KYB" | "INTEGRITY" | "DISPUTE";
   id: string;
   waiting_since: string;
   detail: string;
   organisation: string | null;
+  organisation_logo_url: string | null;
   tenant_id: string | null;
   candidate_id: string | null;
+  candidate_name: string | null;
   severity: "LOW" | "MEDIUM" | "HIGH" | null;
   party: "CANDIDATE" | "EMPLOYER" | "COLLEGE" | null;
 };

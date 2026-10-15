@@ -3,6 +3,7 @@
 import { ImageTile } from "@/features/admin/shared/image-tile";
 
 import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertCircle,
   Check,
@@ -33,6 +34,7 @@ import {
 } from "@/store/api/admin-api";
 
 import { useQueue } from "../hooks/use-queue";
+import type { QueueItem } from "../types";
 
 function formatDetail(value: unknown, code?: string): string {
   if (value === null || value === undefined || value === "") return "Not provided";
@@ -212,7 +214,17 @@ export function QueueDrawer() {
 
 function QueueDrawerBody() {
   const dispatch = useAppDispatch();
-  const { openReviewId, items, closeReview } = useQueue();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { openReviewId, items, tab, closeReview: closeReviewState } = useQueue();
+  const closeReview = () => {
+    closeReviewState();
+    if (searchParams.has("review")) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("review");
+      router.replace(`/admin/queue${params.size ? `?${params}` : ""}`, { scroll: false });
+    }
+  };
   useScrollLock(Boolean(openReviewId));
   const [note, setNote] = useState("");
   const [noteError, setNoteError] = useState<string | undefined>();
@@ -229,12 +241,7 @@ function QueueDrawerBody() {
    * ================================================================
    */
 
-  const item = items.find(
-    (queueItem) =>
-      queueItem.id === openReviewId,
-  );
-
-  const isKyb = item?.type === "KYB";
+  const isKyb = tab === "kyb";
   const kybDetail = useGetAdminKybSubmissionQuery(openReviewId ?? "", {
     skip: !openReviewId || !isKyb,
   });
@@ -244,9 +251,33 @@ function QueueDrawerBody() {
   const [decideKyb, kybDecision] = useDecideAdminKybMutation();
   const [resolveSignal, signalDecision] = useResolveAdminIntegritySignalMutation();
 
-  if (!item) {
-    return null;
-  }
+  // The oldest dashboard item may be beyond the queue's current page.
+  // Build its drawer header from the detail request in that case.
+  const signal = integrityDetail.data;
+  const candidateName = signal?.candidate?.full_name?.trim();
+  const fallbackName = isKyb
+    ? `Organisation ${(openReviewId ?? "").slice(0, 8)}`
+    : candidateName || `Candidate ${(signal?.candidate_id ?? openReviewId ?? "").slice(0, 8)}`;
+  const fallbackItem: QueueItem = {
+    id: openReviewId ?? "",
+    name: fallbackName,
+    initials: fallbackName.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase(),
+    imageUrl: isKyb ? null : signal?.candidate?.photo_url ?? signal?.photo_url,
+    imageFit: isKyb ? "contain" : "cover",
+    submitted: isKyb
+      ? kybDetail.data?.submitted_at ? `Submitted ${new Date(kybDetail.data.submitted_at).toLocaleString("en-IN")}` : "KYB submission"
+      : signal?.created_at ? `Flagged ${new Date(signal.created_at).toLocaleString("en-IN")}` : "Integrity signal",
+    secondary: isKyb ? kybDetail.data?.state ?? "" : signal?.rule_id ?? "",
+    risk: signal?.severity
+      ? `${signal.severity[0]}${signal.severity.slice(1).toLowerCase()}` as QueueItem["risk"]
+      : null,
+    date: "",
+    approval: null,
+    type: isKyb ? "KYB" : "Integrity",
+    resubmitted: false,
+    afterRejection: false,
+  };
+  const item = items.find((queueItem) => queueItem.id === openReviewId) ?? fallbackItem;
 
   const detailLoading = kybDetail.isLoading || integrityDetail.isLoading;
   const actionLoading = kybDecision.isLoading || signalDecision.isLoading;

@@ -3,13 +3,13 @@
 import { ImageTile } from "@/features/admin/shared/image-tile";
 
 import { useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { usePageHeader } from "@/components/layout/header-context";
 import { canAccessAdminQueueTab } from "@/lib/auth/route-access";
 import { useAppDispatch } from "@/store/hooks";
 import { useSessionIdentity } from "@/lib/auth/use-session-identity";
-import { setQueueTab } from "@/store/admin/queue/slice";
+import { closeReview, openReview as openReviewAction, setQueueTab } from "@/store/admin/queue/slice";
 
 import { DataTable } from "@/components/ui/table";
 import type { ColumnDef } from "@/components/ui/table";
@@ -89,15 +89,25 @@ export function QueuePage() {
 
   const isKyb = tab === "kyb";
 
-  // Links such as the dashboard's "Integrity flags" card name the tab to open.
+  // Dashboard item links name both the queue and the review drawer to open.
   const dispatch = useAppDispatch();
+  const router = useRouter();
   const { user } = useSessionIdentity();
-  const requestedTab = useSearchParams().get("tab");
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const requestedReview = searchParams.get("review");
   useEffect(() => {
     if ((requestedTab === "kyb" || requestedTab === "integrity") && canAccessAdminQueueTab(user?.backendRole, requestedTab)) {
       dispatch(setQueueTab(requestedTab));
+      if (requestedReview) {
+        dispatch(openReviewAction(requestedReview));
+      } else {
+        dispatch(closeReview());
+      }
+    } else if (!requestedReview) {
+      dispatch(closeReview());
     }
-  }, [dispatch, requestedTab, user?.backendRole]);
+  }, [dispatch, requestedTab, requestedReview, user?.backendRole]);
 
   const RISK_COLUMN: ColumnDef<QueueItem> = {
       id: "risk",
@@ -230,9 +240,10 @@ export function QueuePage() {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() =>
-              openReview(item.id)
-            }
+            onClick={() => {
+              openReview(item.id);
+              router.replace(`/admin/queue?tab=${tab}&review=${encodeURIComponent(item.id)}`, { scroll: false });
+            }}
             className="cursor-pointer rounded-lg border border-[#e2e5eb] bg-white px-3 py-2 text-[11px] font-semibold text-[#172033] transition-colors hover:bg-[#f8f9fb]"
           >
             Review

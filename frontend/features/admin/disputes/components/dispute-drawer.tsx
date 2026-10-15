@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Clock3,
   FileText,
@@ -31,13 +32,23 @@ import { FieldError } from "../../shared/form";
 
 export function DisputeDrawer() {
   const dispatch = useAppDispatch();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { openId } = useAppSelector(selectAdminDisputes);
   useScrollLock(Boolean(openId));
   const detailQuery = useGetAdminDisputeQuery(openId ?? "", { skip: !openId });
   const [assignDispute, assignState] = useAssignAdminDisputeMutation();
   const [resolveDispute, resolveState] = useResolveAdminDisputeMutation();
 
-  const { closeDispute } = useDisputes();
+  const { closeDispute: closeDisputeState } = useDisputes();
+  const closeDispute = () => {
+    closeDisputeState();
+    if (searchParams.has("review")) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("review");
+      router.replace(`/admin/disputes${params.size ? `?${params}` : ""}`, { scroll: false });
+    }
+  };
 
   const [resolutionNote, setResolutionNote] =
     useState("");
