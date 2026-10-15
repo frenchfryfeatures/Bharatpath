@@ -83,6 +83,13 @@ rather than caching it, and fall back to initials if it fails to load.
 
 The same four routes. Read: college admin and staff. Change: **college admin** only.
 
+| Method | Path | Who | Response |
+|---|---|---|---|
+| GET | `/college/organisation/logo` | college admin, college staff | `ImageResponse` |
+| POST | `/college/organisation/logo/upload` | **college admin** | `201 UploadTicketResponse` |
+| POST | `/college/organisation/logo/confirm` | **college admin** | `ImageResponse` |
+| DELETE | `/college/organisation/logo` | **college admin** | `ImageResponse` with nulls |
+
 ## 4. Where else images appear
 
 Since 2026-10-10, **every response that names an employer or a college

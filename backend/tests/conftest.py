@@ -43,6 +43,8 @@ os.environ["INTERVIEW_EVALUATION_PROVIDER"] = "none"
 os.environ["INTERVIEW_TRANSCRIPTION_PROVIDER"] = "none"
 # The question writer has no "none": tests use the stub, never the model.
 os.environ["INTERVIEW_QUESTION_PROVIDER"] = "stub"
+# Nor the chat assistant: the stub reads keywords, never a model.
+os.environ["ASSISTANT_PROVIDER"] = "stub"
 os.environ["OPENAI_API_KEY"] = ""
 os.environ["SARVAM_API_KEY"] = ""
 

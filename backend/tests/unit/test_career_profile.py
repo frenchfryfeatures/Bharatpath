@@ -183,8 +183,12 @@ async def test_unemployed_experienced_candidate_completes_without_job_dates(monk
     monkeypatch.setattr(career_service.resume_service, "create_manual_version", create_version)
     monkeypatch.setattr(
         career_service.resume_service,
-        "get_version_for_profile",
-        AsyncMock(return_value=SimpleNamespace(resume_file_id=None, parsed={})),
+        "latest_version_for_profile",
+        AsyncMock(
+            return_value=SimpleNamespace(
+                id=version_id, resume_file_id=None, parsed={}, source="MANUAL"
+            )
+        ),
     )
     monkeypatch.setattr(
         career_service.resume_service,
@@ -229,11 +233,13 @@ async def test_owner_scoped_resume_and_revision_without_scoring(monkeypatch):
     monkeypatch.setattr(career_service.repository, "get_profile", AsyncMock(return_value=row))
     version_read = AsyncMock(
         return_value=SimpleNamespace(
+            id=version_id,
             parsed={"raw_text": "Original employment and education resume text"},
             resume_file_id=file_id,
+            source="UPLOAD",
         )
     )
-    monkeypatch.setattr(career_service.resume_service, "get_version_for_profile", version_read)
+    monkeypatch.setattr(career_service.resume_service, "latest_version_for_profile", version_read)
     revise = AsyncMock(return_value=SimpleNamespace(id=revised_id))
     monkeypatch.setattr(career_service.resume_service, "edit_version", revise)
 
@@ -252,9 +258,7 @@ async def test_owner_scoped_resume_and_revision_without_scoring(monkeypatch):
             complete=True,
         ),
     )
-    version_read.assert_awaited_once_with(
-        ANY, user_id=ctx.user_id, resume_version_id=version_id, current_only=True
-    )
+    version_read.assert_awaited_once_with(ANY, user_id=ctx.user_id, resume_version_id=version_id)
     assert result.resume_version_id == revised_id
     assert result.resume_file_id == file_id
     assert result.completed

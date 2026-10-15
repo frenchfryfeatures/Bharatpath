@@ -23,6 +23,7 @@ export interface DashboardMetric {
 }
 
 export interface OldestDashboardItem {
+  id: string;
   name: string;
   meta: string;
   initials: string;

@@ -32,7 +32,12 @@ from typing import Any, Literal
 from pydantic import Field
 
 from app.core.schemas import ApiSchema
-from app.modules.admin.domain import MAX_DISPUTE_DESCRIPTION, MAX_RESOLUTION, DisputeKind
+from app.modules.admin.domain import (
+    MAX_DISPUTE_DESCRIPTION,
+    MAX_RESOLUTION,
+    DisputeKind,
+    LeadStage,
+)
 from app.modules.candidate.career import CareerResponse, form_fields
 from app.modules.kyb.schemas import KybReviewFlag
 from app.modules.resume.structuring import StructuredResume, StructuredStatus
@@ -262,6 +267,58 @@ class CandidateRow(_Base):
 class CandidatesPage(_Base):
     items: list[CandidateRow]
     next_cursor: str | None
+
+
+# ---------------------------------------------------------------------------
+# The sales follow-up list (2026-10-13). Audited per page, like the candidate
+# list, and unmasked: its purpose is a call.
+# ---------------------------------------------------------------------------
+class LeadResumeBuilder(_Base):
+    """What they did in the resume builder. All null when they never opened it."""
+
+    template_key: str | None
+    first_downloaded_at: datetime | None
+    last_downloaded_at: datetime | None
+    download_count: int
+    #: When they last made a built resume their own.
+    pushed_at: datetime | None
+
+
+class LeadRow(_Base):
+    """One person to follow up. **No score, no CV, no photo**: a call needs a
+    name, a number and where they stopped, and nothing a reveal would cost."""
+
+    id: uuid.UUID
+    full_name: str | None
+    email: str | None
+    #: The account's number, else the one given in the onboarding answers.
+    phone: str | None
+    #: The language they use the app in -- the one to call them in.
+    locale: str | None
+    city: str | None
+    signed_up_at: datetime
+    stage: LeadStage
+    profile_completed: bool
+    has_uploaded_resume: bool
+    resume_builder: LeadResumeBuilder
+    #: Staff stopped contacting them (a bounce, a complaint, a request to
+    #: support). Shown so sales can leave them alone, not hidden so they can't.
+    contact_suppressed: bool
+
+
+class LeadsPage(_Base):
+    items: list[LeadRow]
+    next_cursor: str | None
+
+
+class LeadsSummary(_Base):
+    """Active candidates at each stage. Counts only; names nobody."""
+
+    signed_up: int
+    profile_complete: int
+    resume_downloaded: int
+    college_seat: int
+    paid: int
 
 
 # ---------------------------------------------------------------------------
@@ -734,6 +791,9 @@ class WaitingItem(_Base):
     organisation_logo_url: str | None = None
     tenant_id: uuid.UUID | None = None
     candidate_id: uuid.UUID | None = None
+    #: INTEGRITY only: the name on the candidate's profile, as the integrity
+    #: queue shows it; null until they give one. Never a contact.
+    candidate_name: str | None = None
     severity: Severity | None = None
     party: Literal["CANDIDATE", "EMPLOYER", "COLLEGE"] | None = None
 

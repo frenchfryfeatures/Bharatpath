@@ -62,7 +62,10 @@ the existing permission-controlled employer reveal, never on masked search cards
 Migration `0011_candidate_career_details` adds a JSONB career document to the
 existing candidate profile. Old name/location APIs and clients remain valid.
 Privacy exports include the career data; existing profile erasure removes it.
-Profile save/prefill refuses another candidate's or superseded resume version.
+Profile save/prefill refuses another candidate's resume version. A superseded
+version of the candidate's own CV is followed to the newest version in its
+chain (2026-10-13; it used to answer 409 on every save), and a save that does
+not change the CV text writes no new version.
 
 The web profile has a summary, quick links, resume, headline, skills, employment,
 education and preferences cards. Reports and existing account/privacy controls

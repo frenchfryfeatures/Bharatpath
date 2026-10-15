@@ -9,6 +9,212 @@ states. Newest entries first.
 
 ---
 
+## 2026-10-15 — Assistant 503s; resume builder starts from the read CV
+
+Both reported by the frontend developer.
+
+**The chat's occasional 503 was the model, not OpenAI being down.** The live
+logs showed every 503 as two `assistant_plan_refused` / `reply was empty` in a
+row. Reproduced against `gpt-5.4-mini`: "show more" and "next" returned
+`MORE_RESULTS` with `reply: ""` every time -- the prompt said "do not list job
+details, the cards show them", and the model took that as "say nothing", and
+did so again on the retry. The prompt now says `reply` is never empty
+(`PROMPT_VERSION` v2) and the refusal reason fed back says what to write.
+18 sample messages × 2 runs after the change: all 36 accepted. The two
+`no_output` answers in the same logs were each rescued by the retry.
+
+**The builder's first draft ignored the CV.** It copied only the onboarding
+answers (one job, one qualification), so a candidate who had uploaded a CV
+saw most of it missing. `domain.prefill` now takes the newest text-read
+version's `structured_resume` and fills its gaps from the answers; rules in
+guide 18 §4 and CLAUDE.md. Still no model call: a CV read before 2026-10-06
+has no structured view and gets the answers-only draft. **A draft already
+saved is not refilled** -- the frontend's "Fill in from my profile" (reset)
+rebuilds it.
+
+---
+
+## 2026-10-15 — Admin dashboard: integrity items name the candidate
+
+`GET /admin/dashboard` → `oldest_waiting` gained `candidate_name` on
+INTEGRITY items: `candidate_profiles.full_name`, null until the person gives
+one (asked for from the console, where a row read only as a uuid).
+
+- **This reverses "ids, never a person's name"** from the dashboard's first
+  version, on purpose. The integrity section is shown only to roles that can
+  open the integrity queue, and that queue already shows them `full_name`, so
+  nobody sees anything new. The load is still one audit row.
+- **Still no contact** on any item, and KYB and dispute items name an
+  organisation, never a person (`candidate_name` null). The dispute queue
+  shows no raiser's name, so the dashboard does not either.
+- Test `test_oldest_waiting_is_oldest_first_and_names_no_person` renamed
+  `…_carries_no_contact` (same assertions); new
+  `test_an_integrity_item_names_its_candidate_from_the_profile` checks each
+  name against the profile row. Guide 13 §0 updated. **The console UI must
+  render the field** -- frontend's change, not made here.
+
+---
+
+## 2026-10-14 — Resume builder, and the sales follow-up list
+
+The lead's spec: after the onboarding questions and before payment, the
+candidate chooses "upload a CV" or "generate one". Generating means picking
+one of four templates, editing a draft filled in from their answers (form on
+the left, preview on the right), then downloading it or using it as their
+resume. No AI. Staff get a list of who downloaded but did not pay, and who
+signed up but did not download, for sales to call. Backend only; the app
+teams have `backend-guide/18`.
+
+- **New module `resume_builder`**, 7 routes under `/candidate/resume-builder`
+  (templates, draft get/save/reset, preview, download, push). None is
+  paywalled. Table `resume_builder_drafts` (migration `0019`): one draft per
+  candidate, the template, download counts, and the version it last became.
+- **The draft is `StructuredResume`**, the document the review screens
+  already draw, so the editor, the templates and an employer's view share one
+  shape. `domain.prefill` copies the career profile field by field and never
+  copies gender, salary, notice period or preferred locations. A "Personal
+  details" block (date of birth, marital status, ...) is refused with 422.
+- **Typst instead of LaTeX.** TeX Live is 0.5–2 GB on a host already
+  running the API, worker and Redis, and escaping LaTeX is a
+  security problem in its own right. Typst is one pip package, renders in
+  about 50 ms, and its embedded New Computer Modern gives `classic` the
+  LaTeX look. The draft reaches a template only as pre-formatted JSON
+  strings, so nothing typed is compiled. Bundled Noto fonts (4.7 MB, OFL)
+  cover Latin and seven Indian scripts. With system fonts off, renders are
+  byte-identical everywhere. Pinned `typst>=0.13.2,<0.14`.
+- **Push = an unconfirmed `BUILDER` resume version with the PDF as its
+  file**, linked from the career profile. Scoring still waits for the paid
+  confirm. The scored text comes from `domain.scoring_fields` through
+  `render_structured_resume`, which gained summary, projects, certifications,
+  languages and achievements, each printed only when present: manual-form
+  text, and its extraction cache, is unchanged (pinned by a test). No name,
+  contact, link, location or completion year is in the scored text.
+- **Editing a built version on the review screen is now `409
+  resume_version_built`.** An edit carries the file forward, so the PDF
+  would stop matching. `save_details` skips its reviewed-facts revision for
+  `BUILDER` for the same reason.
+- **Kept on purpose:** completing the profile still auto-creates a MANUAL
+  version. Both apps' current onboarding relies on it. Remove it once they
+  ship the upload-or-generate step.
+- **`GET /admin/leads` and `/admin/leads/summary`**, capability
+  `sales_leads` = admin + support, held equal to `candidate_contact` by a
+  test because the list shows **unmasked** phone and email. Stages are
+  PAID > COLLEGE_SEAT > RESUME_DOWNLOADED > PROFILE_COMPLETE > SIGNED_UP,
+  computed in SQL on read, with `admin.domain.lead_stage` as the Python
+  mirror held equal by an integration test. Every page is audited.
+  `contact_suppressed` flags people staff already stopped contacting.
+- Erasure: the draft is ERASE, `erase_candidate` replaced again (0019), a
+  pushed PDF goes with its `resume_files` row, and the draft is in the export.
+- Checks: 63 new tests. Full suite green (integration and invariants 1561,
+  unit 1828). Ruff, mypy, lint-imports (12 contracts, one new), the age and
+  vocabulary scans and `gen_modules --check` all pass. 0019 round-trips on
+  the local database, and a fresh baseline build in a scratch database
+  reaches 0019 cleanly.
+- **Open:** the four designs are placeholders (`TEMPLATES_VERSION`). Sales
+  calling people who did not buy was confirmed by the client through the
+  lead. Whether the sign-up terms cover it under DPDP/TRAI is theirs to
+  confirm. Deploying needs `pip install` on the host (the image picks up
+  `typst` from pyproject) and `alembic upgrade head`.
+
+---
+
+## 2026-10-13 — Career profile: 409 on every save after completing it
+
+Reported from the web profile: changing a student's city answered `409
+resume_version_superseded`, every time, after fresh reloads.
+
+- **Cause.** A completed save writes the reviewed facts as a new version of
+  the CV (A -> B) and links B. The web form sends
+  `selectedVersionId ?? resumeVersionId ?? saved.resume_version_id` --
+  the id it was handed first -- so it kept sending A, and
+  `get_version_for_profile(current_only=True)` refused A for having a
+  successor. A correction on the review screen did the same to the stored id.
+- **Fix.** `resume.service.latest_version_for_profile` follows the
+  candidate's own chain (it cannot fork) to its newest version; save and
+  prefill use it. Another candidate's version is still 404. `current_only`
+  had no other caller and is gone.
+- **And** a completed save whose CV text would not change (city,
+  preferences, salary, gender) writes no new version: each city edit used
+  to mint an identical unconfirmed version.
+- `tests/integration/test_career_profile_versions.py` reproduces the 409
+  (checked against the old code) and holds both behaviours.
+- Worth telling the web team: the form should prefer the id the server
+  returned (`saved.resume_version_id`) over the one it was given.
+
+---
+
+## 2026-10-13 — Backend guide audited against the route table
+
+Every one of the 247 operations a local build serves was checked against
+`docs/backend-guide`. **33 had no documented contract anywhere in the
+guide**, and the checklist claimed 209 operations (with older tallies of 160
+and 208 still in it) when the app served 247.
+
+- **New sections, written from the code:** `POST /auth/resume-preview` (03);
+  `POST /candidate/resume/intake`, the CV `/preview` and `/document`, and
+  `GET /candidate/score/scale` (04 §3b, §7b, §10b); the career profile
+  (`/candidate/profile/form`, `/details`, `/prefill`) and the employer filter
+  panel (05 §10b, §8b); the shortlist, both sides (06 §9); the course
+  builder's read and edit routes (08 §7); the streak calendar (12 §4b);
+  `/admin/accounts/forms` and `/admin/search-filters` (13 §7, §3b); push
+  device registration (14 §6).
+- **Shorthand paths spelled out** (`/{...}/subscription`, `…/onboarding`,
+  "the same four routes", `GET .../sessions/{id}`), so every route is named
+  in full somewhere a reader can search for it.
+- **The checklist is generated.** `backend/scripts/check_api_guide.py`
+  rewrites its tables from the app's own route table, links each route to
+  the document describing it, and exits 1 on a route no document describes.
+  **Not in CI** -- run it after adding a route.
+- **Found, not fixed:** `POST /candidate/profile/prefill/{id}` lets a model
+  failure escape as a 500, where `/auth/resume-preview` answers 503
+  `resume_prefill_unavailable`. Documented as it behaves.
+
+---
+
+## 2026-10-13 — Job-search assistant (candidate chat)
+
+Request from the lead: a Naukri-style chatbot that finds jobs and can apply.
+Backend only; app-team contract in `backend-guide/17`. New module
+`assistant`, one endpoint, `POST /candidate/assistant/messages`.
+
+- **Design: the model plans, code acts.** One OpenAI call per message
+  (`openai_planner.py`, low reasoning effort, strict JSON schema) returns
+  one of eight actions (search, more, match my profile, similar to applied,
+  show job, apply, my applications, reply) and the words to say. The server
+  runs the action through `jobs`, `candidate` and `applications` services
+  with their own RLS bindings and rules.
+- **Applying is a proposal, never an act.** The reply carries `apply`; the
+  candidate's Confirm calls the existing `POST /candidate/applications`.
+  Offered only when the job is ELIGIBLE. A prompt injection in a job
+  description can at most show a button.
+- **The model never sees the score or a threshold**, only `open_to_you`
+  (the board's eligibility, renamed, no number). It is told never to explain
+  why a job is closed to someone (R11), and never to filter by age, gender
+  and the like (invariant 5). Links and emails are stripped from its replies.
+  New import-linter contract `assistant-never-imports-scoring`.
+- **Stateless by decision.** The client carries `history` and an opaque
+  `state`. Storing chat transcripts would be a new personal-data table
+  (retention, erasure cascade, RLS) and is left as a client decision.
+- `jobs`: `search_pool` / `search_ranked` (recommendation ranking plus the
+  board's filters, hard; applied jobs left out; offset-paged) and
+  `board_jobs` (several `BoardJobDetail` in one go). `recommend` now shares
+  `_ranked` / `_recommended` with them; its behaviour is unchanged.
+  `identity.service.locale_of` added.
+- Settings `ASSISTANT_PROVIDER` (`openai` default | `stub`, refused in
+  staging/prod) and `ASSISTANT_MODEL_ID`. The deploy needs nothing new: the
+  OpenAI key is already required. CI, `.test-env.sh`, conftest and
+  `.env.local-demo` use the stub. Rate limit `assistant.message`, 120/h per
+  user.
+- **No migration.** No table was added.
+- Tests: `tests/unit/test_assistant_domain.py`,
+  `tests/integration/test_assistant.py`; module count in `test_app_wiring`
+  is now 23.
+- **Not done:** the chat screen itself (mobile team). No real-model run yet:
+  only the stub and a mocked transport were exercised. Try a few Hindi and
+  Hinglish conversations on dev before the client sees it.
+
+---
+
 ## 2026-10-12 — Push notifications (PR #68), made mergeable
 
 PR #68 (mobile app) added phone push: `push_devices`, `push_deliveries`,

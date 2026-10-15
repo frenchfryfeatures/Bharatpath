@@ -87,12 +87,21 @@ async def test_no_candidate_employer_or_college_reaches_any_console_route(
 
 
 async def test_each_console_route_admits_exactly_its_staff_roles(
-    app: Any, client: Any, mint_token: Any
+    app: Any, client: Any, mint_token: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Driven, not read from the dependency tree: every staff role is sent to
     every route, and a role outside the route's capability must get 403. A
     role inside it may get anything but 403 -- 404 for the made-up id is the
     ordinary answer."""
+    # Lists carry presigned logo links, and the shared database holds logos
+    # other tests left behind; CI has no AWS credentials to sign them with.
+    # Who may call a route is the question here, not S3.
+    from app.core import storage
+
+    async def presign_get(*, bucket: str, key: str, expires_in: int) -> str:
+        return f"https://signed.example/{bucket}/{key}"
+
+    monkeypatch.setattr(storage, "presign_get", presign_get)
     staff = {role: await _staff(mint_token, role) for role in sorted(PLATFORM_ROLES)}
     mismatches = []
     for method, path in _console_operations(app):
@@ -139,6 +148,9 @@ ROUTE_CAPABILITY: dict[str, Any] = {
     "candidate_drilldown": "candidate_drilldown",
     # 2026-09-23: whoever may open a candidate may find one.
     "list_candidates": "candidate_drilldown",
+    # 2026-10-13: the sales follow-up list carries whole contacts.
+    "list_leads": "sales_leads",
+    "lead_summary": "sales_leads",
     "employer_drilldown": "employer_drilldown",
     "college_drilldown": "college_drilldown",
     "suppress_notifications": "suppress_notifications",

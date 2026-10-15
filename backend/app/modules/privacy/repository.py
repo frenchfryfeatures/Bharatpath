@@ -356,6 +356,12 @@ _EXPORT_QUERIES: dict[str, str] = {
           FROM resume_versions v WHERE v.user_id = :user_id
          ORDER BY v.created_at
     """,
+    # The resume they were building (2026-10-13), and what they did with it.
+    "resume_builder": """
+        SELECT template_key, content, created_at, updated_at, first_downloaded_at,
+               last_downloaded_at, download_count, pushed_version_id, pushed_at
+          FROM resume_builder_drafts WHERE user_id = :user_id
+    """,
     # The value, and nothing that explains it. `breakdown`,
     # `raw_model_response` and `extracted_features` are the reasoning, and the
     # client settled that the score is never explained to the candidate

@@ -681,6 +681,13 @@ async def email_of(session: AsyncSession, *, user_id: uuid.UUID) -> str | None:
     return user.email if user is not None else None
 
 
+async def locale_of(session: AsyncSession, *, user_id: uuid.UUID) -> str:
+    """The caller's own language, `en` when unknown. For the chat assistant
+    to answer in; never anyone else's."""
+    user = await repository.get_user(session, user_id)
+    return user.locale if user is not None and user.locale else "en"
+
+
 async def set_locale(session: AsyncSession, *, user_id: uuid.UUID, locale: str) -> None:
     """The caller's language, already validated against the shipped locales."""
     await repository.set_locale(session, user_id=user_id, locale=locale)

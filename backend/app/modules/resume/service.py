@@ -38,6 +38,7 @@ from app.modules.resume.schemas import (
     SharedResumeView,
 )
 from app.modules.resume.sections import split_sections
+from app.modules.resume.structuring import SCHEMA_VERSION as STRUCTURED_SCHEMA_VERSION
 from app.modules.resume.structuring import STORED_KEY as STRUCTURED_KEY
 from app.modules.resume.structuring import structure_resume, structured_view
 from app.settings import Settings, get_settings
@@ -79,6 +80,20 @@ class VersionSupersededError(ConflictError):
 
     code = "resume_version_superseded"
     title = "Resume version superseded"
+
+
+class BuiltVersionEditError(ConflictError):
+    """Correcting a resume made in the resume builder (2026-10-13).
+
+    An edit carries the version's file forward, and a built version's file is
+    the PDF drawn from its content: corrected here, the PDF an employer
+    receives would no longer say what the version does. The builder is where
+    a built resume is edited; using it again writes a new version and a new
+    PDF together.
+    """
+
+    code = "resume_version_built"
+    title = "Edit this resume in the resume builder"
 
 
 class ResumeNotConfirmedError(ConflictError):
@@ -250,6 +265,75 @@ async def create_manual_version(
     return row
 
 
+async def create_builder_version(
+    session: AsyncSession,
+    *,
+    user_id: uuid.UUID,
+    fields: dict[str, Any],
+    structured: dict[str, Any],
+    pdf: bytes,
+    extractor: dict[str, Any],
+) -> Any:
+    """The resume-builder path (2026-10-13): a version and its PDF, together.
+
+    * `fields` -- what Layer 1 reads, in the manual form's shape: rendered to
+      text by `scoring.domain.render_structured_resume`, as a form-built
+      version always has been. No `raw_text`, so no name or contact reaches
+      the scored text.
+    * `structured` -- the builder's document, stored as this version's
+      display view under `STRUCTURED_KEY`. Typed by the candidate rather than
+      read by a model, so it is `READY` with no model named. Never scored.
+    * `pdf` -- the document the candidate saw, stored as the version's file,
+      so an employer who opens them receives exactly that. We drew it, so
+      there is nothing to scan and nothing to parse: the file is `CLEAN` and
+      `DONE` from the start, and no parse event is emitted.
+
+    Unconfirmed, like every new version. Scoring waits for the confirm gate.
+    """
+    settings = get_settings()
+    file_id = uuid.uuid4()
+    key = upload_key(user_id=user_id, upload_id=file_id)
+    await storage.put_object(
+        bucket=settings.s3_bucket_resumes, key=key, body=pdf, content_type="application/pdf"
+    )
+    await repository.create_resume_file(
+        session,
+        resume_file_id=file_id,
+        user_id=user_id,
+        s3_key=key,
+        mime="application/pdf",
+        size_bytes=len(pdf),
+        scan_status="CLEAN",
+    )
+    await repository.set_parse_status(session, resume_file_id=file_id, status="DONE")
+    row = await repository.create_version(
+        session,
+        user_id=user_id,
+        source="BUILDER",
+        resume_file_id=file_id,
+        parsed={
+            **fields,
+            "extractor": extractor,
+            STRUCTURED_KEY: {
+                "status": "READY",
+                "reason": "typed_by_candidate",
+                "data": structured,
+                "model_id": None,
+                "prompt_version": None,
+                "schema_version": STRUCTURED_SCHEMA_VERSION,
+            },
+        },
+    )
+    await emit(
+        session,
+        event_type=f"{MODULE}.version_created",
+        aggregate_type="resume_version",
+        aggregate_id=row.id,
+        payload={"user_id": str(user_id), "source": "BUILDER"},
+    )
+    return row
+
+
 async def get_file_status(
     session: AsyncSession, *, user_id: uuid.UUID, resume_file_id: uuid.UUID
 ) -> tuple[Any, Any]:
@@ -334,6 +418,8 @@ async def edit_version(
     refusal = refuse_version_change(is_superseded=successor is not None)
     if refusal is not None:
         raise VersionSupersededError(code=refusal.code, params={"detail": refusal.detail})
+    if previous.source == "BUILDER":
+        raise BuiltVersionEditError()
 
     if payload.structured is not None:
         replacement: dict[str, Any] = {
@@ -550,7 +636,6 @@ async def get_version_for_profile(
     *,
     user_id: uuid.UUID,
     resume_version_id: uuid.UUID,
-    current_only: bool = False,
 ) -> Any:
     """Owner-scoped reading before payment, independent of the confirm gate."""
     row = await repository.get_version(
@@ -558,8 +643,26 @@ async def get_version_for_profile(
     )
     if row is None:
         raise VersionNotFoundError()
-    if current_only and await repository.successor_of(session, resume_version_id=row.id):
-        raise VersionSupersededError()
+    return row
+
+
+async def latest_version_for_profile(
+    session: AsyncSession, *, user_id: uuid.UUID, resume_version_id: uuid.UUID
+) -> Any:
+    """The newest version in this version's chain, owner-scoped.
+
+    A client holding an older version of the same CV -- the one it uploaded,
+    before a profile save or a correction superseded it -- means the CV, not
+    that exact row. The chain cannot fork (unique `supersedes_id`), so
+    following it is unambiguous, and it stays within the caller's versions.
+    """
+    row = await get_version_for_profile(
+        session, user_id=user_id, resume_version_id=resume_version_id
+    )
+    while (
+        successor := await repository.successor_of(session, resume_version_id=row.id)
+    ) is not None:
+        row = successor
     return row
 
 

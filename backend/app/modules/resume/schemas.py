@@ -28,8 +28,9 @@ class _Base(ApiSchema):
 
 #: Where a version's content came from. EDIT means a human corrected it; see
 #: the note on the CHECK constraint in `models.py` for why that is a source
-#: rather than a flag.
-VersionSource = Literal["UPLOAD", "PASTE", "MANUAL", "EDIT"]
+#: rather than a flag. BUILDER is the resume builder (2026-10-13): typed by
+#: the candidate, laid out by a template, with the PDF as its file.
+VersionSource = Literal["UPLOAD", "PASTE", "MANUAL", "EDIT", "BUILDER"]
 
 
 # ---------------------------------------------------------------------------

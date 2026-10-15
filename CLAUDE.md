@@ -75,6 +75,10 @@ mypy app && lint-imports && python scripts/gen_modules.py --check
 pytest --cov=app
 ```
 
+**After adding or removing a route**, run `python scripts/check_api_guide.py
+--write`: it regenerates `docs/backend-guide/02-api-checklist.md` from the
+route table and fails on any route no guide document describes. Not in CI.
+
 ## Periodic work runs on Celery Beat, and there is exactly one
 
 `app/tasks/schedule.py`, added 2026-09-22 closing half of `blockers.md` E4.
@@ -283,6 +287,7 @@ test asserts**, so a placeholder cannot quietly become the product:
 | `billing/domain.py` | `DISCOUNT_POLICY_VERSION` starts `placeholder-` — first checkout only, one use per payer (blockers E36). 100% codes are the client's (2026-10-09) |
 | `resume/vocabulary.py` | `VOCABULARY_VERSION` starts `placeholder-` — the spellings the review screen flags near misses of |
 | `discovery/catalogue.py` | `FILTER_CATALOGUE_VERSION` starts `placeholder-` — the starter skills and cities in the employer filter panel |
+| `resume_builder/domain.py` | `TEMPLATES_VERSION` starts `placeholder-` — the four resume layouts are ours, made without a designer |
 
 Flipping one of these is a client decision, not a tidy-up.
 
@@ -501,6 +506,87 @@ similar-to-applied` and `/matching-profile` (`backend-guide/05` §7).
 - The database only narrows: published, `_listed()`, shares a skill or a
   title word, not applied to, newest 300. The ranking is Python. No
   relevance number leaves the server.
+
+## The job-search assistant — 2026-10-13
+
+`app/modules/assistant`, `POST /candidate/assistant/messages`
+(`backend-guide/17`). A chat that finds jobs, opens one, offers to apply
+and reports applications.
+
+- **The model reads; code acts.** The model returns one action from
+  `domain.ACTIONS` plus words; `parse_plan` refuses anything that changes
+  what happens (unknown action, a job not on screen), retried once with the
+  reason, then 503. Every action runs through another module's service --
+  `jobs.search_ranked` / `board_jobs`, the recommendation sections,
+  `applications.list_mine` -- so the chat shows nothing the screens would not.
+- **It never applies.** `APPLY` returns a proposal; the client's Confirm
+  calls `POST /candidate/applications`. Never add an apply path here: a job
+  description is employer text the model reads.
+- **The model is shown `PlanContext` and nothing else** -- the conversation,
+  the locale, the jobs on screen with `open_to_you` (yes/no/not_yet) for
+  eligibility. Never the score, a threshold, the name, contact, CV or
+  profile. Field lists held in `test_assistant_domain.py`; the import
+  contract `assistant-never-imports-scoring` (direct imports) backs it.
+- **Nothing is stored.** The client sends recent `history` and an opaque
+  `state` (jobs in view, last list, offset). A forged state runs under the
+  candidate's own binding, so it can show them only what they could search
+  for. Persisting chats would be new personal data with no retention rule:
+  a client decision, and a table for `privacy/domain.py` and `erase_candidate`.
+- `ASSISTANT_PROVIDER` `openai` (default) or `stub` (tests, CI, keyless
+  local; refused in staging/prod). Messages are never logged. Rate limit
+  `assistant.message`, 120/hour per user, fails closed.
+- Searches leave out jobs already applied to and treat place, work mode,
+  salary and stated experience as hard filters, ranking by `jobs.domain.match`.
+
+## The resume builder and the sales follow-up list — 2026-10-13
+
+`app/modules/resume_builder` (`backend-guide/18`). Before payment, a
+candidate uploads a CV or builds one: four Typst templates, a draft filled
+in from their read CV and the onboarding answers, a live preview, a counted
+PDF download, and "push" to make it their resume. **No model is called.**
+
+- **The draft is `StructuredResume`**, the review screen's document. It has
+  no age, gender, photo or score field, and must never get one. `prefill`
+  never copies gender, salary, notice period or preferred locations.
+  `other_sections`/`interests` stating a date of birth, marital status and
+  the like are refused (422), not silently dropped.
+- **A candidate with a CV starts from it** (2026-10-15): the newest
+  text-read version's `structured_resume` (owner's screen, so allowed),
+  answers in its gaps, never an older different CV. What we read is
+  cleaned, not refused: personal lines dropped, unprintable dates emptied.
+  It reaches scoring only as any draft does -- pushed and confirmed.
+- **Typst, not LaTeX** (`typst` on PyPI, pinned to a minor version): no
+  system packages, about 50 ms a render, and a candidate's text reaches a
+  template only as a JSON string, already formatted by
+  `domain.template_view`, so nothing they type is compiled. Only http(s) and
+  mailto links. **System fonts are ignored**: the bundled Noto fonts
+  (`fonts/`, OFL) and Typst's embedded New Computer Modern / Libertinus, so
+  a PDF is byte-identical on every machine. Changing a `.typ` file, or
+  Typst's version, changes what employers receive: bump `TEMPLATES_VERSION`.
+- **A push is an unconfirmed `BUILDER` version** with the PDF as its
+  `resume_files` row (`CLEAN`, `DONE`, no parse event). Scoring still waits
+  for the paid confirm. `parsed` holds the manual-form-shaped fields Layer 1
+  reads (`domain.scoring_fields`: no name in the text, no contact, link,
+  location or completion year) and the draft as `structured_resume`
+  (display only). `render_structured_resume` gained summary, projects,
+  certifications, languages and achievements, each printed only when
+  present, so manual-form text is unchanged; a test pins it.
+- **A built version is edited in the builder only**: the review screen's
+  edit answers `409 resume_version_built`, because an edit carries the file
+  forward and the PDF would no longer match. `save_details` skips the
+  reviewed-facts revision for `BUILDER`, and `career_service.attach_resume`
+  links the profile without touching the answers.
+- Completing the profile still creates the automatic MANUAL version. Both
+  apps' current onboarding depends on it; remove it only when they have
+  moved to the builder step.
+- **The follow-up list** (`GET /admin/leads`, `/admin/leads/summary`,
+  capability `sales_leads`) carries **unmasked** phone and email. It is held
+  equal to `candidate_contact` by a test, audited per page, and lists ACTIVE
+  candidates only. The stage is computed in SQL (`repository._LEADS_CTE`),
+  mirrored by `admin.domain.lead_stage`, and an integration test holds the
+  two equal. Downloads are counted on `resume_builder_drafts`.
+- `resume_builder_drafts` is not under RLS (like `user_photos`), is ERASE,
+  and is in the export. `erase_candidate` was replaced again in `0019`.
 
 ## Profile photos and logos — 2026-10-09
 

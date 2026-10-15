@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 import { ListChecks } from "lucide-react";
 
-import { useLazyGetStudentApplicationsQuery } from "@/store/student";
+import {
+  useGetStudentApplicationCountQuery,
+  useLazyGetStudentApplicationsQuery,
+} from "@/store/student";
 import { ApplicationCard, EmptyState, StudentErrorState } from "@/features/student/components";
 import { StudentApplicationCardSkeleton, StudentApplicationGridSkeleton } from "@/features/student/loading";
 import { StudentPage } from "@/features/student/shell";
@@ -11,9 +14,11 @@ import { useCursorLoadMore } from "@/lib/pagination/use-cursor-load-more";
 
 const APPLICATIONS_PAGE_SIZE = 20;
 const FILTERS = [{ value: "all", label: "All" }, { value: "active", label: "Active" }, { value: "closed", label: "Closed" }] as const;
+const FILTER_STATUS = { all: "ALL", active: "ACTIVE", closed: "CLOSED" } as const;
 
 export function ApplicationBoard() {
   const [filter, setFilter] = useState<"all" | "active" | "closed">("all");
+  const applicationCount = useGetStudentApplicationCountQuery(FILTER_STATUS[filter]);
   const [fetchApplications] = useLazyGetStudentApplicationsQuery();
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
   const applications = useCursorLoadMore(
@@ -30,6 +35,8 @@ export function ApplicationBoard() {
   );
   const loadMoreFromObserver = useEffectEvent(applications.loadMore);
   const visibleApplications = applications.items;
+  const count = applicationCount.currentData?.count ?? visibleApplications.length;
+  const hasMore = applicationCount.currentData?.hasMore ?? applications.hasMore;
 
   useEffect(() => {
     const sentinel = loadMoreSentinelRef.current;
@@ -81,7 +88,7 @@ export function ApplicationBoard() {
         {!applications.isLoading && (
           <div className="flex items-baseline justify-between">
             <span className="text-[11px] font-bold uppercase leading-4 tracking-[0.12em] text-[#5F6B80]">
-              {visibleApplications.length} {filter === "all" ? "" : `${filter} `}{visibleApplications.length === 1 ? "application" : "applications"}
+              {count}{hasMore ? "+" : ""} {filter === "all" ? "" : `${filter} `}{count === 1 && !hasMore ? "application" : "applications"}
             </span>
           </div>
         )}

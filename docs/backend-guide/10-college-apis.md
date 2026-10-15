@@ -191,7 +191,7 @@ row) — a row with bad data doesn't fail the whole upload, it just gets
 counted under `invalid_rows` and can be inspected via §4's row-listing
 endpoint.
 
-### `GET /college/roster-imports` and `GET .../roster-imports/{import_id}`
+### `GET /college/roster-imports` and `GET /college/roster-imports/{import_id}`
 
 **Auth required:** any college role. No body. List: array of
 `RosterImportResponse`, newest first. Single: one, `404` outside this
@@ -306,11 +306,11 @@ student's own verified* phone/email (`CandidateInvitationResponse`):
 [{ "id": "...", "college_name": "IIT Example", "sent_at": "...", "expires_at": "..." }]
 ```
 
-**`POST .../invitations/{id}/accept`** — body `{ "consent_version": "..." }`
+**`POST /candidate/colleges/invitations/{invitation_id}/accept`** — body `{ "consent_version": "..." }`
 — same consent semantics as linking by code. `404` if not addressed to this
 student, expired, or already declined.
 
-**`POST .../invitations/{id}/decline`** — no body, `204 No Content`.
+**`POST /candidate/colleges/invitations/{invitation_id}/decline`** — no body, `204 No Content`.
 
 ### `POST /candidate/colleges/{college_id}/individual-visibility` — the separate, bigger grant
 

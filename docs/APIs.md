@@ -231,6 +231,7 @@ ahead of `/{job_id}` to avoid a path collision.
 | GET | `/candidate/jobs/{job_id}` | CANDIDATE + active subscription | path | `BoardJobDetail` | 404 for anything not currently on the board |
 | GET | `/candidate/recommended-jobs/similar-to-applied` | CANDIDATE + active subscription | `limit` (≤50, default 10), `eligible_only` | `RecommendedJobs` | Home section: like the last 20 applications. Served by the `candidate` module, matched by `jobs` |
 | GET | `/candidate/recommended-jobs/matching-profile` | CANDIDATE + active subscription | `limit`, `eligible_only` | `RecommendedJobs` | Home section: fits the career profile. `has_basis: false` until it names a skill or role |
+| POST | `/candidate/assistant/messages` | CANDIDATE + active subscription | `message, history?, state?` | `AssistantReply` | Job-search chat (`assistant` module, 2026-10-13). The model picks one action; the server runs it through the board's rules. `apply` is a proposal confirmed with `POST /candidate/applications`. Nothing stored; 120/hour per person; 503 `assistant_unavailable`, 422 `assistant_state_invalid`. See `backend-guide/17` |
 
 ## applications — `/candidate/applications` (+ extra router at `/employer/applications`)
 

@@ -48,6 +48,7 @@ from app.modules.admin.domain import (
     DISPUTE_STATES,
     IST_ZONE_NAME,
     OLDEST_ITEMS,
+    UNPAID_STAGES,
     dashboard_sections,
     dispute_refusal,
     dispute_transition_refusal,
@@ -113,6 +114,10 @@ from app.modules.admin.schemas import (
     KybSubmissionRow,
     KybSubmissionsPage,
     KybSummary,
+    LeadResumeBuilder,
+    LeadRow,
+    LeadsPage,
+    LeadsSummary,
     LessonUploadResponse,
     MyDisputeResponse,
     OnboardingAnswer,
@@ -786,6 +791,86 @@ async def list_candidates(
             for r in rows
         ],
         next_cursor=_next(rows, size, at="created_at"),
+    )
+
+
+async def list_leads(
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    stages: list[str] | None,
+    cursor: str | None,
+    limit: int | None,
+    request_id: str | None = None,
+) -> LeadsPage:
+    """The sales follow-up list (2026-10-13): who signed up, or downloaded a
+    built resume, and has not paid. Newest sign-up first.
+
+    **Unmasked**, unlike the candidate list: its purpose is a call. That is
+    why it is its own capability, held by exactly the roles that already read
+    a whole contact, and why every page is audited on the request's session
+    before anything is read. The audit row names the stages asked for, never
+    a person (a page names many)."""
+    size = clamp_limit(limit)
+    wanted: list[str] = sorted(set(stages)) if stages else list(UNPAID_STAGES)
+    async with _reveal(
+        session,
+        ctx,
+        action=AuditAction.ADMIN_BYPASS_SESSION_OPENED,
+        target_type="candidates",
+        target_id=None,
+        request_id=request_id,
+        metadata={"view": "leads", "stages": wanted},
+    ) as reader:
+        rows = await repository.leads(reader, stages=wanted, after=_keyset(cursor), limit=size)
+    return LeadsPage(
+        items=[
+            LeadRow(
+                id=r["id"],
+                full_name=r["full_name"],
+                email=r["email"],
+                phone=r["phone"],
+                locale=r["locale"],
+                city=r["city"],
+                signed_up_at=r["created_at"],
+                stage=r["stage"],
+                profile_completed=r["profile_completed"],
+                has_uploaded_resume=r["has_uploaded_resume"],
+                resume_builder=LeadResumeBuilder(
+                    template_key=r["template_key"],
+                    first_downloaded_at=r["first_downloaded_at"],
+                    last_downloaded_at=r["last_downloaded_at"],
+                    download_count=r["download_count"],
+                    pushed_at=r["pushed_at"],
+                ),
+                contact_suppressed=r["contact_suppressed"],
+            )
+            for r in rows
+        ],
+        next_cursor=_next(rows, size, at="created_at"),
+    )
+
+
+async def lead_summary(
+    session: AsyncSession, *, ctx: TenantContext, request_id: str | None = None
+) -> LeadsSummary:
+    """How many active candidates are at each stage of the follow-up list."""
+    async with _reveal(
+        session,
+        ctx,
+        action=AuditAction.ADMIN_BYPASS_SESSION_OPENED,
+        target_type="candidates",
+        target_id=None,
+        request_id=request_id,
+        metadata={"view": "leads_summary"},
+    ) as reader:
+        counts = await repository.lead_counts(reader)
+    return LeadsSummary(
+        signed_up=counts.get("SIGNED_UP", 0),
+        profile_complete=counts.get("PROFILE_COMPLETE", 0),
+        resume_downloaded=counts.get("RESUME_DOWNLOADED", 0),
+        college_seat=counts.get("COLLEGE_SEAT", 0),
+        paid=counts.get("PAID", 0),
     )
 
 
@@ -1762,7 +1847,8 @@ async def dashboard(
     """The console's landing page: every queue the caller can open, counted.
 
     **One audit row per load**, like every other cross-tenant read: the oldest
-    items name organisations and candidate ids. It replaces the two or more a
+    items name organisations and candidates (profile name and id, never a
+    contact -- what the integrity queue already shows the same roles). It replaces the two or more a
     page built from the queue endpoints would write.
 
     **Each queue section is there only for a role that can open the queue**
@@ -1815,6 +1901,7 @@ async def dashboard(
                     waiting_since=r["waiting_since"],
                     detail=r["rule_id"],
                     candidate_id=r["candidate_id"],
+                    candidate_name=r["candidate_name"],
                     severity=r["severity"],
                 )
                 for r in await repository.oldest_signals(reader, limit=OLDEST_ITEMS)

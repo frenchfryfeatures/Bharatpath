@@ -114,6 +114,21 @@ STATIC_POLICIES: Final[Mapping[str, Policy]] = {
     "applications.shortlist_invite": Policy(
         "applications:shortlist_invite", Scope.TENANT, 60, 3600
     ),
+    # A message to the candidate's job-search chat (2026-10-13). Per person,
+    # and a cost control: every message is a paid model call. A real
+    # conversation is a few dozen messages; this stops a script, not a
+    # person. The number is ours, not the client's.
+    "assistant.message": Policy("assistant:message", Scope.USER, 120, 3600),
+    # The resume builder's live preview (2026-10-13). Per person, per minute,
+    # and a cost control: each call draws the resume on a CPU the API shares.
+    # Generous enough for an editor that previews a moment after typing
+    # stops; a client calling on every keystroke will meet it.
+    "resume_builder.preview": Policy("resume_builder:preview", Scope.USER, 60, 60),
+    # Downloading the resume and making it the candidate's own: each draws a
+    # PDF, and a push writes a version and an S3 object. Per person; nobody
+    # needs more than a handful an hour. Looser than OTP and the threshold
+    # preview, which must stay the tightest.
+    "resume_builder.export": Policy("resume_builder:export", Scope.USER, 60, 3600),
 }
 
 

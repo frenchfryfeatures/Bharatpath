@@ -204,7 +204,7 @@ export function TeamTab() {
           <TableHeader>
             <TableRow>
               <TableHead>Member</TableHead>
-              <TableHead className="w-[105px]">Role</TableHead>
+              <TableHead className="w-[120px]">Role</TableHead>
               <TableHead className="w-[95px]">Status</TableHead>
               <TableHead className="w-[52px]">
                 <span className="sr-only">Actions</span>
@@ -260,7 +260,7 @@ export function TeamTab() {
                 </TableCell>
                 <TableCell>
                   <span className={[
-                    "inline-flex rounded-full px-2 py-1 text-[10px] font-bold",
+                    "inline-flex whitespace-nowrap rounded-full px-2 py-1 text-[10px] font-bold",
                     member.role === "Owner"
                       ? "bg-[#edf1fb] text-[#34518e]"
                       : "bg-[#f2f4f6] text-[#5b6575]",

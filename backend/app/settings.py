@@ -258,6 +258,15 @@ class Settings(BaseSettings):
     # Pinned snapshot, never the bare alias; the one the evaluator uses.
     interview_question_model_id: str = "gpt-5.4-mini-2026-03-17"
 
+    # -- the candidate's job-search chat (2026-10-13) --------------------------
+    # The model reads each message into a plan; code runs it through the
+    # board's own rules (`assistant/domain.py`). `stub` reads a few English
+    # keywords, for tests and local work without a key, and is refused in
+    # staging and production. No `none`: the API already needs a key.
+    assistant_provider: Literal["openai", "stub"] = "openai"
+    # Pinned snapshot, never the bare alias.
+    assistant_model_id: str = "gpt-5.4-mini-2026-03-17"
+
     # -- notifications --------------------------------------------------------
     # Nothing is wired by default: SMS and email are recorded as SKIPPED
     # `PROVIDER_UNCONFIGURED` and the in-app inbox still works. `stub` records
@@ -466,7 +475,11 @@ class Settings(BaseSettings):
         the score or report sits PENDING with nothing saying why. Refuse at boot."""
         uses_openai = (
             self.scoring_extraction_enabled and self.scoring_extraction_provider == "openai"
-        ) or "openai" in (self.interview_evaluation_provider, self.interview_question_provider)
+        ) or "openai" in (
+            self.interview_evaluation_provider,
+            self.interview_question_provider,
+            self.assistant_provider,
+        )
         if uses_openai and self.openai_api_key is None:
             raise ValueError("OPENAI_API_KEY is required by the selected providers.")
         if self.interview_evaluation_provider == "openai" and not (
@@ -485,6 +498,13 @@ class Settings(BaseSettings):
             raise ValueError(
                 "INTERVIEW_QUESTION_PROVIDER=stub must not be set in staging or production: "
                 "it asks candidates placeholder questions."
+            )
+        if self.assistant_provider == "openai" and not self.assistant_model_id.strip():
+            raise ValueError("ASSISTANT_PROVIDER=openai needs ASSISTANT_MODEL_ID.")
+        if self.assistant_provider == "stub" and self.environment in ("staging", "prod"):
+            raise ValueError(
+                "ASSISTANT_PROVIDER=stub must not be set in staging or production: "
+                "it answers candidates with placeholder text."
             )
         if self.interview_transcription_provider == "sarvam" and self.sarvam_api_key is None:
             raise ValueError("INTERVIEW_TRANSCRIPTION_PROVIDER=sarvam needs SARVAM_API_KEY.")

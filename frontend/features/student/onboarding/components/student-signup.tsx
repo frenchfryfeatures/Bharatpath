@@ -35,7 +35,9 @@ import {
   useSaveCareerProfileMutation,
   useIntakeCareerResumeMutation,
   type CareerDetails,
+  type CareerProfile,
 } from "@/features/student/profile/career-api";
+import { ResumeRequiredStep } from "./resume-required-step";
 import { PaidScoringStep } from "./paid-scoring-step";
 import { useStudentHasAccess } from "../use-student-access";
 import { SubscriptionStep } from "./subscription-step";
@@ -65,6 +67,7 @@ type Stage =
       error?: string;
     }
   | { name: "review"; resumeVersionId?: string }
+  | { name: "resume-required"; profile: CareerProfile; error?: string }
   | { name: "computing"; confirmedAt: string | null };
 
 const PHASE_OF: Record<Stage["name"], SignupPhase> = {
@@ -81,6 +84,7 @@ const PHASE_OF: Record<Stage["name"], SignupPhase> = {
   manual: "resume",
   parsing: "resume",
   review: "review",
+  "resume-required": "finish",
   computing: "score",
 };
 
@@ -103,6 +107,7 @@ export function StudentSignup() {
   const [signedIn, setSignedIn] = useState(false);
   const [profile, setProfile] = useState<Profile>(EMPTY_PROFILE);
 
+  const [requiredBusy, setRequiredBusy] = useState(false);
   const [pendingResume, setPendingResume] = useState<File | null>(null);
   const [resumeFilename, setResumeFilename] = useState<string>();
   const [initialProfileSection, setInitialProfileSection] = useState(0);
@@ -171,6 +176,9 @@ export function StudentSignup() {
       savedCareer.completed &&
       savedCareer.resume_version_id === latest.resumeVersionId
     ) {
+      // Payment comes after the resume: one with no file is asked for first.
+      if (!savedCareer.resume_file_id && !savedCareer.resume_filename)
+        return { name: "resume-required", profile: savedCareer };
       return { name: "subscription" };
     }
     return { name: "review", resumeVersionId: latest.resumeVersionId };
@@ -224,6 +232,45 @@ export function StudentSignup() {
     setSignedIn(false);
     setProfile(EMPTY_PROFILE);
     go({ name: "account" });
+  };
+
+  /**
+   * Once every step is saved: a resume file already on record goes straight on
+   * to scoring; otherwise the candidate is asked for one first.
+   */
+  const afterProfileSaved = (result: CareerProfile) => {
+    void career.refetch();
+    if (!result.resume_file_id && !result.resume_filename) {
+      go({ name: "resume-required", profile: result });
+      return;
+    }
+    if (hasAccess && result.resume_version_id)
+      go({ name: "paid-scoring", resumeVersionId: result.resume_version_id });
+    else go({ name: "subscription" });
+  };
+
+  const uploadRequiredResume = async (file: File, profileSoFar: CareerProfile) => {
+    setResumeFilename(file.name);
+    setStage({ name: "resume-required", profile: profileSoFar });
+    setRequiredBusy(true);
+    try {
+      const created = await intakeResume(file).unwrap();
+      const saved = await saveCareer({
+        details: profileSoFar.details,
+        resume_version_id: created.resume_version_id,
+        resume_filename: file.name,
+        complete: true,
+      }).unwrap();
+      setRequiredBusy(false);
+      afterProfileSaved({ ...saved, resume_version_id: saved.resume_version_id ?? created.resume_version_id, resume_filename: saved.resume_filename ?? file.name });
+    } catch (error) {
+      setRequiredBusy(false);
+      setStage({
+        name: "resume-required",
+        profile: profileSoFar,
+        error: getApiErrorMessage(error, "Your resume could not be read. Try another file."),
+      });
+    }
   };
 
   const startUpload = async (file: File, details?: CareerDetails) => {
@@ -401,9 +448,7 @@ export function StudentSignup() {
           onSectionChange={setActiveProfileSection}
           resumeVersionId={career.data?.resume_version_id ?? undefined}
           onBack={() => go({ name: "intake" })}
-          onDone={() => {
-            go({ name: "subscription" });
-          }}
+          onDone={afterProfileSaved}
         />,
       );
 
@@ -525,13 +570,18 @@ export function StudentSignup() {
           resumeFilename={resumeFilename}
           key={stage.resumeVersionId}
           resumeVersionId={stage.resumeVersionId}
-          onDone={(result) => {
-            void career.refetch();
-            if (hasAccess && result.resume_version_id)
-              go({ name: "paid-scoring", resumeVersionId: result.resume_version_id });
-            else go({ name: "subscription" });
-          }}
+          onDone={afterProfileSaved}
           onBack={() => go({ name: "intake" })}
+        />,
+      );
+
+    case "resume-required":
+      return frame(
+        <ResumeRequiredStep
+          busy={requiredBusy}
+          error={stage.error}
+          onFile={(file) => void uploadRequiredResume(file, stage.profile)}
+          onBack={() => go({ name: "review", resumeVersionId: stage.profile.resume_version_id ?? undefined })}
         />,
       );
 

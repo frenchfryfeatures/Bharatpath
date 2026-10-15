@@ -55,6 +55,7 @@ Capability = Literal[
     "candidate_resume",
     "candidate_contact",
     "candidate_recordings",
+    "sales_leads",
 ]
 
 #: `capability -> the staff roles that hold it`. PLATFORM_ADMIN holds all of
@@ -114,7 +115,51 @@ CONSOLE_ROLES: Final[dict[Capability, frozenset[str]]] = {
     # contacts people; reviewing a CV does not need to.
     "candidate_contact": frozenset({PLATFORM_ADMIN, SUPPORT_AGENT}),
     "candidate_recordings": frozenset({PLATFORM_ADMIN, SUPPORT_AGENT}),
+    # 2026-10-13. The sales follow-up list: candidates who signed up, or
+    # downloaded a resume, and did not pay -- with their whole phone number
+    # and email, because its purpose is a call. Held by exactly the roles that
+    # already read a whole contact (`candidate_contact`); a test keeps the two
+    # equal, so the list never becomes a wider door to the same numbers.
+    "sales_leads": frozenset({PLATFORM_ADMIN, SUPPORT_AGENT}),
 }
+
+
+# ---------------------------------------------------------------------------
+# The sales follow-up list (2026-10-13)
+# ---------------------------------------------------------------------------
+#: Where a candidate is between signing up and paying. **Computed on read,
+#: never stored**, from rows that already exist, so it cannot disagree with
+#: them. In precedence order: the first that holds is the stage.
+#:
+#: * PAID -- a candidate subscription exists. A row is written only once a
+#:   verified payment bought its first period, so a lapsed one still counts:
+#:   they paid, and win-back is a different list.
+#: * COLLEGE_SEAT -- a live college seat gives them access without paying us.
+#: * RESUME_DOWNLOADED -- took a built resume away (`resume_builder_drafts`).
+#: * PROFILE_COMPLETE -- answered the onboarding questions.
+#: * SIGNED_UP -- has an account, and nothing else yet.
+LEAD_STAGES: Final = ("PAID", "COLLEGE_SEAT", "RESUME_DOWNLOADED", "PROFILE_COMPLETE", "SIGNED_UP")
+LeadStage = Literal["PAID", "COLLEGE_SEAT", "RESUME_DOWNLOADED", "PROFILE_COMPLETE", "SIGNED_UP"]
+#: What the list shows when not told otherwise: everyone not yet paying us.
+UNPAID_STAGES: Final[tuple[LeadStage, ...]] = (
+    "RESUME_DOWNLOADED",
+    "PROFILE_COMPLETE",
+    "SIGNED_UP",
+)
+
+
+def lead_stage(*, paid: bool, seated: bool, downloaded: bool, profile_completed: bool) -> str:
+    """The rule `repository.leads` applies in SQL, once more in Python so it
+    can be read and tested on its own. An integration test holds the two equal."""
+    if paid:
+        return "PAID"
+    if seated:
+        return "COLLEGE_SEAT"
+    if downloaded:
+        return "RESUME_DOWNLOADED"
+    if profile_completed:
+        return "PROFILE_COMPLETE"
+    return "SIGNED_UP"
 
 
 # ---------------------------------------------------------------------------

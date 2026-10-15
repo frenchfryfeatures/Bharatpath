@@ -426,6 +426,64 @@ candidate-pool count is itself a small information leak.
 
 ---
 
+## 8b. The filter panel — `/employer/discovery/filters*` (2026-09-24)
+
+What the search screen's filter panel draws, and the typeahead behind its
+skill and city boxes. Same people as search (owner or recruiter, with a live
+subscription), but **no KYB check**: the catalogue is the same for every
+employer and names nobody. Rate-limited per person, 120 a minute
+(`discovery.filters`), on a bucket of its own, so typing never spends the
+organisation's search pages.
+
+**The catalogue suggests; it never restricts.** Search still takes any text.
+Choosing a catalogued option also searches its other spellings ("Bangalore"
+finds Bengaluru).
+
+**No count anywhere.** "Pune (3)" beside a narrow filter would tell an
+employer whether one particular person is in the pool, which is the same
+reason search returns no total. A test walks every field.
+
+### `GET /employer/discovery/filters` — everything before anything is typed
+
+**Response** — `200 OK` (`FilterPanel`):
+```json
+{
+  "bands": [ { "value": "STRONG", "label": "Strong" } ],
+  "badges": [ { "value": "COURSE_COMPLETED", "label": "..." } ],
+  "experience": [ { "min_years": 2, "label": "2+ years" } ],
+  "skills": [ { "key": "python", "label": "Python" } ],
+  "cities": [ { "key": "pune", "label": "Pune", "state_code": "MH" } ],
+  "states": [ { "code": "MH", "name": "Maharashtra" } ],
+  "limits": { "max_skills": 5, "max_cities": 5, "max_skill_length": 80, "max_city_length": 100, "max_experience_years": 60 },
+  "catalogue_version": "placeholder-..."
+}
+```
+`skills` and `cities` are the **featured** options only (at most 40); the rest
+are found by typing. Send an option's `label` or `key` as `skill` / `city`, a
+state's `code` as `state`, a step's `min_years` as `min_experience_years`.
+`limits` lets the panel stop the user before search answers 422.
+`catalogue_version` starts `placeholder-` while the starter lists are ours,
+not the client's.
+
+### `GET /employer/discovery/filters/skills` and `GET /employer/discovery/filters/locations` — typeahead
+
+`?q=py&limit=10` for skills; `?q=pu&state=MH&limit=10` for cities. `q` up to
+80 characters (skills) or 100 (cities); `limit` 1–20, default 10; `state`
+(cities only) narrows to one state.
+
+**Response** — `200 OK`:
+```json
+{ "items": [ { "key": "python", "label": "Python" } ] }
+```
+(cities add `state_code`). Exact match first, then starts-with (label, then
+aliases), then contains. An empty `q` returns nothing. Offer "add as typed"
+for anything not in the list: it is still a valid filter.
+
+Staff curate the catalogue at `/admin/search-filters`
+([13](13-admin-console-and-disputes-apis.md) §3b).
+
+---
+
 ## 9. `GET /employer/discovery/candidates/{candidate_id}` — the reveal
 
 **Mounted from the `candidate` module, not `discovery`** — worth explaining
@@ -606,6 +664,110 @@ It reads through `candidate_profile_views()` (migration 0009, SECURITY
 DEFINER), which answers only for the candidate bound to the transaction and
 takes no candidate id. The 90 days is frozen in that migration and held equal
 to `discovery.domain.PROFILE_VIEWS_LOOKBACK_DAYS` by a test.
+
+---
+
+## 10b. The career profile — `/candidate/profile/details` and friends
+
+The four-step sign-up profile (basic details, employment, education,
+preferences), shared by web and mobile. The flow, required fields and
+rollout are in [`docs/student-career-onboarding.md`](../student-career-onboarding.md);
+this section is the contract. All four routes need the `CANDIDATE` role and
+**none is paywalled**: the profile is filled in before paying.
+
+**Saving the profile never scores anything.** Completing it creates an
+*unconfirmed* resume version; scoring starts only when that version is
+confirmed after payment ([04](04-resume-and-scoring-apis.md) §9).
+
+### `GET /candidate/profile/form` — the field definitions
+
+Both apps draw the form from this rather than keeping their own copies.
+
+**Response** — `200 OK`, a list:
+```json
+[
+  { "key": "phone", "label": "Mobile number", "type": "tel", "required": true, "section": "basic", "options": [] },
+  { "key": "work_status", "label": "Work status", "type": "select", "required": true, "section": "employment",
+    "options": [ { "value": "FRESHER", "label": "Fresher" }, { "value": "EXPERIENCED", "label": "Experienced" } ] }
+]
+```
+`type` is one of `tel`, `text`, `number`, `select`, `month`, `list`.
+`section` is `basic`, `employment`, `education` or `preferences`.
+`required` is the base rule; some employment fields become required only for
+an experienced, currently employed candidate (see `PUT` below).
+
+### `GET /candidate/profile/details` — read it back
+
+**Response** — `200 OK` (`CareerResponse`), empty rather than 404 before
+anything is saved:
+```json
+{
+  "details": { "phone": "+919876543210", "work_status": "FRESHER", "current_city": "Pune", "key_skills": ["Excel"], "...": "..." },
+  "resume_version_id": "3a1c...",
+  "resume_file_id": "9f2e...",
+  "resume_filename": "priya-cv.pdf",
+  "completed": false,
+  "updated_at": "2026-10-13T09:00:00+00:00"
+}
+```
+
+### `PUT /candidate/profile/details` — save a draft, or complete it
+
+**Request** (`CareerSaveRequest`):
+```json
+{
+  "details": { "...": "every CareerDetails field you have" },
+  "resume_version_id": "3a1c...",
+  "resume_filename": "priya-cv.pdf",
+  "complete": false
+}
+```
+`details` is `CareerDetails`: `phone` (international format, `+91...`),
+`work_status` (`FRESHER`/`EXPERIENCED`), `currently_employed` (`YES`/`NO`),
+`experience_years` (0–60), `experience_months` (0–11), `company_name`,
+`job_title`, `current_city`, `employment_start` / `employment_end` (`YYYY-MM`),
+`annual_salary` and `preferred_salary` (whole rupees a year), `notice_period`,
+`key_skills` (≤100), `industry`, `department`, `role_category`, `job_role`,
+`highest_qualification`, `course`, `course_type`, `specialization`,
+`specialization_name`, `institution`, `starting_year`, `passing_year`,
+`headline`, `preferred_locations` (≤5), `gender` (optional, candidate-owned:
+never scored, never an employer filter, never a matching term).
+
+- **`complete: false`** saves a draft; nothing is required.
+- **`complete: true`** checks the required fields and refuses with
+  `422 career_profile_incomplete`, `params.fields` naming the missing ones
+  (`full_name` among them if `PUT /candidate/profile/name` was never called).
+  It then writes a reviewed, **unconfirmed** resume version: from the linked
+  CV with the reviewed facts appended, or, with no CV, from the form itself.
+  **Only when that text would change**: a change the CV text does not carry
+  (the city, preferences, salary, gender) writes no new version.
+- A fresher declaring experience, an end before a start, or a malformed
+  date or phone is `422` from validation. `currently_employed: "NO"` clears
+  the current-job fields.
+- `resume_version_id` may be **any version of the caller's CV**: the save
+  follows it to the newest version in its chain and links that (since
+  2026-10-13; before, an older one was refused `409 resume_version_superseded`
+  on every save). Read the linked id back from the response. Another
+  candidate's version is `404 resume_version_not_found`.
+
+**Response** — `200 OK`, the saved `CareerResponse`.
+
+### `POST /candidate/profile/prefill/{resume_version_id}` — fill it from a CV
+
+Reads the version's text into the profile. **Values the candidate already
+entered win**: a replacement CV never silently overwrites them. Sets the
+profile name from the CV only if none was given. Calling it again for the
+version already linked, or for an older version of that CV, changes nothing.
+
+**Response** — `200 OK`, the saved `CareerResponse` (still a draft).
+Errors: `404 resume_version_not_found`.
+If the model cannot be reached the request currently fails with a `500`
+(the signup preview answers `503 resume_prefill_unavailable` instead): treat
+both as "enter the details by hand".
+
+The profile also feeds the home screen's "jobs that fit your profile"
+(§7) and the chat assistant ([17](17-assistant-apis.md)): skills, roles,
+places and experience only.
 
 ---
 
