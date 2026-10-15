@@ -195,7 +195,7 @@ export function OldestItems({
 
               <div className="flex items-center">
                 <span
-                  className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${getTypeClasses(
+                  className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold ${getTypeClasses(
                     item.type,
                   )}`}
                   style={{
@@ -210,7 +210,7 @@ export function OldestItems({
 
               <div className="flex items-center">
                 <span
-                  className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${getRiskClasses(
+                  className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold ${getRiskClasses(
                     item.risk,
                   )}`}
                   style={{
