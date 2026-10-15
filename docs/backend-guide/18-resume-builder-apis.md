@@ -4,10 +4,11 @@
 2026-10-13. Module: `backend/app/modules/resume_builder/`.
 
 A candidate who has no CV, or would rather not upload one, builds one: picks
-one of four templates, edits a draft filled in from their onboarding answers,
-downloads it as a PDF and uses it as their resume. **No AI is involved
-anywhere.** The first draft copies the answers field by field, and the
-templates print exactly what was typed.
+one of four templates, edits a draft filled in from their CV (if one was
+uploaded and read) and their onboarding answers, downloads it as a PDF and
+uses it as their resume. **No AI is called here.** The first draft is the
+CV as the review screen already shows it, with the answers in its gaps, and
+the templates print exactly what is in the draft.
 
 Read [04](04-resume-and-scoring-apis.md) first. A built resume becomes an
 ordinary resume version, confirmed and scored the same way as an upload.
@@ -35,8 +36,8 @@ sign up → name → onboarding questions (career profile)
 Left: the form. Right: the preview. Suggested client behaviour:
 
 1. On open, `GET /candidate/resume-builder/draft`. If `saved` is `false`,
-   the content is a first draft from the onboarding answers and nothing is
-   stored yet.
+   the content is a first draft (CV and onboarding answers, §4) and nothing
+   is stored yet.
 2. While the candidate edits, call `POST /candidate/resume-builder/preview`
    with the **current form state** about half a second after typing stops,
    and draw the returned pages. Unsaved content is fine. Do not call it on
@@ -53,9 +54,9 @@ All require a **candidate** token. Others get 403, no token 401.
 | Method and path | What it does |
 |---|---|
 | `GET /candidate/resume-builder/templates` | The four layouts: `key`, `name`, `description`, `columns` |
-| `GET /candidate/resume-builder/draft` | The saved draft, or a first draft from the onboarding answers (`saved: false`) |
+| `GET /candidate/resume-builder/draft` | The saved draft, or a first draft from the CV and the onboarding answers (`saved: false`) |
 | `PUT /candidate/resume-builder/draft` | Save (autosave). Body: `template_key`, `content` |
-| `POST /candidate/resume-builder/draft/reset` | Start again from the onboarding answers, keeping the template |
+| `POST /candidate/resume-builder/draft/reset` | Start again from the CV and the onboarding answers, keeping the template |
 | `POST /candidate/resume-builder/preview` | Draw a draft without saving it. Body: `template_key`, `content`, optional `format` (`png` default, or `svg`) |
 | `POST /candidate/resume-builder/download` | The **saved** draft as `application/pdf`. Counted |
 | `POST /candidate/resume-builder/push` | Use the saved draft as my resume: an unconfirmed `BUILDER` version with the PDF as its file |
@@ -104,10 +105,27 @@ resume review screen (`structured_resume` in [04](04-resume-and-scoring-apis.md)
 Every field is optional, and an empty list hides its section. Section
 headings on the PDF are in English.
 
-**The first draft fills in:** name (profile), email (account), phone, city,
+**The first draft, for a candidate who uploaded a CV** (2026-10-15): the
+CV's `structured_resume` -- the review screen's view, written when it was
+read -- whole: every job, every qualification, summary, projects,
+certifications, languages, achievements, interests, links. The answers then
+fill what it leaves blank: name, headline and city come from the answers
+first (the name is the one given at sign-up); email and phone only where the
+CV has none; skills are the CV's plus the answers', one of each; jobs and
+education from the answers only if the CV lists none. A personal-details
+line the CV carried is dropped and a date a template cannot print is left
+empty, so the first draft always saves. Only the **newest** CV is used, and
+only its own chain: a CV read before 2026-10-06 has no structured view and
+is not read again, so that candidate gets the answers-only draft below.
+
+**Otherwise it fills in:** name (profile), email (account), phone, city,
 headline (or desired role), skills, the current job if they are employed,
 and their highest qualification. It **never** copies gender, salary, notice
 period or preferred locations. None of those belong on a resume.
+
+**A draft already saved is not refilled.** A candidate who opened the
+builder before 2026-10-15 has the answers-only draft stored; "Fill in from
+my profile" (`POST …/draft/reset`) rebuilds it with the CV.
 
 **Edits never write back to the onboarding answers.** "Fill in from my
 profile" is `POST …/draft/reset`.

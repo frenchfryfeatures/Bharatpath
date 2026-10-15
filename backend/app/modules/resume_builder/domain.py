@@ -1,9 +1,10 @@
 """resume_builder - pure domain logic
 
 A resume built from the candidate's own answers, laid out by one of four
-templates. **No model reads or writes any of it**: the onboarding answers fill
-the first draft field by field, the candidate edits it, and the templates lay
-out exactly what was typed.
+templates. **No model is called here**: the first draft is the candidate's
+own CV as the review screen already shows it (where they uploaded one), with
+the onboarding answers in its gaps; the candidate edits it, and the templates
+lay out exactly what is in it.
 
 No I/O. No database, no HTTP, no clock. Everything here works on plain
 dicts in the shape of `resume.structuring.StructuredResume` -- the document
@@ -14,7 +15,8 @@ indirectly.)
 
 Three things leave this module:
 
-* `prefill` -- the first draft, from the career profile.
+* `prefill` -- the first draft, from the CV's structured view and the career
+  profile.
 * `template_view` -- the draft as the templates draw it: every date, link and
   contact already formatted, so a template only lays strings out and never
   interprets anything a candidate typed.
@@ -25,6 +27,7 @@ Three things leave this module:
 
 from __future__ import annotations
 
+import copy
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -161,8 +164,85 @@ def missing_for_push(doc: Mapping[str, Any]) -> list[str]:
 # ---------------------------------------------------------------------------
 # The first draft
 # ---------------------------------------------------------------------------
-def prefill(*, full_name: str, email: str, details: Mapping[str, Any]) -> dict[str, Any]:
-    """The first draft, from the onboarding answers. A field-by-field copy.
+def prefill(
+    *,
+    full_name: str,
+    email: str,
+    details: Mapping[str, Any],
+    resume: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """The first draft: the candidate's own CV where one was read, the
+    onboarding answers for the rest.
+
+    `resume` is the review screen's view of a CV they uploaded
+    (`StructuredResume` as a dict), or None. With it, the draft starts from
+    everything the CV states -- every job, every qualification, projects,
+    certifications -- and the answers fill only what it leaves blank. A
+    candidate who already has a CV should not retype it.
+
+    Without it, a field-by-field copy of the answers (`_from_answers`).
+    """
+    answers = _from_answers(full_name=full_name, email=email, details=details)
+    if not resume:
+        return answers
+    return _printable(_merged(resume=resume, answers=answers))
+
+
+def _merged(*, resume: Mapping[str, Any], answers: Mapping[str, Any]) -> dict[str, Any]:
+    """The CV, with the answers in its gaps. The name, headline and city are
+    the answers' first: the candidate typed them for us, and the name is the
+    one asked at sign-up."""
+    draft = copy.deepcopy(dict(resume))
+    for key in ("full_name", "headline", "location"):
+        draft[key] = _text(answers.get(key)).strip() or _text(resume.get(key)).strip()
+    contacts = dict(draft.get("contacts") or {})
+    for key, value in (answers.get("contacts") or {}).items():
+        if not _text(contacts.get(key)).strip():
+            contacts[key] = value
+    draft["contacts"] = contacts
+    for key in ("experience", "education"):
+        draft[key] = _dicts(draft.get(key)) or copy.deepcopy(list(answers.get(key) or []))
+    skills: dict[str, str] = {}
+    for skill in [*_strings(draft.get("skills")), *_strings(answers.get("skills"))]:
+        skills.setdefault(skill.strip().lower(), skill.strip())
+    draft["skills"] = [s for s in skills.values() if s][:MAX_SKILLS]
+    return draft
+
+
+#: `StructuredResume.skills` holds no more.
+MAX_SKILLS: Final = 150
+
+
+def _printable(doc: dict[str, Any]) -> dict[str, Any]:
+    """A draft from a read CV, without what the builder would refuse to save.
+
+    The candidate did not type these, so refusing them would be refusing the
+    candidate for our reading: a personal-details line is dropped (the
+    structuring prompt already asks for none), and a date a template cannot
+    print is left empty for them to fill.
+    """
+    sections = []
+    for section in _dicts(doc.get("other_sections")):
+        items = _strings(section.get("items"))
+        kept = [i for i in items if not _personal(i)]
+        # A "Personal details" block emptied by the filter goes with it.
+        if not _personal(_text(section.get("heading"))) and (kept or not items):
+            sections.append({**section, "items": kept})
+    doc["other_sections"] = sections
+    doc["interests"] = [i for i in _strings(doc.get("interests")) if not _personal(i)]
+    for path in malformed_date_fields(doc):
+        name, rest = path.split("[", 1)
+        index, key = rest.split("].", 1)
+        doc[name][int(index)] = {**doc[name][int(index)], key: ""}
+    return doc
+
+
+def _personal(text: str) -> bool:
+    return _PERSONAL_DETAIL.search(text) is not None
+
+
+def _from_answers(*, full_name: str, email: str, details: Mapping[str, Any]) -> dict[str, Any]:
+    """The onboarding answers as a draft. A field-by-field copy.
 
     `details` is the career profile (`candidate.career.CareerDetails`) as a
     dict. **Never copied:** gender, salary, notice period and preferred
