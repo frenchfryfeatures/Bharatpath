@@ -1847,7 +1847,8 @@ async def dashboard(
     """The console's landing page: every queue the caller can open, counted.
 
     **One audit row per load**, like every other cross-tenant read: the oldest
-    items name organisations and candidate ids. It replaces the two or more a
+    items name organisations and candidates (profile name and id, never a
+    contact -- what the integrity queue already shows the same roles). It replaces the two or more a
     page built from the queue endpoints would write.
 
     **Each queue section is there only for a role that can open the queue**
@@ -1900,6 +1901,7 @@ async def dashboard(
                     waiting_since=r["waiting_since"],
                     detail=r["rule_id"],
                     candidate_id=r["candidate_id"],
+                    candidate_name=r["candidate_name"],
                     severity=r["severity"],
                 )
                 for r in await repository.oldest_signals(reader, limit=OLDEST_ITEMS)

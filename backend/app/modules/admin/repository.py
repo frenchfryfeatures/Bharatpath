@@ -851,14 +851,17 @@ async def oldest_kyb(reader: AsyncSession, *, limit: int) -> list[RowMapping]:
 
 
 async def oldest_signals(reader: AsyncSession, *, limit: int) -> list[RowMapping]:
-    """Identifiers and the rule, as the queue shows them. Never the evidence."""
+    """Who and which rule, as the queue shows them. Never the evidence. The name
+    is the profile's, as on the integrity queue: null until the person gives one."""
     return await _rows(
         reader,
         """
-        SELECT id, candidate_id, rule_id, severity, created_at AS waiting_since
-          FROM integrity_signals
-         WHERE state = 'OPEN'
-         ORDER BY created_at, id
+        SELECT s.id, s.candidate_id, p.full_name AS candidate_name, s.rule_id, s.severity,
+               s.created_at AS waiting_since
+          FROM integrity_signals s
+          LEFT JOIN candidate_profiles p ON p.user_id = s.candidate_id
+         WHERE s.state = 'OPEN'
+         ORDER BY s.created_at, s.id
          LIMIT :limit
         """,
         limit=limit,

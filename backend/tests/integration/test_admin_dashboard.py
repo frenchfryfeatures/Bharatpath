@@ -81,7 +81,7 @@ async def test_a_load_is_one_audit_row(client: Any, mint_token: Any) -> None:
     assert target == "admin_dashboard"
 
 
-async def test_oldest_waiting_is_oldest_first_and_names_no_person(
+async def test_oldest_waiting_is_oldest_first_and_carries_no_contact(
     client: Any, mint_token: Any
 ) -> None:
     body = await _load(client, await _staff(mint_token))
@@ -90,6 +90,26 @@ async def test_oldest_waiting_is_oldest_first_and_names_no_person(
     assert [w["waiting_since"] for w in waiting] == sorted(w["waiting_since"] for w in waiting)
     for item in waiting:
         assert not {"name", "email", "phone", "description", "evidence"} & set(item)
+
+
+async def test_an_integrity_item_names_its_candidate_from_the_profile(
+    client: Any, mint_token: Any
+) -> None:
+    """The profile name, as the integrity queue shows the same roles; null
+    without one. The other queues name an organisation, never a person."""
+    body = await _load(client, await _staff(mint_token))
+    assert any(w["type"] == "INTEGRITY" for w in body["oldest_waiting"]) or (
+        body["integrity"]["open"] == 0
+    )
+    for item in body["oldest_waiting"]:
+        if item["type"] != "INTEGRITY":
+            assert item["candidate_name"] is None
+            continue
+        expected = await _scalar(
+            "SELECT full_name FROM candidate_profiles WHERE user_id = :u",
+            u=item["candidate_id"],
+        )
+        assert item["candidate_name"] == expected
 
 
 # --- the queues move ------------------------------------------------------------------------
