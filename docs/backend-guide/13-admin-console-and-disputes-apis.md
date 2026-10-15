@@ -247,8 +247,35 @@ half of invariant 8, the machine half being the database trigger on
 
 **Response** — `200 OK` (`IntegritySignalsPage`):
 ```json
-{ "items": [{ "id": "...", "candidate_id": "...", "resume_version_id": "...", "rule_id": "hidden_text", "rule_version": "1", "severity": "HIGH", "state": "OPEN", "created_at": "...", "resolved_at": null }], "next_cursor": null }
+{ "items": [{
+    "id": "...", "candidate_id": "...", "resume_version_id": "...",
+    "rule_id": "HIDDEN_TEXT", "rule_title": "Hidden text",
+    "rule_description": "Part of the CV is invisible to a person reading it -- ...",
+    "rule_version": "v1-2026-09-11", "thresholds_version": "default",
+    "severity": "HIGH", "state": "OPEN", "hides_candidate": true,
+    "created_at": "...", "resolved_at": null, "resolved_by": null,
+    "resolved_by_email": null, "resolution_note": null,
+    "candidate": { "id": "...", "status": "ACTIVE", "full_name": "Asha Rao", "photo_url": null,
+                   "phone_masked": "+91******3210", "email_masked": "a***@example.com" },
+    "other_open_signals": 1
+  }], "next_cursor": null }
 ```
+**Show `rule_title` and `rule_description`; never map `rule_id` to words
+yourself.** The ids are upper case, and these are all eight:
+
+| `rule_id` | Severity | Hides the candidate? |
+|---|---|---|
+| `INJECTED_INSTRUCTIONS` | HIGH | Yes, while OPEN or CONFIRMED |
+| `HIDDEN_TEXT` | HIGH | Yes, while OPEN or CONFIRMED |
+| `EMPLOYMENT_DATES_IN_FUTURE` | MEDIUM | No |
+| `OVERLAPPING_FULL_TIME_ROLES` | MEDIUM | No |
+| `CLAIMED_EXPERIENCE_EXCEEDS_TIMELINE` | MEDIUM | No |
+| `FABRICATED_PLATFORM_SCORE` | MEDIUM | No |
+| `SENIOR_TITLE_SHORT_TENURE` | LOW | No |
+| `UNEVIDENCED_SKILL_LIST` | LOW | No |
+
+Read `hides_candidate` for the badge rather than working it out from
+severity and state.
 **Oldest first, not newest** — the opposite ordering from every other
 queue in this doc, because a HIGH signal removes a candidate from employer
 search the instant it's raised (see the root `CLAUDE.md`'s note on
@@ -258,9 +285,20 @@ oldest suppression is the first one resolved.
 ### `GET /admin/integrity/signals/{id}` — one signal with its evidence (audited)
 
 **Response** — `200 OK` (`IntegritySignalDetail` — everything the row above
-has, plus `thresholds_version`, `evidence` (what the rule actually saw —
-**can quote the CV**, which is exactly why opening one is audited and the
-list above never carries it), `resolved_by`, `resolution_note`).
+has, plus):
+
+| Field | What it is |
+|---|---|
+| `finding` | **What the rule saw, as one sentence. Show this first.** e.g. *"Full-time roles held at the same time: Infosys and TCS for 1 year 5 months."* Built from `evidence`, so it can name employers from the CV. `null` when the stored evidence cannot be read; fall back to `evidence` then |
+| `next_steps` | What the reviewer checks and decides, in order, as a list of sentences. Render it as a numbered list above the Clear / Confirm buttons. **The last step says what Clear and Confirm do for this rule**: for the six MEDIUM and LOW rules neither one changes what anyone sees, and the reviewer needs to know that |
+| `evidence` | The raw data behind `finding`, keyed by the rule. For a "show raw data" toggle, not the main view |
+| `resume_version` | The CV version flagged: `id`, `source`, `created_at`, `confirmed_at`, `is_latest` (false once the candidate re-uploaded). The CV itself is `GET /admin/candidates/{candidate_id}/resume` (§4) |
+| `score` | `display_value`, `band`, `computed_at`. A signal never moves it |
+| `visible_to_employers` | Whether employers can find this candidate now, all signals considered |
+| `other_signals` | Every other signal on this candidate, newest first (`id`, `rule_id`, `rule_title`, `severity`, `state`, `hides_candidate`, `created_at`) |
+
+`evidence`, `finding` and `next_steps` are **never in the queue above**: they
+can quote the CV, which is exactly why opening one is audited.
 
 ### `POST /admin/integrity/signals/{id}/resolve` — clear or confirm
 
@@ -268,7 +306,9 @@ list above never carries it), `resolved_by`, `resolution_note`).
 ```json
 { "outcome": "CLEARED", "note": "Hidden text was leftover template formatting, not an injection attempt." }
 ```
-**Response** — `200 OK`, the updated `IntegritySignalDetail`.
+**Response** — `200 OK`, the updated `IntegritySignalDetail` (with `finding`
+and `next_steps`; without `candidate`, `resume_version`, `score` and
+`other_signals` — re-open the signal for those).
 `CLEARED` returns a HIGH-flagged candidate to employer search;
 `CONFIRMED` keeps them suppressed. **Neither one ever moves a score** —
 SRS 1.4.5, and this is the human decision the whole
