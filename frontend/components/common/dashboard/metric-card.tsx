@@ -38,10 +38,11 @@ interface MetricCardProps {
   icon: LucideIcon;
   tone: MetricTone;
 
-  /**
-   * Optional status shown underneath the metric title.
-   */
+  /** Optional status badge. */
   status?: string;
+
+  /** Place the status beside the title instead of below it. */
+  statusPlacement?: "inline" | "below";
 
   /**
    * Controls the visual tone of the optional status.
@@ -60,10 +61,25 @@ export function MetricCard({
   icon: Icon,
   tone,
   status,
+  statusPlacement = "below",
   statusTone = "neutral",
   onClick,
 }: Readonly<MetricCardProps>) {
   const Component = onClick ? "button" : "div";
+  const statusBadge = status && (
+    <span
+      className={[
+        "inline-flex shrink-0 items-center rounded-full text-[11px] font-semibold",
+        statusPlacement === "inline"
+          ? "px-2 py-0.5 leading-4"
+          : "px-2.5 py-1 leading-3.75",
+        statusToneClasses[statusTone],
+      ].join(" ")}
+      style={{ fontFamily: "'General Sans', sans-serif" }}
+    >
+      {status}
+    </span>
+  );
 
   return (
     <Component
@@ -98,32 +114,21 @@ export function MetricCard({
         </div>
       </div>
 
-      {/* Title */}
-      <p
-        className="mt-0 text-[12px] font-normal leading-5 text-[#777f90]"
-        style={{
-          fontFamily: "'General Sans', sans-serif",
-        }}
-      >
-        {title}
-      </p>
+      {/* Title and optional inline status */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <p
+          className="text-[12px] font-normal leading-5 text-[#777f90]"
+          style={{
+            fontFamily: "'General Sans', sans-serif",
+          }}
+        >
+          {title}
+        </p>
+        {statusPlacement === "inline" && statusBadge}
+      </div>
 
-      {/* Optional Status */}
-      {status && (
-        <div className="mt-3">
-          <span
-            className={[
-              "inline-flex items-center rounded-full px-2.5 py-1",
-              "text-[11px] font-semibold leading-3.75",
-              statusToneClasses[statusTone],
-            ].join(" ")}
-            style={{
-              fontFamily: "'General Sans', sans-serif",
-            }}
-          >
-            {status}
-          </span>
-        </div>
+      {statusPlacement === "below" && statusBadge && (
+        <div className="mt-3">{statusBadge}</div>
       )}
     </Component>
   );

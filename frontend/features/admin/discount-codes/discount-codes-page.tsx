@@ -109,7 +109,7 @@ export function DiscountCodesPage() {
       headerClassName: "min-w-[110px]",
       cellClassName: "min-w-[110px]",
       cell: (code) => (
-        <span className={`inline-flex rounded-full px-2 py-1 text-[10px] font-semibold ${STATUS_STYLE[code.status]}`}>
+        <span className={`inline-flex whitespace-nowrap rounded-full px-2 py-1 text-[10px] font-semibold ${STATUS_STYLE[code.status]}`}>
           {code.status.charAt(0) + code.status.slice(1).toLowerCase()}
         </span>
       ),

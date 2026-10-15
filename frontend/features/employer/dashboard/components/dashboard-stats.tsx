@@ -53,6 +53,7 @@ export function DashboardStats({
         icon={UserPlus}
         tone="purple"
         status="Last 7 days"
+        statusPlacement="inline"
         onClick={() => router.push("/employer/applications")}
       />
     </div>

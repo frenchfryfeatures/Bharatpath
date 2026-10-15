@@ -26,7 +26,7 @@ export function StatusBadge({
 }: StatusBadgeProps) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-[3px] text-[12px] font-semibold leading-tight ${TONE_CLASSES[tone]} ${className}`}
+      className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-[3px] text-[12px] font-semibold leading-tight ${TONE_CLASSES[tone]} ${className}`}
       style={{ fontFamily: "'General Sans', sans-serif" }}
     >
       {label}

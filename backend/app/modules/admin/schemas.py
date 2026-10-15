@@ -791,6 +791,9 @@ class WaitingItem(_Base):
     organisation_logo_url: str | None = None
     tenant_id: uuid.UUID | None = None
     candidate_id: uuid.UUID | None = None
+    #: INTEGRITY only: the name on the candidate's profile, as the integrity
+    #: queue shows it; null until they give one. Never a contact.
+    candidate_name: str | None = None
     severity: Severity | None = None
     party: Literal["CANDIDATE", "EMPLOYER", "COLLEGE"] | None = None
 

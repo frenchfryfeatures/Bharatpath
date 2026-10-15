@@ -100,7 +100,7 @@ interface StreakCalendarResponse {
   longest_run: number;
 }
 
-interface JobResponse {
+export interface JobResponse {
   id: string;
   title: string;
   employer_name: string | null;
@@ -124,7 +124,7 @@ interface RecommendedJobsResponse {
   has_basis: boolean;
 }
 
-interface ApplicationResponse {
+export interface ApplicationResponse {
   id: string;
   job_id: string;
   job_title: string | null;
@@ -266,7 +266,7 @@ function mapStreakPointsChange(
   };
 }
 
-function mapJob(response: JobResponse): JobListing {
+export function mapJob(response: JobResponse): JobListing {
   return {
     id: response.id,
     title: response.title,
@@ -299,7 +299,7 @@ function mapRecommendedJobs(response: RecommendedJobsResponse): RecommendedJobs 
   };
 }
 
-function mapApplication(response: ApplicationResponse): JobApplication {
+export function mapApplication(response: ApplicationResponse): JobApplication {
   return {
     id: response.id,
     jobId: response.job_id,
@@ -551,6 +551,20 @@ export const studentApi = baseApi.injectEndpoints({
       }),
       providesTags: [{ type: "Application", id: "STUDENT_LIST" }],
     }),
+    getStudentApplicationCount: builder.query<
+      { count: number; hasMore: boolean },
+      "ALL" | "ACTIVE" | "CLOSED"
+    >({
+      query: (status) => ({
+        url: "/candidate/applications",
+        params: { limit: 100, status: status === "ALL" ? undefined : status },
+      }),
+      transformResponse: (page: ApiPage<ApplicationResponse>) => ({
+        count: page.items.length,
+        hasMore: Boolean(page.next_cursor),
+      }),
+      providesTags: [{ type: "Application", id: "STUDENT_LIST" }],
+    }),
     getStudentApplication: builder.query<JobApplication, string>({
       query: (applicationId) =>
         `/candidate/applications/${applicationId}`,
@@ -740,6 +754,7 @@ export const {
   useLazyGetStudentJobsQuery,
   useGetStudentJobQuery,
   useGetStudentApplicationsQuery,
+  useGetStudentApplicationCountQuery,
   useLazyGetStudentApplicationsQuery,
   useGetStudentApplicationQuery,
   useApplyToStudentJobMutation,

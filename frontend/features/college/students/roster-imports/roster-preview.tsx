@@ -38,6 +38,14 @@ const ROW_STATE_STYLES: Record<RosterRowState, string> = {
   DUPLICATE: "bg-[#fff5df] text-[#9a6b18]",
 };
 
+const INVITE_STATE_STYLES: Record<string, string> = {
+  PENDING: "bg-[#edf2fa] text-[#3566b8]",
+  SENT: "bg-[#edf2fa] text-[#3566b8]",
+  ACCEPTED: "bg-[#eaf5ef] text-[#23805d]",
+  DECLINED: "bg-[#fdf2f2] text-[#e02424]",
+  EXPIRED: "bg-[#fff5df] text-[#9a6b18]",
+};
+
 export function RosterPreview({ importId }: Readonly<RosterPreviewProps>) {
   const [filter, setFilter] = useState<RosterRowState | "ALL">("ALL");
   const pagination = useCursorPagination([importId, filter], 10);
@@ -64,12 +72,6 @@ export function RosterPreview({ importId }: Readonly<RosterPreviewProps>) {
 
   const columns: ColumnDef<RosterRow>[] = [
     {
-      id: "row",
-      header: "#",
-      cellClassName: "whitespace-nowrap text-[#777f90]",
-      cell: (row) => row.rowNumber,
-    },
-    {
       id: "name",
       header: "Name",
       cell: (row) => (
@@ -79,21 +81,21 @@ export function RosterPreview({ importId }: Readonly<RosterPreviewProps>) {
       ),
     },
     {
-      id: "contact",
-      header: "Phone / email",
+      id: "phone",
+      header: "Phone",
+      cellClassName: "whitespace-nowrap",
       cell: (row) => (
         <span className="text-[12px] text-[#5d6673]">
-          {row.phone ?? row.email ?? "-"}
+          {row.phone ?? "-"}
         </span>
       ),
     },
     {
-      id: "ref",
-      header: "Student ref",
-      cellClassName: "whitespace-nowrap",
+      id: "email",
+      header: "Email",
       cell: (row) => (
-        <span className="text-[12px] text-[#777f90]">
-          {row.studentRef ?? "-"}
+        <span className="break-all text-[12px] text-[#5d6673]">
+          {row.email ?? "-"}
         </span>
       ),
     },
@@ -104,7 +106,7 @@ export function RosterPreview({ importId }: Readonly<RosterPreviewProps>) {
       cell: (row) => (
         <span className="inline-flex flex-col gap-0.5">
           <span
-            className={`inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${ROW_STATE_STYLES[row.rowState]}`}
+            className={`inline-flex w-fit items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${ROW_STATE_STYLES[row.rowState]}`}
           >
             {row.rowState.charAt(0) + row.rowState.slice(1).toLowerCase()}
           </span>
@@ -113,6 +115,22 @@ export function RosterPreview({ importId }: Readonly<RosterPreviewProps>) {
               {row.issues.map(humanizeCode).join(", ")}
             </span>
           )}
+        </span>
+      ),
+    },
+    {
+      id: "inviteState",
+      header: "Invite status",
+      cellClassName: "whitespace-nowrap",
+      cell: (row) => (
+        <span
+          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+            row.inviteState
+              ? (INVITE_STATE_STYLES[row.inviteState] ?? "bg-[#f0f2f5] text-[#717a8a]")
+              : "bg-[#f0f2f5] text-[#717a8a]"
+          }`}
+        >
+          {row.inviteState ? humanizeCode(row.inviteState) : "Not invited"}
         </span>
       ),
     },

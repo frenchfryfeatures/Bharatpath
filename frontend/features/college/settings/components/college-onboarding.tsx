@@ -56,6 +56,54 @@ function toStringValue(value: unknown): string {
   return "";
 }
 
+function displayAnswer(
+  field: OnboardingField,
+  value: unknown,
+  options: OnboardingOption[],
+): string | null {
+  if (field.type === "CHECKBOX") {
+    return value === true ? "Yes" : value === false ? "No" : null;
+  }
+
+  const optionLabel = (answer: string) =>
+    options.find((option) => option.code === answer)?.label ?? answer;
+
+  if (Array.isArray(value)) {
+    const labels = value
+      .filter((answer): answer is string => typeof answer === "string" && answer.trim() !== "")
+      .map(optionLabel);
+    return labels.length > 0 ? labels.join(", ") : null;
+  }
+
+  const answer = toStringValue(value).trim();
+  return answer ? optionLabel(answer) : null;
+}
+
+function ReadOnlyField({
+  field,
+  value,
+  options,
+}: Readonly<Pick<FieldProps, "field" | "value" | "options">>) {
+  const answer = displayAnswer(field, value, options);
+
+  return (
+    <div className="py-3.5 first:pt-0 last:pb-0">
+      <dt className="text-[12px] font-medium leading-[17px] text-[#64748b]">
+        {field.label}
+      </dt>
+      <dd
+        className={`mt-1 whitespace-pre-wrap break-words text-[14px] leading-5 ${
+          answer === null
+            ? "text-[#8a94a5]"
+            : "font-medium text-[#131A26]"
+        }`}
+      >
+        {answer ?? "Not provided"}
+      </dd>
+    </div>
+  );
+}
+
 /** Map a field's declared type onto an HTML input type. */
 function htmlInputType(type: OnboardingField["type"]): string {
   switch (type) {
@@ -77,7 +125,6 @@ interface FieldProps {
   value: unknown;
   options: OnboardingOption[];
   error: string | undefined;
-  disabled: boolean;
   onChange: (value: unknown) => void;
 }
 
@@ -86,7 +133,6 @@ function Field({
   value,
   options,
   error,
-  disabled,
   onChange,
 }: Readonly<FieldProps>) {
   const stringValue = toStringValue(value);
@@ -98,7 +144,6 @@ function Field({
         <input
           type="checkbox"
           checked={value === true}
-          disabled={disabled}
           aria-label={field.label}
           onChange={(event) => onChange(event.target.checked)}
           className="mt-[2px] h-4 w-4 rounded border-[#e1e5eb] text-[#3566b8] focus:ring-[#3566b8]/30"
@@ -135,7 +180,6 @@ function Field({
       {field.type === "TEXTAREA" ? (
         <textarea
           value={stringValue}
-          disabled={disabled}
           rows={3}
           aria-label={field.label}
           maxLength={field.max_length ?? undefined}
@@ -153,7 +197,6 @@ function Field({
             })),
           ]}
           onChange={(next) => onChange(next)}
-          disabled={disabled}
           ariaLabel={field.label}
           placeholder="Select…"
           width="w-full"
@@ -167,7 +210,6 @@ function Field({
         <input
           type={htmlInputType(field.type)}
           value={stringValue}
-          disabled={disabled}
           aria-label={field.label}
           maxLength={field.max_length ?? undefined}
           onChange={(event) => onChange(event.target.value)}
@@ -265,23 +307,39 @@ export function CollegeOnboarding() {
             )}
           </div>
 
-          <div className="flex flex-col gap-4">
-            {section.fields.map((field) => (
-              <Field
-                key={field.code}
-                field={field}
-                value={answers[field.code]}
-                options={
-                  field.options_source
-                    ? (options[field.options_source] ?? [])
-                    : []
-                }
-                error={fieldErrors[field.code]}
-                disabled={isSubmitted}
-                onChange={(value) => setAnswer(field.code, value)}
-              />
-            ))}
-          </div>
+          {isSubmitted ? (
+            <dl className="divide-y divide-[#edf0f4]">
+              {section.fields.map((field) => (
+                <ReadOnlyField
+                  key={field.code}
+                  field={field}
+                  value={answers[field.code]}
+                  options={
+                    field.options_source
+                      ? (options[field.options_source] ?? [])
+                      : []
+                  }
+                />
+              ))}
+            </dl>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {section.fields.map((field) => (
+                <Field
+                  key={field.code}
+                  field={field}
+                  value={answers[field.code]}
+                  options={
+                    field.options_source
+                      ? (options[field.options_source] ?? [])
+                      : []
+                  }
+                  error={fieldErrors[field.code]}
+                  onChange={(value) => setAnswer(field.code, value)}
+                />
+              ))}
+            </div>
+          )}
         </div>
       ))}
 

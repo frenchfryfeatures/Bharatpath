@@ -339,7 +339,7 @@ export function SearchFiltersPage() {
       cell: (option) => (
         <span
           className={[
-            "rounded-full px-2 py-1 text-[10px] font-semibold",
+            "whitespace-nowrap rounded-full px-2 py-1 text-[10px] font-semibold",
             option.active
               ? "bg-[#e8f5ed] text-[#267044]"
               : "bg-[#f0f1f4] text-[#687182]",

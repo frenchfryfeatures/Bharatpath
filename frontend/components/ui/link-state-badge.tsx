@@ -47,7 +47,7 @@ export function LinkStateBadge({
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-[3px] text-[12px] font-semibold leading-tight select-none ${config.bgClass} ${config.textClass} ${className}`}
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-[3px] text-[12px] font-semibold leading-tight select-none ${config.bgClass} ${config.textClass} ${className}`}
       style={{ fontFamily: "'General Sans', sans-serif" }}
     >
       {showIcon && <Icon size={12} strokeWidth={2.2} className="shrink-0" />}

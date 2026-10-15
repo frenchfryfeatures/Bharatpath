@@ -163,6 +163,7 @@ function toOldestItems(
   return items.map((item) => {
     const subject = subjectOf(item);
     return {
+      id: item.id,
       name: subject,
       meta: humaniseCode(item.detail),
       initials: initialsOf(subject) || "-",
