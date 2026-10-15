@@ -169,7 +169,12 @@ from app.modules.employer import service as employer_service
 from app.modules.employer.schemas import CreateOrganisationRequest
 from app.modules.identity import service as identity_service
 from app.modules.integrity import service as integrity_service
-from app.modules.integrity.domain import hides_candidate, rule_text
+from app.modules.integrity.domain import (
+    describe_finding,
+    hides_candidate,
+    rule_guidance,
+    rule_text,
+)
 from app.modules.interview import service as interview_service
 from app.modules.jobs import service as jobs_service
 from app.modules.kyb import service as kyb_service
@@ -459,6 +464,11 @@ def _signal_fields(row: Any, photos: dict[uuid.UUID, str] | None = None) -> dict
         "rule_description": description,
         "hides_candidate": hides_candidate(row["severity"], row["state"]),
     }
+    if "evidence" in row:
+        # The detail and the resolve response only: the queue never reads the
+        # evidence, and the finding quotes it.
+        fields["finding"] = describe_finding(row["rule_id"], row["evidence"] or {})
+        fields["next_steps"] = list(rule_guidance(row["rule_id"]))
     if "candidate_status" in row:
         fields["candidate"] = SignalCandidate(
             id=row["candidate_id"],
