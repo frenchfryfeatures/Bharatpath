@@ -261,7 +261,8 @@ ERASURE_PLAN: Final[Mapping[str, TablePlan]] = {
     "interview_session_questions": _erase(
         "session_id",
         "The questions a session put to them, written from their CV and onboarding "
-        "answers (2026-09-29), so they describe the person.",
+        "answers (2026-09-29), so they describe the person. A question read aloud "
+        "(2026-10-16) is an S3 object whose key follows from the row, and goes with it.",
     ),
     "interview_evaluations": _erase("session_id", "Feedback written about them."),
     "interview_checkout_notices": _erase("user_id", "What they were told before paying."),

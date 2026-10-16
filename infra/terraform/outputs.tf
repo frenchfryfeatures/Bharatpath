@@ -231,6 +231,9 @@ output "host_env_file" {
     # follow up what the candidate said.
     INTERVIEW_QUESTION_PROVIDER=openai
     INTERVIEW_QUESTION_MODEL_ID=gpt-5.4-mini-2026-03-17
+    # Questions read aloud (2026-10-16). `sarvam` once SARVAM_API_KEY is set;
+    # `none` keeps them text only.
+    INTERVIEW_QUESTION_SPEECH_PROVIDER=none
 
     # ---- malware scanning: off (blockers E1) ----
     # There is no scanner behind the seam. Off records PENDING, which is what

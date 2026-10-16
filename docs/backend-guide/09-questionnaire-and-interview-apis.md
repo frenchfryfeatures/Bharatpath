@@ -425,6 +425,33 @@ transcribes that answer (Sarvam, in-session), shows the model everything in
 - If transcription fails, the question is still written — just without
   hearing that answer — so the candidate is never stuck mid-interview.
 
+### 10b. `GET /candidate/interview/sessions/{session_id}/questions/{question_index}/audio` — the question, read aloud
+
+**Auth required:** `CANDIDATE` role + active subscription. **Request:** no body.
+
+Added 2026-10-16. The server speaks each question in the candidate's
+language (Sarvam `bulbul`, every one of the nine locales) and hands back a
+link to play:
+```json
+{ "url": "https://…/interview-audio/…/questions/0?X-Amz-Signature=…", "expires_in_seconds": 900, "mime": "audio/mpeg" }
+```
+- Call it as soon as a question appears in `questions` (after §8 for index
+  0, after §10a for the rest) and play `url` in an `<audio>` element.
+- **The first call for a question speaks it** (about one to two seconds);
+  after that it is only a link, so replaying costs nothing. Ask again for a
+  fresh link rather than storing one.
+- **The text is still the question.** `prompt` is always in `questions`;
+  show it whatever happens here. `503 interview_question_audio_unavailable`
+  means no voice is configured (`INTERVIEW_QUESTION_SPEECH_PROVIDER=none`,
+  the default) or speaking failed: carry on with the text, or call again.
+- `409 interview_question_not_ready` before the question is written.
+  `409 interview_question_audio_not_offered` for a session from before
+  2026-09-29, whose fixed questions the app translates itself. Someone
+  else's session is a `404`. Works on finished sessions too, so history can
+  play the question beside the answer (§14).
+- What is sent to Sarvam is the question's words and the language. Nothing
+  about the candidate.
+
 ---
 
 ## 11. `POST /candidate/interview/sessions/{session_id}/complete` — finish
@@ -535,4 +562,5 @@ audited ([13](13-admin-console-and-disputes-apis.md)).
 | Produces feedback? | A recap of what was shared | Per-dimension levels, transcript, comments |
 | Where the questions come from | A fixed bank | **Written by AI per candidate**, one after each answer, never repeating an earlier session |
 | Can you replay it? | — | Yes: history (§13) and recordings (§14) |
+| Questions read aloud? | No | Yes, by the server, if a voice is configured (§10b) |
 | Auth on every endpoint | `CANDIDATE` + active subscription | `CANDIDATE` + active subscription |

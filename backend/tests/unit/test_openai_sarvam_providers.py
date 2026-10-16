@@ -1,5 +1,5 @@
-"""OpenAI extraction and evaluation, and Sarvam transcription, against a fake
-transport. No test may call a model or a speech service.
+"""OpenAI extraction and evaluation, and Sarvam transcription and speech,
+against a fake transport. No test may call a model or a speech service.
 
 What matters is what we *send* (a strict schema built from our own types, the
 prompt, the input delimited as data, `store: false`, nothing about the person)
@@ -8,6 +8,7 @@ and what we do with each kind of answer.
 
 from __future__ import annotations
 
+import base64
 import json
 from collections.abc import Callable, Iterator
 from typing import Any
@@ -22,6 +23,7 @@ from app.modules.interview.bank import DIMENSION_CODES
 from app.modules.interview.domain import parse_evaluation
 from app.modules.interview.evaluation import AnswerForEvaluation, EvaluationUnavailableError
 from app.modules.interview.openai_evaluator import OpenAIEvaluationProvider
+from app.modules.interview.speech import QuestionAudioUnavailableError
 from app.modules.scoring.extractor import (
     EXTRACTION_PROMPT,
     PROMPT_VERSION,
@@ -370,6 +372,77 @@ async def test_a_failed_job_is_unavailable_never_silence(
 
 
 # ---------------------------------------------------------------------------
+# Sarvam text to speech -- the questions, read aloud (2026-10-16)
+# ---------------------------------------------------------------------------
+MP3 = bytes.fromhex("fff3c0c4") + bytes(400)
+
+
+def _speech(response: httpx.Response) -> Handler:
+    def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/text-to-speech":
+            return response
+        return httpx.Response(404)
+
+    return handle
+
+
+async def test_sarvam_speaks_only_the_question_in_the_candidates_language(
+    keyed: None, transport: Any
+) -> None:
+    seen = transport(
+        _speech(httpx.Response(200, json={"audios": [base64.b64encode(MP3).decode()]}))
+    )
+    spoken = await sarvam.SarvamSpeechProvider().speak(
+        text="Apne kaam ke baare mein bataiye.", language="hi"
+    )
+    assert spoken.audio == MP3 and spoken.mime == "audio/mpeg"
+
+    [request] = seen
+    assert request.method == "POST" and request.headers["api-subscription-key"] == "sv-test"
+    assert json.loads(request.content) == {
+        "text": "Apne kaam ke baare mein bataiye.",
+        "language_code": "hi-IN",
+        "model": "bulbul:v3",
+        "speaker": "shubh",
+        "output_audio_codec": "mp3",
+    }, "the words and how to say them; nothing about the person"
+
+
+@pytest.mark.parametrize(
+    ("locale", "language"),
+    [("en", "en-IN"), ("pa", "pa-IN"), ("te", "te-IN"), ("hi-IN", "hi-IN"), ("fr", "en-IN")],
+)
+def test_every_locale_is_spoken_in_its_own_language(locale: str, language: str) -> None:
+    assert sarvam.tts_language(locale) == language
+
+
+def test_every_locale_we_support_has_a_voice() -> None:
+    from app.core.i18n import LOCALE_CODES
+
+    assert {sarvam.tts_language(code) for code in LOCALE_CODES} == {
+        f"{code}-IN" for code in LOCALE_CODES
+    }
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        httpx.Response(429, json={"error": "slow down"}),
+        httpx.Response(200, json={"audios": []}),
+        httpx.Response(200, json={"audios": ["not base64!"]}),
+        httpx.Response(200, json={"audios": [""]}),
+        httpx.Response(200, json={"request_id": "r"}),
+    ],
+)
+async def test_speech_that_fails_or_comes_back_empty_is_unavailable(
+    keyed: None, transport: Any, response: httpx.Response
+) -> None:
+    transport(_speech(response))
+    with pytest.raises(QuestionAudioUnavailableError):
+        await sarvam.SarvamSpeechProvider().speak(text="Tell me about your work.", language="en")
+
+
+# ---------------------------------------------------------------------------
 # Settings refuse a provider without what it needs
 # ---------------------------------------------------------------------------
 @pytest.mark.parametrize(
@@ -388,6 +461,10 @@ async def test_a_failed_job_is_unavailable_never_silence(
             "INTERVIEW_EVALUATION_MODEL_ID",
         ),
         ({"interview_transcription_provider": "sarvam", "sarvam_api_key": None}, "SARVAM_API_KEY"),
+        (
+            {"interview_question_speech_provider": "sarvam", "sarvam_api_key": None},
+            "INTERVIEW_QUESTION_SPEECH_PROVIDER=sarvam needs SARVAM_API_KEY",
+        ),
     ],
 )
 def test_a_provider_without_its_key_or_model_refuses_to_boot(
@@ -396,3 +473,23 @@ def test_a_provider_without_its_key_or_model_refuses_to_boot(
     base = get_settings().model_dump()
     with pytest.raises(ValidationError, match=message):
         Settings(**{**base, **overrides})
+
+
+@pytest.mark.parametrize("environment", ["staging", "prod"])
+def test_the_silent_speaker_is_refused_where_candidates_are(environment: str) -> None:
+    with pytest.raises(ValidationError, match="INTERVIEW_QUESTION_SPEECH_PROVIDER=stub"):
+        Settings(
+            environment=environment,  # type: ignore[arg-type]
+            interview_question_speech_provider="stub",
+            # Pinned, or the test environment's own stubs are refused first.
+            interview_question_provider="openai",
+            interview_transcription_provider="none",
+            assistant_provider="openai",
+            interview_evaluation_provider="none",
+            openai_api_key="k",  # type: ignore[arg-type]
+            payments_provider="none",
+            database_url="postgresql+asyncpg://u:p@localhost/db",  # type: ignore[arg-type]
+            redis_url="redis://localhost:6379/0",  # type: ignore[arg-type]
+            auth_allow_local_tokens=False,
+            cognito_candidate_pool_id="ap-south-1_x",
+        )
