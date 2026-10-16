@@ -1,25 +1,29 @@
 """Questions written for the candidate, the interview history and playback
-(2026-09-29), through HTTP and the database.
+(2026-09-29), and questions read aloud (2026-10-16), through HTTP and the
+database.
 
-The stub question writer stands in for the model and the stub transcriber
-for Sarvam, patched where the service looks them up. S3 is `FakeS3`.
+The stub question writer stands in for the model, and the stub transcriber
+and speaker for Sarvam, patched where the service looks them up. S3 is
+`FakeS3`.
 """
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 import pytest
 
 from app.modules.interview import service as interview_service
 from app.modules.interview.bank import QUESTIONS_PER_SESSION
-from app.modules.interview.domain import normalise_prompt
+from app.modules.interview.domain import normalise_prompt, question_audio_key
 from app.modules.interview.evaluation import StubEvaluationProvider, StubTranscriptionProvider
 from app.modules.interview.questions import (
     QuestionContext,
     QuestionUnavailableError,
     StubQuestionProvider,
 )
+from app.modules.interview.speech import Speech, StubSpeechProvider, UnconfiguredSpeechProvider
 from tests.conftest import _seed_url, sessions
 from tests.integration.test_interview import (
     BASE,
@@ -80,6 +84,7 @@ def fake_s3(monkeypatch: pytest.MonkeyPatch) -> FakeS3:
         "read_whole_object",
         "delete_object",
         "presign_put",
+        "put_object",
     ):
         monkeypatch.setattr(storage, name, getattr(fake, name))
 
@@ -97,6 +102,24 @@ def writer(monkeypatch: pytest.MonkeyPatch) -> RecordingProvider:
     monkeypatch.setattr(
         interview_service, "get_transcription_provider", lambda: StubTranscriptionProvider()
     )
+    return provider
+
+
+class CountingSpeaker(StubSpeechProvider):
+    """The stub speaker, keeping what it was asked to say."""
+
+    def __init__(self) -> None:
+        self.said: list[tuple[str, str]] = []
+
+    async def speak(self, *, text: str, language: str) -> Speech:
+        self.said.append((text, language))
+        return await super().speak(text=text, language=language)
+
+
+@pytest.fixture
+def speaker(monkeypatch: pytest.MonkeyPatch) -> CountingSpeaker:
+    provider = CountingSpeaker()
+    monkeypatch.setattr(interview_service, "get_speech_provider", lambda: provider)
     return provider
 
 
@@ -328,3 +351,99 @@ async def test_staff_hear_a_session_through_an_audited_read_of_its_own(
         headers=staff["headers"],
     )
     assert wrong.status_code == 404, "a session is only reached through its own candidate"
+
+
+# ===========================================================================
+# Questions read aloud (2026-10-16)
+# ===========================================================================
+def _audio(session_id: str, index: int) -> str:
+    return f"{BASE}/sessions/{session_id}/questions/{index}/audio"
+
+
+async def test_a_question_is_spoken_once_from_its_own_words_and_then_only_linked(
+    client: Any,
+    mint_token: Any,
+    fake_s3: FakeS3,
+    writer: RecordingProvider,
+    speaker: CountingSpeaker,
+) -> None:
+    me = await _paying(client, mint_token)
+    session = await _start(client, me)
+    session_id = str(session["id"])
+    [first] = session["questions"]
+
+    heard = await client.get(_audio(session_id, 0), headers=me["headers"])
+    assert heard.status_code == 200, heard.text
+    body = heard.json()
+    key = question_audio_key(user_id=me["id"], session_id=session["id"], question_index=0)
+    assert body["url"].startswith("https://s3.example/") and key in body["url"]
+    assert body["mime"] == "audio/wav" and body["expires_in_seconds"] > 0
+    assert fake_s3.objects[key][:4] == b"RIFF", "the stub's silence, as a real WAV"
+    assert speaker.said == [(first["prompt"], "en")], "the stored words, nothing else"
+
+    again = await client.get(_audio(session_id, 0), headers=me["headers"])
+    assert again.status_code == 200 and again.json()["mime"] == "audio/wav"
+    assert len(speaker.said) == 1, "kept, so a replay costs nothing"
+
+    # Not written yet: the same refusal as uploading its answer.
+    early = await client.get(_audio(session_id, 1), headers=me["headers"])
+    assert early.status_code == 409 and early.json()["code"] == "interview_question_not_ready"
+    past_the_end = await client.get(
+        _audio(session_id, QUESTIONS_PER_SESSION), headers=me["headers"]
+    )
+    assert past_the_end.status_code == 422
+
+    stranger = await _paying(client, mint_token)
+    theirs = await client.get(_audio(session_id, 0), headers=stranger["headers"])
+    assert theirs.status_code == 404
+    assert len(speaker.said) == 1
+
+
+async def test_without_a_voice_the_question_stays_text_and_nothing_is_stored(
+    client: Any,
+    mint_token: Any,
+    fake_s3: FakeS3,
+    writer: RecordingProvider,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        interview_service, "get_speech_provider", lambda: UnconfiguredSpeechProvider()
+    )
+    me = await _paying(client, mint_token)
+    session = await _start(client, me)
+    response = await client.get(_audio(str(session["id"]), 0), headers=me["headers"])
+    assert response.status_code == 503
+    assert response.json()["code"] == "interview_question_audio_unavailable"
+    assert not any("/questions/" in key for key in fake_s3.objects)
+    # The session itself is untouched and the question still readable.
+    view = await client.get(f"{BASE}/sessions/{session['id']}", headers=me["headers"])
+    assert view.json()["questions"] == session["questions"]
+
+
+async def test_an_erasure_collects_every_spoken_question_under_the_key_it_was_kept_at(
+    client: Any,
+    mint_token: Any,
+    fake_s3: FakeS3,
+    writer: RecordingProvider,
+    speaker: CountingSpeaker,
+) -> None:
+    """No row holds a spoken question's key, so erasure rebuilds it in SQL.
+    This holds that SQL to `question_audio_key`, the one the route used."""
+    from app.modules.privacy import repository as privacy_repository
+
+    me = await _paying(client, mint_token)
+    session_id, _ = await _sit_written_session(client, fake_s3, me)
+    spoken = await client.get(_audio(session_id, 2), headers=me["headers"])
+    assert spoken.status_code == 200, spoken.text
+
+    async with sessions(_seed_url())() as session:
+        keys = await privacy_repository.erasable_object_keys(session, user_id=me["id"])
+    held = [key for key in fake_s3.objects if "/questions/" in key]
+    assert held and all(("interview_audio", key) in keys for key in held)
+    expected = {
+        question_audio_key(user_id=me["id"], session_id=uuid.UUID(session_id), question_index=i)
+        for i in range(QUESTIONS_PER_SESSION)
+    }
+    assert {key for kind, key in keys if "/questions/" in key} == expected, (
+        "every written question, spoken or not: deleting one never spoken is harmless"
+    )

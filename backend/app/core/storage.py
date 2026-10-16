@@ -168,6 +168,7 @@ async def head_object(*, bucket: str, key: str) -> dict[str, Any] | None:
     return {
         "size_bytes": int(response["ContentLength"]),
         "etag": str(response.get("ETag", "")).strip('"'),
+        "content_type": response.get("ContentType"),
     }
 
 
