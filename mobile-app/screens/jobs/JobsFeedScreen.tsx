@@ -44,6 +44,7 @@ import {
 } from 'phosphor-react-native';
 import { Colors, Spacing } from '@/theme/tokens';
 import { BottomTabBar, TabName } from '@/components/navigation/BottomTabBar';
+import { CareerAssistantLauncher } from '@/components/assistant/CareerAssistantLauncher';
 import { JobFiltersSheet } from '@/screens/jobs/JobFiltersSheet';
 import { useJobs } from '@/hooks/useJobs';
 import { BoardJobSummary, EligibilityStatus, JobFilters } from '@/types/job';
@@ -319,6 +320,9 @@ export function JobsFeedScreen({
         onReset={handleResetFilters}
         currentFilters={filters}
       />
+
+      {/* Floating Career Assistant Chatbot */}
+      <CareerAssistantLauncher bottomOffset={Platform.OS === 'ios' ? 95 : 85} />
 
       {/* Floating bottom tab bar */}
       {onTabPress && (

@@ -71,6 +71,7 @@ export interface InterviewSession {
   created_at: string;
   started_at: string | null;
   completed_at: string | null;
+  questions_total?: number;
   questions: InterviewQuestion[];
   answers: InterviewAnswer[];
 }

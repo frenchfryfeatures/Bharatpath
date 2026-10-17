@@ -25,6 +25,8 @@ import {
 } from '@/screens/onboarding/ResumeIntakeScreen';
 import { ParsingScreen } from '@/screens/onboarding/ParsingScreen';
 import { CareerDetailsScreen } from '@/screens/profile/CareerDetailsScreen';
+import { ResumeDecisionScreen } from '@/screens/onboarding/ResumeDecisionScreen';
+import { ResumeBuilderScreen } from '@/screens/onboarding/ResumeBuilderScreen';
 import {
   membershipResumeVersion,
   onboardingDestination,
@@ -81,6 +83,8 @@ type AppStep =
   | 'intake'
   | 'parsing'
   | 'review'
+  | 'resume-decision'
+  | 'resume-builder'
   | 'scoring'
   | 'score'
   | 'breakdown'
@@ -565,6 +569,13 @@ export default function FoundationPreview() {
           setOnboardingDraft(null);
 
           // Step 1, 2, 3, 4 completed!
+          // Per platform enhancements §3: Users who have not uploaded a resume are given
+          // the option to generate one via the Resume Builder or upload a CV.
+          if (!verId || !fileMeta?.fileName) {
+            setStep('resume-decision');
+            return;
+          }
+
           // Check if candidate already has an active subscription
           try {
             const sub = await getCandidateSubscription();
@@ -575,6 +586,41 @@ export default function FoundationPreview() {
           } catch {}
 
           // If not subscribed: proceed to Payment!
+          setStep(collegeReferralCode ? 'referral' : 'subscribe');
+        }}
+      />
+    );
+  }
+
+  // 10b. Resume Decision (Build my resume vs Upload existing CV)
+  if (step === 'resume-decision') {
+    return (
+      <ResumeDecisionScreen
+        onBuildResume={() => setStep('resume-builder')}
+        onUploadCv={() => setStep('intake')}
+        onBack={() => {
+          setOnboardingSection(3);
+          setStep('review');
+        }}
+      />
+    );
+  }
+
+  // 10c. Resume Builder & Customizer (Templates, Projects, Preview, PDF Download, Push)
+  if (step === 'resume-builder') {
+    return (
+      <ResumeBuilderScreen
+        onBack={() => setStep('resume-decision')}
+        onUploadCv={() => setStep('intake')}
+        onDone={async (verId) => {
+          setResumeVersionId(verId);
+          try {
+            const sub = await getCandidateSubscription();
+            if (sub?.has_access) {
+              setStep('paid-scoring');
+              return;
+            }
+          } catch {}
           setStep(collegeReferralCode ? 'referral' : 'subscribe');
         }}
       />

@@ -215,7 +215,8 @@ export default function ResumeDetailsRoute() {
       'Upload New Resume',
       'Choose how you would like to provide your updated resume:',
       [
-        { text: 'Choose file (PDF / DOCX)', style: 'default', onPress: handlePickDocument },
+        { text: 'Build with Resume Builder', style: 'default', onPress: () => router.push('/resume-builder' as any) },
+        { text: 'Choose file (PDF / DOCX)', style: 'secondary', onPress: handlePickDocument },
         { text: 'Paste resume text', style: 'secondary', onPress: () => setIsPasteModalOpen(true) },
         { text: 'Cancel', style: 'cancel' },
       ]

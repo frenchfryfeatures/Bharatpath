@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppAlert } from "@/components/feedback/AppAlert";
 import {
   ActivityIndicator,
-  Alert,
+  Animated,
+  Easing,
   Platform,
   Pressable,
   ScrollView,
@@ -16,40 +16,36 @@ import {
   AudioQuality,
   IOSOutputFormat,
   setAudioModeAsync,
-  useAudioPlayer,
-  useAudioPlayerStatus,
   useAudioRecorder,
   useAudioRecorderState,
 } from 'expo-audio';
-import type { AudioPlayer, RecordingOptions } from 'expo-audio';
+import type { RecordingOptions } from 'expo-audio';
 import {
   ArrowLeft,
   ArrowCounterClockwise,
   CheckCircle,
-  Lightbulb,
+  Clock,
   Microphone,
-  Pause,
-  Play,
-  Record,
-  StopCircle,
-  Timer,
+  Square,
+  Sparkle,
   UploadSimple,
   WarningCircle,
 } from 'phosphor-react-native';
+import { AppAlert } from '@/components/feedback/AppAlert';
 import { Radii } from '@/theme/tokens';
-import { ApiError } from '@/services/api/client';
 import {
   InterviewQuestion,
   InterviewSession,
   completeInterviewAnswer,
   completeInterviewSession,
   getInterviewSession,
-  getInterviewQuestionAudio,
   getNextInterviewQuestion,
   interviewErrorMessage,
   issueAnswerUpload,
   putInterviewAudio,
 } from '@/services/api/interview';
+import { QuestionAudioPlayer } from '@/components/interview/QuestionAudioPlayer';
+import { StudentAudioPlayer } from '@/components/interview/StudentAudioPlayer';
 
 const VOICE_RECORDING: RecordingOptions = {
   extension: '.m4a',
@@ -75,35 +71,7 @@ const VOICE_RECORDING: RecordingOptions = {
   },
 };
 
-/** The server rejects anything shorter, and deletes the audio when it does. */
 const MIN_ANSWER_MS = 1000;
-
-type Phase = 'loading' | 'prep' | 'recording' | 'review' | 'sending' | 'feedback' | 'finishing';
-
-/**
- * Playback is for the candidate's own reassurance, so a player that refuses
- * must never fail the recording or the upload around it.
- *
- * The native player has no nullable source: `replace(null)` is rejected on
- * Android. Clearing a finished answer is therefore a pause and a rewind, and
- * the next recording replaces the source outright.
- */
-function loadForPlayback(player: AudioPlayer, uri: string) {
-  try {
-    player.replace({ uri });
-  } catch {
-    // Reviewing the answer is optional; recording it is not.
-  }
-}
-
-function stopPlayback(player: AudioPlayer) {
-  try {
-    player.pause();
-    player.seekTo(0);
-  } catch {
-    // As above.
-  }
-}
 
 interface Props {
   sessionId: string;
@@ -113,121 +81,100 @@ export function InterviewSessionScreen({ sessionId }: Props) {
   const router = useRouter();
   const recorder = useAudioRecorder(VOICE_RECORDING);
   const recorderState = useAudioRecorderState(recorder, 200);
-  const player = useAudioPlayer(null);
-  const playerStatus = useAudioPlayerStatus(player);
-  const questionPlayer = useAudioPlayer(null);
+
   const [session, setSession] = useState<InterviewSession | null>(null);
-  const [questionIndex, setQuestionIndex] = useState(0);
-  const [phase, setPhase] = useState<Phase>('loading');
-  const [loadingMessage, setLoadingMessage] = useState('Restoring your session…');
-  const [isPreparingNext, setIsPreparingNext] = useState(false);
-  const [prepLeft, setPrepLeft] = useState(0);
-  const [localUri, setLocalUri] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [saveStage, setSaveStage] = useState<'saving' | 'preparing'>('saving');
+  const [clipUri, setClipUri] = useState<string | null>(null);
   const [durationMs, setDurationMs] = useState(0);
-  const [lookingFor, setLookingFor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [finishing, setFinishing] = useState(false);
+
+  // Pulse animation for recording ring
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const startedAt = useRef(0);
   const stopping = useRef(false);
 
-  const selectQuestion = useCallback((value: InterviewSession, targetIndex: number) => {
-    setQuestionIndex(targetIndex);
-    setPrepLeft(value.questions[targetIndex]?.preparation_seconds ?? 30);
-    setPhase('prep');
-  }, []);
+  useEffect(() => {
+    let loop: Animated.CompositeAnimation | null = null;
+    if (recorderState.isRecording) {
+      loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.25,
+            duration: 800,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1.0,
+            duration: 800,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      loop.start();
+    } else {
+      pulseAnim.setValue(1);
+    }
+    return () => loop?.stop();
+  }, [pulseAnim, recorderState.isRecording]);
 
-  const load = useCallback(async () => {
+  const fetchSession = useCallback(async () => {
     setError(null);
-    setLoadingMessage('Restoring your session…');
-    setPhase('loading');
     try {
-      let value = await getInterviewSession(sessionId);
-      if (['COMPLETED', 'EVALUATED', 'FAILED'].includes(value.state)) {
+      const data = await getInterviewSession(sessionId);
+      if (['COMPLETED', 'EVALUATED'].includes(data.state)) {
         router.replace({ pathname: '/interview-report', params: { sessionId } });
         return;
       }
-      const firstUnstored = value.answers.findIndex((answer) => answer.upload_state !== 'STORED');
-      if (firstUnstored < 0) {
-        setSession(value);
-        setQuestionIndex(Math.max(0, value.questions.length - 1));
-        setPhase('finishing');
-        return;
-      }
-      if (!value.questions[firstUnstored]) {
-        setLoadingMessage('The interviewer is preparing your next question…');
-        value = await getNextInterviewQuestion(sessionId);
-      }
-      setSession(value);
-      selectQuestion(value, firstUnstored);
+      setSession(data);
     } catch (caught) {
       setError(interviewErrorMessage(caught, 'Could not load this interview session.'));
-      setPhase('loading');
-    }
-  }, [router, selectQuestion, sessionId]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  useEffect(() => {
-    if (phase !== 'prep' || prepLeft <= 0) return;
-    const timer = setTimeout(() => setPrepLeft((value) => Math.max(0, value - 1)), 1000);
-    return () => clearTimeout(timer);
-  }, [phase, prepLeft]);
-
-  const question: InterviewQuestion | null = session?.questions[questionIndex] ?? null;
-  const maxDurationMs = (question?.answer_seconds ?? 120) * 1000;
-
-  // Read the question aloud as soon as it is on screen. Best effort: the
-  // written question stays, so a failure here is silent.
-  const promptIndex = question?.index ?? null;
-  useEffect(() => {
-    if (phase !== 'prep' || promptIndex === null) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const audio = await getInterviewQuestionAudio(sessionId, promptIndex);
-        if (cancelled) return;
-        await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false });
-        if (cancelled) return;
-        questionPlayer.replace({ uri: audio.url });
-        questionPlayer.play();
-      } catch {
-        // The question is also written on screen.
-      }
-    })();
-    return () => {
-      cancelled = true;
-      stopPlayback(questionPlayer);
-    };
-  }, [phase, promptIndex, questionPlayer, sessionId]);
-
-  const stopRecording = useCallback(async () => {
-    if (stopping.current || !recorderState.isRecording) return;
-    stopping.current = true;
-    try {
-      const elapsed = recorderState.durationMillis;
-      await recorder.stop();
-      const uri = recorder.uri || recorder.getStatus().url;
-      if (!uri) throw new Error('The recorder did not produce an audio file.');
-      setDurationMs(Math.min(elapsed, maxDurationMs));
-      setLocalUri(uri);
-      loadForPlayback(player, uri);
-      setPhase('review');
-    } catch (caught) {
-      setError(interviewErrorMessage(caught, 'Could not stop the recording.'));
-      setPhase('prep');
     } finally {
-      stopping.current = false;
+      setLoading(false);
     }
-  }, [maxDurationMs, player, recorder, recorderState.durationMillis, recorderState.isRecording]);
+  }, [router, sessionId]);
 
   useEffect(() => {
-    if (phase === 'recording' && recorderState.durationMillis >= maxDurationMs) {
-      stopRecording();
-    }
-  }, [maxDurationMs, phase, recorderState.durationMillis, stopRecording]);
+    fetchSession();
+  }, [fetchSession]);
 
-  const startRecording = async () => {
+  // Current question is the first question without a STORED answer
+  const current: InterviewQuestion | null = useMemo(() => {
+    if (!session) return null;
+    return (
+      session.questions.find((q) => {
+        const ans = session.answers.find((a) => a.question_index === q.index);
+        return ans?.upload_state !== 'STORED';
+      }) ?? null
+    );
+  }, [session]);
+
+  const savedCount = useMemo(() => {
+    if (!session) return 0;
+    return session.questions.filter((q) => {
+      const ans = session.answers.find((a) => a.question_index === q.index);
+      return ans?.upload_state === 'STORED';
+    }).length;
+  }, [session]);
+
+  const totalQuestions = session?.questions_total ?? session?.questions.length ?? 6;
+  const allStored = useMemo(() => {
+    if (!session || !session.answers.length) return false;
+    return session.answers.length >= totalQuestions && session.answers.every((a) => a.upload_state === 'STORED');
+  }, [session, totalQuestions]);
+
+  const isDone = session?.state === 'COMPLETED' || session?.state === 'EVALUATED';
+  const maxDurationMs = (current?.answer_seconds ?? 120) * 1000;
+
+  // Recording controls
+  const record = async () => {
     setError(null);
+    setClipUri(null);
+    setDurationMs(0);
     try {
       await setAudioModeAsync({
         allowsRecording: true,
@@ -235,144 +182,110 @@ export function InterviewSessionScreen({ sessionId }: Props) {
         shouldPlayInBackground: false,
       });
       await recorder.prepareToRecordAsync(VOICE_RECORDING);
+      startedAt.current = Date.now();
       recorder.record({ forDuration: Math.ceil(maxDurationMs / 1000) });
-      setPhase('recording');
     } catch (caught) {
-      setError(interviewErrorMessage(caught, 'Microphone recording could not start.'));
+      setError(interviewErrorMessage(caught, 'Microphone permission or recording is not available.'));
     }
   };
 
-  const togglePlayback = () => {
-    if (playerStatus.playing) {
-      stopPlayback(player);
-      return;
-    }
+  const stop = useCallback(async () => {
+    if (stopping.current || !recorderState.isRecording) return;
+    stopping.current = true;
     try {
-      player.play();
-    } catch {
-      // Reviewing the answer is optional; recording it is not.
-    }
-  };
+      const elapsed = Date.now() - startedAt.current;
+      await recorder.stop();
+      const uri = recorder.uri || recorder.getStatus().url;
+      if (!uri) throw new Error('No audio recording was created.');
 
-  const retake = () => {
-    stopPlayback(player);
-    setLocalUri(null);
-    setDurationMs(0);
-    setPrepLeft(question?.preparation_seconds ?? 30);
-    setPhase('prep');
-  };
+      // Reset audio mode for normal playback
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+      });
 
-  const sendAnswer = async () => {
-    if (!localUri || !question) return;
-    if (durationMs < MIN_ANSWER_MS) {
-      setError('That recording is too short to be an answer. Record it again.');
-      return;
-    }
-    setPhase('sending');
-    setError(null);
-    try {
-      const ticket = await issueAnswerUpload(sessionId, question.index);
-      const mimeType = Platform.OS === 'web' ? 'audio/webm' : 'audio/mp4';
-      await putInterviewAudio(ticket, localUri, mimeType);
-      const stored = await completeInterviewAnswer(
-        sessionId,
-        question.index,
-        Math.min(durationMs, ticket.max_duration_ms)
-      );
-      stopPlayback(player);
-      setLookingFor(stored.looking_for);
-      const refreshed = await getInterviewSession(sessionId);
-      setSession(refreshed);
-      setPhase('feedback');
-
-      // Pre-generate next adaptive question in background while candidate reviews feedback
-      const nextIdx = question.index + 1;
-      if (nextIdx < 6) {
-        getNextInterviewQuestion(sessionId)
-          .then((updated) => setSession(updated))
-          .catch((err) => console.log('Background next-question prefetch:', err));
-      }
+      setDurationMs(Math.min(elapsed, maxDurationMs));
+      setClipUri(uri);
     } catch (caught) {
-      if (caught instanceof ApiError && caught.code === 'interview_answer_already_stored') {
-        const refreshed = await getInterviewSession(sessionId);
-        setSession(refreshed);
-        const nextIdx = refreshed.answers.findIndex((a) => a.upload_state !== 'STORED');
-        if (nextIdx < 0) {
-          setPhase('finishing');
-        } else if (refreshed.questions[nextIdx]) {
-          selectQuestion(refreshed, nextIdx);
-        } else {
-          load();
-        }
-        return;
-      }
-      setError(interviewErrorMessage(caught, 'Could not send this answer.'));
-      setPhase('review');
-    }
-  };
-
-  const nextQuestion = async () => {
-    if (!session) return;
-    setLocalUri(null);
-    setDurationMs(0);
-    setLookingFor(null);
-    stopPlayback(player);
-
-    const storedCount = session.answers.filter((answer) => answer.upload_state === 'STORED').length;
-    if (storedCount >= 6) {
-      finish();
-      return;
-    }
-
-    if (session.questions[storedCount]) {
-      selectQuestion(session, storedCount);
-      return;
-    }
-
-    setIsPreparingNext(true);
-    setLoadingMessage('The interviewer is preparing your next question…');
-    setPhase('loading');
-    try {
-      const updated = await getNextInterviewQuestion(sessionId);
-      setSession(updated);
-      if (updated.questions[storedCount]) {
-        selectQuestion(updated, storedCount);
-      } else {
-        selectQuestion(updated, updated.questions.length - 1);
-      }
-    } catch (caught) {
-      setError(interviewErrorMessage(caught, 'Could not load the next question.'));
-      setPhase('feedback');
+      setError(interviewErrorMessage(caught, 'Could not stop recording.'));
     } finally {
-      setIsPreparingNext(false);
+      stopping.current = false;
+    }
+  }, [maxDurationMs, recorder, recorderState.isRecording]);
+
+  // Auto-stop when max duration reached
+  useEffect(() => {
+    if (recorderState.isRecording && recorderState.durationMillis >= maxDurationMs) {
+      stop();
+    }
+  }, [maxDurationMs, recorderState.durationMillis, recorderState.isRecording, stop]);
+
+  // Retake recording
+  const retake = () => {
+    setClipUri(null);
+    setDurationMs(0);
+    setError(null);
+  };
+
+  // Upload and send answer
+  const send = async () => {
+    if (!clipUri || !current || busy) return;
+    if (durationMs < MIN_ANSWER_MS) {
+      setError('Recording is too short to be an answer. Please record again.');
+      return;
+    }
+
+    setBusy(true);
+    setSaveStage('saving');
+    setError(null);
+
+    try {
+      const ticket = await issueAnswerUpload(sessionId, current.index);
+      if (durationMs > ticket.max_duration_ms) {
+        throw new Error('Recording length exceeds the limit. Please record a shorter answer.');
+      }
+
+      const mimeType = Platform.OS === 'web' ? 'audio/webm' : 'audio/mp4';
+      await putInterviewAudio(ticket, clipUri, mimeType);
+
+      await completeInterviewAnswer(sessionId, current.index, durationMs);
+      setClipUri(null);
+      setDurationMs(0);
+
+      // If more questions are expected, request the next question from AI
+      if (current.index + 1 < totalQuestions) {
+        setSaveStage('preparing');
+        await getNextInterviewQuestion(sessionId);
+      }
+
+      // Refresh session state to show next question or finish
+      await fetchSession();
+    } catch (cause) {
+      setError(interviewErrorMessage(cause, 'Could not save the answer. Please try again.'));
+    } finally {
+      setBusy(false);
     }
   };
 
+  // Complete interview session
   const finish = async () => {
-    setPhase('finishing');
     setError(null);
+    setFinishing(true);
     try {
       await completeInterviewSession(sessionId);
       router.replace({ pathname: '/interview-report', params: { sessionId } });
     } catch (caught) {
-      setError(interviewErrorMessage(caught, 'Could not finish this session.'));
-      const refreshed = await getInterviewSession(sessionId);
-      setSession(refreshed);
+      setError(interviewErrorMessage(caught, 'Could not finish the interview. Please try again.'));
+      await fetchSession();
+    } finally {
+      setFinishing(false);
     }
   };
 
-  useEffect(() => {
-    if (phase === 'finishing' && session?.answers.every((answer) => answer.upload_state === 'STORED')) {
-      finish();
-    }
-    // `finish` deliberately runs once when the manifest reaches all-STORED.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, session]);
-
-  const leave = () => {
+  const handleLeave = () => {
     AppAlert.alert(
       'Leave this interview?',
-      'Stored answers are safe. Your current unsent recording stays only on this device and may be lost.',
+      'Stored answers are safe. Your current unsent recording stays only on this device.',
       [
         { text: 'Stay', style: 'cancel' },
         { text: 'Leave', onPress: () => router.replace('/home') },
@@ -380,166 +293,231 @@ export function InterviewSessionScreen({ sessionId }: Props) {
     );
   };
 
-  const storedCount = session?.answers.filter((answer) => answer.upload_state === 'STORED').length ?? 0;
-  const time = useMemo(() => formatTime(recorderState.durationMillis), [recorderState.durationMillis]);
-
-  if (phase === 'loading' || !session || !question) {
-    return (
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.center}>
-          {error ? (
-            <>
-              <WarningCircle size={28} color="#993A22" weight="fill" />
-              <Text style={styles.error}>{error}</Text>
-              <Pressable style={styles.primary} onPress={load}><Text style={styles.primaryText}>Try again</Text></Pressable>
-            </>
-          ) : (
-            <>
-              <ActivityIndicator color="#5F4DB2" size="large" />
-              <Text style={styles.muted}>{loadingMessage}</Text>
-            </>
-          )}
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (phase === 'recording') {
-    return (
-      <SafeAreaView style={styles.recordingSafe}>
-        <View style={styles.recording}>
-          <View style={styles.topRow}>
-            <Text style={styles.recordingEyebrow}>QUESTION {questionIndex + 1} OF {session.answers.length || 6}</Text>
-            <Text style={styles.recordingTimer}>{time}</Text>
-          </View>
-          <Text style={styles.recordingPrompt}>{formatQuestionPrompt(question.prompt)}</Text>
-          <View style={styles.micCircle}><Microphone size={48} color="#5F4DB2" weight="fill" /></View>
-          <Text style={styles.recordingHint}>
-            Recording · maximum {formatTime(maxDurationMs)}
-          </Text>
-          <Pressable style={styles.stopButton} onPress={stopRecording}>
-            <StopCircle size={20} color="#0A1931" weight="fill" />
-            <Text style={styles.stopText}>Stop recording</Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (phase === 'review' || phase === 'sending') {
-    return (
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.page}>
-          <Text style={styles.eyebrow}>ANSWER {questionIndex + 1} RECORDED</Text>
-          <Text style={styles.title}>Keep this answer?</Text>
-          <Text style={styles.subtitle}>Listen before sending. Retake discards only this local recording.</Text>
-          <View style={styles.playback}>
-            <Pressable
-              style={styles.playButton}
-              onPress={togglePlayback}
-            >
-              {playerStatus.playing ? <Pause size={22} color="#FFFFFF" weight="fill" /> : <Play size={22} color="#FFFFFF" weight="fill" />}
-            </Pressable>
-            <View style={styles.playbackCopy}>
-              <Text style={styles.playbackTitle}>Answer {questionIndex + 1}</Text>
-              <Text style={styles.muted}>{formatTime(durationMs)} · stored after you send it</Text>
-            </View>
-          </View>
-          {error && <Text style={styles.error}>{error}</Text>}
-          <View style={styles.bottom}>
-            <Pressable style={[styles.primary, phase === 'sending' && styles.disabled]} onPress={sendAnswer} disabled={phase === 'sending'}>
-              {phase === 'sending' ? <ActivityIndicator color="#FFFFFF" /> : <><UploadSimple size={18} color="#FFFFFF" /><Text style={styles.primaryText}>Keep and send answer</Text></>}
-            </Pressable>
-            <Pressable style={styles.outline} onPress={retake} disabled={phase === 'sending'}>
-              <ArrowCounterClockwise size={18} color="#0A1931" />
-              <Text style={styles.outlineText}>Record again</Text>
-            </Pressable>
-          </View>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (phase === 'feedback') {
-    return (
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.page}>
-          <CheckCircle size={42} color="#1F6B45" weight="fill" />
-          <Text style={styles.title}>Answer stored</Text>
-          <Text style={styles.subtitle}>Your recording reached the server safely.</Text>
-          {lookingFor && (
-            <View style={styles.feedback}>
-              <View style={styles.feedbackHeader}>
-                <Lightbulb size={18} color="#5F4DB2" weight="fill" />
-                <Text style={styles.feedbackLabel}>WHAT A GOOD ANSWER CONTAINS</Text>
-              </View>
-              <Text style={styles.feedbackText}>{lookingFor}</Text>
-            </View>
-          )}
-          <View style={styles.bottom}>
-            <Pressable
-              style={[styles.primary, isPreparingNext && styles.disabled]}
-              onPress={nextQuestion}
-              disabled={isPreparingNext}
-            >
-              {isPreparingNext ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.primaryText}>
-                  {storedCount >= 6 ? 'Finish session' : 'Next question'}
-                </Text>
-              )}
-            </Pressable>
-          </View>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (phase === 'finishing') {
-    return (
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color="#5F4DB2" />
-          <Text style={styles.title}>Finishing your session</Text>
-          <Text style={styles.subtitle}>All six answers must be confirmed by the server.</Text>
-          {error && <Text style={styles.error}>{error}</Text>}
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const progressPercent = totalQuestions > 0 ? (savedCount / totalQuestions) * 100 : 0;
+  const timeFormatted = formatTime(recorderState.durationMillis);
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.page}>
-        <View style={styles.topRow}>
-          <Pressable onPress={leave}><ArrowLeft size={21} color="#0A1931" weight="bold" /></Pressable>
-          <Text style={styles.eyebrow}>QUESTION {questionIndex + 1} OF {session.answers.length || 6}</Text>
-          <View style={styles.timerBadge}><Timer size={15} color="#0A1931" /><Text style={styles.timerText}>0:{String(prepLeft).padStart(2, '0')}</Text></View>
-        </View>
-        <View style={styles.segments}>
-          {session.answers.map((answer) => (
-            <View key={answer.question_index} style={[styles.segment, answer.upload_state === 'STORED' || answer.question_index === questionIndex ? styles.segmentDone : styles.segmentOpen]} />
-          ))}
-        </View>
-        <ScrollView contentContainerStyle={styles.questionContent}>
-          <Text style={styles.prompt}>{formatQuestionPrompt(question.prompt)}</Text>
-          <View style={styles.durationBox}>
-            <Microphone size={20} color="#5F4DB2" />
-            <Text style={styles.durationText}>
-              You can answer for up to {Math.round(question.answer_seconds / 60)} minutes. Recording starts only when you tap.
-            </Text>
-          </View>
-          <Text style={styles.noTips}>
-            Guidance is shown only after your answer is stored.
-          </Text>
-          {error && <Text style={styles.error}>{error}</Text>}
-        </ScrollView>
-        <Pressable style={styles.primary} onPress={startRecording}>
-          <Record size={19} color="#FFFFFF" weight="fill" />
-          <Text style={styles.primaryText}>Start recording</Text>
+      {/* Header bar */}
+      <View style={styles.header}>
+        <Pressable onPress={handleLeave} style={styles.backBtn} accessibilityLabel="Back">
+          <ArrowLeft size={20} color="#0A1931" weight="bold" />
         </Pressable>
+        <View style={styles.headerTitleWrap}>
+          <Text style={styles.headerEyebrow}>
+            {current ? `QUESTION ${current.index + 1} OF ${totalQuestions}` : 'MOCK INTERVIEW'}
+          </Text>
+          <Text style={styles.headerSubtitle}>
+            {savedCount} of {totalQuestions} answers saved
+          </Text>
+        </View>
+        <View style={styles.headerRightSpacer} />
       </View>
+
+      {/* Progress meter bar */}
+      <View style={styles.meterContainer}>
+        <View style={[styles.meterFill, { width: `${progressPercent}%` }]} />
+      </View>
+
+      {/* Main Content Area */}
+      {busy ? (
+        <View style={styles.centerContainer}>
+          <View style={styles.spinnerCircle}>
+            <ActivityIndicator size="large" color="#5F4DB2" />
+          </View>
+          <Text style={styles.busyTitle}>
+            {saveStage === 'saving' ? 'Saving your answer…' : 'Preparing your next question…'}
+          </Text>
+          <Text style={styles.busySubtitle}>
+            {saveStage === 'saving'
+              ? 'Uploading recording to storage securely.'
+              : 'The AI interviewer is listening and drafting your next question.'}
+          </Text>
+          <Text style={styles.busyMuted}>Please keep this screen open. This may take a few moments.</Text>
+        </View>
+      ) : loading ? (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color="#5F4DB2" />
+          <Text style={styles.loadingText}>Loading your interview session…</Text>
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+          {current ? (
+            <View style={styles.card}>
+              {/* Question text */}
+              <Text style={styles.questionPrompt}>{formatQuestionPrompt(current.prompt)}</Text>
+
+              {/* Question Audio with auto-fetch and autoplay */}
+              <QuestionAudioPlayer
+                key={`${sessionId}-${current.index}`}
+                sessionId={sessionId}
+                index={current.index}
+              />
+
+              {/* Status chips */}
+              <View style={styles.chipRow}>
+                <View style={styles.chipNeutral}>
+                  <Clock size={12} color="#5F6B80" weight="bold" />
+                  <Text style={styles.chipTextNeutral}>{current.preparation_seconds}s to prepare</Text>
+                </View>
+                <View style={styles.chipWaiting}>
+                  <Microphone size={12} color="#5F4DB2" weight="bold" />
+                  <Text style={styles.chipTextWaiting}>Up to {current.answer_seconds}s to answer</Text>
+                </View>
+              </View>
+
+              {/* Recording Box */}
+              <View style={styles.recordingBox}>
+                {recorderState.isRecording ? (
+                  <>
+                    <View style={styles.pulsingMicWrapper}>
+                      <Animated.View
+                        style={[
+                          styles.pulsingMicHalo,
+                          { transform: [{ scale: pulseAnim }] },
+                        ]}
+                      />
+                      <View style={styles.pulsingMicCore}>
+                        <Microphone size={24} color="#FFFFFF" weight="fill" />
+                      </View>
+                    </View>
+
+                    <Text style={styles.recordingStatusTitle}>Recording in progress. Speak clearly.</Text>
+                    <Text style={styles.recordingTimerText}>
+                      {timeFormatted} / {formatTime(maxDurationMs)}
+                    </Text>
+
+                    <Pressable
+                      style={({ pressed }) => [styles.stopBtn, pressed && styles.btnPressed]}
+                      onPress={stop}
+                    >
+                      <Square size={14} color="#0A1931" weight="fill" />
+                      <Text style={styles.stopBtnText}>Stop recording</Text>
+                    </Pressable>
+                  </>
+                ) : (
+                  <>
+                    <View style={styles.idleMicCircle}>
+                      <Microphone size={24} color="#5F4DB2" weight="fill" />
+                    </View>
+                    <Text style={styles.recordingHint}>
+                      {clipUri ? 'Happy with it? Save, or record again.' : 'Press record when you are ready.'}
+                    </Text>
+
+                    {!clipUri && (
+                      <Pressable
+                        style={({ pressed }) => [styles.primaryBtn, pressed && styles.btnPressed]}
+                        onPress={record}
+                        disabled={busy}
+                      >
+                        <Microphone size={18} color="#FFFFFF" weight="fill" />
+                        <Text style={styles.primaryBtnText}>Record answer</Text>
+                      </Pressable>
+                    )}
+                  </>
+                )}
+              </View>
+
+              {/* Recorded Audio Review & Actions */}
+              {clipUri && !recorderState.isRecording && (
+                <View style={styles.reviewSection}>
+                  <StudentAudioPlayer src={clipUri} knownDurationMs={durationMs} label="your answer" />
+
+                  <View style={styles.actionButtonsRow}>
+                    <Pressable
+                      style={({ pressed }) => [styles.outlineBtn, pressed && styles.btnPressed]}
+                      onPress={retake}
+                      disabled={busy}
+                    >
+                      <ArrowCounterClockwise size={16} color="#0A1931" weight="bold" />
+                      <Text style={styles.outlineBtnText}>Record again</Text>
+                    </Pressable>
+
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.primaryBtn,
+                        styles.flex1,
+                        pressed && styles.btnPressed,
+                      ]}
+                      onPress={send}
+                      disabled={busy}
+                    >
+                      <UploadSimple size={18} color="#FFFFFF" weight="bold" />
+                      <Text style={styles.primaryBtnText}>Save answer & continue</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
+            </View>
+          ) : isDone ? (
+            <View style={[styles.card, styles.centerCard]}>
+              <CheckCircle size={44} color="#1F6B45" weight="fill" />
+              <Text style={styles.doneTitle}>Interview completed</Text>
+              <Text style={styles.doneSubtitle}>
+                Nice work. Your performance report and feedback appear in your interview history.
+              </Text>
+              <Pressable
+                style={({ pressed }) => [styles.primaryBtn, styles.mt16, pressed && styles.btnPressed]}
+                onPress={() => router.replace({ pathname: '/interview-report', params: { sessionId } })}
+              >
+                <Text style={styles.primaryBtnText}>View interview report</Text>
+              </Pressable>
+            </View>
+          ) : allStored ? (
+            <View style={[styles.card, styles.centerCard]}>
+              <CheckCircle size={44} color="#5F4DB2" weight="fill" />
+              <Text style={styles.doneTitle}>All answers saved</Text>
+              <Text style={styles.doneSubtitle}>Finish to complete the session and submit for evaluation.</Text>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.primaryBtn,
+                  styles.mt16,
+                  finishing && styles.disabled,
+                  pressed && styles.btnPressed,
+                ]}
+                onPress={finish}
+                disabled={finishing}
+              >
+                {finishing ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.primaryBtnText}>Finish interview</Text>
+                )}
+              </Pressable>
+            </View>
+          ) : (
+            <View style={[styles.card, styles.centerCard]}>
+              <Sparkle size={36} color="#5F4DB2" weight="fill" />
+              <Text style={styles.doneTitle}>Your next question is ready</Text>
+              <Text style={styles.doneSubtitle}>Tap below to retrieve the next adaptive question from the AI interviewer.</Text>
+              <Pressable
+                style={({ pressed }) => [styles.primaryBtn, styles.mt16, pressed && styles.btnPressed]}
+                onPress={async () => {
+                  try {
+                    setLoading(true);
+                    await getNextInterviewQuestion(sessionId);
+                    await fetchSession();
+                  } catch (err) {
+                    setError('Could not prepare the next question. Please retry.');
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+              >
+                <Text style={styles.primaryBtnText}>Get next question</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {/* Error Banner */}
+          {error && (
+            <View style={styles.errorBanner}>
+              <WarningCircle size={18} color="#993A22" weight="fill" />
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -556,47 +534,323 @@ function formatTime(milliseconds: number): string {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#FFFCF7' },
-  recordingSafe: { flex: 1, backgroundColor: '#5F4DB2' },
-  page: { flex: 1, padding: 20, gap: 16 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 14 },
-  topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  eyebrow: { fontFamily: 'GeneralSans-Bold', fontSize: 11, letterSpacing: 1.1, color: '#0A1931' },
-  timerBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Radii.pill, backgroundColor: '#F0EBDF' },
-  timerText: { fontFamily: 'GeneralSans-Bold', fontSize: 12, color: '#0A1931' },
-  segments: { flexDirection: 'row', gap: 4 },
-  segment: { flex: 1, height: 4, borderRadius: 4 },
-  segmentDone: { backgroundColor: '#5F4DB2' },
-  segmentOpen: { backgroundColor: '#E7E0D4' },
-  questionContent: { flexGrow: 1, gap: 20, paddingTop: 18 },
-  prompt: { fontFamily: 'GeneralSans-Bold', fontSize: 28, lineHeight: 36, color: '#0A1931' },
-  durationBox: { flexDirection: 'row', gap: 12, padding: 16, borderRadius: 17, backgroundColor: '#F2EFFB' },
-  durationText: { flex: 1, fontFamily: 'GeneralSans-Regular', fontSize: 14, lineHeight: 20, color: '#3A4761' },
-  noTips: { fontFamily: 'GeneralSans-Regular', fontSize: 13, lineHeight: 19, color: '#5F6B80' },
-  primary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 18, paddingHorizontal: 20, borderRadius: Radii.pill, backgroundColor: '#5F4DB2' },
-  primaryText: { fontFamily: 'GeneralSans-Semibold', fontSize: 16, color: '#FFFFFF' },
-  disabled: { opacity: 0.5 },
-  outline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16, borderRadius: Radii.pill, borderWidth: 1, borderColor: '#DDD6C7' },
-  outlineText: { fontFamily: 'GeneralSans-Semibold', fontSize: 15, color: '#0A1931' },
-  recording: { flex: 1, padding: 20, alignItems: 'center', gap: 22 },
-  recordingEyebrow: { fontFamily: 'GeneralSans-Bold', fontSize: 11, letterSpacing: 1.1, color: '#FFFFFF' },
-  recordingTimer: { fontFamily: 'SpaceMono-Bold', fontSize: 13, color: '#FFFFFF', backgroundColor: '#B23A1E', paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radii.pill },
-  recordingPrompt: { alignSelf: 'stretch', fontFamily: 'GeneralSans-Semibold', fontSize: 19, lineHeight: 27, color: '#FFFFFF' },
-  micCircle: { width: 124, height: 124, borderRadius: 62, marginTop: 'auto', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
-  recordingHint: { fontFamily: 'GeneralSans-Regular', fontSize: 13, color: '#FFFFFF', opacity: 0.88 },
-  stopButton: { alignSelf: 'stretch', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 'auto', paddingVertical: 18, borderRadius: Radii.pill, backgroundColor: '#FFFFFF' },
-  stopText: { fontFamily: 'GeneralSans-Semibold', fontSize: 16, color: '#0A1931' },
-  title: { fontFamily: 'GeneralSans-Bold', fontSize: 28, lineHeight: 34, color: '#0A1931' },
-  subtitle: { fontFamily: 'GeneralSans-Regular', fontSize: 14, lineHeight: 21, color: '#3A4761' },
-  playback: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 17, borderRadius: 20, borderWidth: 1, borderColor: '#E7E0D4', backgroundColor: '#FFFFFF' },
-  playButton: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: '#5F4DB2' },
-  playbackCopy: { flex: 1, gap: 5 },
-  playbackTitle: { fontFamily: 'GeneralSans-Semibold', fontSize: 15, color: '#0A1931' },
-  muted: { fontFamily: 'GeneralSans-Regular', fontSize: 13, lineHeight: 19, color: '#5F6B80' },
-  bottom: { marginTop: 'auto', gap: 10 },
-  error: { fontFamily: 'GeneralSans-Regular', fontSize: 13, lineHeight: 19, color: '#993A22', textAlign: 'center' },
-  feedback: { padding: 18, borderRadius: 20, borderWidth: 1, borderColor: '#D9D2F2', backgroundColor: '#F2EFFB', gap: 12 },
-  feedbackHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  feedbackLabel: { fontFamily: 'GeneralSans-Bold', fontSize: 11, letterSpacing: 1, color: '#5F4DB2' },
-  feedbackText: { fontFamily: 'GeneralSans-Regular', fontSize: 15, lineHeight: 22, color: '#26344D' },
+  safe: {
+    flex: 1,
+    backgroundColor: '#FFFCF7',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  backBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E7E0D4',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitleWrap: {
+    alignItems: 'center',
+  },
+  headerEyebrow: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0A1931',
+    letterSpacing: 0.8,
+  },
+  headerSubtitle: {
+    fontSize: 11,
+    color: '#5F6B80',
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  headerRightSpacer: {
+    width: 38,
+  },
+  meterContainer: {
+    height: 5,
+    backgroundColor: '#EBE5D8',
+    width: '100%',
+  },
+  meterFill: {
+    height: '100%',
+    backgroundColor: '#5F4DB2',
+  },
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 40,
+    gap: 14,
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#EBE5D8',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  centerCard: {
+    alignItems: 'center',
+    paddingVertical: 32,
+    paddingHorizontal: 20,
+    textAlign: 'center',
+  },
+  questionPrompt: {
+    fontSize: 20,
+    fontWeight: '800',
+    lineHeight: 28,
+    color: '#0A1931',
+    letterSpacing: -0.3,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 14,
+  },
+  chipNeutral: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#F1EFE9',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: Radii.pill,
+  },
+  chipTextNeutral: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#5F6B80',
+  },
+  chipWaiting: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#F2EFFB',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: Radii.pill,
+  },
+  chipTextWaiting: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#5F4DB2',
+  },
+  recordingBox: {
+    marginTop: 20,
+    backgroundColor: '#F7F4EC',
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 24,
+    alignItems: 'center',
+    gap: 12,
+  },
+  idleMicCircle: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  pulsingMicWrapper: {
+    width: 64,
+    height: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pulsingMicHalo: {
+    position: 'absolute',
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(239, 68, 68, 0.25)',
+  },
+  pulsingMicCore: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#DC2626',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recordingStatusTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0A1931',
+  },
+  recordingTimerText: {
+    fontSize: 13,
+    fontFamily: 'SpaceMono-Bold',
+    color: '#DC2626',
+  },
+  recordingHint: {
+    fontSize: 13,
+    color: '#5F6B80',
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  primaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#5F4DB2',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: Radii.pill,
+    shadowColor: '#5F4DB2',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  primaryBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  stopBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E7E0D4',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: Radii.pill,
+    marginTop: 4,
+  },
+  stopBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0A1931',
+  },
+  reviewSection: {
+    marginTop: 16,
+    gap: 14,
+  },
+  actionButtonsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  outlineBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E7E0D4',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: Radii.pill,
+  },
+  outlineBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0A1931',
+  },
+  flex1: {
+    flex: 1,
+  },
+  btnPressed: {
+    opacity: 0.88,
+    transform: [{ scale: 0.97 }],
+  },
+  disabled: {
+    opacity: 0.55,
+  },
+  mt16: {
+    marginTop: 16,
+  },
+  centerContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    gap: 12,
+  },
+  spinnerCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#F1EAF7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  busyTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0A1931',
+    textAlign: 'center',
+  },
+  busySubtitle: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: '#3A4761',
+    textAlign: 'center',
+  },
+  busyMuted: {
+    fontSize: 12,
+    color: '#5F6B80',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  loadingText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#5F6B80',
+    marginTop: 8,
+  },
+  doneTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0A1931',
+    marginTop: 10,
+    textAlign: 'center',
+  },
+  doneSubtitle: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: '#5F6B80',
+    textAlign: 'center',
+    marginTop: 6,
+    paddingHorizontal: 10,
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FDF2F0',
+    borderWidth: 1,
+    borderColor: '#F8D7D2',
+    padding: 12,
+    borderRadius: 12,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#993A22',
+  },
 });
