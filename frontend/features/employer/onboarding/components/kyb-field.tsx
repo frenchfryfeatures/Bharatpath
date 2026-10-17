@@ -3,6 +3,7 @@
 import { AlertTriangle, Eye } from "lucide-react";
 
 import { AppSelect } from "@/components/ui/app-select";
+import { PhoneNumberInput } from "@/components/ui/phone-number-input";
 import type { KybField, KybOption } from "@/store/employer/kyb";
 
 import { inputValue } from "../kyb-form";
@@ -276,13 +277,25 @@ export function KybFieldInput({
         )}
       </div>
     );
+  } else if (field.type === "PHONE") {
+    control = (
+      <PhoneNumberInput
+        id={id}
+        value={value === undefined || value === null ? "" : String(value)}
+        onChange={onChange}
+        disabled={disabled}
+        ariaLabel={field.label}
+        ariaInvalid={invalid}
+        ariaDescribedBy={describedBy}
+        inputClassName={`${kybInputClass} ${inputBorder(invalid)}`}
+        indiaOnly
+      />
+    );
   } else {
     const type =
       field.type === "EMAIL"
         ? "email"
-        : field.type === "PHONE"
-          ? "tel"
-          : field.type === "NUMBER"
+        : field.type === "NUMBER"
             ? "number"
             : field.type === "DATE"
               ? "date"
@@ -292,9 +305,7 @@ export function KybFieldInput({
       <input
         id={id}
         type={type}
-        inputMode={
-          field.code === "pincode" ? "numeric" : field.type === "PHONE" ? "tel" : undefined
-        }
+        inputMode={field.code === "pincode" ? "numeric" : undefined}
         autoComplete={AUTOCOMPLETE[field.code]}
         value={value === undefined || value === null ? "" : String(value)}
         placeholder={PLACEHOLDERS[field.code]}

@@ -1,4 +1,5 @@
 import type { CareerDetails, CareerField } from "./career-api";
+import { isProfileSalary, parseSalaryLpa } from "../salary";
 
 export type ParsedAnswer = { value: CareerDetails[string]; error?: never } | { error: string; value?: never };
 
@@ -39,22 +40,28 @@ export function parseConversationAnswer(field: CareerField, raw: string, require
     return option ? { value: option.value } : { error: `Please choose or type one of these: ${field.options.map((item) => item.label).join(", ")}.` };
   }
   if (field.type === "number") {
+    if (isProfileSalary(field.key)) return parseSalaryLpa(text);
     if (!/^\d+$/.test(text)) return { error: "Please enter a whole number using digits." };
     const value = Number(text);
     const min = field.key.endsWith("year") ? 1950 : 0;
-    const max = field.key === "experience_months" ? 11 : field.key === "experience_years" ? 60 : field.key.endsWith("year") ? 2100 : 1_000_000_000;
+    const max = field.key === "experience_months" ? 11 : field.key === "experience_years" ? 60 : field.key === "starting_year" ? new Date().getFullYear() : field.key === "passing_year" ? 2100 : 1_000_000_000;
+    if (field.key === "starting_year" && value > max) return { error: "The starting year cannot be in the future." };
     if (!Number.isSafeInteger(value) || value < min || value > max) return { error: `Please enter a whole number from ${min} to ${max}.` };
     if (field.key === "passing_year" && Number(details.starting_year) > value) return { error: "Your passing year must be the same as or later than your starting year." };
     if (field.key === "starting_year" && details.passing_year && value > Number(details.passing_year)) return { error: "Your starting year must be the same as or earlier than your passing year." };
+    if (field.key === "passing_year" && details.starting_year && value > Number(details.starting_year) + 5) return { error: "Your graduation year must be within 5 years of your starting year." };
     if (field.key === "experience_months" && details.work_status === "EXPERIENCED" && !Number(details.experience_years) && !value) return { error: "Enter at least one month of experience, or update your work status to fresher." };
     return { value };
   }
   if (field.type === "month") {
     if (!/^(?:19|20)\d{2}-(?:0[1-9]|1[0-2])$/.test(text)) return { error: "Please enter a month as YYYY-MM, for example 2024-06." };
+    const now = new Date();
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    if (text > currentMonth) return { error: "The month cannot be in the future." };
     if (field.key === "employment_end" && details.employment_start && text < String(details.employment_start)) return { error: "The ending month must be after the starting month." };
     return { value: text };
   }
-  if (field.type === "tel") return /^\+[1-9]\d{7,14}$/.test(text) ? { value: text } : { error: "Use international format, for example +919876543210." };
+  if (field.type === "tel") return /^\+[1-9]\d{7,14}$/.test(text) ? { value: text } : { error: "Enter a valid mobile number for the selected country." };
   if (field.type === "list") {
     const values = [...new Set(text.split(",").map((item) => item.trim()).filter(Boolean))];
     const maxItems = field.key === "preferred_locations" ? 5 : 100;

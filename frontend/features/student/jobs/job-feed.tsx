@@ -196,10 +196,10 @@ interface JobFilterValues {
 }
 
 const SALARIES = [
-  { label: "₹10k", value: 1_000_000 },
-  { label: "₹15k", value: 1_500_000 },
-  { label: "₹20k", value: 2_000_000 },
-  { label: "₹25k+", value: 2_500_000 },
+  { label: "₹1.2 LPA", value: 1_000_000 },
+  { label: "₹1.8 LPA", value: 1_500_000 },
+  { label: "₹2.4 LPA", value: 2_000_000 },
+  { label: "₹3 LPA+", value: 2_500_000 },
 ];
 
 function JobFiltersDrawer({ onClose, onApply, ...initial }: JobFilterValues & {
@@ -249,7 +249,6 @@ function JobFiltersDrawer({ onClose, onApply, ...initial }: JobFilterValues & {
 
           <FilterGroup icon={<IndianRupee size={16} />} label="Minimum salary">
             <div className="flex flex-wrap gap-2">{SALARIES.map((salary) => <Choice key={salary.value} active={draft.minSalaryMinor === salary.value} onClick={() => update("minSalaryMinor", draft.minSalaryMinor === salary.value ? null : salary.value)}>{salary.label}</Choice>)}</div>
-            <p className="text-[10px] text-[#7B8495] lg:text-[11px]">Salary amounts are sent to the jobs API in paise.</p>
           </FilterGroup>
 
           <FilterGroup icon={<Sparkles size={16} />} label="Skill">

@@ -197,6 +197,14 @@ def answer_key(*, user_id: uuid.UUID, session_id: uuid.UUID, question_index: int
     return f"interview-audio/{user_id}/{session_id}/{question_index}"
 
 
+def question_audio_key(*, user_id: uuid.UUID, session_id: uuid.UUID, question_index: int) -> str:
+    """Where a question's spoken audio is kept (2026-10-16). **No row records
+    it**: a question is insert-only, so its words never change and the key
+    follows from the question row alone. Erasure rebuilds the same key in SQL
+    (`privacy.repository.erasable_object_keys`), and a test holds the two equal."""
+    return f"interview-audio/{user_id}/{session_id}/questions/{question_index}"
+
+
 def valid_question_index(index: int) -> bool:
     return 0 <= index < QUESTIONS_PER_SESSION
 

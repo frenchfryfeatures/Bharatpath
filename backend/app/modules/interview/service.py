@@ -96,6 +96,7 @@ from app.modules.interview.domain import (
     parse_drafted_question,
     parse_evaluation,
     purchase_earns_points,
+    question_audio_key,
     redact_contacts,
     sniff_audio,
     valid_question_index,
@@ -123,6 +124,7 @@ from app.modules.interview.questions import (
     QuestionUnavailableError,
     get_question_provider,
 )
+from app.modules.interview.speech import SpeechProvider, get_speech_provider
 from app.modules.questionnaire import service as questionnaire_service
 from app.modules.questionnaire.domain import answers_in_words
 from app.modules.resume import service as resume_service
@@ -201,6 +203,14 @@ class InterviewQuestionNotReadyError(ConflictError):
 
     code = "interview_question_not_ready"
     title = "This question is not ready yet"
+
+
+class InterviewQuestionAudioNotOfferedError(ConflictError):
+    """A question from the fixed bank, which sessions before 2026-09-29 asked
+    and the app translates on the device. Only written questions are spoken."""
+
+    code = "interview_question_audio_not_offered"
+    title = "This question is not read aloud"
 
 
 class InterviewPreviousAnswerMissingError(ConflictError):
@@ -710,6 +720,82 @@ async def get_session(
 
 async def list_sessions(session: AsyncSession, *, user_id: uuid.UUID) -> list[InterviewSession]:
     return await repository.list_sessions(session, user_id=user_id)
+
+
+# ---------------------------------------------------------------------------
+# 4c. Questions read aloud (2026-10-16)
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True, slots=True)
+class QuestionAudio:
+    url: str
+    expires_in_seconds: int
+    mime: str
+
+
+async def question_audio(
+    session: AsyncSession,
+    *,
+    user_id: uuid.UUID,
+    session_id: uuid.UUID,
+    question_index: int,
+    provider: SpeechProvider | None = None,
+    settings: Settings | None = None,
+) -> QuestionAudio:
+    """One question read aloud, as a presigned GET that expires.
+
+    **Spoken the first time it is asked for, then kept** beside the answers,
+    so a question is paid for once however often it is played: six syntheses
+    per bought session at most. A question's words never change (the row is
+    insert-only), so what is kept can never go stale.
+
+    Spoken from the stored words in the account's locale, the language the
+    question was written in, and **nothing else is sent**: no name, no CV.
+    Only a question the session has reached -- one not written yet is 409
+    `interview_question_not_ready`, as for its upload -- and only one the
+    model wrote: a fixed bank question is translated on the device and is
+    409 `interview_question_audio_not_offered`. Any of the candidate's own
+    sessions, open or finished, so history can play the question beside the
+    answer. Someone else's is a 404. A provider that is missing or fails is
+    503 `interview_question_audio_unavailable` and stores nothing; the
+    question itself is untouched.
+    """
+    settings = settings or get_settings()
+    row = await repository.get_session(session, user_id=user_id, session_id=session_id)
+    if row is None:
+        raise InterviewSessionNotFoundError()
+    if not valid_question_index(question_index):
+        raise InterviewQuestionNotFoundError()
+    stored = await repository.questions_for(session, session_id=row.id)
+    question = next((q for q in stored if q.question_index == question_index), None)
+    if question is None and row.question_set_code == ADAPTIVE_SET_CODE:
+        raise InterviewQuestionNotReadyError()
+    if question is None or question.source != SOURCE_MODEL:
+        raise InterviewQuestionAudioNotOfferedError()
+
+    bucket = settings.s3_bucket_interview_audio
+    key = question_audio_key(user_id=row.user_id, session_id=row.id, question_index=question_index)
+    held = await storage.head_object(bucket=bucket, key=key)
+    if held is not None:
+        mime = held.get("content_type") or "application/octet-stream"
+    else:
+        speaker = provider or get_speech_provider()
+        contact = (await identity_service.contacts(session, user_ids=[row.user_id])).get(
+            row.user_id
+        )
+        spoken = await speaker.speak(
+            text=question.prompt, language=contact.locale if contact is not None else "en"
+        )
+        await storage.put_object(
+            bucket=bucket, key=key, body=spoken.audio, content_type=spoken.mime
+        )
+        mime = spoken.mime
+        logger.info("interview_question_spoken", index=question_index, provider=speaker.name)
+    ttl = settings.presigned_url_ttl_seconds
+    return QuestionAudio(
+        url=await storage.presign_get(bucket=bucket, key=key, expires_in=ttl),
+        expires_in_seconds=ttl,
+        mime=mime,
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useRef,
   useState,
 } from "react";
@@ -16,18 +17,27 @@ interface AppSelectOption {
 }
 
 interface AppSelectProps {
+  id?: string;
   value: string;
   onChange: (value: string) => void;
   options: AppSelectOption[];
   disabled?: boolean;
   className?: string;
   menuClassName?: string;
+  /** Minimum menu width for a portalled menu, independent of trigger width. */
+  portalMenuMinWidth?: number;
+  /** Short label on the trigger when menu option labels are verbose. */
+  selectedLabel?: string;
+  /** Center the selected option when this menu opens. */
+  scrollToSelectedOnOpen?: boolean;
   variant?: "default" | "student" | "student-compact";
   menuPlacement?: "top" | "bottom" | "auto";
   /** Render outside clipping and scrolling ancestors, positioned at the trigger. */
   portal?: boolean;
   placeholder?: string;
   ariaLabel?: string;
+  ariaInvalid?: boolean;
+  ariaDescribedBy?: string;
   /** Show a search box inside the menu to filter options. Off by default. */
   searchable?: boolean;
   /** Placeholder for the search box (only used when searchable). */
@@ -51,17 +61,23 @@ interface AppSelectProps {
 }
 
 export function AppSelect({
+  id,
   value,
   onChange,
   options,
   disabled = false,
   className = "",
   menuClassName = "",
+  portalMenuMinWidth,
+  selectedLabel,
+  scrollToSelectedOnOpen = false,
   variant = "default",
   menuPlacement = "bottom",
   portal = false,
   placeholder = "Select",
   ariaLabel,
+  ariaInvalid,
+  ariaDescribedBy,
   searchable = false,
   searchPlaceholder = "Search",
   onSearchChange,
@@ -74,6 +90,7 @@ export function AppSelect({
   isLoadingMoreOptions = false,
 }: Readonly<AppSelectProps>) {
   const isStudent = variant !== "default";
+  const menuId = useId();
   const studentTextSize = variant === "student-compact" ? "text-[13px]" : "text-[16px]";
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -81,6 +98,8 @@ export function AppSelect({
   const containerRef =
     useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const optionsListRef = useRef<HTMLDivElement>(null);
+  const selectedScrollDoneRef = useRef(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [menuPosition, setMenuPosition] = useState<{
     left: number;
@@ -159,7 +178,7 @@ export function AppSelect({
         ? spaceBelow >= preferredHeight || spaceBelow >= spaceAbove ? "bottom" : "top"
         : menuPlacement;
       const availableSpace = placement === "top" ? spaceAbove : spaceBelow;
-      const width = Math.min(rect.width, window.innerWidth - viewportPadding * 2);
+      const width = Math.min(Math.max(rect.width, portalMenuMinWidth ?? 0), window.innerWidth - viewportPadding * 2);
       const left = Math.min(
         Math.max(viewportPadding, rect.left),
         window.innerWidth - width - viewportPadding,
@@ -183,7 +202,7 @@ export function AppSelect({
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
     };
-  }, [menuPlacement, open, portal]);
+  }, [menuPlacement, open, portal, portalMenuMinWidth]);
 
   /* =====================================================
      CLOSE WITH ESCAPE
@@ -221,6 +240,22 @@ export function AppSelect({
       searchInputRef.current?.focus();
     }
   }, [menuPosition, open, portal, searchable]);
+
+  useEffect(() => {
+    if (!open) {
+      selectedScrollDoneRef.current = false;
+      return;
+    }
+    if (!scrollToSelectedOnOpen || (portal && !menuPosition)) return;
+    if (selectedScrollDoneRef.current) return;
+    const list = optionsListRef.current;
+    const selected = list?.querySelector<HTMLElement>('[role="option"][aria-selected="true"]');
+    if (!list || !selected) return;
+    selectedScrollDoneRef.current = true;
+    list.scrollTop += selected.getBoundingClientRect().top
+      - list.getBoundingClientRect().top
+      - (list.clientHeight - selected.clientHeight) / 2;
+  }, [menuPosition, open, portal, scrollToSelectedOnOpen]);
 
   /* =====================================================
      SELECT OPTION
@@ -268,6 +303,7 @@ export function AppSelect({
       )}
 
       <div
+        ref={optionsListRef}
         onScroll={handleOptionsScroll}
         className="bp-scrollbar max-h-[min(14rem,45vh)] overflow-y-auto overscroll-contain"
       >
@@ -325,11 +361,16 @@ export function AppSelect({
           ================================================= */}
 
       <button
+        id={id}
         type="button"
+        role="combobox"
         disabled={disabled}
         aria-label={ariaLabel}
+        aria-invalid={ariaInvalid || undefined}
+        aria-describedby={ariaDescribedBy}
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
         onClick={() => {
           if (open) {
             closeMenu();
@@ -345,7 +386,7 @@ export function AppSelect({
         }`}
       >
         <span className={`truncate font-semibold ${isStudent ? `${studentTextSize} text-[#0A1931]` : "text-[11px] text-[#283247]"}`}>
-          {selectedOption?.label ?? placeholder}
+          {selectedOption ? (selectedLabel ?? selectedOption.label) : placeholder}
         </span>
 
         <ChevronDown
@@ -366,6 +407,7 @@ export function AppSelect({
             ? createPortal(
                 <div
                   ref={menuRef}
+                  id={menuId}
                   role="listbox"
                   style={{ ...menuPosition, position: "fixed" }}
                   className={`z-[120] min-w-[140px] overflow-hidden rounded-[10px] border bg-white p-1 ${isStudent ? "border-[#C9BEEB] shadow-[0_8px_24px_rgba(95,77,178,0.12)]" : "border-[#e1e5ea] shadow-[0_8px_24px_rgba(19,26,38,0.10)]"} ${menuClassName}`}
@@ -378,6 +420,7 @@ export function AppSelect({
           : (
               <div
                 ref={menuRef}
+                id={menuId}
                 role="listbox"
                 className={`absolute right-0 ${inlinePlacement === "top" ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+6px)]"} z-[120] w-full min-w-[140px] overflow-hidden rounded-[10px] border bg-white p-1 ${isStudent ? "border-[#C9BEEB] shadow-[0_8px_24px_rgba(95,77,178,0.12)]" : "border-[#e1e5ea] shadow-[0_8px_24px_rgba(19,26,38,0.10)]"} ${menuClassName}`}
               >

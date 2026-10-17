@@ -4,7 +4,9 @@ import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "rea
 import { ArrowLeft, Download, Loader2, Plus, RotateCcw, Save, Send, Trash2, X } from "lucide-react";
 
 import type { StructuredResume } from "@/components/resume/structured-resume";
+import { languageProficiencyOptions } from "@/components/resume/language-proficiency";
 import { AppSelect } from "@/components/ui/app-select";
+import { PhoneNumberInput } from "@/components/ui/phone-number-input";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { getApiErrorMessage } from "@/lib/api/error-message";
 import { showErrorFeedback, showSuccessFeedback } from "@/lib/feedback/success-feedback";
@@ -371,7 +373,16 @@ export function ResumeBuilderStep({
 
             <Section title="Contact and links">
               <Text label="Email" value={contacts.email} onChange={(email) => patch({ contacts: { ...contacts, email } })} />
-              <Text label="Phone" value={contacts.phone} onChange={(phone) => patch({ contacts: { ...contacts, phone } })} />
+              <div className="flex min-w-0 flex-col gap-1">
+                <span className="text-[12px] font-semibold text-[#3A4761]">Phone</span>
+                <PhoneNumberInput
+                  variant="student-compact"
+                  value={contacts.phone}
+                  onChange={(phone) => patch({ contacts: { ...contacts, phone } })}
+                  ariaLabel="Phone"
+                  inputClassName={input}
+                />
+              </div>
               <Text label="LinkedIn" value={contacts.linkedin} onChange={(linkedin) => patch({ contacts: { ...contacts, linkedin } })} />
               <Text label="GitHub" value={contacts.github} onChange={(github) => patch({ contacts: { ...contacts, github } })} />
               <Text label="Website" value={contacts.website} onChange={(website) => patch({ contacts: { ...contacts, website } })} />
@@ -527,15 +538,12 @@ function PartialDateField({ label, value, onChange, yearOnly = false, disabled =
   );
 }
 
-const proficiencyOptions = ["Native", "Fluent", "Advanced", "Intermediate", "Basic", "Beginner"];
-
 function ProficiencyField({ value, onChange, error }: { value: string; onChange: (value: string) => void; error?: string }) {
   const errorId = useId();
-  const options = value && !proficiencyOptions.includes(value) ? [value, ...proficiencyOptions] : proficiencyOptions;
   return (
     <div className="flex min-w-0 flex-col gap-1" role="group" aria-label="Proficiency" aria-describedby={error ? errorId : undefined} data-resume-invalid={error ? "true" : undefined}>
       <span className="text-[12px] font-semibold text-[#3A4761]">Proficiency</span>
-      <AppSelect value={value} onChange={onChange} options={[{ value: "", label: "Select proficiency" }, ...options.map((option) => ({ value: option, label: option }))]}
+      <AppSelect value={value} onChange={onChange} options={languageProficiencyOptions(value)}
         ariaLabel="Proficiency" placeholder="Select proficiency" variant="student-compact" menuPlacement="auto" portal className={selectClass} />
       {error && <span id={errorId} className="text-xs text-red-700">{error}</span>}
     </div>
