@@ -44,6 +44,7 @@ import {
   completeInterviewAnswer,
   completeInterviewSession,
   getInterviewSession,
+  getInterviewQuestionAudio,
   getNextInterviewQuestion,
   interviewErrorMessage,
   issueAnswerUpload,
@@ -114,6 +115,7 @@ export function InterviewSessionScreen({ sessionId }: Props) {
   const recorderState = useAudioRecorderState(recorder, 200);
   const player = useAudioPlayer(null);
   const playerStatus = useAudioPlayerStatus(player);
+  const questionPlayer = useAudioPlayer(null);
   const [session, setSession] = useState<InterviewSession | null>(null);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [phase, setPhase] = useState<Phase>('loading');
@@ -173,6 +175,30 @@ export function InterviewSessionScreen({ sessionId }: Props) {
 
   const question: InterviewQuestion | null = session?.questions[questionIndex] ?? null;
   const maxDurationMs = (question?.answer_seconds ?? 120) * 1000;
+
+  // Read the question aloud as soon as it is on screen. Best effort: the
+  // written question stays, so a failure here is silent.
+  const promptIndex = question?.index ?? null;
+  useEffect(() => {
+    if (phase !== 'prep' || promptIndex === null) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const audio = await getInterviewQuestionAudio(sessionId, promptIndex);
+        if (cancelled) return;
+        await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false });
+        if (cancelled) return;
+        questionPlayer.replace({ uri: audio.url });
+        questionPlayer.play();
+      } catch {
+        // The question is also written on screen.
+      }
+    })();
+    return () => {
+      cancelled = true;
+      stopPlayback(questionPlayer);
+    };
+  }, [phase, promptIndex, questionPlayer, sessionId]);
 
   const stopRecording = useCallback(async () => {
     if (stopping.current || !recorderState.isRecording) return;

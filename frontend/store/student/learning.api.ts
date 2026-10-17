@@ -9,6 +9,7 @@ export type LessonProgress = { lesson_id: string; position_seconds: number; comp
 export type PaymentCheckout = { payment_id: string; redirect_url: string | null; status: string; amount_minor: number; list_amount_minor: number | null; currency: string };
 export type InterviewHistory = { id: string; session_number: number; state: string; created_at: string; completed_at: string | null; question_set_title: string; questions_asked: number; answers_stored: number; report_status: string };
 export type InterviewSession = { id: string; state: string; questions_total: number; questions: Array<{ index: number; prompt: string; preparation_seconds: number; answer_seconds: number }>; answers: Array<{ question_index: number; upload_state: string }> };
+export type InterviewQuestionAudio = { url: string; expires_in_seconds: number; mime: string };
 export type InterviewReport = {
   session_id: string;
   status: "PENDING" | "READY" | "FAILED";
@@ -39,9 +40,10 @@ export const learningApi = baseApi.injectEndpoints({
     getInterviewSession: builder.query<InterviewSession, string>({ query: (id) => `/candidate/interview/sessions/${id}`, providesTags: ["Student"] }),
     getInterviewUpload: builder.mutation<{ url: string; accepted_types: string[]; max_bytes: number; max_duration_ms: number }, { id: string; index: number }>({ query: ({ id, index }) => ({ url: `/candidate/interview/sessions/${id}/answers/${index}/upload`, method: "POST" }) }),
     completeInterviewAnswer: builder.mutation<unknown, { id: string; index: number; durationMs: number }>({ query: ({ id, index, durationMs }) => ({ url: `/candidate/interview/sessions/${id}/answers/${index}/complete`, method: "POST", body: { duration_ms: durationMs } }) }),
+    getInterviewQuestionAudio: builder.query<InterviewQuestionAudio, { id: string; index: number }>({ query: ({ id, index }) => `/candidate/interview/sessions/${id}/questions/${index}/audio`, keepUnusedDataFor: 0 }),
     nextInterviewQuestion: builder.mutation<InterviewSession, string>({ query: (id) => ({ url: `/candidate/interview/sessions/${id}/next-question`, method: "POST" }), invalidatesTags: ["Student"] }),
     completeInterview: builder.mutation<InterviewSession, string>({ query: (id) => ({ url: `/candidate/interview/sessions/${id}/complete`, method: "POST" }), invalidatesTags: ["Student"] }),
   }),
 });
 
-export const { useGetCourseDetailQuery, useCheckoutCourseMutation, useUpdateLessonProgressMutation, useGetInterviewHistoryQuery, useGetInterviewRecordingsQuery, useGetInterviewReportQuery, useGetApplicationMessagesQuery, useCheckoutInterviewMutation, useCheckInterviewDeviceMutation, useStartInterviewMutation, useGetInterviewSessionQuery, useGetInterviewUploadMutation, useCompleteInterviewAnswerMutation, useNextInterviewQuestionMutation, useCompleteInterviewMutation } = learningApi;
+export const { useGetCourseDetailQuery, useCheckoutCourseMutation, useUpdateLessonProgressMutation, useGetInterviewHistoryQuery, useGetInterviewRecordingsQuery, useGetInterviewReportQuery, useGetApplicationMessagesQuery, useCheckoutInterviewMutation, useCheckInterviewDeviceMutation, useStartInterviewMutation, useGetInterviewSessionQuery, useGetInterviewUploadMutation, useGetInterviewQuestionAudioQuery, useCompleteInterviewAnswerMutation, useNextInterviewQuestionMutation, useCompleteInterviewMutation } = learningApi;
