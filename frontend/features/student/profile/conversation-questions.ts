@@ -8,7 +8,7 @@ const questions: Record<string, string> = {
   company_name: "Which company do you work for?",
   job_title: "What is your current job title?",
   employment_start: "When did you start this job?",
-  annual_salary: "What is your current annual salary in rupees?",
+  annual_salary: "What is your current annual salary in LPA?",
   notice_period: "How soon can you join a new job?",
   key_skills: "What are your key skills? You can separate them with commas.",
   industry: "Which industry do you work in?",
@@ -25,7 +25,7 @@ const questions: Record<string, string> = {
   passing_year: "In which year did you graduate, or expect to graduate?",
   headline: "How would you introduce yourself to employers in one short headline?",
   preferred_locations: "Where would you like to work? You can add up to five locations.",
-  preferred_salary: "What annual salary are you looking for, in rupees?",
+  preferred_salary: "What annual salary are you looking for in LPA?",
   gender: "Would you like to share your gender? This is optional.",
 };
 

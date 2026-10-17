@@ -83,7 +83,7 @@ export function CandidatesTab({
       cell: (user) => (
         <Link
           href={`/admin/users/${user.id}`}
-          className="cursor-pointer rounded-lg border border-[#e2e5eb] bg-white px-3 py-2 text-[11px] font-semibold text-[#172033] transition-colors hover:bg-[#f8f9fb]"
+          className="cursor-pointer whitespace-nowrap rounded-lg border border-[#e2e5eb] bg-white px-3 py-2 text-[11px] font-semibold text-[#172033] transition-colors hover:bg-[#f8f9fb]"
         >
           View
         </Link>

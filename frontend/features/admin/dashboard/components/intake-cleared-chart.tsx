@@ -54,7 +54,7 @@ export function IntakeClearedChart({
               fontFamily: "'General Sans', sans-serif",
             }}
           >
-            This week, all queues
+            Last 14 days, all queues
           </p>
         </div>
 
@@ -75,12 +75,12 @@ export function IntakeClearedChart({
       <div className="mt-4 flex h-24 items-end gap-2.5">
         {data.map((item) => (
           <div
-            key={item.day}
+            key={item.date}
             className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1.5"
+            title={`${item.dateLabel}: ${item.intake} arrived, ${item.cleared} cleared`}
           >
             <div
               className="flex h-full w-full items-end gap-1"
-              title={`${item.day}: ${item.intake} in, ${item.cleared} cleared`}
             >
               {/* Intake */}
 
@@ -105,17 +105,22 @@ export function IntakeClearedChart({
               </div>
             </div>
 
-            <span
+            <time
+              dateTime={item.date}
               className="text-[11px] font-medium text-[#777f90]"
               style={{
                 fontFamily: "'General Sans', sans-serif",
               }}
             >
               {item.day}
-            </span>
+            </time>
           </div>
         ))}
       </div>
+
+      <p className="mt-1 text-center text-[10px] font-medium text-[#777f90]">
+        Date (day of month)
+      </p>
 
       {/* ================================================================ */}
       {/* Footer                                                           */}
@@ -128,7 +133,7 @@ export function IntakeClearedChart({
         }}
       >
         Grey is what arrived, colour is what operators
-        cleared. {totalIn} in, {totalOut} out this week.
+        cleared. {totalIn} in, {totalOut} out over 14 days.
       </p>
     </section>
   );

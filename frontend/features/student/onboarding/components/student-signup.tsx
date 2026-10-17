@@ -115,11 +115,12 @@ export function StudentSignup() {
   const [resumeFilename, setResumeFilename] = useState<string>();
   const [initialProfileSection, setInitialProfileSection] = useState(0);
   const [activeProfileSection, setActiveProfileSection] = useState(0);
+  const [conversationMode, setConversationMode] = useState(false);
   const [basicDraft, setBasicDraft] = useState<CareerDetails | null>(null);
   const [saveCareer] = useSaveCareerProfileMutation();
   const [intakeResume] = useIntakeCareerResumeMutation();
   const career = useGetCareerProfileQuery(undefined, { skip: !signedIn });
-  const { subscription, hasAccess } = useStudentHasAccess(!signedIn);
+  const { hasAccess } = useStudentHasAccess(!signedIn);
 
   const [loadProfile] = studentApi.endpoints.getStudentProfile.useLazyQuery();
   const [loadVersions] = useLazyGetResumeVersionsQuery();
@@ -130,6 +131,7 @@ export function StudentSignup() {
     studentApi.endpoints.updateStudentName.useMutation();
 
   const go = (next: Stage) => {
+    setConversationMode(false);
     setStage(next);
     if (typeof window !== "undefined") {
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -360,6 +362,7 @@ export function StudentSignup() {
       aside={aside}
       signedIn={signedIn}
       onSignOut={() => void signOut()}
+      conversationMode={(stage.name === "review" || stage.name === "account-details") && conversationMode}
     >
       {content}
     </SignupFrame>
@@ -453,6 +456,7 @@ export function StudentSignup() {
         <CareerForm
           initialSection={0}
           onSectionChange={setActiveProfileSection}
+          onConversationModeChange={setConversationMode}
           resumeVersionId={career.data?.resume_version_id ?? undefined}
           onBack={() => go({ name: "intake" })}
           onDone={afterProfileSaved}
@@ -574,6 +578,7 @@ export function StudentSignup() {
         <CareerForm
           initialSection={initialProfileSection}
           onSectionChange={setActiveProfileSection}
+          onConversationModeChange={setConversationMode}
           resumeFilename={resumeFilename}
           key={stage.resumeVersionId}
           resumeVersionId={stage.resumeVersionId}

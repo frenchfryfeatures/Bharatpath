@@ -1,3 +1,4 @@
+import { LoadingImage } from "@/components/common/loading/loading-image";
 import React, { useState } from "react";
 
 export interface AvatarProps {
@@ -38,8 +39,7 @@ export function Avatar({
 
   if (src && failedSrc !== src) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element -- presigned, expiring URL
-      <img
+      <LoadingImage
         src={src}
         alt=""
         onError={() => setFailedSrc(src)}

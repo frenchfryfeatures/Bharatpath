@@ -4,6 +4,7 @@ import { CheckCircle2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Dropdown } from "@/components/ui/dropdown";
+import { PhoneNumberInput } from "@/components/ui/phone-number-input";
 import { CollegeErrorState } from "@/features/college/components/college-error-state";
 import { FormSkeleton } from "@/components/common/loading";
 import type {
@@ -169,7 +170,7 @@ function Field({
 
   // A dropdown is a button with its own menu; a <label> around it would
   // forward label clicks to the trigger, so the select row uses a <div>.
-  const Wrapper = field.type === "SELECT" ? "div" : "label";
+  const Wrapper = field.type === "SELECT" || field.type === "PHONE" ? "div" : "label";
 
   return (
     <Wrapper className="flex flex-col gap-2">
@@ -205,6 +206,15 @@ function Field({
               ? "border-[#e02424] focus:border-[#e02424] focus:ring-[#e02424]/10"
               : "border-[#e1e5eb] focus:border-[#3566b8] focus:ring-[#3566b8]/10"
           }`}
+        />
+      ) : field.type === "PHONE" ? (
+        <PhoneNumberInput
+          value={stringValue}
+          onChange={onChange}
+          ariaLabel={field.label}
+          ariaInvalid={Boolean(error)}
+          inputClassName={controlClass}
+          indiaOnly
         />
       ) : (
         <input

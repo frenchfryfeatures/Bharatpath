@@ -1,15 +1,16 @@
 "use client";
 
+import { Check, Eye } from "lucide-react";
 import { ImageTile } from "@/features/admin/shared/image-tile";
 
 import { useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { usePageHeader } from "@/components/layout/header-context";
 import { canAccessAdminQueueTab } from "@/lib/auth/route-access";
 import { useAppDispatch } from "@/store/hooks";
 import { useSessionIdentity } from "@/lib/auth/use-session-identity";
-import { setQueueTab } from "@/store/admin/queue/slice";
+import { closeReview, openReview as openReviewAction, setQueueTab } from "@/store/admin/queue/slice";
 
 import { DataTable } from "@/components/ui/table";
 import type { ColumnDef } from "@/components/ui/table";
@@ -89,15 +90,25 @@ export function QueuePage() {
 
   const isKyb = tab === "kyb";
 
-  // Links such as the dashboard's "Integrity flags" card name the tab to open.
+  // Dashboard item links name both the queue and the review drawer to open.
   const dispatch = useAppDispatch();
+  const router = useRouter();
   const { user } = useSessionIdentity();
-  const requestedTab = useSearchParams().get("tab");
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const requestedReview = searchParams.get("review");
   useEffect(() => {
     if ((requestedTab === "kyb" || requestedTab === "integrity") && canAccessAdminQueueTab(user?.backendRole, requestedTab)) {
       dispatch(setQueueTab(requestedTab));
+      if (requestedReview) {
+        dispatch(openReviewAction(requestedReview));
+      } else {
+        dispatch(closeReview());
+      }
+    } else if (!requestedReview) {
+      dispatch(closeReview());
     }
-  }, [dispatch, requestedTab, user?.backendRole]);
+  }, [dispatch, requestedTab, requestedReview, user?.backendRole]);
 
   const RISK_COLUMN: ColumnDef<QueueItem> = {
       id: "risk",
@@ -221,20 +232,22 @@ export function QueuePage() {
       header: "Actions",
 
       headerClassName:
-        "min-w-[170px]",
+        "min-w-[220px]",
 
       cellClassName:
-        "min-w-[170px]",
+        "min-w-[220px]",
 
       cell: (item) => (
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() =>
-              openReview(item.id)
-            }
-            className="cursor-pointer rounded-lg border border-[#e2e5eb] bg-white px-3 py-2 text-[11px] font-semibold text-[#172033] transition-colors hover:bg-[#f8f9fb]"
+            onClick={() => {
+              openReview(item.id);
+              router.replace(`/admin/queue?tab=${tab}&review=${encodeURIComponent(item.id)}`, { scroll: false });
+            }}
+            className="inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#e2e5eb] bg-white px-3 py-2 text-[11px] font-semibold text-[#172033] transition-colors hover:bg-[#f8f9fb]"
           >
+            <Eye size={13} aria-hidden="true" />
             Review
           </button>
 
@@ -242,8 +255,9 @@ export function QueuePage() {
             type="button"
             disabled={isActing}
             onClick={() => void approve(item)}
-            className="cursor-pointer rounded-lg bg-[#5b4fcf] px-3 py-2 text-[11px] font-semibold text-white transition-colors hover:bg-[#4f44bc]"
+            className="inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-lg bg-[#5b4fcf] px-3 py-2 text-[11px] font-semibold text-white transition-colors hover:bg-[#4f44bc]"
           >
+            <Check size={13} aria-hidden="true" />
             {isActing ? "Saving..." : isKyb ? "Approve" : "Clear"}
           </button>
         </div>

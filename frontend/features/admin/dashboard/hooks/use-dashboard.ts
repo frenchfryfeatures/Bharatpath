@@ -35,16 +35,6 @@ function waitingFor(iso: string): string {
   return hours < 24 ? `${hours}h` : `${Math.floor(hours / 24)}d`;
 }
 
-function initialsOf(label: string): string {
-  return label
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
-}
-
 function typeOf(
   type: AdminOldestWaitingItem["type"],
 ): OldestDashboardItem["type"] {
@@ -72,27 +62,24 @@ function riskOf(
   return "-";
 }
 
-function shortId(value: string | null): string | null {
-  return value ? value.slice(0, 8) : null;
-}
-
 function subjectOf(item: AdminOldestWaitingItem): string {
   if (item.organisation) {
     return item.organisation;
   }
 
   if (item.type === "INTEGRITY") {
-    return `Candidate ${shortId(item.candidate_id) ?? shortId(item.id)}`;
+    return item.candidate_name?.trim() ||
+      "Candidate";
   }
 
   if (item.type === "KYB") {
-    return `Organisation ${shortId(item.tenant_id) ?? shortId(item.id)}`;
+    return "Organisation";
   }
 
   const party = item.party
     ? `${item.party[0]}${item.party.slice(1).toLowerCase()}`
     : "Platform";
-  return `${party} dispute ${shortId(item.id)}`;
+  return `${party} dispute`;
 }
 
 function humaniseCode(value: string): string {
@@ -164,11 +151,11 @@ function toOldestItems(
     const subject = subjectOf(item);
     return {
       id: item.id,
+      href: item.type === "DISPUTE"
+        ? `/admin/disputes?tab=open&review=${encodeURIComponent(item.id)}`
+        : `/admin/queue?tab=${item.type === "KYB" ? "kyb" : "integrity"}&review=${encodeURIComponent(item.id)}`,
       name: subject,
       meta: humaniseCode(item.detail),
-      initials: initialsOf(subject) || "-",
-      imageUrl: item.logo_url ?? item.photo_url,
-      imageFit: item.logo_url ? "contain" : "cover",
       type: typeOf(item.type),
       risk: riskOf(item.severity),
       waiting: waitingFor(item.waiting_since),
@@ -198,13 +185,21 @@ function toIntakeCleared(
   );
 
   return throughput.map((point) => {
-    const parsed = new Date(point.date);
-    const day = Number.isNaN(parsed.getTime())
-      ? point.date
-      : parsed.toLocaleDateString("en-IN", { day: "numeric" });
+    // The API date is an IST calendar day. Format it in UTC so browsers in
+    // other time zones do not shift the label to the previous day.
+    const parsed = new Date(`${point.date}T00:00:00Z`);
+    const validDate = !Number.isNaN(parsed.getTime());
+    const day = validDate
+      ? parsed.toLocaleDateString("en-IN", { day: "numeric", timeZone: "UTC" })
+      : point.date;
+    const dateLabel = validDate
+      ? parsed.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
+      : point.date;
 
     return {
+      date: point.date,
       day,
+      dateLabel,
       intake: point.intake,
       cleared: point.cleared,
       intakeHeight: (point.intake / maxValue) * 100,

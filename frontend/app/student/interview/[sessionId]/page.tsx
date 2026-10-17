@@ -3,11 +3,32 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useGetInterviewSessionQuery, useGetInterviewUploadMutation, useCompleteInterviewAnswerMutation, useNextInterviewQuestionMutation, useCompleteInterviewMutation } from "@/store/student/learning.api";
+import { useGetInterviewSessionQuery, useGetInterviewQuestionAudioQuery, useGetInterviewUploadMutation, useCompleteInterviewAnswerMutation, useNextInterviewQuestionMutation, useCompleteInterviewMutation } from "@/store/student/learning.api";
 import { StudentPage } from "@/features/student/shell";
 import { Skeleton } from "@/components/common/loading";
-import { Clock, LoaderCircle, Mic, Square } from "lucide-react";
+import { Clock, LoaderCircle, Mic, Square, Volume2 } from "lucide-react";
 import { MeterBar, PillButton, SectionEyebrow, StatusChip, StudentAudioPlayer, StudentCard, StudentErrorState } from "@/features/student/components";
+
+/** Reads the question aloud as soon as it is on screen. Best effort: the written question is always the source of truth. */
+function QuestionAudio({ sessionId, index }: { sessionId: string; index: number }) {
+  const audio = useGetInterviewQuestionAudioQuery({ id: sessionId, index });
+  const el = useRef<HTMLAudioElement | null>(null);
+  const [blocked, setBlocked] = useState(false);
+  const url = audio.data?.url;
+  useEffect(() => {
+    const node = el.current;
+    if (!url || !node) return;
+    setBlocked(false);
+    node.play().catch(() => setBlocked(true));
+    return () => node.pause();
+  }, [url]);
+  if (audio.isLoading) return <p className="mt-3 flex items-center gap-2 text-[12px] text-[#5F6B80]"><LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />Loading audio…</p>;
+  if (!url) return null;
+  return <div className="mt-3">
+    <audio ref={el} src={url} controls preload="auto" className="h-10 w-full" aria-label="Question audio" />
+    {blocked ? <p className="mt-1 flex items-center gap-1.5 text-[12px] text-[#5F6B80]"><Volume2 size={12} aria-hidden="true" />Your browser blocked autoplay. Press play to hear the question.</p> : null}
+  </div>;
+}
 
 export default function InterviewSessionPage() {
   const id = useParams<{ sessionId: string }>().sessionId;
@@ -101,6 +122,7 @@ export default function InterviewSessionPage() {
 
       {current ? <StudentCard className="!p-5 sm:!p-6">
         <h2 className="text-[20px] font-bold leading-[28px] text-[#0A1931] sm:text-[22px] sm:leading-[30px]">{current.prompt}</h2>
+        <QuestionAudio key={`${id}-${current.index}`} sessionId={id} index={current.index} />
         <div className="mt-4 flex flex-wrap gap-2">
           <StatusChip tone="neutral" icon={<Clock size={12} />}>{current.preparation_seconds}s to prepare</StatusChip>
           <StatusChip tone="waiting" icon={<Mic size={12} />}>Up to {current.answer_seconds}s to answer</StatusChip>

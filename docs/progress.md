@@ -98,6 +98,51 @@ rebuilds it.
 
 ---
 
+## 2026-10-15 — Admin users and organisations are separate pages
+
+`/admin/users` now shows only candidates, without a category tab strip.
+`/admin/organisations` shows Employers and Institutions tabs with their existing
+lists and account actions. Both pages have separate sidebar links and headings;
+the dashboard's Active employers card opens the Organisation page. Legacy
+`/admin/users?segment=employers|institutions` links redirect to the new page.
+
+---
+
+## 2026-10-15 — Dashboard throughput dates clarified
+
+The intake/cleared chart now labels its x axis as calendar dates and shows the
+full date plus intake and cleared counts when a day is hovered. Date formatting
+uses the API's calendar day without shifting it for the viewer's time zone.
+The heading and totals now describe the full 14-day period.
+
+---
+
+## 2026-10-15 — Oldest items show names and issue details only
+
+Removed the avatar and short item ID from each dashboard oldest-item row. The
+subject now shows the name and human-readable issue detail, and the row still
+opens the selected review drawer.
+
+---
+
+## 2026-10-15 — Dashboard oldest items open their review drawers
+
+Each "Oldest items waiting" row now links to its KYB, integrity, or dispute
+page with the selected item in the URL. The destination opens its detail
+drawer, including when that item is outside the queue's current page; closing
+the drawer removes the selected item from the URL.
+
+---
+
+## 2026-10-15 — Admin dashboard oldest items display current response fields
+
+The frontend now shows `candidate_name` on integrity rows in "Oldest items
+waiting", falling back to the candidate ID when no name is available. It also
+uses `organisation_logo_url` for KYB and dispute rows. The dashboard continues
+to read these values from `GET /admin/dashboard`.
+
+---
+
 ## 2026-10-15 — Admin dashboard: integrity items name the candidate
 
 `GET /admin/dashboard` → `oldest_waiting` gained `candidate_name` on

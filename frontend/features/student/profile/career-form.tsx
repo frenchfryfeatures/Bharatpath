@@ -1,13 +1,16 @@
 "use client";
 import { useStudentHasAccess } from "@/features/student/onboarding/use-student-access";
 import { Fragment, useEffect, useRef, useState } from "react";
-import { AlertCircle, CheckCircle2, Mail, Phone, Plus, User, X } from "lucide-react";
+import { AlertCircle, CheckCircle2, Mail, Plus, User, X } from "lucide-react";
 import { StudentBackButton } from "@/features/student/components/student-back-button";
 import { ConversationPrompt } from "./conversation-prompt";
 import { conversationQuestion, type ConversationAnswer } from "./conversation-questions";
 import { applyCareerAnswer, parseConversationAnswer } from "./conversation-validation";
 import { clearOnboardingDraft, readOnboardingDraft, writeOnboardingDraft, type OnboardingDraft } from "./onboarding-draft";
 import { AppSelect } from "@/components/ui/app-select";
+import { MonthYearSelect } from "@/components/ui/month-year-select";
+import { formatSalaryLpaFromRupees, isProfileSalary, parseSalaryLpa, profileFieldLabel, salaryInputFromRupees } from "../salary";
+import { PhoneNumberInput } from "@/components/ui/phone-number-input";
 import { FormSkeleton } from "@/components/common/loading";
 import {
   useGetStudentProfileQuery,
@@ -74,6 +77,7 @@ export function CareerForm({
   editSection = "all",
   initialSection = 0,
   onSectionChange,
+  onConversationModeChange,
 }: {
   resumeVersionId?: string;
   resumeFilename?: string;
@@ -83,6 +87,7 @@ export function CareerForm({
   editSection?: CareerEditSection;
   initialSection?: number;
   onSectionChange?: (section: number) => void;
+  onConversationModeChange?: (active: boolean) => void;
 }) {
   const fields = useGetCareerFieldsQuery();
   const { hasAccess } = useStudentHasAccess(editing);
@@ -112,27 +117,37 @@ export function CareerForm({
   const [step, setStep] = useState(initialSection);
   const [error, setError] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errorScroll, setErrorScroll] = useState<string[] | null>(null);
   const [listText, setListText] = useState<Record<string, string>>({});
+  const [salaryText, setSalaryText] = useState<Record<string, string>>({});
   const [locationInput, setLocationInput] = useState("");
   const [serverRequiresSkills, setServerRequiresSkills] = useState(false);
   const [mode, setMode] = useState<"manual" | "conversation" | null>(null);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [thinking, setThinking] = useState(false);
   const [finalSaving, setFinalSaving] = useState(false);
-  const [stepDone, setStepDone] = useState(false);
-  const [chipSubmit, setChipSubmit] = useState(false);
+  const [finishReadyConversation, setFinishReadyConversation] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
-  // Choosing a suggestion answers the question; wait a render so the form
-  // reads the chosen text rather than the previous input.
   useEffect(() => {
-    if (!chipSubmit) return;
-    setChipSubmit(false);
-    formRef.current?.requestSubmit();
-  }, [chipSubmit]);
+    if (!finishReadyConversation) return;
+    const timer = setTimeout(() => {
+      setFinishReadyConversation(false);
+      formRef.current?.requestSubmit();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [finishReadyConversation]);
+  useEffect(() => {
+    if (!errorScroll?.length) return;
+    const ids = new Set(errorScroll);
+    const target = Array.from(formRef.current?.querySelectorAll<HTMLElement>("[id]") ?? [])
+      .find((element) => ids.has(element.id));
+    if (!target) return;
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    target.focus({ preventScroll: true });
+  }, [errorScroll]);
   const [conversationHistory, setConversationHistory] = useState<ConversationAnswer[]>([]);
   const [conversationInput, setConversationInput] = useState<string | null>(null);
   const [conversationError, setConversationError] = useState("");
-  const [retryCount, setRetryCount] = useState(0);
   const [attempts, setAttempts] = useState<{ key: string; answer: string; message: string }[]>([]);
   const [draftRestored, setDraftRestored] = useState(false);
   const resumeCheckpoint = useRef<OnboardingDraft | null>(null);
@@ -151,9 +166,9 @@ export function CareerForm({
         setConversationHistory(restored.draft.history);
         if (restored.sameVisit) {
           setMode(restored.draft.mode);
-          setStep(restored.draft.step);
-          setQuestionIndex(restored.draft.questionIndex);
-          setStepDone(Boolean(restored.draft.stepDone));
+          setStep(restored.draft.stepDone ? Math.min(restored.draft.step + 1, sections.length - 1) : restored.draft.step);
+          setQuestionIndex(restored.draft.stepDone ? 0 : restored.draft.questionIndex);
+          onConversationModeChange?.(restored.draft.mode === "conversation");
           setConversationInput(restored.draft.input);
         } else {
           setMode(null);
@@ -163,17 +178,17 @@ export function CareerForm({
       setDraftRestored(true);
     }, 0);
     return () => clearTimeout(timer);
-  }, [editing, storageKey]);
+  }, [editing, storageKey, onConversationModeChange]);
   useEffect(() => {
     if (editing || !storageKey || !draftRestored || !draft || completed.current || thinking) return;
     const checkpoint = !mode && resumeCheckpoint.current;
     writeOnboardingDraft(storageKey, {
       details: draft, fullName, mode, step: checkpoint ? checkpoint.step : step,
       questionIndex: checkpoint ? checkpoint.questionIndex : questionIndex,
-      stepDone: checkpoint ? checkpoint.stepDone : stepDone,
+      stepDone: false,
       history: conversationHistory, input: checkpoint ? checkpoint.input : conversationInput,
     });
-  }, [editing, storageKey, draftRestored, draft, fullName, mode, step, questionIndex, stepDone, conversationHistory, conversationInput, thinking]);
+  }, [editing, storageKey, draftRestored, draft, fullName, mode, step, questionIndex, conversationHistory, conversationInput, thinking]);
   useEffect(() => {
     onSectionChange?.(step);
   }, [step, onSectionChange]);
@@ -247,6 +262,7 @@ export function CareerForm({
   const updateEmploymentFields = !editing || editingAll || editSection === "employment";
   const showIdentityFields = section.key === "basic" && (!editing || editingAll);
   const modalFieldClass = editing ? "!rounded-lg !border !px-3 !py-2.5 !text-[13px] !leading-5" : "";
+  const maxPassingYear = draft.starting_year ? Math.min(2100, Number(draft.starting_year) + 5) : 2100;
   const sectionFields = fields.data.filter(
     (field) =>
       (editingAll ||
@@ -264,7 +280,8 @@ export function CareerForm({
   const finishing = step === sections.length - 1 && lastQuestion;
   const fieldRequired = (field: CareerField, details: CareerDetails) =>
     careerFieldRequired(field, details) ||
-    (conversational && field.key === "experience_months" && details.work_status === "EXPERIENCED" && !Number(details.experience_years)) ||
+    (conversational && details.work_status === "EXPERIENCED" &&
+      (field.key === "experience_years" || field.key === "experience_months")) ||
     (serverRequiresSkills && field.key === "key_skills");
   const busy =
     saveState.isLoading ||
@@ -273,7 +290,8 @@ export function CareerForm({
   const currentField = conversational ? activeFields[0] : undefined;
   const currentValue = currentField ? draft[currentField.key] : null;
   const answerText = conversationInput ?? (currentField?.options.find((option) => option.value === currentValue)?.label ??
-    (Array.isArray(currentValue) ? currentValue.join(", ") : String(currentValue ?? "")));
+    (currentField && isProfileSalary(currentField.key) ? salaryInputFromRupees(currentValue) :
+      Array.isArray(currentValue) ? currentValue.join(", ") : String(currentValue ?? "")));
   const update = (key: string, value: CareerDetails[string]) => {
     setDraft((current) => {
       const next = { ...(current ?? draft), [key]: value };
@@ -335,14 +353,14 @@ export function CareerForm({
     update("preferred_locations", [...locations, location]);
     setLocationInput("");
   };
-  const showMissingFields = (missing: string[]) => {
+  const showMissingFields = (missing: string[], details: CareerDetails = draft) => {
     if (editing && !editingAll) return false;
     const first = missing.find((key) =>
       key === "full_name" ||
       fields.data.some(
         (field) =>
           field.key === key &&
-          (visibleCareerField(field, draft) || key === "key_skills"),
+          (visibleCareerField(field, details) || key === "key_skills"),
       ),
     );
     if (!first) return false;
@@ -356,52 +374,66 @@ export function CareerForm({
         ? "basic"
         : fields.data.find((field) => field.key === first)?.section;
     const targetStep = sections.findIndex((item) => item.key === sectionKey);
-    if (targetStep >= 0) setStep(targetStep);
     const targetIndex = fields.data.filter((field) => field.section === sectionKey &&
-      (visibleCareerField(field, draft) || (missing.includes("key_skills") && field.key === "key_skills")))
+      (visibleCareerField(field, details) || (missing.includes("key_skills") && field.key === "key_skills")))
       .findIndex((field) => field.key === first);
+    if (targetStep >= 0) {
+      setDraft(details);
+      setStep(targetStep);
+    }
+    setErrorScroll([mode === "conversation" && targetStep > 0
+      ? "conversation-answer"
+      : first === "full_name" ? "career-full-name" : `career-${first}`]);
     setQuestionIndex(Math.max(0, targetIndex));
     setConversationInput(null);
+    setAttempts([]);
     if (mode === "conversation") {
       setConversationError("Sorry, please correct this answer before we finish your profile.");
-      setRetryCount((count) => count + 1);
     }
-    window.scrollTo({ top: 0, behavior: "smooth" });
     return true;
   };
-  /**
-   * Opens a step's chat where the answers run out: questions the profile
-   * already answers (from the resume or an earlier save) are shown as chat
-   * turns, and the first unanswered one is asked. A step with nothing left to
-   * ask goes straight to its closing message.
-   */
-  const startConversationStep = (target: number, base: ConversationAnswer[]) => {
-    const asked = fields.data.filter((field) => field.section === sections[target].key && visibleCareerField(field, draft));
-    const answered = (field: CareerField) => {
-      const value = draft[field.key];
-      return !(value === null || value === undefined || value === "" || (Array.isArray(value) && !value.length));
-    };
-    const firstOpen = asked.findIndex((field) => !answered(field));
-    const lastStep = target === sections.length - 1;
-    const complete = firstOpen < 0;
-    const shown = complete ? asked.length : firstOpen;
-    const seeded: ConversationAnswer[] = asked.slice(0, shown).map((field, position) => {
-      const value = draft[field.key];
-      return {
-        key: field.key, step: target, questionIndex: position, question: conversationQuestion(field),
-        answer: field.options.find((option) => option.value === value)?.label ??
-          (Array.isArray(value) ? value.join(", ") : String(value)),
-      };
-    });
-    // The last step still ends with its own answer and the save, so keep its final question open.
-    const keep = complete && lastStep ? seeded.slice(0, -1) : seeded;
-    setConversationHistory([...base.filter((item) => item.step !== target), ...keep]);
-    setStep(target);
-    setQuestionIndex(complete ? Math.max(0, asked.length - 1) : firstOpen);
-    setStepDone(complete && !lastStep && asked.length > 0);
-    setConversationInput(null);
+  /** Open the first unanswered question, carrying prefills through completed sections. */
+  const startConversationStep = (target: number, base: ConversationAnswer[], details: CareerDetails = draft): { step: number; questionIndex: number; readyToFinish: boolean } | null => {
+    let history = base;
+    for (let nextStep = target; nextStep < sections.length; nextStep++) {
+      const asked = fields.data.filter((field) => field.section === sections[nextStep].key &&
+        (visibleCareerField(field, details) || (serverRequiresSkills && field.key === "key_skills")));
+      const firstOpen = asked.findIndex((field) => {
+        const value = details[field.key];
+        const skipped = history.some((item) => item.key === field.key && item.answer === "Skipped for now");
+        if (skipped && !fieldRequired(field, details)) return false;
+        if (value === null || value === undefined || value === "" || (Array.isArray(value) && !value.length)) return true;
+        const answer = isProfileSalary(field.key) ? salaryInputFromRupees(value) : Array.isArray(value) ? value.join(", ") : String(value);
+        return Boolean(parseConversationAnswer(field, answer, fieldRequired(field, details), details).error);
+      });
+      const lastStep = nextStep === sections.length - 1;
+      const shown = firstOpen < 0 && lastStep ? Math.max(0, asked.length - 1) : firstOpen < 0 ? asked.length : firstOpen;
+      const seeded: ConversationAnswer[] = asked.slice(0, shown).map((field, position) => {
+        const value = details[field.key];
+        const previousSkip = history.find((item) => item.key === field.key && item.answer === "Skipped for now");
+        return {
+          key: field.key, step: nextStep, questionIndex: position, question: conversationQuestion(field),
+          answer: previousSkip && !fieldRequired(field, details) ? previousSkip.answer : isProfileSalary(field.key) ? formatSalaryLpaFromRupees(value) : field.options.find((option) => option.value === value)?.label ??
+            (Array.isArray(value) ? value.join(", ") : String(value)),
+        };
+      });
+      history = [
+        ...history.filter((item) => !seeded.some((answer) => answer.key === item.key)),
+        ...seeded,
+      ].sort((left, right) => left.step - right.step || left.questionIndex - right.questionIndex);
+      if (firstOpen >= 0 || lastStep) {
+        const index = firstOpen < 0 ? Math.max(0, asked.length - 1) : firstOpen;
+        setConversationHistory(history);
+        setStep(nextStep);
+        setQuestionIndex(index);
+        setConversationInput(null);
+        if (lastStep && firstOpen < 0) setFinishReadyConversation(true);
+        return { step: nextStep, questionIndex: index, readyToFinish: lastStep && firstOpen < 0 };
+      }
+    }
+    return null;
   };
-  const leavesForm = !editing && step === 0 && !(conversational && currentQuestionIndex > 0);
+  const leavesForm = !editing && step === 0;
   const actionRow = <div className="flex items-center gap-3">
     {!leavesForm && <StudentBackButton disabled={busy}
       className={editing ? "!h-9 !rounded-lg !py-2 !text-[13px]" : ""}
@@ -410,13 +442,17 @@ export function CareerForm({
         setConversationInput(null);
         setConversationError("");
         if (editing) onBack();
-        else if (conversational && stepDone) setStepDone(false);
-        else if (conversational && currentQuestionIndex > 0) setQuestionIndex(currentQuestionIndex - 1);
-        else if (step > 0) {
-          const previousFields = fields.data.filter((field) => field.section === sections[step - 1].key && visibleCareerField(field, draft));
+        else if (conversational) {
+          setMode(null);
+          setStep(0);
+          setQuestionIndex(0);
+          setAttempts([]);
+          setError("");
+          setErrors({});
+          onConversationModeChange?.(false);
+        } else if (step > 0) {
           setStep(step - 1);
-          setStepDone(false);
-          setQuestionIndex(conversational ? Math.max(0, previousFields.length - 1) : 0);
+          setQuestionIndex(0);
         } else onBack();
       }} />}
     <PillButton type="submit" isLoading={busy} className={`flex-1 ${editing ? "!h-9 !rounded-lg !py-2 !text-[13px]" : ""}`}>
@@ -430,14 +466,18 @@ export function CareerForm({
       {(["manual", "conversation"] as const).map((option) => <button key={option} type="button"
         onClick={() => {
           setMode(option);
+          onConversationModeChange?.(option === "conversation");
           setError("");
           const checkpoint = resumeCheckpoint.current;
           if (option === "conversation" && checkpoint && checkpoint.step > 0) {
-            setStep(checkpoint.step);
-            setQuestionIndex(checkpoint.questionIndex);
-            setStepDone(Boolean(checkpoint.stepDone));
-            setConversationInput(checkpoint.input);
-          } else startConversationStep(1, []);
+            const resumed = startConversationStep(
+              checkpoint.stepDone ? Math.min(checkpoint.step + 1, sections.length - 1) : checkpoint.step,
+              checkpoint.history,
+              checkpoint.details,
+            );
+            if (resumed && !resumed.readyToFinish && resumed.step === checkpoint.step &&
+              resumed.questionIndex === checkpoint.questionIndex) setConversationInput(checkpoint.input);
+          } else if (option === "conversation") startConversationStep(1, []);
           resumeCheckpoint.current = null;
         }} className="rounded-2xl border border-[#C9BEEB] bg-white p-5 text-left hover:border-[#5F4DB2] hover:bg-[#F8F5FF]">
         <span className="block font-semibold text-[#5F4DB2]">{option === "manual" ? "Manual Form" : "Conversational Mode"}</span>
@@ -451,7 +491,7 @@ export function CareerForm({
     <form
       ref={formRef}
       noValidate
-      className={`flex flex-col gap-6 ${editing ? "font-sans text-[13px] leading-5" : ""}`}
+      className={`flex flex-col ${conversational ? "h-full min-h-0 gap-3" : "gap-6"} ${editing ? "font-sans text-[13px] leading-5" : ""}`}
       onSubmit={async (event) => {
         event.preventDefault();
         if (busy) return;
@@ -459,7 +499,7 @@ export function CareerForm({
         const savedLocations = Array.isArray(draft.preferred_locations)
           ? draft.preferred_locations
           : [];
-        const submittedDraft =
+        const locationDraft =
           pendingLocation &&
           savedLocations.length < 5 &&
           !savedLocations.some(
@@ -467,17 +507,35 @@ export function CareerForm({
           )
             ? { ...draft, preferred_locations: [...savedLocations, pendingLocation] }
             : draft;
+        const submittedDraft = { ...locationDraft };
+        if (!conversational) {
+          for (const [key, raw] of Object.entries(salaryText)) {
+            const salaryField = fields.data.find((field) => field.key === key);
+            if (salaryField && !visibleCareerField(salaryField, submittedDraft)) continue;
+            if (!raw.trim()) {
+              submittedDraft[key] = null;
+              continue;
+            }
+            const parsed = parseSalaryLpa(raw);
+            if (parsed.error) {
+              setErrors((current) => ({ ...current, [key]: parsed.error }));
+              setErrorScroll([`career-${key}`]);
+              return;
+            }
+            submittedDraft[key] = parsed.value!;
+          }
+        }
         let employmentDetails = submittedDraft;
         const skipping = conversational && skipQuestion.current;
         skipQuestion.current = false;
         if (conversational && currentField) {
-          const parsed = parseConversationAnswer(currentField, skipping ? "" : answerText, !skipping && fieldRequired(currentField, draft), draft);
+          const parsed = parseConversationAnswer(currentField, skipping ? "" : answerText, fieldRequired(currentField, draft), draft);
           if (parsed.error) {
             const message = `Sorry, ${parsed.error.charAt(0).toLowerCase()}${parsed.error.slice(1)}`;
             setConversationError(message);
             setAttempts((list) => [...list, { key: currentField.key, answer: answerText, message }]);
             setConversationInput("");
-            setRetryCount((count) => count + 1);
+            setErrorScroll(["conversation-answer"]);
             return;
           }
           employmentDetails = applyCareerAnswer(draft, currentField.key, parsed.value!);
@@ -496,8 +554,7 @@ export function CareerForm({
           employmentDetails.phone &&
           !/^\+[1-9]\d{7,14}$/.test(String(employmentDetails.phone))
         )
-          nextErrors.phone =
-            "Use international format, for example +919876543210.";
+          nextErrors.phone = "Enter a valid mobile number for the selected country.";
         if (showIdentityFields && !fullName.trim())
           nextErrors.full_name = "Enter your full name.";
         if (
@@ -532,7 +589,8 @@ export function CareerForm({
           for (const field of fields.data) {
             if (!visibleCareerField(field, employmentDetails) && !(serverRequiresSkills && field.key === "key_skills")) continue;
             const value = employmentDetails[field.key];
-            const validation = parseConversationAnswer(field, Array.isArray(value) ? value.join(", ") : String(value ?? ""), fieldRequired(field, employmentDetails), employmentDetails);
+            const answer = isProfileSalary(field.key) ? salaryInputFromRupees(value) : Array.isArray(value) ? value.join(", ") : String(value ?? "");
+            const validation = parseConversationAnswer(field, answer, fieldRequired(field, employmentDetails), employmentDetails);
             if (validation.error) nextErrors[field.key] = validation.error;
           }
           if (employmentDetails.work_status === "EXPERIENCED" && !Number(employmentDetails.experience_years) && !Number(employmentDetails.experience_months))
@@ -547,26 +605,26 @@ export function CareerForm({
             fields.data.some((field) => field.key === key && (field.section !== section.key || (conversational && key !== currentField?.key))),
           )
         ) {
-          showMissingFields(Object.keys(nextErrors));
+          showMissingFields(Object.keys(nextErrors), employmentDetails);
           return;
         }
-        const validEmploymentMonth = (value: unknown) =>
-          typeof value === "string" &&
-          /^(?:19|20)\d{2}-(?:0[1-9]|1[0-2])$/.test(value);
-        if (
-          activeFields.some((field) => field.key === "employment_start") &&
-          employmentDetails.employment_start &&
-          !validEmploymentMonth(employmentDetails.employment_start)
-        )
-          nextErrors.employment_start = "Enter a valid month between 1900 and 2099.";
+        for (const field of activeFields) {
+          if (field.key !== "employment_start" && field.key !== "employment_end" && field.key !== "starting_year" && field.key !== "passing_year") continue;
+          const value = employmentDetails[field.key];
+          if (value === null || value === undefined || value === "") continue;
+          const validation = parseConversationAnswer(field, String(value), false, employmentDetails);
+          if (validation.error) nextErrors[field.key] = validation.error;
+        }
         setErrors(nextErrors);
         if (Object.keys(nextErrors).length) {
+          setErrorScroll(conversational
+            ? ["conversation-answer"]
+            : Object.keys(nextErrors).map((key) => key === "full_name" ? "career-full-name" : `career-${key}`));
           if (conversational) {
             const message = `Sorry, ${Object.values(nextErrors)[0]}`;
             setConversationError(message);
             if (currentField) setAttempts((list) => [...list, { key: currentField.key, answer: answerText, message }]);
             setConversationInput("");
-            setRetryCount((count) => count + 1);
           }
           return;
         }
@@ -578,34 +636,27 @@ export function CareerForm({
         let acceptedHistory = conversationHistory;
         if (conversational && currentField) {
           const value = employmentDetails[currentField.key];
-          const answer = currentField.options.find((option) => option.value === value)?.label ??
+          const answer = isProfileSalary(currentField.key) ? formatSalaryLpaFromRupees(value) : currentField.options.find((option) => option.value === value)?.label ??
             (Array.isArray(value) ? value.join(", ") : String(value ?? ""));
-          const existing = conversationHistory.findIndex((item) => item.key === currentField.key);
-          const previous = existing < 0 ? conversationHistory : conversationHistory.slice(0, existing);
-          acceptedHistory = [...previous, { key: currentField.key, step, questionIndex: currentQuestionIndex,
-            question: conversationQuestion(currentField), answer: skipping ? "Skipped for now" : answer || "Skipped for now" }];
+          acceptedHistory = [
+            ...conversationHistory.filter((item) => item.key !== currentField.key),
+            { key: currentField.key, step, questionIndex: currentQuestionIndex,
+              question: conversationQuestion(currentField), answer: skipping ? "Skipped for now" : answer || "Skipped for now" },
+          ].sort((left, right) => left.step - right.step || left.questionIndex - right.questionIndex);
           setConversationHistory(acceptedHistory);
         }
         if (!editing && !finishing) {
           if (conversational) {
-            // Re-evaluate the branch using the accepted answer, not the previous draft.
-            const nextFields = fields.data.filter((field) => field.section === section.key &&
-              (visibleCareerField(field, employmentDetails) || (serverRequiresSkills && field.key === "key_skills")));
-            const nextIndex = nextFields.findIndex((field) => field.key === currentField?.key) + 1;
-            const sectionEnds = nextIndex >= nextFields.length;
-            // The step's chat ends with a closing message; the next step starts
-            // a fresh chat only when the candidate presses Continue.
             if (storageKey) writeOnboardingDraft(storageKey, {
               details: employmentDetails, fullName, mode, step,
-              questionIndex: sectionEnds ? currentQuestionIndex : nextIndex,
-              stepDone: sectionEnds,
+              questionIndex: currentQuestionIndex,
+              stepDone: false,
               history: acceptedHistory,
               input: null,
             });
             setThinking(true);
             transitionTimer.current = setTimeout(() => {
-              if (sectionEnds) setStepDone(true);
-              else setQuestionIndex(nextIndex);
+              startConversationStep(step, acceptedHistory, employmentDetails);
               setConversationInput(null);
               setThinking(false);
             }, 550);
@@ -657,7 +708,7 @@ export function CareerForm({
           onDone(result);
         } catch (failure) {
           const missing = incompleteCareerFields(failure);
-          if (missing.length && showMissingFields(missing)) return;
+          if (missing.length && showMissingFields(missing, employmentDetails)) return;
           setError(
             getApiErrorMessage(failure, "Check your details and try again."),
           );
@@ -666,7 +717,7 @@ export function CareerForm({
         }
       }}
     >
-      <div>
+      {(editing || !conversational) && <div>
         {editing ? (
           <p className="text-[13px] leading-5 text-[#3A4761]">
             Update your profile details below.
@@ -675,28 +726,30 @@ export function CareerForm({
           <StepHeader
             step={section.key === "basic" ? "account" : section.key}
             title={section.title}
-            subtitle={conversational ? "Answer a few quick questions to complete your profile." : "We filled what we could read from your resume. Review it and add anything missing."}
+            subtitle="We filled what we could read from your resume. Review it and add anything missing."
           />
         )}
-      </div>
+      </div>}
       {conversational && <ConversationPrompt
         thinking={thinking || saveState.isLoading || finalSaving}
         question={conversationQuestion(activeFields[0])}
-        progress={`Step ${step + 1} of 4`}
-        closing={stepDone ? `Thanks! That covers ${section.title.toLowerCase()}. Ready for the next step?` : undefined}
-        history={conversationHistory}
-        stepTitles={sections.map((item) => item.title)}
+        history={conversationHistory.filter((item) =>
+          (item.step < step || (item.step === step && item.questionIndex < currentQuestionIndex)) &&
+          fields.data.some((field) => field.key === item.key && visibleCareerField(field, draft)))
+          .sort((left, right) => left.step - right.step || left.questionIndex - right.questionIndex)
+          .map((item) => isProfileSalary(item.key) && /^\d+$/.test(item.answer)
+          ? { ...item, answer: formatSalaryLpaFromRupees(Number(item.answer)) }
+          : item)}
         disabled={busy}
         retryMessage={conversationError}
         attempts={attempts.filter((item) => item.key === currentField?.key)}
-        retryCount={retryCount}
         onEdit={(answer) => {
           setStep(answer.step);
-          setStepDone(false);
           const visible = fields.data.filter((field) => field.section === sections[answer.step].key &&
             (visibleCareerField(field, draft) || (serverRequiresSkills && field.key === "key_skills")));
           setQuestionIndex(Math.max(0, visible.findIndex((field) => field.key === answer.key)));
-          setConversationHistory((history) => history.slice(0, history.findIndex((item) => item.key === answer.key)));
+          setConversationHistory((history) => history.filter((item) =>
+            item.step < answer.step || (item.step === answer.step && item.questionIndex < answer.questionIndex)));
           setAttempts([]);
           setError("");
           setConversationError("");
@@ -704,49 +757,55 @@ export function CareerForm({
         }}
       >
         <fieldset disabled={busy} className="mt-4 space-y-4">
-          {stepDone ? <div className="flex items-center gap-3">
-            <StudentBackButton disabled={busy} label="Back" onClick={() => { setStepDone(false); setConversationError(""); }} />
-            <PillButton type="button" className="flex-1" isLoading={saveState.isLoading} onClick={async () => {
-              // The step's one save: nothing is sent while its questions are answered.
-              try {
-                const cleaned = careerDetailsForSave(draft);
-                if (serverRequiresSkills) cleaned.key_skills = draft.key_skills;
-                await save({
-                  details: cleaned,
-                  resume_filename: selectedFilename ?? resumeFilename,
-                  resume_version_id: selectedVersionId ?? resumeVersionId ?? saved.data?.resume_version_id,
-                  complete: false,
-                }).unwrap();
-              } catch (failure) {
-                setError(getApiErrorMessage(failure, "Check your details and try again."));
-                return;
-              }
-              setError("");
-              setStepDone(false);
-              startConversationStep(step + 1, conversationHistory);
-              window.scrollTo({ top: 0, behavior: "smooth" });
-            }}>Continue</PillButton>
-          </div> : currentField && <>
+          {currentField && <>
             {currentField.options.length > 0 && <div role="group" aria-label={`Suggested answers for ${currentField.label}`} className="flex flex-wrap gap-2">
               {currentField.options.map((option) => <button key={option.value} type="button"
                 aria-pressed={answerText === option.label}
-                onClick={() => { setConversationInput(option.label); setConversationError(""); setChipSubmit(true); }}
+                onClick={() => {
+                  setConversationInput(option.label);
+                  setConversationError("");
+                  // Submit after React has rendered the selected answer.
+                  setTimeout(() => formRef.current?.requestSubmit(), 0);
+                }}
                 className={`rounded-full border px-4 py-2.5 text-sm font-medium ${answerText === option.label ? "border-[#5F4DB2] bg-[#F1EAF7] text-[#4A3E8F]" : "border-[#C9BEEB] bg-white text-[#3A4761] hover:border-[#5F4DB2]"}`}
               >{option.label}</button>)}
             </div>}
-            <label htmlFor="conversation-answer" className="sr-only">{currentField.label}</label>
-            <input id="conversation-answer" type="text" value={answerText}
-              inputMode={currentField.type === "number" ? "numeric" : currentField.type === "tel" ? "tel" : "text"}
-              placeholder={currentField.type === "month" ? "Type a month, e.g. 2024-06" : currentField.type === "list" ? "Type answers separated by commas" : "Type your answer here…"}
-              aria-invalid={Boolean(conversationError)} aria-describedby={conversationError ? "conversation-retry" : undefined}
-              className={`${fieldClass} bg-white ${fieldBorder(Boolean(conversationError))}`}
-              onChange={(event) => setConversationInput(event.target.value)} />
-            {!careerFieldRequired(currentField, draft) && <div className="flex justify-end">
+            <label htmlFor="conversation-answer" className="sr-only">{profileFieldLabel(currentField.key, currentField.label)}</label>
+            {currentField.type === "month" ? (
+              <MonthYearSelect
+                key={currentField.key}
+                id="conversation-answer"
+                label={currentField.label}
+                value={answerText}
+                onChange={setConversationInput}
+                invalid={Boolean(conversationError)}
+                describedBy={conversationError ? "conversation-retry" : undefined}
+              />
+            ) : currentField.type === "tel" ? (
+              <PhoneNumberInput
+                id="conversation-answer"
+                variant="student"
+                value={answerText}
+                onChange={setConversationInput}
+                ariaLabel={currentField.label}
+                ariaInvalid={Boolean(conversationError)}
+                ariaDescribedBy={conversationError ? "conversation-retry" : undefined}
+                inputClassName={`${fieldClass} bg-white ${fieldBorder(Boolean(conversationError))}`}
+              />
+            ) : (
+              <input id="conversation-answer" type="text" value={answerText}
+                inputMode={isProfileSalary(currentField.key) ? "decimal" : currentField.type === "number" ? "numeric" : "text"}
+                placeholder={isProfileSalary(currentField.key) ? "e.g. 4.5 LPA" : currentField.type === "list" ? "Type answers separated by commas" : "Type your answer here…"}
+                aria-invalid={Boolean(conversationError)} aria-describedby={conversationError ? "conversation-retry" : undefined}
+                className={`${fieldClass} bg-white ${fieldBorder(Boolean(conversationError))}`}
+                onChange={(event) => setConversationInput(event.target.value)} />
+            )}
+            {!fieldRequired(currentField, draft) && <div className="flex justify-end">
               <button type="button" disabled={busy} className="text-xs text-[#5F6B80] underline underline-offset-4 hover:text-[#5F4DB2] disabled:opacity-50"
                 onClick={(event) => { skipQuestion.current = true; event.currentTarget.form?.requestSubmit(); }}>Skip this question</button>
             </div>}
           </>}
-          {!stepDone && actionRow}
+          {actionRow}
         </fieldset>
       </ConversationPrompt>}
       {error && (
@@ -795,6 +854,7 @@ export function CareerForm({
                   if (!fullName && preview.full_name)
                     setFullName(preview.full_name);
                   setListText({});
+                  setSalaryText({});
                   await save({
                     details: careerDetailsForSave(filled),
                     resume_version_id: version.resume_version_id,
@@ -841,6 +901,8 @@ export function CareerForm({
                   autoComplete="name"
                   value={fullName}
                   onChange={(event) => setFullName(event.target.value)}
+                  aria-invalid={Boolean(errors.full_name)}
+                  aria-describedby={errors.full_name ? "career-full-name-error" : undefined}
                   className={`${fieldClass} ${modalFieldClass} ${fieldBorder(Boolean(errors.full_name))} !pl-12`}
                 />
               </div>
@@ -880,7 +942,7 @@ export function CareerForm({
                 )}
               <Field
               id={id}
-              label={`${field.label}${fieldRequired(field, draft) ? " *" : ""}`}
+              label={`${profileFieldLabel(field.key, field.label)}${fieldRequired(field, draft) ? " *" : ""}`}
               error={errors[field.key]}
               optional={!fieldRequired(field, draft)}
               hint={
@@ -890,15 +952,20 @@ export function CareerForm({
                     : "Separate skills with commas."
                   : field.type === "month"
                     ? "Month and year"
+                    : field.key === "passing_year" && draft.starting_year
+                      ? `Graduation must be by ${maxPassingYear}, within 5 years of your starting year.`
                     : undefined
               }
             >
               {field.type === "select" ? (
                 <AppSelect
+                  id={id}
                   value={String(value || (field.key === "currently_employed" ? "NO" : ""))}
                   onChange={(v) => update(field.key, v)}
                   options={[{ value: "", label: "Select" }, ...field.options]}
                   ariaLabel={field.label}
+                  ariaInvalid={Boolean(errors[field.key])}
+                  ariaDescribedBy={errors[field.key] ? `${id}-error` : undefined}
                   menuPlacement="auto"
                   portal
                   variant={editing ? "student-compact" : "student"}
@@ -953,26 +1020,62 @@ export function CareerForm({
                     </ul>
                   )}
                 </div>
+              ) : field.type === "month" ? (
+                <MonthYearSelect
+                  id={id}
+                  label={field.label}
+                  value={String(value ?? "")}
+                  onChange={(next) => update(field.key, next)}
+                  invalid={Boolean(errors[field.key])}
+                  describedBy={errors[field.key] ? `${id}-error` : `${id}-hint`}
+                  compact={editing}
+                />
+              ) : field.key === "phone" ? (
+                <PhoneNumberInput
+                  id={id}
+                  variant={editing ? "student-compact" : "student"}
+                  value={String(value ?? "")}
+                  onChange={(next) => update(field.key, next)}
+                  ariaInvalid={Boolean(errors[field.key])}
+                  ariaDescribedBy={errors[field.key] ? `${id}-error` : undefined}
+                  inputClassName={`${fieldClass} ${editing ? "!px-3 !py-2.5 !text-[13px] !leading-5" : ""} ${fieldBorder(Boolean(errors[field.key]))}`}
+                />
+              ) : isProfileSalary(field.key) ? (
+                <input
+                  id={id}
+                  type="text"
+                  inputMode="decimal"
+                  value={salaryText[field.key] ?? salaryInputFromRupees(value)}
+                  placeholder="e.g. 4.5 LPA"
+                  aria-invalid={Boolean(errors[field.key])}
+                  aria-describedby={errors[field.key] ? `${id}-error` : undefined}
+                  className={`${fieldClass} ${modalFieldClass} ${fieldBorder(Boolean(errors[field.key]))}`}
+                  onChange={(event) => {
+                    const raw = event.target.value;
+                    setSalaryText((current) => ({ ...current, [field.key]: raw }));
+                    if (!raw.trim()) update(field.key, null);
+                    else {
+                      const parsed = parseSalaryLpa(raw);
+                      if (!parsed.error) update(field.key, parsed.value!);
+                    }
+                  }}
+                />
               ) : (
                 <div className="relative">
-                  {field.key === "phone" && (
-                    <Phone
-                      className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[#3A4761]"
-                      aria-hidden="true"
-                    />
-                  )}
                   <input
                     id={id}
                     type={field.type === "list" ? "text" : field.type}
                     value={field.type === "list" ? (listText[field.key] ?? (Array.isArray(value) ? value.join(", ") : "")) : String(value ?? "")}
-                    min={field.key === "experience_years" ? 0 : field.key.endsWith("year") ? 1950 : 0}
+                    min={field.key === "passing_year" && draft.starting_year ? Number(draft.starting_year) : field.key === "experience_years" ? 0 : field.key.endsWith("year") ? 1950 : 0}
                     max={
                       field.key === "experience_months"
                         ? 11
                         : field.key === "experience_years"
                           ? 60
-                        : field.key.endsWith("year")
-                          ? 2100
+                        : field.key === "starting_year"
+                          ? new Date().getFullYear()
+                          : field.key === "passing_year"
+                            ? maxPassingYear
                           : undefined
                     }
                     step={field.key.startsWith("experience_") ? 1 : undefined}
@@ -980,7 +1083,7 @@ export function CareerForm({
                     aria-describedby={
                       errors[field.key] ? `${id}-error` : undefined
                     }
-                    className={`${fieldClass} ${modalFieldClass} ${fieldBorder(Boolean(errors[field.key]))} ${field.key === "phone" ? "!pl-12" : ""}`}
+                    className={`${fieldClass} ${modalFieldClass} ${fieldBorder(Boolean(errors[field.key]))}`}
                     onChange={(event) => {
                       const raw = event.target.value;
                       if (field.type === "list") {

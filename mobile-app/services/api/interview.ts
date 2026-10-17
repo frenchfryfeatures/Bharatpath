@@ -221,6 +221,18 @@ export const getNextInterviewQuestion = (sessionId: string) =>
     method: 'POST',
   });
 
+export interface InterviewQuestionAudio {
+  url: string;
+  expires_in_seconds: number;
+  mime: string;
+}
+
+/** The link is a plain presigned mp3 and needs no auth header. */
+export const getInterviewQuestionAudio = (sessionId: string, questionIndex: number) =>
+  apiRequest<InterviewQuestionAudio>(
+    `/candidate/interview/sessions/${sessionId}/questions/${questionIndex}/audio`
+  );
+
 export const completeInterviewSession = (sessionId: string) =>
   apiRequest<InterviewSession>(`/candidate/interview/sessions/${sessionId}/complete`, {
     method: 'POST',

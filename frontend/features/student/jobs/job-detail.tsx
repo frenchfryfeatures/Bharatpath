@@ -106,6 +106,7 @@ export function JobDetail() {
 
       <JobDescriptionView
         tone="student"
+        salaryText={formatSalary(listing)}
         job={{
           title: listing.title,
           employerName: listing.employerName,

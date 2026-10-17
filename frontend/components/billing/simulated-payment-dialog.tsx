@@ -80,7 +80,6 @@ export function SimulatedPaymentDialog({
             </div>
             <h2 id="simulated-payment-title" className="mt-7 text-2xl font-bold text-[#0A1931]">Payment successful</h2>
             <p className="mt-2 text-sm text-[#5F6B80]">{money(amountMinor, currency)} paid successfully</p>
-            <p className="mt-5 text-xs text-[#8490a3]">Payment ID · {paymentId.slice(0, 8).toUpperCase()}</p>
           </div>
         ) : (
           <div>

@@ -24,11 +24,9 @@ export interface DashboardMetric {
 
 export interface OldestDashboardItem {
   id: string;
+  href: string;
   name: string;
   meta: string;
-  initials: string;
-  imageUrl?: string | null;
-  imageFit?: "cover" | "contain";
   type: "KYB" | "Integrity" | "Dispute";
   risk: "High" | "Medium" | "Low" | "-";
   waiting: string;
@@ -48,7 +46,9 @@ export interface PlatformTotal {
 }
 
 export interface IntakeClearedItem {
+  date: string;
   day: string;
+  dateLabel: string;
   intake: number;
   cleared: number;
   intakeHeight: number;

@@ -3,6 +3,7 @@
 import { ImageTile } from "@/features/admin/shared/image-tile";
 
 import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertCircle,
   Check,
@@ -30,9 +31,11 @@ import {
   useGetAdminIntegritySignalQuery,
   useGetAdminKybSubmissionQuery,
   useResolveAdminIntegritySignalMutation,
+  type IntegritySignalDetail,
 } from "@/store/api/admin-api";
 
 import { useQueue } from "../hooks/use-queue";
+import type { QueueItem } from "../types";
 
 function formatDetail(value: unknown, code?: string): string {
   if (value === null || value === undefined || value === "") return "Not provided";
@@ -203,6 +206,192 @@ function QueueDrawerSkeleton({ isKyb, onClose }: { isKyb: boolean; onClose: () =
   );
 }
 
+const SEVERITY_TONE: Record<string, string> = {
+  HIGH: "bg-[#fff0f1] text-[#c92f3f]",
+  MEDIUM: "bg-[#fff5df] text-[#9a6b18]",
+  LOW: "bg-[#eef7f1] text-[#2f7b4b]",
+};
+
+const STATE_LABEL: Record<string, string> = {
+  OPEN: "Open",
+  CLEARED: "Cleared",
+  CONFIRMED: "Confirmed",
+};
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <h3 className="text-[11px] font-bold uppercase leading-[14px] tracking-[0.06em] text-[#7b8494]">
+      {children}
+    </h3>
+  );
+}
+
+/** One integrity signal in words: what was found, what to do next, and the context to weigh it against. */
+function IntegrityFinding({
+  signal,
+  rawEvidence,
+}: {
+  signal: IntegritySignalDetail;
+  rawEvidence: Array<{ code: string; label: string; detail: string }>;
+}) {
+  const steps = signal.next_steps ?? [];
+  const others = signal.other_signals ?? [];
+  const decided = signal.state !== "OPEN";
+
+  return (
+    <>
+      {/* Does this signal hide the candidate right now? */}
+      {signal.hides_candidate ? (
+        <div role="note" className="flex gap-3 rounded-xl border border-[#f5c2c7] bg-[#fff7f7] p-3.5">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-[#c92f3f]" aria-hidden="true" />
+          <p className="text-[12px] leading-[18px] text-[#8a1f2b]">
+            <span className="font-semibold">Hidden from employer search. </span>
+            This candidate stays out of search until you decide. Clear puts them back; Confirm keeps them out.
+          </p>
+        </div>
+      ) : (
+        <div role="note" className="flex gap-3 rounded-xl border border-[#e5e7eb] bg-[#f7f8fa] p-3.5">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-[#687182]" aria-hidden="true" />
+          <p className="text-[12px] leading-[18px] text-[#5d6673]">
+            {signal.state === "CLEARED"
+              ? "Cleared. This signal no longer affects the candidate."
+              : "For review only. The candidate stays visible in search whichever you choose."}{" "}
+            Neither decision changes their score.
+          </p>
+        </div>
+      )}
+
+      {/* What was found */}
+      <section className="flex flex-col gap-3" aria-label="What was found">
+        <SectionTitle>What was found</SectionTitle>
+        <div className="rounded-xl border border-[#e5e7eb] p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-[14px] font-semibold leading-[19px] text-[#172033]">
+              {signal.rule_title ?? humanizeCode(signal.rule_id)}
+            </p>
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.04em] ${SEVERITY_TONE[signal.severity] ?? ""}`}>
+              {signal.severity.toLowerCase()}
+            </span>
+          </div>
+          {signal.rule_description ? (
+            <p className="mt-1 text-[12px] leading-[18px] text-[#687182]">{signal.rule_description}</p>
+          ) : null}
+          {signal.finding ? (
+            <p className="mt-3 border-t border-[#eef0f3] pt-3 text-[13px] leading-[19px] text-[#172033]">
+              {signal.finding}
+            </p>
+          ) : rawEvidence.length > 0 ? (
+            <dl className="mt-3 flex flex-col gap-1.5 border-t border-[#eef0f3] pt-3">
+              {rawEvidence.map((entry) => (
+                <div key={entry.code} className="flex gap-2 text-[12px] leading-[17px]">
+                  <dt className="shrink-0 font-semibold text-[#344054]">{entry.label}</dt>
+                  <dd className="min-w-0 break-words text-[#687182]">{entry.detail}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
+        </div>
+      </section>
+
+      {/* What the reviewer does next */}
+      {steps.length > 0 ? (
+        <section className="flex flex-col gap-3" aria-label="What to do next">
+          <SectionTitle>{decided ? "How this was meant to be checked" : "What to do next"}</SectionTitle>
+          <ol className="flex flex-col gap-2">
+            {steps.map((step, index) => {
+              const last = index === steps.length - 1;
+              return (
+                <li
+                  key={index}
+                  className={`flex gap-3 rounded-[10px] border px-3.5 py-2.5 ${last ? "border-[#e5e7eb] bg-[#f7f8fa]" : "border-[#eef0f3]"}`}
+                >
+                  <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#eef0ff] text-[11px] font-bold text-[#385da8]">
+                    {last ? "!" : index + 1}
+                  </span>
+                  <p className="text-[12px] leading-[18px] text-[#344054]">{step}</p>
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+      ) : null}
+
+      {/* Context to weigh the signal against */}
+      <section className="flex flex-col gap-3" aria-label="Context">
+        <SectionTitle>Context</SectionTitle>
+        <dl className="grid grid-cols-2 gap-2 text-[12px] leading-[17px]">
+          <div className="rounded-[10px] border border-[#e5e7eb] px-3.5 py-2.5">
+            <dt className="text-[#7b8494]">Employers can find them</dt>
+            <dd className="mt-0.5 font-semibold text-[#172033]">
+              {signal.visible_to_employers === null || signal.visible_to_employers === undefined
+                ? "Unknown"
+                : signal.visible_to_employers ? "Yes" : "No"}
+            </dd>
+          </div>
+          <div className="rounded-[10px] border border-[#e5e7eb] px-3.5 py-2.5">
+            <dt className="text-[#7b8494]">Their score</dt>
+            <dd className="mt-0.5 font-semibold text-[#172033]">
+              {signal.score ? `${signal.score.display_value} · ${humanizeCode(signal.score.band)}` : "Not scored"}
+            </dd>
+          </div>
+          {signal.resume_version ? (
+            <div className="col-span-2 flex items-start gap-3 rounded-[10px] border border-[#e5e7eb] px-3.5 py-3">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#f0f2f5]">
+                <FileText className="h-4 w-4 text-[#172033]" aria-hidden="true" />
+              </span>
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <dt className="text-[#7b8494]">CV this was raised on</dt>
+                <dd className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="font-semibold text-[#172033]">
+                    {humanizeCode(signal.resume_version.source)} version
+                  </span>
+                  <span className="text-[#687182]">{formatDateTime(signal.resume_version.created_at)}</span>
+                </dd>
+                {signal.resume_version.is_latest ? null : (
+                  <dd>
+                    <span className="inline-flex items-center rounded-full bg-[#fff5df] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.04em] text-[#9a6b18]">
+                      Newer CV uploaded since
+                    </span>
+                  </dd>
+                )}
+              </div>
+            </div>
+          ) : null}
+        </dl>
+
+        {others.length > 0 ? (
+          <div className="overflow-hidden rounded-xl border border-[#e5e7eb]">
+            <p className="bg-[#f7f8fa] px-4 py-2 text-[11px] font-semibold text-[#687182]">
+              Other signals on this candidate ({others.length})
+            </p>
+            <ul>
+              {others.map((other) => (
+                <li key={other.id} className="flex items-center justify-between gap-3 border-t border-[#eef0f3] px-4 py-2.5">
+                  <span className="min-w-0 truncate text-[12px] font-medium text-[#172033]">{other.rule_title}</span>
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${SEVERITY_TONE[other.severity] ?? ""}`}>
+                      {other.severity.toLowerCase()}
+                    </span>
+                    <span className="text-[11px] text-[#7b8494]">{STATE_LABEL[other.state] ?? other.state}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {decided ? (
+          <p className="text-[12px] leading-[18px] text-[#687182]">
+            {STATE_LABEL[signal.state]} {signal.resolved_at ? formatDateTime(signal.resolved_at) : ""}
+            {signal.resolved_by_email ? ` by ${signal.resolved_by_email}` : ""}
+            {signal.resolution_note ? `. Note: ${signal.resolution_note}` : "."}
+          </p>
+        ) : null}
+      </section>
+    </>
+  );
+}
+
 export function QueueDrawer() {
   const { openReviewId } = useQueue();
 
@@ -212,7 +401,17 @@ export function QueueDrawer() {
 
 function QueueDrawerBody() {
   const dispatch = useAppDispatch();
-  const { openReviewId, items, closeReview } = useQueue();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { openReviewId, items, tab, closeReview: closeReviewState } = useQueue();
+  const closeReview = () => {
+    closeReviewState();
+    if (searchParams.has("review")) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("review");
+      router.replace(`/admin/queue${params.size ? `?${params}` : ""}`, { scroll: false });
+    }
+  };
   useScrollLock(Boolean(openReviewId));
   const [note, setNote] = useState("");
   const [noteError, setNoteError] = useState<string | undefined>();
@@ -229,12 +428,7 @@ function QueueDrawerBody() {
    * ================================================================
    */
 
-  const item = items.find(
-    (queueItem) =>
-      queueItem.id === openReviewId,
-  );
-
-  const isKyb = item?.type === "KYB";
+  const isKyb = tab === "kyb";
   const kybDetail = useGetAdminKybSubmissionQuery(openReviewId ?? "", {
     skip: !openReviewId || !isKyb,
   });
@@ -244,9 +438,33 @@ function QueueDrawerBody() {
   const [decideKyb, kybDecision] = useDecideAdminKybMutation();
   const [resolveSignal, signalDecision] = useResolveAdminIntegritySignalMutation();
 
-  if (!item) {
-    return null;
-  }
+  // The oldest dashboard item may be beyond the queue's current page.
+  // Build its drawer header from the detail request in that case.
+  const signal = integrityDetail.data;
+  const candidateName = signal?.candidate?.full_name?.trim();
+  const fallbackName = isKyb
+    ? "Organisation"
+    : candidateName || "Candidate";
+  const fallbackItem: QueueItem = {
+    id: openReviewId ?? "",
+    name: fallbackName,
+    initials: fallbackName.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase(),
+    imageUrl: isKyb ? null : signal?.candidate?.photo_url ?? signal?.photo_url,
+    imageFit: isKyb ? "contain" : "cover",
+    submitted: isKyb
+      ? kybDetail.data?.submitted_at ? `Submitted ${new Date(kybDetail.data.submitted_at).toLocaleString("en-IN")}` : "KYB submission"
+      : signal?.created_at ? `Flagged ${new Date(signal.created_at).toLocaleString("en-IN")}` : "Integrity signal",
+    secondary: isKyb ? kybDetail.data?.state ?? "" : signal?.rule_title ?? signal?.rule_id ?? "",
+    risk: signal?.severity
+      ? `${signal.severity[0]}${signal.severity.slice(1).toLowerCase()}` as QueueItem["risk"]
+      : null,
+    date: "",
+    approval: null,
+    type: isKyb ? "KYB" : "Integrity",
+    resubmitted: false,
+    afterRejection: false,
+  };
+  const item = items.find((queueItem) => queueItem.id === openReviewId) ?? fallbackItem;
 
   const detailLoading = kybDetail.isLoading || integrityDetail.isLoading;
   const actionLoading = kybDecision.isLoading || signalDecision.isLoading;
@@ -272,13 +490,14 @@ function QueueDrawerBody() {
         status: value === null || value === "" ? ("Not run" as const) : ("Passed" as const),
         changed: changedFields.has(code),
       }))
-    : Object.entries(integrityDetail.data?.evidence ?? {}).map(([code, value]) => ({
-        code,
-        label: fieldLabel(code),
-        detail: formatDetail(value, code),
-        status: "Attention" as const,
-        changed: false,
-      }));
+    : [];
+
+  // Raw evidence is the fallback only, for a finding the backend could not put into words.
+  const rawEvidence = Object.entries(signal?.evidence ?? {}).map(([code, value]) => ({
+    code,
+    label: fieldLabel(code),
+    detail: formatDetail(value, code),
+  }));
 
   /*
    * ================================================================
@@ -619,10 +838,16 @@ function QueueDrawerBody() {
             ) : null}
 
             {/* ======================================================
+                INTEGRITY FINDING, NEXT STEPS AND CONTEXT
+                ====================================================== */}
+
+            {!isKyb && signal ? <IntegrityFinding signal={signal} rawEvidence={rawEvidence} /> : null}
+
+            {/* ======================================================
                 VERIFICATION CHECKS
                 ====================================================== */}
 
-            <section className="flex flex-col gap-3">
+            {isKyb ? <section className="flex flex-col gap-3">
               <div className="flex items-baseline justify-between gap-3">
                 <h3 className="text-[11px] font-bold uppercase leading-[14px] tracking-[0.06em] text-[#7b8494]">
                   Verification checks
@@ -668,11 +893,6 @@ function QueueDrawerBody() {
                             {check.status ===
                               "Passed" && (
                               <Check className="h-4 w-4" />
-                            )}
-
-                            {check.status ===
-                              "Attention" && (
-                              <AlertCircle className="h-4 w-4" />
                             )}
 
                             {check.status ===
@@ -730,7 +950,7 @@ function QueueDrawerBody() {
                   },
                 )}
               </div>
-            </section>
+            </section> : null}
 
             {/* ======================================================
                 DOCUMENTS

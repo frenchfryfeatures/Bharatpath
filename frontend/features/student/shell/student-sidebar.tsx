@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingImage } from "@/components/common/loading/loading-image";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -195,8 +196,7 @@ export function StudentSidebarContent({
           >
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#5F4DB2] text-[13px] font-bold text-white">
               {photoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element -- presigned, expiring URL
-                <img
+                <LoadingImage
                   src={photoUrl}
                   alt=""
                   onError={() => setFailedPhoto(photoUrl)}

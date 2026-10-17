@@ -4,6 +4,7 @@ import type {
   JobListing,
   ScoreScale,
 } from "./types";
+import { formatSalaryLpaFromPaise } from "./salary";
 
 const STAGE_ORDER: ApplicationStatus[] = [
   "SUBMITTED",
@@ -77,15 +78,10 @@ export function formatDateTime(value: string): string {
 }
 
 export function formatSalary(job: JobListing): string {
-  if (!job.salaryDisclosed) return "Not disclosed";
-  const formatter = new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  });
-  return `${formatter.format(job.salaryMinMinor / 100)}–${formatter.format(
-    job.salaryMaxMinor / 100,
-  )}`;
+  if (!job.salaryDisclosed || job.details?.compensation.disclosed === false) return "Not disclosed";
+  // Job board summaries omit the period; new employer postings default to monthly.
+  const period = job.details?.compensation.period || "MONTHLY";
+  return `₹${formatSalaryLpaFromPaise(job.salaryMinMinor, period)}–${formatSalaryLpaFromPaise(job.salaryMaxMinor, period)} LPA`;
 }
 
 export function workModeLabel(

@@ -8,6 +8,7 @@ const ADMIN_SECTIONS: Record<string, readonly string[]> = {
   dashboard: ADMIN_ROLES,
   queue: ["PLATFORM_ADMIN", "KYB_REVIEWER", "INTEGRITY_REVIEWER"],
   users: ["PLATFORM_ADMIN"],
+  organisations: ["PLATFORM_ADMIN"],
   disputes: ["PLATFORM_ADMIN", "SUPPORT_AGENT"],
   audit: ["PLATFORM_ADMIN"],
   "search-filters": ["PLATFORM_ADMIN", "SUPPORT_AGENT"],

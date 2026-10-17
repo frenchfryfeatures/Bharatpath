@@ -45,6 +45,7 @@ interface SignupFrameProps {
   aside?: ReactNode;
   signedIn?: boolean;
   onSignOut?: () => void;
+  conversationMode?: boolean;
 }
 
 export function SignupFrame({
@@ -53,9 +54,10 @@ export function SignupFrame({
   aside,
   signedIn = false,
   onSignOut,
+  conversationMode = false,
 }: Readonly<SignupFrameProps>) {
   return (
-    <div className="min-h-screen bg-[#FFFCF7] text-[#0A1931]">
+    <div className={`${conversationMode ? "h-dvh overflow-hidden" : "min-h-screen"} bg-[#FFFCF7] text-[#0A1931]`}>
       <header className="sticky top-0 z-30 shrink-0 border-b border-[#F0EBDF] bg-[#FFFCF7]/90 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:px-8">
           <Wordmark />
@@ -83,12 +85,12 @@ export function SignupFrame({
         </div>
       </header>
 
-      <main className="mx-auto grid w-full max-w-6xl gap-10 px-5 sm:px-8 lg:grid-cols-[380px_minmax(0,1fr)] lg:gap-14">
-        <aside className="sticky top-16 hidden self-start py-8 lg:block">
+      <main className={`mx-auto grid w-full max-w-6xl gap-10 px-5 sm:px-8 lg:grid-cols-[380px_minmax(0,1fr)] lg:gap-14 ${conversationMode ? "h-[calc(100dvh-4rem)] min-h-0 overflow-hidden" : ""}`}>
+        <aside className={`hidden lg:block ${conversationMode ? "min-h-0 overflow-y-auto py-6" : "sticky top-16 self-start py-8"}`}>
           {aside ?? <JourneyAside phase={phase} />}
         </aside>
-        <section aria-label="Student signup form" className="min-w-0 py-8">
-          <div className="mx-auto w-full max-w-[600px] lg:mx-0">{children}</div>
+        <section aria-label="Student signup form" className={`min-w-0 ${conversationMode ? "flex min-h-0 flex-col overflow-hidden py-6" : "py-8"}`}>
+          <div className={`mx-auto w-full max-w-[600px] lg:mx-0 ${conversationMode ? "flex h-full min-h-0 flex-col" : ""}`}>{children}</div>
         </section>
       </main>
     </div>

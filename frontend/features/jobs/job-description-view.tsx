@@ -1,3 +1,4 @@
+import { LoadingImage } from "@/components/common/loading/loading-image";
 import { humanizeCode } from "@/lib/format/labels";
 import {
   BriefcaseBusiness,
@@ -100,6 +101,7 @@ export interface JobDescriptionData {
 export interface JobDescriptionViewProps {
   job: JobDescriptionData;
   tone: JobViewTone;
+  salaryText?: string;
   /** Beside the facts in the header: eligibility, status. */
   badges?: ReactNode;
   /** Bottom right of the header card: Apply, Edit. */
@@ -113,6 +115,7 @@ export interface JobDescriptionViewProps {
 export function JobDescriptionView({
   job,
   tone,
+  salaryText,
   badges,
   actions,
   footerMeta,
@@ -132,6 +135,7 @@ export function JobDescriptionView({
         <JobHeaderCard
           job={job}
           t={t}
+          salaryText={salaryText}
           badges={badges}
           actions={actions}
           footerMeta={footerMeta}
@@ -151,12 +155,14 @@ export function JobDescriptionView({
 function JobHeaderCard({
   job,
   t,
+  salaryText,
   badges,
   actions,
   footerMeta,
 }: {
   job: JobDescriptionData;
   t: Tone;
+  salaryText?: string;
   badges?: ReactNode;
   actions?: ReactNode;
   footerMeta?: ReactNode;
@@ -183,8 +189,7 @@ function JobHeaderCard({
           </p>
         </div>
         {job.employerLogoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element -- presigned, expiring URL
-          <img
+          <LoadingImage
             src={job.employerLogoUrl}
             alt=""
             className="h-14 w-14 shrink-0 rounded-2xl border border-[#E7E0D4] bg-white object-contain"
@@ -207,7 +212,7 @@ function JobHeaderCard({
             </Fact>
           ) : null}
           <Fact icon={<IndianRupee size={15} />} t={t}>
-            {formatJobSalary(
+            {salaryText ?? formatJobSalary(
               job.salaryMinMinor,
               job.salaryMaxMinor,
               details.compensation,

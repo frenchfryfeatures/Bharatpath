@@ -1,5 +1,7 @@
 "use client";
 
+import { usePageSearch } from "@/lib/hooks/use-page-search";
+
 import { useEffect, useMemo, useState } from "react";
 import { Skeleton } from "@/components/common/loading";
 import { AppSelect } from "@/components/ui/app-select";
@@ -76,7 +78,7 @@ export function TeamTab() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = usePageSearch();
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
 
