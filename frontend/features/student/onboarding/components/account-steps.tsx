@@ -11,7 +11,6 @@ import {
   Lock,
   Mail,
   MapPin,
-  Phone,
   User,
   X,
 } from "lucide-react";
@@ -22,6 +21,7 @@ import {
 } from "@/features/student/profile/career-api";
 
 import { AppSelect } from "@/components/ui/app-select";
+import { PhoneNumberInput } from "@/components/ui/phone-number-input";
 import { StudentBackButton } from "@/features/student/components/student-back-button";
 import { getApiErrorMessage } from "@/lib/api/error-message";
 import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
@@ -144,7 +144,7 @@ export function AccountStep({
           !workStatus
             ? "Choose experienced or fresher."
             : !phoneValid
-              ? "Enter your mobile number in international format, for example +919876543210."
+              ? "Enter a valid mobile number for the selected country."
               : undefined,
         );
         return;
@@ -408,25 +408,18 @@ export function AccountStep({
           <Field
             id="signup-mobile"
             label="Mobile number *"
-            hint="Use international format, for example +919876543210."
+            hint="Select your country code, then enter your mobile number."
           >
-            <div className="relative">
-              <Phone
-                className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[#3A4761]"
-                aria-hidden="true"
-              />
-              <input
-                id="signup-mobile"
-                type="tel"
-                autoComplete="tel"
-                value={phone}
-                onChange={(event) => {
-                  touched.current.add("phone");
-                  setPhone(event.target.value);
-                }}
-                className={`${fieldClass} ${fieldBorder(false)} pl-12`}
-              />
-            </div>
+            <PhoneNumberInput
+              id="signup-mobile"
+              variant="student"
+              value={phone}
+              onChange={(next) => {
+                touched.current.add("phone");
+                setPhone(next);
+              }}
+              inputClassName={`${fieldClass} ${fieldBorder(false)}`}
+            />
           </Field>
           <Field
             id="signup-current-city"

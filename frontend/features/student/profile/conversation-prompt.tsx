@@ -5,19 +5,14 @@ import { MessageCircle, Volume2, VolumeX } from "lucide-react";
 import type { ConversationAnswer } from "./conversation-questions";
 
 /** Scripted questions; speech is opt-in and uses the browser's own voice. */
-export function ConversationPrompt({ question, closing, thinking, progress, history, stepTitles, onEdit, disabled, children, retryMessage, retryCount, attempts = [] }: {
+export function ConversationPrompt({ question, thinking, history, onEdit, disabled, children, retryMessage, attempts = [] }: {
   question: string;
-  /** Set when the step's questions are all answered; replaces the question. */
-  closing?: string;
-  stepTitles?: readonly string[];
   thinking: boolean;
-  progress: string;
   history: ConversationAnswer[];
   onEdit: (answer: ConversationAnswer) => void;
   disabled: boolean;
   children: ReactNode;
   retryMessage: string;
-  retryCount: number;
   /** Answers refused for the current question, replayed as chat turns. */
   attempts?: { answer: string; message: string }[];
 }) {
@@ -27,14 +22,17 @@ export function ConversationPrompt({ question, closing, thinking, progress, hist
   const promptRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [typedAttempts, setTypedAttempts] = useState(0);
-  useEffect(() => { if (!attempts.length) setTypedAttempts(0); }, [attempts.length]);
+  useEffect(() => {
+    if (attempts.length) return;
+    const timer = setTimeout(() => setTypedAttempts(0), 0);
+    return () => clearTimeout(timer);
+  }, [attempts.length]);
   const followTyping = () => { const chat = scrollRef.current; if (chat) chat.scrollTop = chat.scrollHeight; };
   useEffect(() => {
     const chat = scrollRef.current;
     chat?.scrollTo({ top: chat.scrollHeight,
       behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
-  }, [history.length, attempts.length, thinking, closing, question, streamed.text]);
-  useEffect(() => { if (closing) promptRef.current?.focus({ preventScroll: true }); }, [closing]);
+  }, [history.length, attempts.length, thinking, question, streamed.text]);
 
   useEffect(() => {
     if (thinking) return;
@@ -84,21 +82,19 @@ export function ConversationPrompt({ question, closing, thinking, progress, hist
   }, [question, thinking, voice, supported]);
 
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-[#C9BEEB] bg-[#F8F5FF]">
+    <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#C9BEEB] bg-[#F8F5FF]">
     <div className="flex items-center gap-3 border-b border-[#E7DFF5] bg-white px-5 py-4">
       <span className="grid h-10 w-10 place-items-center rounded-full bg-[#5F4DB2] text-white"><MessageCircle size={20} aria-hidden="true" /></span>
       <div><p className="font-semibold text-[#0A1931]">Your BharatPath guide</p><p className="text-xs text-[#5F6B80]">Let&apos;s build your profile, one answer at a time.</p></div>
     </div>
-    <div className="flex items-center justify-between gap-3 px-5 pt-4">
-        <p className="text-xs font-semibold text-[#5F4DB2]">{progress}</p>
+    <div className="flex items-center justify-end gap-3 px-5 pt-4">
         {supported && <button type="button" onClick={() => setVoice(!voice)} aria-pressed={voice} className="flex items-center gap-2 text-xs text-[#5F4DB2]">
           {voice ? <Volume2 size={16} /> : <VolumeX size={16} />}{voice ? "Voice on" : "Enable voice"}
         </button>}
       </div>
-    <div ref={scrollRef} role="log" aria-label="Conversation" className="relative h-[min(20rem,42dvh)] space-y-3 overflow-y-auto overscroll-contain px-5 py-4 [scrollbar-color:#C9BEEB_transparent] [scrollbar-width:thin]">
+    <div ref={scrollRef} role="log" aria-label="Conversation" className="relative min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-5 py-4 [scrollbar-color:#C9BEEB_transparent] [scrollbar-width:thin]">
     {history.length > 0 && <ol className="space-y-4" aria-label="Conversation history">
-      {history.map((answer, index) => <li key={answer.key} className="chat-in space-y-2">
-        {answer.step !== history[index - 1]?.step && stepTitles?.[answer.step] && <p className="pb-1 text-center text-xs font-semibold uppercase tracking-wide text-[#5F6B80]">{stepTitles[answer.step]}</p>}
+      {history.map((answer) => <li key={answer.key} className="chat-in space-y-2">
         <p className="mr-8 rounded-2xl rounded-tl-sm bg-white p-3 text-sm text-[#3A4761]">{answer.question}</p>
         <div className="ml-8 flex items-center justify-end gap-2">
           <button type="button" disabled={disabled} onClick={() => onEdit(answer)} aria-label={`Edit answer: ${answer.answer}`} className="text-xs text-[#5F4DB2] underline disabled:opacity-50">Edit</button>
@@ -108,10 +104,9 @@ export function ConversationPrompt({ question, closing, thinking, progress, hist
     </ol>}
       {thinking ? <p role="status" className="flex items-center gap-3 text-[#5F4DB2]">
         <span className="thinking-pulse h-3 w-3 shrink-0 rounded-full bg-[#5F4DB2]" aria-hidden="true" /> Thinking about your next question…
-      </p> : closing ? <p role="status" className="rounded-2xl rounded-tl-sm bg-white p-4 text-base font-medium leading-7 text-[#0A1931]"><Typewriter key={closing} text={closing} onTick={followTyping} /></p>
-        : <><p aria-hidden="true" className="min-h-14 rounded-2xl rounded-tl-sm bg-white p-4 text-base font-medium leading-7 text-[#0A1931]">{streamed.question === question ? streamed.text : ""}</p><p className="sr-only" aria-live="polite">{question}</p></>}
+      </p> : <><p aria-hidden="true" className="min-h-14 rounded-2xl rounded-tl-sm bg-white p-4 text-base font-medium leading-7 text-[#0A1931]">{streamed.question === question ? streamed.text : ""}</p><p className="sr-only" aria-live="polite">{question}</p></>}
       {/* Each refused answer is a turn: what was typed, why it was refused, the question again. */}
-      {!thinking && !closing && attempts.map((attempt, index) => {
+      {!thinking && attempts.map((attempt, index) => {
         const latest = index === attempts.length - 1;
         const errorTyped = !latest || typedAttempts >= attempts.length;
         return <div key={index} className="mt-3 space-y-3">
@@ -124,9 +119,9 @@ export function ConversationPrompt({ question, closing, thinking, progress, hist
           </p>}
         </div>;
       })}
-      {retryMessage && !attempts.length && !thinking && !closing && <p id="conversation-retry" role="alert" className="mt-3 rounded-2xl rounded-tl-sm bg-white p-4 text-sm leading-6 text-[#9A3B42]">{retryMessage}</p>}
+      {retryMessage && !attempts.length && !thinking && <p id="conversation-retry" role="alert" className="mt-3 rounded-2xl rounded-tl-sm bg-white p-4 text-sm leading-6 text-[#9A3B42]">{retryMessage}</p>}
     </div>
-    <div ref={promptRef} tabIndex={-1} className="border-t border-[#E7DFF5] p-5 outline-none">
+    <div ref={promptRef} tabIndex={-1} className="max-h-[45dvh] overflow-y-auto border-t border-[#E7DFF5] p-5 outline-none">
       {children}
       <style jsx>{`
         .chat-in { opacity: 0; animation: onboarding-chat-in 380ms ease-out forwards; }
@@ -156,12 +151,14 @@ function Typewriter({ text, animate = true, startDelay = 0, onTick, onDone }: {
 }) {
   const [count, setCount] = useState(0);
   const callbacks = useRef({ onTick, onDone });
-  callbacks.current = { onTick, onDone };
+  useEffect(() => { callbacks.current = { onTick, onDone }; }, [onTick, onDone]);
   useEffect(() => {
     if (!animate || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setCount(text.length);
-      callbacks.current.onDone?.();
-      return;
+      const timer = setTimeout(() => {
+        setCount(text.length);
+        callbacks.current.onDone?.();
+      }, 0);
+      return () => clearTimeout(timer);
     }
     let timer: ReturnType<typeof setInterval> | undefined;
     const start = setTimeout(() => {

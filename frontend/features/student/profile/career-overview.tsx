@@ -3,7 +3,6 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useGetResumeVersionsQuery } from "@/store/student";
 import {
   BriefcaseBusiness,
-  FileText,
   Mail,
   MapPin,
   Pencil,
@@ -15,7 +14,6 @@ import {
   useGetCareerIdentityQuery,
   useGetCareerFieldsQuery,
   useGetCareerProfileQuery,
-  useLazyGetProfileResumeDocumentQuery,
   usePrefillCareerProfileMutation,
   visibleCareerField,
 } from "./career-api";
@@ -26,6 +24,7 @@ import { PillButton } from "@/features/student/components";
 import { Avatar } from "@/components/ui";
 import { useGetProfileImageQuery } from "@/store/api/profile-image-api";
 import { ProfilePhotoCard } from "@/components/profile-image/profile-photo-card";
+import { formatSalaryLpaFromRupees, isProfileSalary, profileFieldLabel } from "../salary";
 
 const groups = [
   { id: "headline", title: "Profile headline" },
@@ -40,15 +39,6 @@ const quickLinks = [
   { id: "reports", title: "Reports and learning" },
   { id: "privacy", title: "Privacy and account" },
 ];
-const money = (value: unknown) =>
-  typeof value === "number"
-    ? new Intl.NumberFormat("en-IN", {
-        style: "currency",
-        currency: "INR",
-        maximumFractionDigits: 0,
-      }).format(value)
-    : "Not added";
-
 export function CareerOverview({
   fullName,
   email,
@@ -174,7 +164,7 @@ export function CareerOverview({
             </p>
             <p className="flex gap-2">
               <Wallet size={17} />
-              {money(details.annual_salary)}
+              {formatSalaryLpaFromRupees(details.annual_salary)}
             </p>
             <p className="flex gap-2">
               <CalendarDays size={17} />
@@ -314,10 +304,10 @@ export function CareerOverview({
                       return (
                         <div key={field.key}>
                           <dt className="text-[11px] font-medium leading-4 text-[#7B8495]">
-                            {field.label}
+                            {profileFieldLabel(field.key, field.label)}
                           </dt>
                           <dd className="mt-1 text-[14px] font-medium leading-5 text-[#0A1931]">
-                            {field.key.includes("salary") ? money(value) : text}
+                            {isProfileSalary(field.key) ? formatSalaryLpaFromRupees(value) : text}
                           </dd>
                         </div>
                       );
