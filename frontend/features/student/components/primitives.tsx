@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingImage } from "@/components/common/loading/loading-image";
 import { useState, type ReactNode } from "react";
 
 /*
@@ -342,8 +343,7 @@ export function MonogramTile({
 
   if (logoUrl && failedUrl !== logoUrl) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element -- presigned, expiring URL
-      <img
+      <LoadingImage
         src={logoUrl}
         alt=""
         width={size}

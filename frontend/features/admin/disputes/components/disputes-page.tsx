@@ -1,8 +1,13 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+
 import { usePageHeader } from "@/components/layout/header-context";
 import { Skeleton } from "@/components/common/loading";
 import { ErrorState } from "@/components/ui";
+import { useAppDispatch } from "@/store/hooks";
+import { closeDispute, openDispute as openDisputeAction, setDisputeTab } from "@/store/admin/disputes/slice";
 
 import { useDisputes } from "../hooks/use-disputes";
 
@@ -11,6 +16,22 @@ import { DisputeDrawer } from "./dispute-drawer";
 import { OpenDisputesTab } from "./open-disputes-tab";
 
 export function DisputesPage() {
+  const dispatch = useAppDispatch();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const requestedReview = searchParams.get("review");
+  useEffect(() => {
+    if (requestedTab === "open" || requestedTab === "resolved" || requestedTab === "rejected") {
+      dispatch(setDisputeTab(requestedTab));
+    }
+    if (requestedReview) {
+      dispatch(openDisputeAction(requestedReview));
+    } else {
+      dispatch(closeDispute());
+    }
+  }, [dispatch, requestedTab, requestedReview]);
+
   usePageHeader(
     "Disputes",
     "Investigate and resolve disputes raised by candidates, employers and colleges",
@@ -124,7 +145,10 @@ export function DisputesPage() {
             {state.tab === "open" && (
               <OpenDisputesTab
                 disputes={openDisputes}
-                onOpen={openDispute}
+                onOpen={(id) => {
+                  openDispute(id);
+                  router.replace(`/admin/disputes?tab=open&review=${encodeURIComponent(id)}`, { scroll: false });
+                }}
                 isLoading={openLoading}
                 pagination={openPagination}
               />
@@ -133,7 +157,10 @@ export function DisputesPage() {
             {state.tab === "resolved" && (
               <ClosedDisputesTab
                 disputes={resolvedDisputes}
-                onOpen={openDispute}
+                onOpen={(id) => {
+                  openDispute(id);
+                  router.replace(`/admin/disputes?tab=resolved&review=${encodeURIComponent(id)}`, { scroll: false });
+                }}
                 isLoading={resolvedLoading}
                 pagination={resolvedPagination}
                 emptyTitle="No resolved disputes"
@@ -143,7 +170,10 @@ export function DisputesPage() {
             {state.tab === "rejected" && (
               <ClosedDisputesTab
                 disputes={rejectedDisputes}
-                onOpen={openDispute}
+                onOpen={(id) => {
+                  openDispute(id);
+                  router.replace(`/admin/disputes?tab=rejected&review=${encodeURIComponent(id)}`, { scroll: false });
+                }}
                 isLoading={rejectedLoading}
                 pagination={rejectedPagination}
                 emptyTitle="No rejected disputes"

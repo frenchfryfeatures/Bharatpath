@@ -1,12 +1,12 @@
 "use client";
 
+import { usePageSearch } from "@/lib/hooks/use-page-search";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { useDebouncedSearch } from "@/lib/hooks/use-debounced-value";
 
 import {
   closeUser,
   openUser,
-  setUserSearch,
   setUserSegment,
 } from "@/store/admin/users/slice";
 
@@ -45,17 +45,18 @@ function candidateState(status: AdminCandidateRow["status"]): UserState {
   return "Active";
 }
 
-export function useUsers() {
+export function useUsers(segment: UserSegment, tab = "") {
   const dispatch = useAppDispatch();
 
   const state = useAppSelector(
     selectAdminUsers,
   );
-  const debouncedSearch = useDebouncedSearch(state.search);
-  const isCandidates = state.segment === "candidates";
-  const tenantType = state.segment === "employers" ? "EMPLOYER" : "COLLEGE";
+  const [search, setSearch] = usePageSearch(`${segment}:${tab}`);
+  const debouncedSearch = useDebouncedSearch(search);
+  const isCandidates = segment === "candidates";
+  const tenantType = segment === "employers" ? "EMPLOYER" : "COLLEGE";
 
-  const pagination = useCursorPagination([state.segment, debouncedSearch]);
+  const pagination = useCursorPagination([segment, debouncedSearch]);
 
   // Candidates come from GET /admin/candidates; employers and institutions
   // stay on GET /admin/tenants. Exactly one query runs per segment.
@@ -126,24 +127,18 @@ export function useUsers() {
     dispatch(setUserSegment(segment));
   };
 
-  const setSearch = (
-    search: string,
-  ) => {
-    dispatch(setUserSearch(search));
-  };
-
   return {
     state,
 
-    segment: state.segment,
+    segment,
 
-    search: state.search,
+    search,
 
     users,
 
     filteredUsers: users,
 
-    selectedId: state.selectedId,
+    selectedId: state.segment === segment ? state.selectedId : null,
 
     isLoading: activeQuery.isLoading || activeQuery.isFetching,
 

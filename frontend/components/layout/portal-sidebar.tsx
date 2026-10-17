@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingImage } from "@/components/common/loading/loading-image";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -692,8 +693,7 @@ export function PortalSidebar({
             {isIdentityResolving ? (
               ""
             ) : photoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element -- presigned, expiring URL
-              <img
+              <LoadingImage
                 src={photoUrl}
                 alt=""
                 onError={() => setFailedPhoto(photoUrl)}

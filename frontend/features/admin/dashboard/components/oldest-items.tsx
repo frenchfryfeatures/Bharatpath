@@ -1,4 +1,3 @@
-import { ImageTile } from "@/features/admin/shared/image-tile";
 import Link from "next/link";
 
 import type {
@@ -37,20 +36,6 @@ function getRiskClasses(
     default:
       return "bg-[#f1f3f6] text-[#697386]";
   }
-}
-
-function getAvatarClasses(
-  type: OldestDashboardItem["type"],
-) {
-  if (type === "KYB") {
-    return "bg-[#eef0ff] text-[#4e43b7]";
-  }
-
-  if (type === "Dispute") {
-    return "bg-[#fdecec] text-[#c43d3d]";
-  }
-
-  return "bg-[#fff4df] text-[#a86500]";
 }
 
 export function OldestItems({
@@ -140,18 +125,15 @@ export function OldestItems({
           {/* Rows */}
 
           {items.map((item) => (
-            <div
+            <Link
               key={`${item.type}-${item.id}`}
-              className="grid grid-cols-[minmax(180px,1.6fr)_120px_104px_88px] gap-3 border-t border-[#eef0f3] px-5 py-3"
+              href={item.href}
+              className="grid grid-cols-[minmax(180px,1.6fr)_120px_104px_88px] gap-3 border-t border-[#eef0f3] px-5 py-3 transition-colors hover:bg-[#f8f9fc] focus-visible:bg-[#f8f9fc] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#4e43b7]"
+              aria-label={`Review ${item.type} item for ${item.name}`}
             >
               {/* Subject */}
 
-              <div className="flex min-w-0 items-center gap-2.5">
-                <ImageTile src={item.imageUrl} initials={item.initials} fit={item.imageFit} className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg text-[11px] font-bold ${getAvatarClasses(
-                    item.type,
-                  )}`}
-                 />
-
+              <div className="flex min-w-0 items-center">
                 <div className="flex min-w-0 flex-col gap-0.5">
                   <span
                     className="truncate text-[13px] font-semibold text-[#151b2b]"
@@ -169,8 +151,6 @@ export function OldestItems({
                     }}
                   >
                     {item.meta}
-                    {" · "}
-                    {item.id.slice(0, 8)}
                   </span>
                 </div>
               </div>
@@ -215,7 +195,7 @@ export function OldestItems({
               >
                 {item.waiting}
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       </div>

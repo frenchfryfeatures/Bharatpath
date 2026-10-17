@@ -81,9 +81,15 @@ export type IntegritySignalRow = {
   candidate_id: string;
   resume_version_id: string | null;
   rule_id: string;
+  /** The rule in plain English. */
+  rule_title?: string;
+  /** One sentence on what the rule looks for. */
+  rule_description?: string;
   rule_version: string;
   severity: "LOW" | "MEDIUM" | "HIGH";
   state: "OPEN" | "CLEARED" | "CONFIRMED";
+  /** True while this signal keeps the candidate out of employer search. */
+  hides_candidate?: boolean;
   created_at: string;
   resolved_at: string | null;
   /** Masked summary of the flagged candidate; the name is null until they give one. */
@@ -100,8 +106,33 @@ export type IntegritySignalRow = {
 export type IntegritySignalDetail = IntegritySignalRow & {
   thresholds_version: string;
   evidence: Record<string, unknown>;
+  /** What the rule saw, as one sentence. Null when the evidence cannot be read. */
+  finding?: string | null;
+  /** What the reviewer checks and decides; the last step says what Clear and Confirm do. */
+  next_steps?: string[];
   resolved_by: string | null;
+  resolved_by_email?: string | null;
   resolution_note: string | null;
+  other_open_signals?: number | null;
+  resume_version?: {
+    id: string;
+    source: string;
+    created_at: string;
+    confirmed_at: string | null;
+    /** False once the candidate has edited or re-uploaded. */
+    is_latest: boolean;
+  } | null;
+  score?: { display_value: number; band: string; computed_at: string } | null;
+  visible_to_employers?: boolean | null;
+  other_signals?: Array<{
+    id: string;
+    rule_id: string;
+    rule_title: string;
+    severity: "LOW" | "MEDIUM" | "HIGH";
+    state: "OPEN" | "CLEARED" | "CONFIRMED";
+    hides_candidate: boolean;
+    created_at: string;
+  }>;
 };
 
 export type TenantRow = {
@@ -386,15 +417,15 @@ export type OrganisationStatusCounts = {
 };
 
 export type AdminOldestWaitingItem = {
-  logo_url?: string | null;
-  photo_url?: string | null;
   type: "KYB" | "INTEGRITY" | "DISPUTE";
   id: string;
   waiting_since: string;
   detail: string;
   organisation: string | null;
+  organisation_logo_url: string | null;
   tenant_id: string | null;
   candidate_id: string | null;
+  candidate_name: string | null;
   severity: "LOW" | "MEDIUM" | "HIGH" | null;
   party: "CANDIDATE" | "EMPLOYER" | "COLLEGE" | null;
 };
@@ -421,6 +452,39 @@ export type AdminCandidateListParams = AdminListParams & {
   status?: "ACTIVE" | "SUSPENDED" | "DELETED";
   q?: string;
   email?: string;
+};
+
+export type LeadStage = "SIGNED_UP" | "PROFILE_COMPLETE" | "RESUME_DOWNLOADED" | "COLLEGE_SEAT" | "PAID";
+
+/** One person on the sales follow-up list. Phone and email are unmasked: the list exists for calling. */
+export type LeadRow = {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  locale: string | null;
+  city: string | null;
+  signed_up_at: string;
+  stage: LeadStage;
+  profile_completed: boolean;
+  has_uploaded_resume: boolean;
+  resume_builder: {
+    template_key: string | null;
+    first_downloaded_at: string | null;
+    last_downloaded_at: string | null;
+    download_count: number;
+    pushed_at: string | null;
+  };
+  /** Staff already stopped contacting this person. */
+  contact_suppressed: boolean;
+};
+
+export type LeadsSummary = {
+  signed_up: number;
+  profile_complete: number;
+  resume_downloaded: number;
+  college_seat: number;
+  paid: number;
 };
 
 export type DiscountAudience = "CANDIDATE" | "EMPLOYER" | "COLLEGE";
@@ -727,6 +791,22 @@ export const adminApi = baseApi.injectEndpoints({
       query: (params) => ({ url: "/admin/candidates", params: params ?? undefined }),
       providesTags: ["Admin"],
     }),
+    getAdminLeads: builder.query<CursorPage<LeadRow>, (AdminListParams & { stages?: LeadStage[] }) | void>({
+      // `stage` is repeated (stage=A&stage=B), which `params` would join with commas.
+      query: (params) => {
+        const search = new URLSearchParams();
+        for (const stage of params?.stages ?? []) search.append("stage", stage);
+        if (params?.cursor) search.set("cursor", params.cursor);
+        if (params?.limit) search.set("limit", String(params.limit));
+        const query = search.toString();
+        return `/admin/leads${query ? `?${query}` : ""}`;
+      },
+      providesTags: ["Admin"],
+    }),
+    getAdminLeadsSummary: builder.query<LeadsSummary, void>({
+      query: () => "/admin/leads/summary",
+      providesTags: ["Admin"],
+    }),
     getAdminDiscountCodes: builder.query<DiscountCodesPage, AdminListParams & { audience?: DiscountAudience }>({
       query: (params) => ({ url: "/admin/discount-codes", params }),
       providesTags: [{ type: "Admin", id: "DISCOUNT_CODES" }],
@@ -863,6 +943,8 @@ export const {
   useResolveAdminIntegritySignalMutation,
   useGetAdminTenantsQuery,
   useGetAdminCandidatesQuery,
+  useGetAdminLeadsQuery,
+  useGetAdminLeadsSummaryQuery,
   useGetAdminAccountFormsQuery,
   useInviteAdminAccountMutation,
   useProvisionAdminCandidateMutation,

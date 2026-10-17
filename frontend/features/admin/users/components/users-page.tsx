@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, Search } from "lucide-react";
 
 import { usePageHeader } from "@/components/layout/header-context";
@@ -12,17 +12,29 @@ import { useUsers } from "../hooks/use-users";
 
 import { ErrorState } from "@/components/ui";
 
-import { CandidatesTab } from "./candidates-tab";
+import { LeadsTab, LEAD_TABS, type LeadTab } from "./leads-tab";
+import { useLeads } from "../hooks/use-leads";
 import { EmployersTab } from "./employers-tab";
 import { InstitutionsTab } from "./institutions-tab";
 import { UserDrawer } from "./user-drawer";
 import { CreateUserDrawer } from "./create-user-drawer";
 
-export function UsersPage() {
+import type { UserSegment } from "../types";
+
+export function UsersPage({ section = "candidates" }: { section?: "candidates" | "organisations" }) {
+  const isOrganisations = section === "organisations";
   const [drawerMode, setDrawerMode] = useState<"create" | "invite" | null>(null);
+  const searchParams = useSearchParams();
+  const requestedSegment = searchParams.get("segment");
+  const leadTab: LeadTab = searchParams.get("tab") === "signed_up" ? "signed_up" : "others";
+  const selectedSegment: UserSegment = isOrganisations
+    ? requestedSegment === "institutions" ? "institutions" : "employers"
+    : "candidates";
   usePageHeader(
-    "Users",
-    "Candidates, employers and institutions on the platform",
+    isOrganisations ? "Organisation" : "Users",
+    isOrganisations
+      ? "Employers and institutions on the platform"
+      : "Candidates on the platform",
   );
 
   const {
@@ -32,6 +44,8 @@ export function UsersPage() {
     isLoading,
     error,
     openUser,
+    selectedId,
+    closeUser,
     setSegment,
     setSearch,
     pageSize,
@@ -40,20 +54,20 @@ export function UsersPage() {
     setPageSize,
     goToNextPage,
     goToPreviousPage,
-  } = useUsers();
+  } = useUsers(selectedSegment, isOrganisations ? "" : leadTab);
 
-  // Links such as the dashboard's "Active employers" card name the segment.
+  const leads = useLeads(leadTab, !isOrganisations, search);
+
+  // Organisation links can select a tab; old Users links still reach it.
   const dispatch = useAppDispatch();
-  const requestedSegment = useSearchParams().get("segment");
+  const router = useRouter();
   useEffect(() => {
-    if (
-      requestedSegment === "candidates" ||
-      requestedSegment === "employers" ||
-      requestedSegment === "institutions"
-    ) {
-      dispatch(setUserSegment(requestedSegment));
+    if (!isOrganisations && (requestedSegment === "employers" || requestedSegment === "institutions")) {
+      router.replace(`/admin/organisations?segment=${requestedSegment}`);
+      return;
     }
-  }, [dispatch, requestedSegment]);
+    dispatch(setUserSegment(selectedSegment));
+  }, [dispatch, isOrganisations, requestedSegment, router, selectedSegment]);
 
   const pagination = {
     pageSize,
@@ -64,21 +78,34 @@ export function UsersPage() {
     onPageSizeChange: setPageSize,
   };
 
+  const leadsPagination = {
+    ...leads.pagination,
+    onNextPage: () => {
+      setSearch("");
+      leads.pagination.onNextPage();
+    },
+    onPreviousPage: () => {
+      setSearch("");
+      leads.pagination.onPreviousPage();
+    },
+    onPageSizeChange: (size: number) => {
+      setSearch("");
+      leads.pagination.onPageSizeChange(size);
+    },
+  };
+
   return (
     <div className="min-w-0 space-y-0">
       {/* ================================================================ */}
-      {/* SEGMENT TABS                                                     */}
+      {/* ORGANISATION TABS                                                */}
       {/* ================================================================ */}
 
-      <div className="overflow-x-auto border-b border-[#e7e9ee]">
+      {isOrganisations ? <div className="overflow-x-auto border-b border-[#e7e9ee]">
         <div className="flex min-w-max items-center gap-1">
-          {(
-            [
-              ["candidates", "Candidates"],
-              ["employers", "Employers"],
-              ["institutions", "Institutions"],
-            ] as const
-          ).map(([key, label]) => {
+          {([
+            ["employers", "Employers"],
+            ["institutions", "Institutions"],
+          ] as const).map(([key, label]) => {
             const active =
               segment === key;
 
@@ -86,9 +113,11 @@ export function UsersPage() {
               <button
                 key={key}
                 type="button"
-                onClick={() =>
-                  setSegment(key)
-                }
+                aria-pressed={active}
+                onClick={() => {
+                  setSegment(key);
+                  router.replace(`/admin/organisations?segment=${key}`, { scroll: false });
+                }}
                 className={[
                   "relative shrink-0 cursor-pointer px-4 py-3",
                   "text-[13px] font-semibold transition-colors",
@@ -106,7 +135,43 @@ export function UsersPage() {
             );
           })}
         </div>
-      </div>
+      </div> : null}
+
+      {/* ================================================================ */}
+      {/* CANDIDATE TABS: signed up and not paid, and everyone else         */}
+      {/* ================================================================ */}
+
+      {!isOrganisations ? <div className="overflow-x-auto border-b border-[#e7e9ee]">
+        <div className="flex min-w-max items-center gap-1" role="tablist" aria-label="Candidates">
+          {LEAD_TABS.map(({ key, label }) => {
+            const active = leadTab === key;
+            const count = leads.counts[key];
+
+            return (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => router.replace(`/admin/users?tab=${key}`, { scroll: false })}
+                className={[
+                  "relative inline-flex shrink-0 cursor-pointer items-center gap-2 px-4 py-3",
+                  "text-[13px] font-semibold transition-colors",
+                  active ? "text-[#172033]" : "text-[#687182] hover:text-[#172033]",
+                ].join(" ")}
+              >
+                {label}
+                {count !== null ? (
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${active ? "bg-[#eef0ff] text-[#385da8]" : "bg-[#f0f2f5] text-[#687182]"}`}>
+                    {count.toLocaleString("en-IN")}
+                  </span>
+                ) : null}
+                {active && <span className="absolute inset-x-0 bottom-0 h-[2px] bg-[#315c9f]" />}
+              </button>
+            );
+          })}
+        </div>
+      </div> : null}
 
       {/* ================================================================ */}
       {/* SEARCH                                                            */}
@@ -150,14 +215,16 @@ export function UsersPage() {
       {/* TAB CONTENT                                                       */}
       {/* ================================================================ */}
 
-      {error ? <ErrorState error={error} fallback="Could not load users." className="mb-3" /> : null}
+      {isOrganisations && error ? <ErrorState error={error} fallback="Could not load organisations." className="mb-3" /> : null}
+      {!isOrganisations && leads.error ? <ErrorState error={leads.error} fallback="Could not load candidates." className="mb-3" /> : null}
 
       {segment === "candidates" && (
-        <CandidatesTab
-          users={filteredUsers}
-          isLoading={isLoading}
-          onOpen={openUser}
-          pagination={pagination}
+        <LeadsTab
+          tab={leadTab}
+          leads={leads.rows}
+          isLoading={leads.isLoading}
+          searching={search.trim().length > 0}
+          pagination={leadsPagination}
         />
       )}
 
@@ -178,7 +245,7 @@ export function UsersPage() {
           pagination={pagination}
         />
       )}
-      <UserDrawer />
+      <UserDrawer segment={segment} selectedId={selectedId} closeUser={closeUser} />
       {drawerMode ? (
         <CreateUserDrawer
           segment={segment}

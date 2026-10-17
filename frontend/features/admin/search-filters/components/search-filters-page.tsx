@@ -1,5 +1,7 @@
 "use client";
 
+import { usePageSearch } from "@/lib/hooks/use-page-search";
+
 import { useState } from "react";
 import {
   Pencil,
@@ -110,7 +112,7 @@ export function SearchFiltersPage() {
 
   const dispatch = useAppDispatch();
   const [kind, setKind] = useState<SearchFilterKind>("SKILL");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = usePageSearch();
   const debouncedSearch = useDebouncedSearch(search);
   const [includeInactive, setIncludeInactive] = useState(false);
   const pagination = useCursorPagination(

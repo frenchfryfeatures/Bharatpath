@@ -40,7 +40,7 @@ export function DashboardMetrics({
         return "/admin/disputes";
 
       case "Active employers":
-        return "/admin/users?segment=employers";
+        return "/admin/organisations?segment=employers";
 
       default:
         return "/admin/dashboard";

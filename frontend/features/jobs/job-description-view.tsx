@@ -1,3 +1,4 @@
+import { LoadingImage } from "@/components/common/loading/loading-image";
 import { humanizeCode } from "@/lib/format/labels";
 import {
   BriefcaseBusiness,
@@ -188,8 +189,7 @@ function JobHeaderCard({
           </p>
         </div>
         {job.employerLogoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element -- presigned, expiring URL
-          <img
+          <LoadingImage
             src={job.employerLogoUrl}
             alt=""
             className="h-14 w-14 shrink-0 rounded-2xl border border-[#E7E0D4] bg-white object-contain"

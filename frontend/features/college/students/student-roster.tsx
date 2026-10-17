@@ -1,5 +1,7 @@
 "use client";
 
+import { usePageSearch } from "@/lib/hooks/use-page-search";
+
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Mail } from "lucide-react";
@@ -66,7 +68,7 @@ function StudentRosterSkeleton() {
 
 export function StudentRoster() {
   const router = useRouter();
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = usePageSearch();
   const [status, setStatus] = useState<StudentStatus | "all">("all");
   const {
     students,

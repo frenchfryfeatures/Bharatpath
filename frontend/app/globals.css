@@ -265,8 +265,27 @@
   animation: bpSkeletonShimmer 1.6s ease-in-out infinite;
 }
 
+/* An <img> still being fetched: same shimmer, wins over the image's own background. */
+.bp-img-loading {
+  background-color: #eceef2 !important;
+  background-image: linear-gradient(
+    90deg,
+    rgba(236, 238, 242, 0) 0%,
+    rgba(255, 255, 255, 0.72) 50%,
+    rgba(236, 238, 242, 0) 100%
+  ) !important;
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: bpSkeletonShimmer 1.6s ease-in-out infinite;
+}
+
 /* Respect reduced-motion: keep the placeholder, drop the sweep. */
 @media (prefers-reduced-motion: reduce) {
+  .bp-img-loading {
+    animation: none;
+    background-image: none !important;
+  }
+
   .bp-skeleton {
     animation: none;
     background-image: none;

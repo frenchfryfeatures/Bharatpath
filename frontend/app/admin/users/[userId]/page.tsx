@@ -87,10 +87,10 @@ export default function AdminCandidatePage() {
   const courses = useGetAdminCandidateCoursesQuery(id);
   const applications = useGetAdminCandidateApplicationsQuery(id);
 
-  usePageHeader("Users", "Candidates, employers and institutions on the platform");
+  usePageHeader("Users", "Candidates on the platform");
 
   if (summary.isLoading) return <CandidatePageSkeleton />;
-  if (summary.error || !summary.data) return <div className="pt-2"><Link href="/admin/users?segment=candidates" className="mb-4 inline-flex items-center gap-1 text-[12px] font-semibold text-[#315c9f]"><ArrowLeft size={14} /> Candidates</Link><ErrorState error={summary.error} fallback="Student details could not be loaded." /></div>;
+  if (summary.error || !summary.data) return <div className="pt-2"><Link href="/admin/users" className="mb-4 inline-flex items-center gap-1 text-[12px] font-semibold text-[#315c9f]"><ArrowLeft size={14} /> Candidates</Link><ErrorState error={summary.error} fallback="Student details could not be loaded." /></div>;
 
   const student = summary.data;
   const initials = (student.full_name ?? "Student").split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
@@ -98,7 +98,7 @@ export default function AdminCandidatePage() {
   const confirmedResume = resume.data?.confirmed;
 
   return <div className="min-w-0 space-y-5 pb-6 text-[#172033]">
-    <div className="pt-2"><Link href="/admin/users?segment=candidates" className="inline-flex items-center gap-1 text-[12px] font-semibold text-[#315c9f] hover:underline"><ArrowLeft size={14} /> Candidates</Link></div>
+    <div className="pt-2"><Link href="/admin/users" className="inline-flex items-center gap-1 text-[12px] font-semibold text-[#315c9f] hover:underline"><ArrowLeft size={14} /> Candidates</Link></div>
 
     <header className="flex flex-wrap items-center gap-3">
       <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#eaf0f9] text-[16px] font-bold text-[#315c9f]">{initials}</div>

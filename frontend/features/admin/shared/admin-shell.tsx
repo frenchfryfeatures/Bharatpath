@@ -11,6 +11,7 @@ const navigation = [
   ["Dashboard", "/admin/dashboard"],
   ["Queue", "/admin/queue"],
   ["Users", "/admin/users"],
+  ["Organisation", "/admin/organisations"],
   ["Disputes", "/admin/disputes"],
   ["Audit trail", "/admin/audit"],
   ["Attributes", "/admin/search-filters"],

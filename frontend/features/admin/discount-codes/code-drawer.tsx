@@ -103,7 +103,7 @@ export function CodeDrawer({ code, canWrite, onClose }: CodeDrawerProps) {
                   <div className="flex justify-between gap-3">
                     <strong className="flex min-w-0 items-center gap-2 text-[#172033]">
                       {item.organisation && <Avatar name={item.organisation} src={item.logo_url} size="sm" fit="contain" />}
-                      {item.organisation || `Candidate ${item.user_id}`}
+                      {item.organisation || "Student"}
                     </strong>
                     <span className="shrink-0 text-[11px] text-[#7b8494]">{formatDate(item.redeemed_at)}</span>
                   </div>

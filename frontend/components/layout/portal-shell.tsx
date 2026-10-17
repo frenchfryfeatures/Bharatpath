@@ -62,6 +62,10 @@ export function PortalShell({
     `/${portal}/users`,
   );
 
+  const isOrganisationsPage = pathname.startsWith(
+    `/${portal}/organisations`,
+  );
+
   const isDisputesPage = pathname.startsWith(
     `/${portal}/disputes`,
   );
@@ -146,6 +150,7 @@ export function PortalShell({
                 : isSettingsPage ||
                     isQueuePage ||
                     isUsersPage ||
+                    isOrganisationsPage ||
                     isDisputesPage
                   ? "overflow-y-auto px-4 pt-0 pb-4"
                   : "overflow-y-auto p-4",
