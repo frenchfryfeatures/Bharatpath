@@ -217,6 +217,10 @@ class Settings(BaseSettings):
     #: `codemix` keeps English words in Latin script and Indic words in their
     #: own -- Hinglish as spoken, not translated (`interview/evaluation.py`).
     sarvam_stt_mode: Literal["transcribe", "codemix", "verbatim"] = "codemix"
+    #: Text to speech for the questions (2026-10-16). The speaker must be one
+    #: the model offers; Sarvam refuses a mismatch, and the route answers 503.
+    sarvam_tts_model: str = "bulbul:v3"
+    sarvam_tts_speaker: str = "shubh"
 
     # -- payments ------------------------------------------------------------
     # No gateway is chosen (blockers D3), so the default sells nothing:
@@ -257,6 +261,10 @@ class Settings(BaseSettings):
     interview_question_provider: Literal["openai", "stub"] = "openai"
     # Pinned snapshot, never the bare alias; the one the evaluator uses.
     interview_question_model_id: str = "gpt-5.4-mini-2026-03-17"
+    # Questions read aloud (2026-10-16, `interview/speech.py`). `none` keeps
+    # them text only: the audio route answers 503 and the app shows the text.
+    # `stub` is half a second of silence, refused in staging and production.
+    interview_question_speech_provider: Literal["none", "stub", "sarvam"] = "none"
 
     # -- the candidate's job-search chat (2026-10-13) --------------------------
     # The model reads each message into a plan; code runs it through the
@@ -514,6 +522,16 @@ class Settings(BaseSettings):
         ):
             raise ValueError(
                 "INTERVIEW_TRANSCRIPTION_PROVIDER=stub must not be set in staging or production."
+            )
+        if self.interview_question_speech_provider == "sarvam" and self.sarvam_api_key is None:
+            raise ValueError("INTERVIEW_QUESTION_SPEECH_PROVIDER=sarvam needs SARVAM_API_KEY.")
+        if self.interview_question_speech_provider == "stub" and self.environment in (
+            "staging",
+            "prod",
+        ):
+            raise ValueError(
+                "INTERVIEW_QUESTION_SPEECH_PROVIDER=stub must not be set in staging or "
+                "production: it reads every question as silence."
             )
         return self
 

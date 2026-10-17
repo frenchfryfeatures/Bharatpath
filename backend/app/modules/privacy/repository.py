@@ -300,6 +300,19 @@ async def erasable_object_keys(
              WHERE s.user_id = :user_id
                AND a.s3_key IS NOT NULL
             UNION ALL
+            -- A question read aloud (2026-10-16). No row holds its key: it
+            -- follows from the question row, as `interview.domain.
+            -- question_audio_key` builds it, and a test holds the two equal.
+            -- A question never played was never spoken, and deleting a key
+            -- that is not there is something S3 answers without complaint.
+            SELECT 'interview_audio',
+                   'interview-audio/' || s.user_id || '/' || q.session_id
+                   || '/questions/' || q.question_index
+              FROM interview_session_questions q
+              JOIN interview_sessions s ON s.id = q.session_id
+             WHERE s.user_id = :user_id
+               AND q.source = 'MODEL'
+            UNION ALL
             SELECT 'profile_images', p.s3_key
               FROM user_photos p
              WHERE p.user_id = :user_id
