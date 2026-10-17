@@ -1,4 +1,5 @@
-"""Speech to text on Sarvam (`saaras`), for mock-interview answers.
+"""Speech to text on Sarvam (`saaras`), for mock-interview answers, and text
+to speech (`bulbul`), for the questions (2026-10-16, at the end).
 
 **The batch API, not the REST one.** Sarvam's synchronous endpoint takes under
 thirty seconds of audio and an answer runs to `bank.ANSWER_SECONDS` (120), so
@@ -21,12 +22,14 @@ What `evaluation.TranscriptionProvider` requires, and how this meets it:
 from __future__ import annotations
 
 import asyncio
+import base64
 from typing import Any, Final
 
 import httpx
 
 from app.core.logging import get_logger
 from app.modules.interview.evaluation import EvaluationUnavailableError, Transcript
+from app.modules.interview.speech import QuestionAudioUnavailableError, Speech
 from app.settings import get_settings
 
 logger = get_logger(__name__)
@@ -184,3 +187,68 @@ def _json(response: httpx.Response) -> dict[str, Any]:
     _raise_for(response, response.request.url.path)
     body: dict[str, Any] = response.json()
     return body
+
+
+# ---------------------------------------------------------------------------
+# Text to speech -- the questions, read aloud (2026-10-16)
+# ---------------------------------------------------------------------------
+# The REST endpoint, synchronous: a question is a sentence or two, well inside
+# `bulbul`'s 2,500 characters, and comes back in a second or two. MP3, not the
+# default WAV: a tenth of the size, and a phone and a browser both play it.
+
+TTS_TIMEOUT: Final = httpx.Timeout(30.0, connect=10.0)
+
+#: Our locale -> Sarvam's language. All nine are spoken; anything else is read
+#: as Indian English, which also reads code-mixed text.
+_TTS_LANGUAGES: Final = {
+    code: f"{code}-IN" for code in ("en", "hi", "bn", "kn", "mr", "pa", "gu", "ta", "te")
+}
+
+
+def tts_language(locale: str) -> str:
+    return _TTS_LANGUAGES.get(locale.split("-")[0].lower(), "en-IN")
+
+
+class SarvamSpeechProvider:
+    name = "sarvam"
+
+    def __init__(self) -> None:
+        settings = get_settings()
+        if settings.sarvam_api_key is None:
+            raise QuestionAudioUnavailableError()
+        self._key = settings.sarvam_api_key.get_secret_value()
+        self._base = settings.sarvam_base_url
+        self._model = settings.sarvam_tts_model
+        self._speaker = settings.sarvam_tts_speaker
+        self.version = f"{self._model}/{self._speaker}"
+
+    async def speak(self, *, text: str, language: str) -> Speech:
+        try:
+            async with httpx.AsyncClient(
+                base_url=self._base,
+                timeout=TTS_TIMEOUT,
+                headers={"api-subscription-key": self._key},
+                transport=_transport,
+            ) as client:
+                response = await client.post(
+                    "/text-to-speech",
+                    json={
+                        "text": text,
+                        "language_code": tts_language(language),
+                        "model": self._model,
+                        "speaker": self._speaker,
+                        "output_audio_codec": "mp3",
+                    },
+                )
+            if not 200 <= response.status_code < 300:
+                logger.warning("speech_refused", provider="sarvam", status=response.status_code)
+                raise QuestionAudioUnavailableError()
+            audio = base64.b64decode(response.json()["audios"][0], validate=True)
+        # A bad base64 body is a `binascii.Error`, which is a `ValueError`.
+        except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as exc:
+            logger.warning("speech_unavailable", provider="sarvam", reason=type(exc).__name__)
+            raise QuestionAudioUnavailableError() from exc
+        if not audio:
+            logger.warning("speech_empty", provider="sarvam")
+            raise QuestionAudioUnavailableError()
+        return Speech(audio=audio, mime="audio/mpeg")

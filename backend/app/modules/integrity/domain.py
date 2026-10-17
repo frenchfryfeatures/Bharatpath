@@ -592,6 +592,89 @@ RULE_TEXT: Final[dict[str, tuple[str, str]]] = {
     ),
 }
 
+#: What a reviewer does next, per rule (2026-10-15): the steps the detail view
+#: lists under the finding. Staff-facing English like `RULE_TEXT`, and held to
+#: `RULE_IDS` by the same test. **Each list ends with what the decision does**,
+#: because for MEDIUM and LOW it changes nothing a candidate or employer sees,
+#: and a reviewer who thinks Confirm hides someone decides differently.
+_HIGH_OUTCOME: Final = (
+    "They are out of employer search until you decide: Clear puts them back, Confirm "
+    "keeps them out. Either is final, and neither moves the score."
+)
+_RECORD_OUTCOME: Final = (
+    "This signal does not hide the candidate. Clear or Confirm is a record for the next "
+    "reviewer, and neither moves the score."
+)
+RULE_GUIDANCE: Final[dict[str, tuple[str, ...]]] = {
+    "INJECTED_INSTRUCTIONS": (
+        "Open the CV from the candidate's page and find the sentence. The finding names "
+        "the kind of wording that matched, never the text itself.",
+        "If the CV describes such wording as work (a chatbot or prompt-engineering "
+        "project, say), it is not aimed at us: Clear.",
+        "If it tells the reader to rate, rank, shortlist or not reject this candidate, "
+        "or to ignore its instructions: Confirm.",
+        "If the finding says it was in hidden text, decide the Hidden text signal on "
+        "the same CV together with this one.",
+        _HIGH_OUTCOME,
+    ),
+    "HIDDEN_TEXT": (
+        "Open the uploaded file from the candidate's page, not just the extracted text. "
+        "Select all in the viewer: words that appear only when selected are the hidden part.",
+        "Leftover template formatting that helps nobody (a white placeholder, an empty "
+        "header): Clear.",
+        "Keywords, skills or instructions placed where only the parser reads them: Confirm.",
+        _HIGH_OUTCOME,
+    ),
+    "EMPLOYMENT_DATES_IN_FUTURE": (
+        "Check the role's dates on the CV.",
+        "A typed year (2026 for 2016) is the usual cause: Clear, and note the likely real date.",
+        "Confirm only if the role itself looks invented.",
+        _RECORD_OUTCOME,
+    ),
+    "OVERLAPPING_FULL_TIME_ROLES": (
+        "Check both roles' dates on the CV.",
+        "A notice period, a family business beside a job, an academic post held with "
+        "industry work, or a freelance role read as full-time: Clear.",
+        "Two demanding full-time roles held together for a long time with no explanation: "
+        "Confirm, and note why.",
+        _RECORD_OUTCOME,
+    ),
+    "CLAIMED_EXPERIENCE_EXCEEDS_TIMELINE": (
+        "Compare the stated total with the roles the CV dates.",
+        "A CV listing only recent employers, or a role whose dates were not read: Clear. "
+        "The score counts dated months only, so the gap gains the candidate nothing.",
+        "A total that nothing on the CV supports: Confirm.",
+        _RECORD_OUTCOME,
+    ),
+    "SENIOR_TITLE_SHORT_TENURE": (
+        "Context, not a finding: founders and small companies give senior titles early.",
+        "Clear, unless other signals on this candidate point the same way.",
+        _RECORD_OUTCOME,
+    ),
+    "UNEVIDENCED_SKILL_LIST": (
+        "Context, not a finding: CV templates tell people to list every skill, and the "
+        "score already discounts an unevidenced list.",
+        "Clear, unless other signals on this candidate point the same way.",
+        _RECORD_OUTCOME,
+    ),
+    "FABRICATED_PLATFORM_SCORE": (
+        "Compare the number on the CV with the candidate's score shown here.",
+        "The same number: probably a candidate repeating a real score. Clear, and note it.",
+        "A higher number: Confirm.",
+        _RECORD_OUTCOME,
+    ),
+}
+
+#: The injection patterns in words, for the finding. Their ids are what a
+#: signal stores (`find_injected_instructions`), never the matched text.
+_INJECTION_PATTERN_TEXT: Final[dict[str, str]] = {
+    "override_instructions": "tells the reader to ignore its instructions",
+    "addresses_the_model": "addresses an AI or language model directly",
+    "commands_an_outcome": "tells the reader it must rate, rank, shortlist or hire",
+    "dictates_a_rating": "demands a top rating for this candidate",
+    "forbids_rejection": "tells the reader not to reject this candidate",
+}
+
 #: Severity and state that keep a candidate out of employer search: the
 #: discovery CTE's rule, restated for the reviewer queue. Only CLEARED restores.
 HIDING_SEVERITY: Final = "HIGH"
@@ -601,6 +684,124 @@ HIDING_STATES: Final = frozenset({"OPEN", "CONFIRMED"})
 def rule_text(rule_id: str) -> tuple[str, str]:
     """The reviewer's title and description; the id itself for an unknown one."""
     return RULE_TEXT.get(rule_id, (rule_id, ""))
+
+
+def rule_guidance(rule_id: str) -> tuple[str, ...]:
+    """The reviewer's next steps; none for an unknown rule."""
+    return RULE_GUIDANCE.get(rule_id, ())
+
+
+def _months(value: object) -> str:
+    n = _as_int(value)
+    if n is None:
+        return "an unknown number of months"
+    years, months = divmod(n, 12)
+    year_words = f"{years} year" + ("" if years == 1 else "s")
+    month_words = f"{months} month" + ("" if months == 1 else "s")
+    if years and months:
+        return f"{year_words} {month_words}"
+    return year_words if years else month_words
+
+
+def _name(value: object) -> str:
+    text = str(value).strip() if value is not None else ""
+    return text or "an unnamed employer"
+
+
+def _records(value: object) -> list[Mapping[str, object]]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, Mapping)]
+
+
+def describe_finding(rule_id: str, evidence: Mapping[str, object]) -> str | None:
+    """What this signal saw, as one sentence built from its stored evidence.
+
+    For the detail view only: employer names and titles come from the CV, so
+    this sentence carries what `evidence` carries and goes only where it goes.
+    Evidence is a stored document written by whichever rule version raised it,
+    so every field is read defensively and an unreadable shape is `None`,
+    never an error -- the reviewer still has `evidence` itself.
+    """
+    if rule_id == "INJECTED_INSTRUCTIONS":
+        patterns = evidence.get("patterns")
+        kinds = [
+            _INJECTION_PATTERN_TEXT.get(str(p), str(p))
+            for p in (patterns if isinstance(patterns, list) else [])
+        ]
+        if not kinds:
+            return None
+        where = (
+            " Some of it is in text hidden from a person reading the CV."
+            if evidence.get("in_hidden_text") is True
+            else ""
+        )
+        return "The CV contains wording that " + "; and wording that ".join(kinds) + "." + where
+    if rule_id == "HIDDEN_TEXT":
+        hidden, visible = (
+            _as_int(evidence.get("hidden_chars")),
+            _as_int(evidence.get("visible_chars")),
+        )
+        if hidden is None:
+            return None
+        tail = f", beside {visible} visible" if visible is not None else ""
+        return f"{hidden} characters of the CV are hidden from a person reading it{tail}."
+    if rule_id == "EMPLOYMENT_DATES_IN_FUTURE":
+        roles = _records(evidence.get("roles"))
+        if not roles:
+            return None
+        parts = [
+            f"{_name(r.get('employer'))} ({_months(r.get('months_ahead'))} ahead)" for r in roles
+        ]
+        return "Roles starting after today: " + ", ".join(parts) + "."
+    if rule_id == "OVERLAPPING_FULL_TIME_ROLES":
+        pairs = _records(evidence.get("pairs"))
+        if not pairs:
+            return None
+        parts = [
+            f"{_name(p.get('a'))} and {_name(p.get('b'))} for {_months(p.get('overlap_months'))}"
+            for p in pairs
+        ]
+        return "Full-time roles held at the same time: " + "; ".join(parts) + "."
+    if rule_id == "CLAIMED_EXPERIENCE_EXCEEDS_TIMELINE":
+        stated, dated = evidence.get("stated_months"), evidence.get("dated_months")
+        if _as_int(stated) is None or _as_int(dated) is None:
+            return None
+        role_count = _as_int(evidence.get("roles_dated"))
+        across = (
+            f" across {role_count} dated role" + ("" if role_count == 1 else "s")
+            if role_count
+            else ""
+        )
+        return (
+            f"The CV states {_months(stated)} of experience; its dated roles add up to "
+            f"{_months(dated)}{across}."
+        )
+    if rule_id == "SENIOR_TITLE_SHORT_TENURE":
+        title = str(evidence.get("title") or "").strip()
+        if not title or _as_int(evidence.get("dated_months")) is None:
+            return None
+        return (
+            f'A "{title}" title with {_months(evidence.get("dated_months"))} '
+            "of dated work behind it."
+        )
+    if rule_id == "UNEVIDENCED_SKILL_LIST":
+        count, rating = (
+            _as_int(evidence.get("skill_count")),
+            _as_int(evidence.get("evidence_rating")),
+        )
+        if count is None or rating is None:
+            return None
+        return (
+            f"{count} skills listed, with an evidence rating of {rating} out of 4 for how "
+            "many appear in a described role or project."
+        )
+    if rule_id == "FABRICATED_PLATFORM_SCORE":
+        claimed = _as_int(evidence.get("claimed_score"))
+        if claimed is None:
+            return None
+        return f"The CV states a BharatPath score of {claimed}."
+    return None
 
 
 def hides_candidate(severity: str, state: str) -> bool:

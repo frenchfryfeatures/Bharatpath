@@ -79,10 +79,13 @@ class FakeS3:
     def __init__(self) -> None:
         self.objects: dict[str, bytes] = {}
         self.deleted: list[str] = []
+        self.content_types: dict[str, str] = {}
 
     async def head_object(self, *, bucket: str, key: str) -> dict[str, Any] | None:
         blob = self.objects.get(key)
-        return None if blob is None else {"size_bytes": len(blob), "etag": "x"}
+        if blob is None:
+            return None
+        return {"size_bytes": len(blob), "etag": "x", "content_type": self.content_types.get(key)}
 
     async def read_head_bytes(self, *, bucket: str, key: str, count: int) -> bytes:
         return self.objects.get(key, b"")[:count]
@@ -96,6 +99,10 @@ class FakeS3:
 
     async def presign_put(self, *, bucket: str, key: str, expires_in: int) -> str:
         return f"https://s3.test/{bucket}/{key}?sig=x"
+
+    async def put_object(self, *, bucket: str, key: str, body: bytes, content_type: str) -> None:
+        self.objects[key] = body
+        self.content_types[key] = content_type
 
     async def presign_get(self, *, bucket: str, key: str, expires_in: int) -> str:
         """Faked like the PUT. Left real, it signs with whatever AWS

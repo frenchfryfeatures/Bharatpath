@@ -9,6 +9,70 @@ states. Newest entries first.
 
 ---
 
+## 2026-10-16 — Interview questions read aloud by the server
+
+Until now the backend sent questions as text only, and anything spoken was
+up to the device. Requested in a backend session the same day.
+
+`GET /candidate/interview/sessions/{id}/questions/{index}/audio` returns a
+presigned GET for the question spoken in the account's locale (guide 09
+§10b). Sarvam `bulbul:v3`, voice `shubh`, MP3 (`interview/speech.py`,
+`sarvam.SarvamSpeechProvider`); it reads all nine locales and processes in
+India. Checked live: 25–60 KB per question, about a second.
+
+- **Spoken on first request, then kept** in the interview-audio bucket at
+  `interview-audio/{user}/{session}/questions/{index}`, so a question is paid
+  for once however often it is played (six per bought session at most).
+  Never at question-write time: that runs inside the transaction that can
+  roll back, and a kept clip for a question that was never committed would
+  later be served for a different question at the same index.
+- **No row records the key.** A question row is insert-only, so its words
+  never change and the key follows from it. `erasable_object_keys` rebuilds
+  it in SQL for every MODEL question, spoken or not (S3 deletes a missing
+  key without complaint), and an integration test holds the SQL equal to
+  `domain.question_audio_key`. No migration and no new table.
+- **The text stays the question.** No voice configured, or Sarvam failing,
+  is 503 `interview_question_audio_unavailable` and stores nothing; the
+  session is untouched. Only the words and the language go to Sarvam.
+- Bank questions (sessions before 2026-09-29) are not spoken (409
+  `interview_question_audio_not_offered`): the app translates them by key,
+  and the stored English prompt would be the wrong language.
+- `INTERVIEW_QUESTION_SPEECH_PROVIDER` is `none` by default, `sarvam` (needs
+  `SARVAM_API_KEY`) or `stub` (half a second of WAV silence; refused in
+  staging and prod). **The EC2 host needs `INTERVIEW_QUESTION_SPEECH_PROVIDER=sarvam`
+  in its `.env` before candidates hear anything.** `storage.head_object` now
+  also returns `content_type`.
+
+---
+
+## 2026-10-15 — Integrity signals say what was found and what to do next
+
+Asked for by the frontend team (Rishabh): an admin opening a flag saw the
+rule's name and a raw `evidence` dump, and nothing about what to do.
+
+`GET /admin/integrity/signals/{id}` (and the resolve response) gained
+`finding`, one sentence built from the stored evidence (*"Full-time roles
+held at the same time: Infosys and TCS for 1 year 5 months."*), and
+`next_steps`, the reviewer's checks per rule from
+`integrity.domain.RULE_GUIDANCE`. **The last step of every list says what the
+decision does**: Clear/Confirm on the six MEDIUM and LOW rules hide nobody,
+and the reviewer needs to know that before deciding. The finding is computed
+at read time and never stored (`Signal`'s evidence stays structured), and is
+`null` rather than a 500 for evidence it cannot read -- a signal can be from
+an older rule version. Detail only: it can name employers from the CV, like
+the evidence it is built from. Guide 13 §2 now shows the real queue row
+(upper-case `rule_id`s, `rule_title`, `hides_candidate`, the `candidate`
+block); it showed `hidden_text` and none of those.
+
+**Not built, by decision pending:** telling the candidate, or a "send back
+to the candidate" outcome. Hiding is candidate-wide on purpose
+(`discovery/repository.py`), so a clean re-upload must never clear a flag on
+its own; a send-back would be a new signal state, reviewed again by a human,
+on the KYB send-back pattern, and its candidate-facing words are the
+client's.
+
+---
+
 ## 2026-10-15 — Assistant 503s; resume builder starts from the read CV
 
 Both reported by the frontend developer.

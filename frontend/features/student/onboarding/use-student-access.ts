@@ -11,6 +11,7 @@ export function useStudentHasAccess(skip = false) {
   const seated = Boolean(links.data?.some((link) => link.seatHeld && !link.revokedAt));
   return {
     subscription,
+    links,
     seated,
     hasAccess: Boolean(subscription.data?.has_access) || seated,
   };

@@ -41,6 +41,7 @@ from app.modules.interview.schemas import (
     InterviewCheckoutRequest,
     InterviewReportResponse,
     OfferResponse,
+    QuestionAudioResponse,
     QuestionFeedbackSchema,
     QuestionSchema,
     RecordingSchema,
@@ -256,6 +257,31 @@ async def next_question(
     question and is returned unchanged."""
     view = await service.next_question(session, user_id=user.user_id, session_id=session_id)
     return _session_response(view)
+
+
+@router.get(
+    "/sessions/{session_id}/questions/{question_index}/audio",
+    response_model=QuestionAudioResponse,
+    dependencies=PayingCandidate,
+    summary="One question, read aloud",
+)
+async def get_question_audio(
+    session_id: uuid.UUID,
+    user: CurrentUser,
+    session: DbSession,
+    question_index: int = QuestionIndex,
+) -> QuestionAudioResponse:
+    """A presigned GET for the question spoken in the candidate's language.
+    The first request for a question speaks it (a second or two); after that
+    it is a link. 503 `interview_question_audio_unavailable` when no voice is
+    configured or it failed: show the text, which is always in `questions`.
+    409 `interview_question_not_ready` before the question is written."""
+    audio = await service.question_audio(
+        session, user_id=user.user_id, session_id=session_id, question_index=question_index
+    )
+    return QuestionAudioResponse(
+        url=audio.url, expires_in_seconds=audio.expires_in_seconds, mime=audio.mime
+    )
 
 
 @router.get(

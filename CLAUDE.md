@@ -507,6 +507,24 @@ similar-to-applied` and `/matching-profile` (`backend-guide/05` §7).
   title word, not applied to, newest 300. The ranking is Python. No
   relevance number leaves the server.
 
+## Interview questions read aloud — 2026-10-16
+
+`GET /candidate/interview/sessions/{id}/questions/{index}/audio`
+(`backend-guide/09` §10b, `interview/speech.py`). Sarvam `bulbul` speaks a
+written question in the account's locale; the app plays a presigned link.
+
+- **Spoken on first request and kept** at `domain.question_audio_key`, in
+  the interview-audio bucket. Never speak a question where it is written:
+  that transaction can roll back, and the kept clip would later be served
+  for another question at the same index.
+- **No row holds the key**; it follows from the insert-only question row.
+  `privacy.repository.erasable_object_keys` rebuilds it in SQL, and a test
+  holds the two equal -- change one, change both.
+- **The text is still the question.** No voice (`none`, the default) or a
+  failure is 503 `interview_question_audio_unavailable`, nothing stored.
+  Only the words and the language reach Sarvam. Production needs
+  `INTERVIEW_QUESTION_SPEECH_PROVIDER=sarvam` in the host's `.env`.
+
 ## The job-search assistant — 2026-10-13
 
 `app/modules/assistant`, `POST /candidate/assistant/messages`

@@ -89,12 +89,14 @@ export function AccountStep({
   const [previewResume, previewState] = usePreviewSignupResumeMutation();
   const [resumeDetails, setResumeDetails] = useState<CareerDetails>({});
   const [phone, setPhone] = useState("");
+  const [city, setCity] = useState("");
   const [workStatus, setWorkStatus] = useState("");
   const touched = useRef(new Set<string>());
   const previewRequest = useRef(0);
   const basicDetails = (): CareerDetails => ({
     ...resumeDetails,
     phone,
+    current_city: city.split(/\s+/).join(" ").trim(),
     work_status: workStatus,
     ...(workStatus === "FRESHER"
       ? { experience_years: 0, experience_months: 0, currently_employed: "NO" }
@@ -104,6 +106,7 @@ export function AccountStep({
     fullName?: string;
     email?: string;
     password?: string;
+    city?: string;
   }>({});
   const passwordRequirements = [
     {
@@ -132,13 +135,21 @@ export function AccountStep({
 
   const submitDetails = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!existingAccount && (!/^\+[1-9]\d{7,14}$/.test(phone) || !workStatus)) {
-      setDetailsError(
-        !workStatus
-          ? "Choose experienced or fresher."
-          : "Enter your mobile number in international format, for example +919876543210.",
-      );
-      return;
+    if (!existingAccount) {
+      const cityProblem = cityError(city, true);
+      setErrors((current) => ({ ...current, city: cityProblem }));
+      const phoneValid = /^\+[1-9]\d{7,14}$/.test(phone);
+      if (!phoneValid || !workStatus || cityProblem) {
+        setDetailsError(
+          !workStatus
+            ? "Choose experienced or fresher."
+            : !phoneValid
+              ? "Enter your mobile number in international format, for example +919876543210."
+              : undefined,
+        );
+        return;
+      }
+      setDetailsError(undefined);
     }
     if (previewState.isLoading) return;
 
@@ -310,6 +321,8 @@ export function AccountStep({
                   setEmail(result.email);
                 if (!touched.current.has("phone") && result.details.phone)
                   setPhone(String(result.details.phone));
+                if (!touched.current.has("city") && result.details.current_city)
+                  setCity(String(result.details.current_city));
                 if (
                   !touched.current.has("workStatus") &&
                   result.details.work_status
@@ -412,6 +425,34 @@ export function AccountStep({
                   setPhone(event.target.value);
                 }}
                 className={`${fieldClass} ${fieldBorder(false)} pl-12`}
+              />
+            </div>
+          </Field>
+          <Field
+            id="signup-current-city"
+            label="Current city *"
+            hint="Enter your city or town, without an address or PIN code."
+            error={errors.city}
+          >
+            <div className="relative">
+              <MapPin
+                className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[#3A4761]"
+                aria-hidden="true"
+              />
+              <input
+                id="signup-current-city"
+                autoComplete="address-level2"
+                placeholder="e.g. Pune"
+                value={city}
+                maxLength={100}
+                aria-invalid={Boolean(errors.city)}
+                aria-describedby={errors.city ? "signup-current-city-error" : undefined}
+                onChange={(event) => {
+                  touched.current.add("city");
+                  setCity(event.target.value);
+                  setErrors((current) => ({ ...current, city: undefined }));
+                }}
+                className={`${fieldClass} ${fieldBorder(Boolean(errors.city))} pl-12`}
               />
             </div>
           </Field>
@@ -666,9 +707,9 @@ function nameError(value: string): string | undefined {
   return undefined;
 }
 
-function cityError(value: string): string | undefined {
+function cityError(value: string, required = false): string | undefined {
   const city = value.split(/\s+/).join(" ").trim();
-  if (!city) return undefined;
+  if (!city) return required ? "Enter your current city." : undefined;
   if (city.length > 100) return "Use 100 characters or fewer.";
   if (!NAME_PATTERN.test(city) || !HAS_LETTER.test(city)) {
     return "A city is letters, spaces and . ' - only.";

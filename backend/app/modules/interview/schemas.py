@@ -93,6 +93,15 @@ class QuestionSchema(_Base):
     )
 
 
+class QuestionAudioResponse(_Base):
+    """One question read aloud (2026-10-16). `url` is a presigned GET that
+    expires: ask again for a fresh one rather than storing it."""
+
+    url: str
+    expires_in_seconds: int
+    mime: str = Field(description="`audio/mpeg` from the real provider.")
+
+
 class AnswerSchema(_Base):
     question_index: int = Field(ge=0)
     upload_state: Literal["PENDING", "UPLOADING", "STORED", "FAILED"]
