@@ -29,10 +29,65 @@ export function formatSalaryLpaFromPaise(value: number, period: SalaryPeriod = "
 }
 
 export function parseSalaryLpa(raw: string): { value: number; error?: never } | { error: string; value?: never } {
-  const text = raw.trim().replace(/\s*LPA$/i, "").trim();
-  if (!/^\d+(?:\.\d{1,5})?$/.test(text)) return { error: "Enter a salary in LPA, using up to five decimal places." };
-  const rupees = Math.round(Number(text) * RUPEES_PER_LPA);
-  if (!Number.isSafeInteger(rupees) || rupees > MAX_PROFILE_RUPEES)
-    return { error: "Enter a salary from 0 to 10,000 LPA." };
-  return { value: rupees };
+  const text = raw.trim();
+  if (!text) return { error: "Enter a salary, for example: 12 LPA, 50k/month, or ₹6,00,000." };
+
+  let cleaned = text
+    .replace(/[₹$€£]/g, "")
+    .replace(/\b(?:rs\.?|inr)\b/gi, "")
+    .replace(/,/g, "")
+    .trim();
+
+  const isMonthly = /\b(?:per\s*month|\/\s*month|\/\s*mo|pm|p\.m\.|monthly)\b/i.test(cleaned);
+  cleaned = cleaned
+    .replace(/\b(?:per\s*month|\/\s*month|\/\s*mo|pm|p\.m\.|monthly)\b/gi, "")
+    .replace(/\b(?:per\s*year|\/\s*year|\/\s*yr|per\s*annum|annually|annual|p\.a\.)\b/gi, "")
+    .trim();
+
+  // Crores
+  const crMatch = cleaned.match(/^(\d+(?:\.\d+)?)\s*(?:cr(?:ores?)?)$/i);
+  if (crMatch) {
+    const val = Number(crMatch[1]);
+    if (!Number.isFinite(val) || val <= 0) return { error: "Please enter a valid amount in Crores (e.g. 1.5 Cr)." };
+    const rupees = Math.round(val * 10_000_000 * (isMonthly ? 12 : 1));
+    if (rupees > MAX_PROFILE_RUPEES) return { error: "Salary exceeds the maximum limit of ₹100 Crore." };
+    return { value: rupees };
+  }
+
+  // LPA / Lakhs
+  const lpaMatch = cleaned.match(/^(\d+(?:\.\d+)?)\s*(?:lpa|lakhs?|lacs?|l)$/i);
+  if (lpaMatch) {
+    const val = Number(lpaMatch[1]);
+    if (!Number.isFinite(val) || val <= 0) return { error: "Please enter a valid amount (e.g. 12 LPA)." };
+    const rupees = Math.round(val * RUPEES_PER_LPA * (isMonthly ? 12 : 1));
+    if (rupees > MAX_PROFILE_RUPEES) return { error: "Salary exceeds the maximum limit of ₹100 Crore." };
+    return { value: rupees };
+  }
+
+  // Thousands / K
+  const kMatch = cleaned.match(/^(\d+(?:\.\d+)?)\s*(?:k|thousands?)$/i);
+  if (kMatch) {
+    const val = Number(kMatch[1]);
+    if (!Number.isFinite(val) || val <= 0) return { error: "Please enter a valid amount (e.g. 50k/month)." };
+    const rupees = Math.round(val * 1_000 * (isMonthly ? 12 : 1));
+    if (rupees > MAX_PROFILE_RUPEES) return { error: "Salary exceeds the maximum limit of ₹100 Crore." };
+    return { value: rupees };
+  }
+
+  // Numbers
+  if (/^\d+(?:\.\d+)?$/.test(cleaned)) {
+    const num = Number(cleaned);
+    if (!Number.isFinite(num) || num < 0) return { error: "Please enter a valid positive salary." };
+    if (num === 0) return { value: 0 };
+    let rupees: number;
+    if (isMonthly) {
+      rupees = Math.round((num <= 500 ? num * RUPEES_PER_LPA : num) * 12);
+    } else {
+      rupees = Math.round(num <= 500 ? num * RUPEES_PER_LPA : num);
+    }
+    if (rupees > MAX_PROFILE_RUPEES) return { error: "Salary exceeds the maximum limit of ₹100 Crore." };
+    return { value: rupees };
+  }
+
+  return { error: "Enter a salary, for example: 12 LPA, 50k/month, or ₹6,00,000." };
 }

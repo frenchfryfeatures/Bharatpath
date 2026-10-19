@@ -27,6 +27,7 @@ import {
 } from '@/screens/onboarding/conversationQuestions';
 import {
   applyCareerAnswer,
+  formatSalaryDisplay,
   parseConversationAnswer,
 } from '@/screens/onboarding/conversationValidation';
 import { AppAlert } from '@/components/feedback/AppAlert';
@@ -277,9 +278,11 @@ export function CareerDetailsScreen({
 
     const displayAnswer =
       currentField.options?.find((o) => o.value === parsed.value)?.label ??
-      (Array.isArray(parsed.value)
-        ? parsed.value.join(', ')
-        : String(parsed.value ?? ''));
+      (currentField.key === 'annual_salary' || currentField.key === 'preferred_salary'
+        ? formatSalaryDisplay(typeof parsed.value === 'number' ? parsed.value : null)
+        : Array.isArray(parsed.value)
+          ? parsed.value.join(', ')
+          : String(parsed.value ?? ''));
 
     const updatedHistory: ConversationAnswer = {
       key: currentField.key,
@@ -1009,17 +1012,21 @@ export function CareerDetailsScreen({
                           setConversationError('');
                         }}
                         placeholder={
-                          currentField.type === 'month'
-                            ? 'Type a month, e.g. 2024-06'
-                            : currentField.type === 'list'
-                              ? 'Type skills separated by commas'
-                              : 'Type your answer here…'
+                          currentField.key === 'annual_salary' || currentField.key === 'preferred_salary'
+                            ? 'e.g. 12 LPA, 50k/month, or ₹6,00,000'
+                            : currentField.type === 'month'
+                              ? 'Type a month, e.g. 2024-06'
+                              : currentField.type === 'list'
+                                ? 'Type skills separated by commas'
+                                : 'Type your answer here…'
                         }
                         placeholderTextColor="#9AA1AE"
                         keyboardType={
-                          currentField.type === 'number'
-                            ? 'numeric'
-                            : 'default'
+                          currentField.key === 'annual_salary' || currentField.key === 'preferred_salary'
+                            ? 'default'
+                            : currentField.type === 'number'
+                              ? 'numeric'
+                              : 'default'
                         }
                         returnKeyType="send"
                         onSubmitEditing={() =>

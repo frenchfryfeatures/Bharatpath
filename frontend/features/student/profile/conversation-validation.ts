@@ -43,13 +43,14 @@ export function parseConversationAnswer(field: CareerField, raw: string, require
     if (isProfileSalary(field.key)) return parseSalaryLpa(text);
     if (!/^\d+$/.test(text)) return { error: "Please enter a whole number using digits." };
     const value = Number(text);
+    const currentYear = new Date().getFullYear();
     const min = field.key.endsWith("year") ? 1950 : 0;
-    const max = field.key === "experience_months" ? 11 : field.key === "experience_years" ? 60 : field.key === "starting_year" ? new Date().getFullYear() : field.key === "passing_year" ? 2100 : 1_000_000_000;
-    if (field.key === "starting_year" && value > max) return { error: "The starting year cannot be in the future." };
+    const max = field.key === "experience_months" ? 11 : field.key === "experience_years" ? 60 : field.key === "starting_year" ? currentYear : field.key === "passing_year" ? currentYear + 7 : 1_000_000_000;
+    if (field.key === "starting_year" && value > currentYear) return { error: "The starting year cannot be in the future. Till current year allowed only." };
     if (!Number.isSafeInteger(value) || value < min || value > max) return { error: `Please enter a whole number from ${min} to ${max}.` };
     if (field.key === "passing_year" && Number(details.starting_year) > value) return { error: "Your passing year must be the same as or later than your starting year." };
     if (field.key === "starting_year" && details.passing_year && value > Number(details.passing_year)) return { error: "Your starting year must be the same as or earlier than your passing year." };
-    if (field.key === "passing_year" && details.starting_year && value > Number(details.starting_year) + 5) return { error: "Your graduation year must be within 5 years of your starting year." };
+    if (field.key === "passing_year" && details.starting_year && value > Number(details.starting_year) + 7) return { error: `Your graduation year must be within 7 years of your starting year (${details.starting_year}).` };
     if (field.key === "experience_months" && details.work_status === "EXPERIENCED" && !Number(details.experience_years) && !value) return { error: "Enter at least one month of experience, or update your work status to fresher." };
     return { value };
   }
@@ -57,7 +58,11 @@ export function parseConversationAnswer(field: CareerField, raw: string, require
     if (!/^(?:19|20)\d{2}-(?:0[1-9]|1[0-2])$/.test(text)) return { error: "Please enter a month as YYYY-MM, for example 2024-06." };
     const now = new Date();
     const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-    if (text > currentMonth) return { error: "The month cannot be in the future." };
+    if (text > currentMonth) {
+      if (field.key === "employment_start") return { error: "The starting month cannot be in the future. Till current month allowed only." };
+      if (field.key === "employment_end") return { error: "The ending month cannot be in the future. Till current month allowed only." };
+      return { error: "The month cannot be in the future. Till current month allowed only." };
+    }
     if (field.key === "employment_end" && details.employment_start && text < String(details.employment_start)) return { error: "The ending month must be after the starting month." };
     return { value: text };
   }
