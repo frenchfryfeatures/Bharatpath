@@ -15,7 +15,11 @@ import { StatusBar } from 'expo-status-bar';
 import { Eye, ChatCircleText, Target } from 'phosphor-react-native';
 import { Colors, Radii, Spacing } from '@/theme/tokens';
 import { updatePushPreference } from '@/services/api/notifications';
-import { enablePushNotifications, isExpoGo } from '@/services/notifications/device';
+import {
+  enablePushNotifications,
+  getDeviceNotificationStatus,
+  isExpoGo,
+} from '@/services/notifications/device';
 
 export interface NotificationPermissionScreenProps {
   onAllow?: () => void;
@@ -59,6 +63,15 @@ export function NotificationPermissionScreen({
       onAllow?.();
     } catch (error) {
       console.warn('[Notification permission]', error);
+      // If the device has already granted notification permission at OS level,
+      // do not trap onboarding because a background server sync had an issue.
+      try {
+        const current = await getDeviceNotificationStatus();
+        if (current.status === 'granted') {
+          onAllow?.();
+          return;
+        }
+      } catch {}
       setPermissionError(
         'Permission was requested, but BharatPath could not save your preference. Please try again.'
       );

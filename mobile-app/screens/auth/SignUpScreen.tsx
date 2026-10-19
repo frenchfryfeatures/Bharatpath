@@ -35,6 +35,7 @@ import { Colors, Radii, Spacing } from '@/theme/tokens';
 import { signUpWithEmail } from '@/services/api/auth';
 import { ApiError } from '@/services/api/client';
 import { useAuthContext } from '@/context/AuthContext';
+import { PhoneNumberInput } from '@/components/inputs/PhoneNumberInput';
 
 export interface SignUpFormData {
   referralCode?: string;
@@ -53,6 +54,13 @@ export interface SignUpScreenProps {
     data: SignUpFormData,
     isUnconfirmed?: boolean,
   ) => void | Promise<void>;
+  initialFullName?: string;
+  initialEmail?: string;
+  initialPhone?: string;
+  initialWorkStatus?: string;
+  initialReferralCode?: string;
+  initialFileMeta?: UploadedFileMeta | null;
+  initialCareerDetails?: CareerDetails;
 }
 
 export function SignUpScreen({
@@ -60,14 +68,23 @@ export function SignUpScreen({
   onNavigateToLogin,
   onSubmit,
   onResumeSelected,
+  initialFullName,
+  initialEmail,
+  initialPhone,
+  initialWorkStatus,
+  initialReferralCode,
+  initialFileMeta,
+  initialCareerDetails,
 }: SignUpScreenProps) {
   const { rememberCandidate } = useAuthContext();
-  const [fullName, setFullName] = useState('');
-  const [resumeName, setResumeName] = useState('');
-  const [resumeDetails, setResumeDetails] = useState<CareerDetails>({});
-  const [phone, setPhone] = useState('');
-  const [workStatus, setWorkStatus] = useState('');
-  const [referralCode, setReferralCode] = useState('');
+  const [fullName, setFullName] = useState(initialFullName || '');
+  const [resumeName, setResumeName] = useState(initialFileMeta?.fileName || '');
+  const [resumeDetails, setResumeDetails] = useState<CareerDetails>(
+    initialCareerDetails || {},
+  );
+  const [phone, setPhone] = useState(initialPhone || '');
+  const [workStatus, setWorkStatus] = useState(initialWorkStatus || '');
+  const [referralCode, setReferralCode] = useState(initialReferralCode || '');
   const [readingResume, setReadingResume] = useState(false);
   const careerDetails = (): CareerDetails => ({
     ...resumeDetails,
@@ -77,7 +94,7 @@ export function SignUpScreen({
       ? { experience_years: 0, experience_months: 0, currently_employed: 'NO' }
       : {}),
   });
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(initialEmail || '');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
@@ -152,7 +169,7 @@ export function SignUpScreen({
       setErrorMsg(
         !workStatus
           ? 'Choose experienced or fresher.'
-          : 'Enter your mobile number in international format, for example +919876543210.',
+          : 'Enter a valid mobile number for the selected country.',
       );
       return false;
     }
@@ -452,7 +469,9 @@ export function SignUpScreen({
                       color: '#5F4DB2',
                     }}
                   >
-                    {resumeName || 'Choose PDF or DOCX'}
+                    {resumeName
+                      ? `📄 ${resumeName} (Tap to change)`
+                      : 'Choose PDF or DOCX'}
                   </Text>
                 </Pressable>
                 <Text
@@ -473,7 +492,23 @@ export function SignUpScreen({
             {errorMsg ? (
               <View style={styles.errorContainer}>
                 <WarningCircle size={18} color={Colors.red.fg} weight="fill" />
-                <Text style={styles.errorText}>{errorMsg}</Text>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={styles.errorText}>{errorMsg}</Text>
+                  {errorMsg.includes('already exists') && onNavigateToLogin ? (
+                    <Pressable onPress={onNavigateToLogin} hitSlop={6}>
+                      <Text
+                        style={{
+                          fontFamily: 'GeneralSans-Semibold',
+                          fontSize: 13,
+                          color: Colors.brandAccent,
+                          textDecorationLine: 'underline',
+                        }}
+                      >
+                        Sign in to existing account →
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
               </View>
             ) : null}
 
@@ -598,10 +633,10 @@ export function SignUpScreen({
                 style={{ marginBottom: 24, gap: 12 }}
                 onLayout={(e) => onFieldLayout('phone', e)}
               >
-                <Text style={styles.inputLabel}>Mobile number *</Text>
-                <TextInput
+                <PhoneNumberInput
+                  label="Mobile number *"
                   value={phone}
-                  onChangeText={setPhone}
+                  onChange={setPhone}
                   onFocus={() => {
                     setFocusedField('phone');
                     scrollToField('phone');
@@ -611,17 +646,7 @@ export function SignUpScreen({
                     if (activeFieldKey.current === 'phone')
                       activeFieldKey.current = null;
                   }}
-                  keyboardType="phone-pad"
-                  placeholder="+919876543210"
-                  accessibilityLabel="Mobile number"
-                  style={{
-                    borderWidth: 1,
-                    borderColor: '#E7E0D4',
-                    borderRadius: 16,
-                    padding: 16,
-                    fontFamily: 'GeneralSans-Medium',
-                    fontSize: 16,
-                  }}
+                  hint="Select your country code, then enter your mobile number."
                 />
                 <Text style={styles.inputLabel}>Work status *</Text>
                 <View style={{ flexDirection: 'row', gap: 12 }}>

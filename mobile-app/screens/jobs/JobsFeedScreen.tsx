@@ -44,7 +44,6 @@ import {
 } from 'phosphor-react-native';
 import { Colors, Spacing } from '@/theme/tokens';
 import { BottomTabBar, TabName } from '@/components/navigation/BottomTabBar';
-import { CareerAssistantLauncher } from '@/components/assistant/CareerAssistantLauncher';
 import { JobFiltersSheet } from '@/screens/jobs/JobFiltersSheet';
 import { useJobs } from '@/hooks/useJobs';
 import { BoardJobSummary, EligibilityStatus, JobFilters } from '@/types/job';
@@ -201,19 +200,21 @@ export function JobsFeedScreen({
               </View>
             </View>
 
-            {/* Filter button with gold dot when filters active */}
-            <Pressable
-              style={({ pressed }) => [
-                styles.filterIconBtn,
-                pressed && styles.btnPressed,
-              ]}
-              onPress={() => setIsFilterSheetOpen(true)}
-              accessibilityRole="button"
-              accessibilityLabel="Open job filters"
-            >
-              <SlidersHorizontal size={18} color={Colors.navy} weight="bold" />
-              {hasActiveFilters && <View style={styles.goldBadgeDot} />}
-            </Pressable>
+            {/* Top action button: Filter */}
+            <View style={styles.topActionsRow}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.filterIconBtn,
+                  pressed && styles.btnPressed,
+                ]}
+                onPress={() => setIsFilterSheetOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Open job filters"
+              >
+                <SlidersHorizontal size={18} color={Colors.navy} weight="bold" />
+                {hasActiveFilters && <View style={styles.goldBadgeDot} />}
+              </Pressable>
+            </View>
           </View>
 
           {/* Search bar */}
@@ -321,8 +322,6 @@ export function JobsFeedScreen({
         currentFilters={filters}
       />
 
-      {/* Floating Career Assistant Chatbot */}
-      <CareerAssistantLauncher bottomOffset={Platform.OS === 'ios' ? 95 : 85} />
 
       {/* Floating bottom tab bar */}
       {onTabPress && (
@@ -511,6 +510,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 16,
     color: '#5F6B80',
+  },
+  topActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   filterIconBtn: {
     position: 'relative',

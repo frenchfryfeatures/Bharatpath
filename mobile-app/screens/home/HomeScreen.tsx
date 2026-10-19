@@ -25,7 +25,6 @@ import {
 } from 'phosphor-react-native';
 import { Colors, Radii, Spacing } from '@/theme/tokens';
 import { BottomTabBar, TabName } from '@/components/navigation/BottomTabBar';
-import { CareerAssistantLauncher } from '@/components/assistant/CareerAssistantLauncher';
 import { StreakCard } from '@/components/cards/StreakCard';
 import { useStreak } from '@/hooks/useStreak';
 import {
@@ -617,8 +616,6 @@ export function HomeScreen({
         </ScrollView>
       </SafeAreaView>
 
-      {/* Floating Career Assistant Chatbot */}
-      <CareerAssistantLauncher bottomOffset={Platform.OS === 'ios' ? 95 : 85} />
 
       {/* Floating Bottom Tab Bar */}
       <BottomTabBar

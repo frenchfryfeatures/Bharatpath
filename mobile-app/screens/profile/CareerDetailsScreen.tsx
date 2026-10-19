@@ -20,6 +20,7 @@ import { WebView } from 'react-native-webview';
 import { useRouter } from 'expo-router';
 import { OnboardingProgress } from '@/screens/onboarding/OnboardingProgress';
 import { ConversationPrompt } from '@/screens/onboarding/ConversationPrompt';
+import { PhoneNumberInput } from '@/components/inputs/PhoneNumberInput';
 import {
   conversationQuestion,
   type ConversationAnswer,
@@ -986,36 +987,46 @@ export function CareerDetailsScreen({
                     )}
 
                     {/* Text Input */}
-                    <TextInput
-                      style={[
-                        styles.convTextInput,
-                        !!conversationError && styles.convTextInputError,
-                      ]}
-                      value={conversationInput}
-                      onChangeText={(t) => {
-                        setConversationInput(t);
-                        setConversationError('');
-                      }}
-                      placeholder={
-                        currentField.type === 'month'
-                          ? 'Type a month, e.g. 2024-06'
-                          : currentField.type === 'list'
-                            ? 'Type skills separated by commas'
-                            : 'Type your answer here…'
-                      }
-                      placeholderTextColor="#9AA1AE"
-                      keyboardType={
-                        currentField.type === 'number'
-                          ? 'numeric'
-                          : currentField.type === 'tel'
-                            ? 'phone-pad'
+                    {currentField.type === 'tel' ? (
+                      <PhoneNumberInput
+                        value={conversationInput}
+                        onChange={(next) => {
+                          setConversationInput(next);
+                          setConversationError('');
+                        }}
+                        error={conversationError}
+                        hint="Select your country code, then enter your mobile number."
+                      />
+                    ) : (
+                      <TextInput
+                        style={[
+                          styles.convTextInput,
+                          !!conversationError && styles.convTextInputError,
+                        ]}
+                        value={conversationInput}
+                        onChangeText={(t) => {
+                          setConversationInput(t);
+                          setConversationError('');
+                        }}
+                        placeholder={
+                          currentField.type === 'month'
+                            ? 'Type a month, e.g. 2024-06'
+                            : currentField.type === 'list'
+                              ? 'Type skills separated by commas'
+                              : 'Type your answer here…'
+                        }
+                        placeholderTextColor="#9AA1AE"
+                        keyboardType={
+                          currentField.type === 'number'
+                            ? 'numeric'
                             : 'default'
-                      }
-                      returnKeyType="send"
-                      onSubmitEditing={() =>
-                        void handleSendConversationAnswer()
-                      }
-                    />
+                        }
+                        returnKeyType="send"
+                        onSubmitEditing={() =>
+                          void handleSendConversationAnswer()
+                        }
+                      />
+                    )}
 
                     {/* Skip button for non-required fields */}
                     {!fieldRequired(currentField, draft) && (
@@ -1174,6 +1185,14 @@ export function CareerDetailsScreen({
                               </Pressable>
                             ))}
                           </View>
+                        ) : field.key === 'phone' ? (
+                          <PhoneNumberInput
+                            value={String(value ?? '')}
+                            onChange={(next) => update(field.key, next)}
+                            onFocus={() => scrollToField(field.key)}
+                            error={errors[field.key]}
+                            hint="Select your country code, then enter your mobile number."
+                          />
                         ) : (
                           <TextInput
                             accessibilityLabel={field.label}
@@ -1189,17 +1208,13 @@ export function CareerDetailsScreen({
                                 ? 'YYYY-MM'
                                 : field.type === 'list'
                                   ? 'Separate with commas'
-                                  : field.key === 'phone'
-                                    ? '+919876543210'
-                                    : field.label
+                                  : field.label
                             }
                             placeholderTextColor="#9AA1AE"
                             keyboardType={
                               field.type === 'number'
                                 ? 'numeric'
-                                : field.type === 'tel'
-                                  ? 'phone-pad'
-                                  : 'default'
+                                : 'default'
                             }
                             style={[
                               styles.input,
@@ -1232,7 +1247,7 @@ export function CareerDetailsScreen({
                             }}
                           />
                         )}
-                        {!!errors[field.key] && (
+                        {field.key !== 'phone' && !!errors[field.key] && (
                           <Text style={styles.error}>{errors[field.key]}</Text>
                         )}
                       </View>

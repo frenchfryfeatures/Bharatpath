@@ -38,7 +38,7 @@ export function ConversationPrompt({
   retryMessage?: string;
   attempts?: { answer: string; message: string }[];
 }) {
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
   const scrollRef = useRef<ScrollView>(null);
 
   // Auto-scroll to bottom on new messages / question change / thinking

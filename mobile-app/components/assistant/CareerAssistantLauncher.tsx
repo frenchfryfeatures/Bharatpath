@@ -1,60 +1,29 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, Animated, Easing } from 'react-native';
+import React, { useState } from 'react';
+import { StyleSheet, Pressable, ViewStyle } from 'react-native';
 import { Sparkle } from 'phosphor-react-native';
 import { CareerAssistantModal } from './CareerAssistantModal';
 
-export function CareerAssistantLauncher({
-  bottomOffset = 20,
-}: {
-  bottomOffset?: number;
-}) {
-  const [modalVisible, setModalVisible] = useState(false);
-  const pulseAnim = useRef(new Animated.Value(1)).current;
+interface CareerAssistantNavButtonProps {
+  style?: ViewStyle;
+}
 
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.15,
-          duration: 900,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1.0,
-          duration: 900,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [pulseAnim]);
+export function CareerAssistantNavButton({ style }: CareerAssistantNavButtonProps) {
+  const [modalVisible, setModalVisible] = useState(false);
 
   return (
     <>
       <Pressable
         onPress={() => setModalVisible(true)}
         style={({ pressed }) => [
-          styles.launcher,
-          { bottom: bottomOffset },
-          pressed && styles.launcherPressed,
+          styles.navButton,
+          style,
+          pressed && styles.buttonPressed,
         ]}
         accessibilityRole="button"
         accessibilityLabel="Open AI Career Assistant"
-        testID="career-assistant-fab"
+        testID="career-assistant-nav-btn"
       >
-        <Sparkle size={24} color="#FFFFFF" weight="fill" />
-        <View style={styles.statusWrap}>
-          <Animated.View
-            style={[
-              styles.statusPulse,
-              { transform: [{ scale: pulseAnim }] },
-            ]}
-          />
-          <View style={styles.statusDot} />
-        </View>
+        <Sparkle size={20} color="#5F4DB2" weight="fill" />
       </Pressable>
 
       <CareerAssistantModal
@@ -65,49 +34,22 @@ export function CareerAssistantLauncher({
   );
 }
 
+// Backward-compatible alias
+export const CareerAssistantLauncher = CareerAssistantNavButton;
+
 const styles = StyleSheet.create({
-  launcher: {
-    position: 'absolute',
-    right: 18,
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: '#5F4DB2',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#5F4DB2',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.38,
-    shadowRadius: 10,
-    elevation: 8,
-    zIndex: 99,
-  },
-  launcherPressed: {
-    transform: [{ scale: 0.92 }],
-    opacity: 0.9,
-  },
-  statusWrap: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 10,
-    height: 10,
+  navButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E7E0D4',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  statusPulse: {
-    position: 'absolute',
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: 'rgba(74, 222, 128, 0.45)',
-  },
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: '#4ADE80',
-    borderWidth: 1.5,
-    borderColor: '#5F4DB2',
+  buttonPressed: {
+    transform: [{ scale: 0.94 }],
+    opacity: 0.85,
   },
 });

@@ -99,12 +99,20 @@ export async function syncPushDevice(): Promise<boolean> {
   }
   if (Platform.OS === 'android') await ensureAndroidChannel(Notifications);
   const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
-  if (!projectId) throw new Error('Push notification project ID is missing from the app build.');
-  const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
-  await registerPushDevice(token, Platform.OS as 'android' | 'ios');
-  if (previous && previous !== token) await unregisterPushDevice(previous).catch(() => undefined);
-  await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
-  return true;
+  if (!projectId) {
+    console.warn('[Notifications] Push notification project ID is missing from the app build.');
+    return false;
+  }
+  try {
+    const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+    await registerPushDevice(token, Platform.OS as 'android' | 'ios');
+    if (previous && previous !== token) await unregisterPushDevice(previous).catch(() => undefined);
+    await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
+    return true;
+  } catch (error) {
+    console.warn('[Notifications] Failed to fetch or register Expo push token:', error);
+    return false;
+  }
 }
 
 export async function unregisterCurrentPushDevice(): Promise<void> {
@@ -164,8 +172,16 @@ export async function requestDeviceNotificationPermission(): Promise<Notificatio
 export async function enablePushNotifications(): Promise<NotificationPermissionResult> {
   const result = await requestDeviceNotificationPermission();
   if (result.status !== 'granted') return result;
-  await updatePushPreference(true);
-  await syncPushDevice();
+  try {
+    await updatePushPreference(true);
+  } catch (error) {
+    console.warn('[Notifications] Failed to update push preference on server:', error);
+  }
+  try {
+    await syncPushDevice();
+  } catch (error) {
+    console.warn('[Notifications] Failed to sync push device with server:', error);
+  }
   return result;
 }
 

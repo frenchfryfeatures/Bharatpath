@@ -243,7 +243,13 @@ export function CareerAssistantModal({
                   </View>
                 </View>
 
-                <Text style={styles.startersHeading}>GET STARTED</Text>
+                <View style={styles.startersHeaderRow}>
+                  <View>
+                    <Text style={styles.startersHeading}>GET STARTED</Text>
+                    <Text style={styles.startersSubheading}>What would you like to do?</Text>
+                  </View>
+                  <Text style={styles.startersChoosePrompt}>Choose a prompt</Text>
+                </View>
                 <View style={styles.startersGrid}>
                   {STARTERS.map((s) => {
                     const IconComponent = s.icon;
@@ -265,6 +271,9 @@ export function CareerAssistantModal({
                     );
                   })}
                 </View>
+                <Text style={styles.startersFooterText}>
+                  Or ask in your own words, in your language
+                </Text>
               </View>
             )}
 
@@ -451,24 +460,32 @@ export function CareerAssistantModal({
 
           {/* Composer Footer */}
           <View style={styles.composerBar}>
-            <TextInput
-              style={styles.composerInput}
-              value={draft}
-              onChangeText={setDraft}
-              placeholder="Ask about jobs, skills, or applications…"
-              placeholderTextColor="#9AA1AE"
-              multiline={false}
-              returnKeyType="send"
-              onSubmitEditing={() => void handleSend(draft)}
-            />
-            <Pressable
-              disabled={!draft.trim() || busy}
-              onPress={() => void handleSend(draft)}
-              style={[styles.sendBtn, (!draft.trim() || busy) && styles.sendBtnDisabled]}
-              accessibilityLabel="Send message"
-            >
-              <ArrowUp size={18} color="#FFFFFF" weight="bold" />
-            </Pressable>
+            <View style={styles.composerInputRow}>
+              <TextInput
+                style={styles.composerInput}
+                value={draft}
+                onChangeText={setDraft}
+                placeholder="Ask about jobs, skills, or applications…"
+                placeholderTextColor="#9AA1AE"
+                multiline={false}
+                returnKeyType="send"
+                onSubmitEditing={() => void handleSend(draft)}
+              />
+              <Pressable
+                disabled={!draft.trim() || busy}
+                onPress={() => void handleSend(draft)}
+                style={[styles.sendBtn, (!draft.trim() || busy) && styles.sendBtnDisabled]}
+                accessibilityLabel="Send message"
+              >
+                <ArrowUp size={18} color="#FFFFFF" weight="bold" />
+              </Pressable>
+            </View>
+            <View style={styles.composerFooterRow}>
+              <View style={styles.composerFooterItem}>
+                <ShieldCheck size={11} color="#8A93A3" weight="bold" />
+                <Text style={styles.composerFooterText}>You confirm applications</Text>
+              </View>
+            </View>
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -582,52 +599,53 @@ function AssistantAppCard({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAF8F5',
+    backgroundColor: '#FFFDF9',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#EDE7DE',
+    borderBottomColor: '#EEE8E0',
     gap: 12,
   },
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 42,
+    height: 42,
+    borderRadius: 14,
     backgroundColor: '#5F4DB2',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#5F4DB2',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.24,
+    shadowRadius: 10,
+    elevation: 4,
   },
   headerText: {
     flex: 1,
   },
   brandTitle: {
+    fontFamily: 'GeneralSans-Bold',
     fontSize: 10,
-    fontWeight: '800',
-    color: '#8A92A6',
-    letterSpacing: 0.8,
+    color: '#8675AE',
+    letterSpacing: 1.8,
     textTransform: 'uppercase',
   },
   headerTitle: {
-    fontSize: 16,
-    fontWeight: '800',
+    fontFamily: 'GeneralSans-Bold',
+    fontSize: 17,
+    lineHeight: 22,
+    letterSpacing: -0.4,
     color: '#0A1931',
-    letterSpacing: -0.2,
   },
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    marginTop: 2,
+    gap: 6,
+    marginTop: 3,
   },
   onlineDot: {
     width: 6,
@@ -636,14 +654,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#31A66A',
   },
   statusText: {
+    fontFamily: 'GeneralSans-Medium',
     fontSize: 11,
+    lineHeight: 14,
     color: '#5F6B80',
-    fontWeight: '500',
   },
   headerActionBtn: {
-    padding: 8,
-    borderRadius: 10,
-    backgroundColor: '#F3EEFB',
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: '#F1EAF7',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   keyboardContainer: {
     flex: 1,
@@ -656,65 +678,93 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   welcomeSection: {
-    gap: 16,
-    paddingVertical: 8,
+    gap: 18,
+    paddingVertical: 4,
   },
   heroCard: {
-    backgroundColor: '#5F4DB2',
-    borderRadius: 20,
+    backgroundColor: '#5947AD',
+    borderRadius: 22,
     padding: 20,
-    gap: 8,
-    shadowColor: '#5F4DB2',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 4,
+    gap: 10,
+    shadowColor: '#3A2B81',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
+    elevation: 5,
   },
   heroBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    gap: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
     borderRadius: 12,
   },
   heroBadgeText: {
+    fontFamily: 'GeneralSans-Bold',
     fontSize: 10,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.6,
+    color: '#E8DFFF',
+    letterSpacing: 1.6,
+    textTransform: 'uppercase',
   },
   heroTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: -0.4,
+    fontFamily: 'GeneralSans-Bold',
+    fontSize: 23,
     lineHeight: 28,
+    letterSpacing: -0.6,
+    color: '#FFFFFF',
   },
   heroDesc: {
-    fontSize: 13,
+    fontFamily: 'GeneralSans-Regular',
+    fontSize: 12,
     lineHeight: 18,
-    color: '#EDE8F8',
+    color: '#EEE9FF',
   },
   trustBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginTop: 4,
+    marginTop: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    alignSelf: 'flex-start',
   },
   trustBadgeText: {
-    fontSize: 11,
-    color: '#FFFFFF',
-    fontWeight: '600',
+    fontFamily: 'GeneralSans-Semibold',
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.9)',
+  },
+  startersHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    marginTop: 8,
   },
   startersHeading: {
+    fontFamily: 'GeneralSans-Bold',
+    fontSize: 10,
+    color: '#9B87BD',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
+  startersSubheading: {
+    fontFamily: 'GeneralSans-Bold',
+    fontSize: 16,
+    lineHeight: 20,
+    letterSpacing: -0.3,
+    color: '#0A1931',
+    marginTop: 3,
+  },
+  startersChoosePrompt: {
+    fontFamily: 'GeneralSans-Regular',
     fontSize: 11,
-    fontWeight: '800',
-    color: '#8A92A6',
-    letterSpacing: 0.8,
-    marginTop: 6,
+    color: '#8B8FA0',
   },
   startersGrid: {
     gap: 10,
@@ -723,21 +773,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: 17,
     borderWidth: 1,
     borderColor: '#E8E1D7',
-    padding: 14,
+    padding: 12,
     gap: 12,
+    shadowColor: '#0A1931',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
   },
   starterBtnPressed: {
-    backgroundColor: '#F7F3FC',
-    borderColor: '#C9BEEB',
+    backgroundColor: '#FAF7FD',
+    borderColor: '#C9B9EC',
   },
   starterIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: '#EDE8F8',
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    backgroundColor: '#F1EAF7',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -745,47 +800,65 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   starterTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0A1931',
+    fontFamily: 'GeneralSans-Bold',
+    fontSize: 13,
+    lineHeight: 17,
+    color: '#16243A',
   },
   starterDesc: {
-    fontSize: 12,
-    color: '#647087',
+    fontFamily: 'GeneralSans-Regular',
+    fontSize: 11,
+    lineHeight: 16,
+    color: '#69758A',
     marginTop: 2,
+  },
+  startersFooterText: {
+    fontFamily: 'GeneralSans-Regular',
+    fontSize: 11,
+    lineHeight: 15,
+    color: '#7C8596',
+    textAlign: 'center',
+    marginTop: 6,
+    paddingVertical: 4,
   },
   userMsgRow: {
     alignItems: 'flex-end',
   },
   userBubble: {
     backgroundColor: '#5F4DB2',
-    borderRadius: 18,
-    borderTopRightRadius: 4,
+    borderRadius: 19,
+    borderBottomRightRadius: 6,
     paddingHorizontal: 16,
-    paddingVertical: 11,
-    maxWidth: '82%',
+    paddingVertical: 12,
+    maxWidth: '86%',
+    shadowColor: '#4B3B96',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 2,
   },
   userMsgText: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontFamily: 'GeneralSans-Medium',
+    fontSize: 13,
+    lineHeight: 19.5,
     color: '#FFFFFF',
-    fontWeight: '500',
   },
   noteRow: {
     alignItems: 'center',
     marginVertical: 4,
   },
   noteText: {
-    backgroundColor: '#EDE8F8',
+    fontFamily: 'GeneralSans-Semibold',
+    fontSize: 11,
+    lineHeight: 15,
     color: '#5F4DB2',
-    fontSize: 12,
-    fontWeight: '700',
+    backgroundColor: '#F1EAF7',
     paddingHorizontal: 14,
     paddingVertical: 6,
-    borderRadius: 14,
+    borderRadius: 999,
   },
   assistantMsgBlock: {
-    gap: 10,
+    gap: 8,
   },
   botHeaderRow: {
     flexDirection: 'row',
@@ -793,34 +866,40 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   botAvatarSmall: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 22,
+    height: 22,
+    borderRadius: 7,
     backgroundColor: '#5F4DB2',
     alignItems: 'center',
     justifyContent: 'center',
   },
   botName: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#5F4DB2',
+    fontFamily: 'GeneralSans-Bold',
+    fontSize: 10,
+    letterSpacing: 1.2,
+    color: '#8272AD',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
   botBubble: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    borderTopLeftRadius: 4,
+    borderRadius: 19,
+    borderTopLeftRadius: 6,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderWidth: 1,
-    borderColor: '#E8E1D7',
+    borderColor: '#E9E2F0',
     maxWidth: '92%',
+    shadowColor: '#2A1E54',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 1,
   },
   botMsgText: {
-    fontSize: 14,
+    fontFamily: 'GeneralSans-Regular',
+    fontSize: 13,
     lineHeight: 21,
-    color: '#0A1931',
+    color: '#26334B',
   },
   cardsBlock: {
     gap: 8,
@@ -828,14 +907,19 @@ const styles = StyleSheet.create({
   },
   jobCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E8E1D7',
+    borderColor: '#E7E0D4',
     padding: 12,
     gap: 8,
+    shadowColor: '#0A1931',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
   },
   jobCardPressed: {
-    backgroundColor: '#FAF7FD',
+    backgroundColor: '#FAF8FC',
     borderColor: '#C9BEEB',
   },
   jobCardTop: {
@@ -844,27 +928,30 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   jobIndexBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    backgroundColor: '#EDE8F8',
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    backgroundColor: '#F1EAF7',
     alignItems: 'center',
     justifyContent: 'center',
   },
   jobIndexText: {
-    fontSize: 12,
-    fontWeight: '800',
+    fontFamily: 'GeneralSans-Bold',
+    fontSize: 11,
     color: '#5F4DB2',
   },
   jobCardTitle: {
-    fontSize: 14,
-    fontWeight: '700',
+    fontFamily: 'GeneralSans-Bold',
+    fontSize: 13,
+    lineHeight: 17,
     color: '#0A1931',
   },
   jobCardSub: {
-    fontSize: 12,
+    fontFamily: 'GeneralSans-Regular',
+    fontSize: 11,
+    lineHeight: 15,
     color: '#647087',
-    marginTop: 1,
+    marginTop: 2,
   },
   jobMetaRow: {
     flexDirection: 'row',
@@ -872,15 +959,18 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   metaBadge: {
-    backgroundColor: '#F3EEFB',
+    backgroundColor: '#F7F4EC',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E7E0D4',
   },
   metaBadgeText: {
+    fontFamily: 'GeneralSans-Medium',
     fontSize: 11,
-    fontWeight: '600',
-    color: '#5F4DB2',
+    lineHeight: 14,
+    color: '#526078',
   },
   eligibilityBadge: {
     paddingHorizontal: 8,
@@ -888,16 +978,16 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   eligibilityGreen: {
-    backgroundColor: '#E6F8EE',
+    backgroundColor: '#E6F1EA',
   },
   eligibilityGreenText: {
-    color: '#1B834E',
+    color: '#1F6B45',
   },
   eligibilityYellow: {
-    backgroundColor: '#FFF8E6',
+    backgroundColor: '#F7EFD6',
   },
   eligibilityYellowText: {
-    color: '#A17006',
+    color: '#7A5C0E',
   },
   eligibilityGray: {
     backgroundColor: '#F0ECE6',
@@ -906,19 +996,20 @@ const styles = StyleSheet.create({
     color: '#6E7787',
   },
   eligibilityText: {
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 10,
-    fontWeight: '700',
   },
   matchedSkillsText: {
+    fontFamily: 'GeneralSans-Medium',
     fontSize: 11,
+    lineHeight: 15,
     color: '#5F4DB2',
-    fontWeight: '600',
   },
   applyProposalCard: {
-    backgroundColor: '#FAF5FF',
+    backgroundColor: '#F1EAF7',
     borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: '#C9BEEB',
+    borderWidth: 1,
+    borderColor: '#E7E0D4',
     padding: 14,
     gap: 8,
   },
@@ -928,12 +1019,14 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   applyTitle: {
-    fontSize: 14,
-    fontWeight: '700',
+    fontFamily: 'GeneralSans-Semibold',
+    fontSize: 12,
+    lineHeight: 16,
     color: '#0A1931',
   },
   applyCompany: {
-    fontSize: 12,
+    fontFamily: 'GeneralSans-Regular',
+    fontSize: 11,
     color: '#647087',
   },
   applyActionWrap: {
@@ -942,18 +1035,19 @@ const styles = StyleSheet.create({
   },
   confirmApplyBtn: {
     backgroundColor: '#5F4DB2',
-    paddingVertical: 10,
+    paddingVertical: 9,
     paddingHorizontal: 16,
-    borderRadius: 12,
+    borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
+    alignSelf: 'flex-start',
   },
   confirmApplyBtnDone: {
-    backgroundColor: '#31A66A',
+    backgroundColor: '#1F6B45',
   },
   confirmApplyText: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontFamily: 'GeneralSans-Bold',
+    fontSize: 12,
     color: '#FFFFFF',
   },
   appliedDoneRow: {
@@ -962,8 +1056,9 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   applyErrorText: {
-    fontSize: 12,
-    color: '#C93B2B',
+    fontFamily: 'GeneralSans-Medium',
+    fontSize: 11,
+    color: '#993A22',
   },
   openExternalBtn: {
     flexDirection: 'row',
@@ -972,55 +1067,62 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   openExternalText: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontFamily: 'GeneralSans-Bold',
+    fontSize: 12,
     color: '#5F4DB2',
   },
   appCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E8E1D7',
+    borderColor: '#E7E0D4',
     padding: 12,
     gap: 10,
   },
   appIconBox: {
     width: 32,
     height: 32,
-    borderRadius: 8,
-    backgroundColor: '#EDE8F8',
+    borderRadius: 10,
+    backgroundColor: '#F1EAF7',
     alignItems: 'center',
     justifyContent: 'center',
   },
   appCardTitle: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontFamily: 'GeneralSans-Bold',
+    fontSize: 12,
     color: '#0A1931',
   },
   appCardSub: {
+    fontFamily: 'GeneralSans-Regular',
     fontSize: 11,
     color: '#647087',
-    marginTop: 1,
+    marginTop: 2,
   },
   suggestionsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 6,
     marginTop: 4,
   },
   suggestionChip: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#C9BEEB',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    borderColor: '#E7E0D4',
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 999,
+    shadowColor: '#0A1931',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
   },
   suggestionText: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontFamily: 'GeneralSans-Bold',
+    fontSize: 11,
+    lineHeight: 15,
     color: '#5F4DB2',
   },
   showMoreBtn: {
@@ -1028,72 +1130,110 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     alignSelf: 'flex-start',
-    backgroundColor: '#EDE8F8',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E7E0D4',
     paddingHorizontal: 12,
     paddingVertical: 7,
-    borderRadius: 14,
+    borderRadius: 999,
     marginTop: 4,
   },
   showMoreText: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontFamily: 'GeneralSans-Bold',
+    fontSize: 11,
+    lineHeight: 15,
     color: '#5F4DB2',
   },
   thinkingRow: {
     paddingVertical: 4,
   },
   errorBanner: {
-    backgroundColor: '#FFF0EE',
+    backgroundColor: '#FFF5F2',
     borderWidth: 1,
-    borderColor: '#F8B4A6',
-    borderRadius: 12,
+    borderColor: '#E9C7BF',
+    borderRadius: 16,
     padding: 12,
     gap: 8,
   },
   errorBannerText: {
-    fontSize: 13,
-    color: '#9E2A1A',
+    fontFamily: 'GeneralSans-Regular',
+    fontSize: 12,
+    lineHeight: 16,
+    color: '#8D3926',
   },
   retryBtn: {
     alignSelf: 'flex-start',
   },
   retryBtnText: {
+    fontFamily: 'GeneralSans-Bold',
     fontSize: 12,
-    fontWeight: '700',
-    color: '#9E2A1A',
+    color: '#8D3926',
     textDecorationLine: 'underline',
   },
   composerBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 14 : 12,
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: '#EDE7DE',
-    gap: 10,
+    borderTopColor: '#EEE8E0',
+    gap: 8,
+  },
+  composerInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFEFF',
+    borderWidth: 1,
+    borderColor: '#DCD4EB',
+    borderRadius: 19,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    gap: 8,
+    shadowColor: '#372869',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   composerInput: {
     flex: 1,
-    backgroundColor: '#FAF8F5',
-    borderWidth: 1,
-    borderColor: '#DED5C9',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    fontSize: 14,
+    fontFamily: 'GeneralSans-Medium',
+    fontSize: 13,
+    lineHeight: 19,
     color: '#0A1931',
-    maxHeight: 100,
+    paddingVertical: 8,
   },
   sendBtn: {
     width: 38,
     height: 38,
-    borderRadius: 19,
+    borderRadius: 13,
     backgroundColor: '#5F4DB2',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#5F4DB2',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.22,
+    shadowRadius: 6,
+    elevation: 3,
   },
   sendBtnDisabled: {
-    opacity: 0.45,
+    opacity: 0.4,
+    shadowOpacity: 0,
+  },
+  composerFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 4,
+  },
+  composerFooterItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  composerFooterText: {
+    fontFamily: 'GeneralSans-Regular',
+    fontSize: 10,
+    color: '#8A93A3',
   },
 });

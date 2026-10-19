@@ -46,6 +46,7 @@ import {
 } from '@/services/api/interview';
 import { QuestionAudioPlayer } from '@/components/interview/QuestionAudioPlayer';
 import { StudentAudioPlayer } from '@/components/interview/StudentAudioPlayer';
+import { InterviewerThinkingAnimation } from '@/components/interview/InterviewerThinkingAnimation';
 
 const VOICE_RECORDING: RecordingOptions = {
   extension: '.m4a',
@@ -322,18 +323,10 @@ export function InterviewSessionScreen({ sessionId }: Props) {
       {/* Main Content Area */}
       {busy ? (
         <View style={styles.centerContainer}>
-          <View style={styles.spinnerCircle}>
-            <ActivityIndicator size="large" color="#5F4DB2" />
-          </View>
-          <Text style={styles.busyTitle}>
-            {saveStage === 'saving' ? 'Saving your answer…' : 'Preparing your next question…'}
-          </Text>
-          <Text style={styles.busySubtitle}>
-            {saveStage === 'saving'
-              ? 'Uploading recording to storage securely.'
-              : 'The AI interviewer is listening and drafting your next question.'}
-          </Text>
-          <Text style={styles.busyMuted}>Please keep this screen open. This may take a few moments.</Text>
+          <InterviewerThinkingAnimation
+            questionNumber={current ? current.index + 2 : undefined}
+            stage={saveStage}
+          />
         </View>
       ) : loading ? (
         <View style={styles.centerContainer}>
@@ -443,7 +436,7 @@ export function InterviewSessionScreen({ sessionId }: Props) {
                       disabled={busy}
                     >
                       <UploadSimple size={18} color="#FFFFFF" weight="bold" />
-                      <Text style={styles.primaryBtnText}>Save answer & continue</Text>
+                      <Text style={styles.primaryBtnText}>Save</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -494,13 +487,14 @@ export function InterviewSessionScreen({ sessionId }: Props) {
                 style={({ pressed }) => [styles.primaryBtn, styles.mt16, pressed && styles.btnPressed]}
                 onPress={async () => {
                   try {
-                    setLoading(true);
+                    setSaveStage('preparing');
+                    setBusy(true);
                     await getNextInterviewQuestion(sessionId);
                     await fetchSession();
                   } catch (err) {
                     setError('Could not prepare the next question. Please retry.');
                   } finally {
-                    setLoading(false);
+                    setBusy(false);
                   }
                 }}
               >

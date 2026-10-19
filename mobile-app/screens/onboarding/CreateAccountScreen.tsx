@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { ArrowLeft, Phone, EnvelopeSimple } from 'phosphor-react-native';
 import { Colors, Radii, Spacing } from '@/theme/tokens';
+import { PhoneNumberInput } from '@/components/inputs/PhoneNumberInput';
 
 export interface CreateAccountScreenProps {
   score?: number;
@@ -64,12 +65,8 @@ export function CreateAccountScreen({
 
   const handleSendCode = () => {
     if (onSendCode) {
-      onSendCode(rawDigits);
+      onSendCode(phoneNumber || rawDigits);
     }
-  };
-
-  const handleCardPress = () => {
-    inputRef.current?.focus();
   };
 
   return (
@@ -156,40 +153,14 @@ export function CreateAccountScreen({
               </Text>
             </View>
 
-            {/* Phone Number Input Box - Tapping anywhere opens keyboard */}
-            <Pressable
-              style={[
-                styles.inputCard,
-                isFocused && styles.inputCardFocused,
-              ]}
-              onPress={handleCardPress}
-            >
-              <Phone size={18} color="#3A4761" weight="bold" />
-              <Text style={styles.countryCode}>+91</Text>
-              <View style={styles.inputSeparator} />
-
-              <TextInput
-                ref={inputRef}
-                style={styles.textInput}
-                value={formattedDisplay}
-                onChangeText={handleChangeText}
-                keyboardType="number-pad"
-                textContentType="telephoneNumber"
-                autoComplete="tel"
-                placeholder="98765 43210"
-                placeholderTextColor="#9DA9BE"
-                onFocus={() => setIsFocused(true)}
-                onBlur={() => setIsFocused(false)}
-                maxLength={11} // 10 digits + 1 space
-                selectionColor={Colors.navy}
-                editable={true}
-                autoFocus={false}
+            {/* Phone Number Input */}
+            <View style={{ marginBottom: 16 }}>
+              <PhoneNumberInput
+                value={phoneNumber}
+                onChange={setPhoneNumber}
+                hint="Select your country code, then enter your mobile number."
               />
-
-              <Text style={styles.counterText}>
-                {digitCount} / 10
-              </Text>
-            </Pressable>
+            </View>
 
             {/* Primary Action Button */}
             <Pressable

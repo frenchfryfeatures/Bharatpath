@@ -139,8 +139,9 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   text: {
-    fontSize: 14,
-    fontWeight: '600',
-    letterSpacing: -0.2,
+    fontFamily: 'GeneralSans-Medium',
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#5F4DB2',
   },
 });

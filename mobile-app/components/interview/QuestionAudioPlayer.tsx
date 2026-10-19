@@ -74,7 +74,7 @@ export function QuestionAudioPlayer({ sessionId, index }: QuestionAudioPlayerPro
     return (
       <View style={styles.loadingRow}>
         <ActivityIndicator size="small" color="#5F4DB2" />
-        <Text style={styles.loadingText}>Loading audio…</Text>
+        <Text style={styles.loadingText}>Loading interviewer audio…</Text>
       </View>
     );
   }
@@ -120,6 +120,7 @@ export function QuestionAudioPlayer({ sessionId, index }: QuestionAudioPlayerPro
       await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false });
       await player.seekTo(0);
       player.play();
+      setBlocked(false);
     } catch (err) {
       console.warn('[QuestionAudio] replay error:', err);
     }
@@ -128,6 +129,7 @@ export function QuestionAudioPlayer({ sessionId, index }: QuestionAudioPlayerPro
   return (
     <View style={styles.container}>
       <View style={styles.playerCard}>
+        {/* Play/Pause Button */}
         <Pressable
           onPress={togglePlayback}
           style={({ pressed }) => [styles.playBtn, pressed && styles.btnPressed]}
@@ -135,21 +137,17 @@ export function QuestionAudioPlayer({ sessionId, index }: QuestionAudioPlayerPro
           accessibilityLabel={status.playing ? 'Pause question audio' : 'Play question audio'}
         >
           {status.playing ? (
-            <Pause size={17} color="#FFFFFF" weight="fill" />
+            <Pause size={18} color="#FFFFFF" weight="fill" />
           ) : (
-            <Play size={17} color="#FFFFFF" weight="fill" style={{ marginLeft: 2 }} />
+            <Play size={18} color="#FFFFFF" weight="fill" style={{ marginLeft: 2 }} />
           )}
         </Pressable>
 
-        <View style={styles.infoCol}>
-          <View style={styles.topRow}>
-            <View style={styles.labelRow}>
-              <SpeakerHigh size={14} color="#5F4DB2" weight="fill" />
-              <Text style={styles.headerLabel}>Interviewer audio</Text>
-            </View>
-            <Text style={styles.timeText}>
-              {durationSec > 0 ? `${clock(currentSec)} / ${clock(durationSec)}` : 'Playing'}
-            </Text>
+        {/* Center column: Title on top, Scrubber in middle, Timer on bottom */}
+        <View style={styles.centerCol}>
+          <View style={styles.titleRow}>
+            <SpeakerHigh size={14} color="#5F4DB2" weight="fill" />
+            <Text style={styles.headerLabel}>Interviewer audio</Text>
           </View>
 
           <Pressable
@@ -161,16 +159,26 @@ export function QuestionAudioPlayer({ sessionId, index }: QuestionAudioPlayerPro
               <View style={[styles.trackFill, { width: `${progressPercent}%` }]} />
             </View>
           </Pressable>
+
+          <View style={styles.timerRow}>
+            <Text style={styles.timeText}>
+              {durationSec > 0 ? `${clock(currentSec)} / ${clock(durationSec)}` : 'Playing…'}
+            </Text>
+          </View>
         </View>
 
-        <Pressable
-          onPress={handleReplay}
-          style={({ pressed }) => [styles.replayBtn, pressed && styles.btnPressed]}
-          accessibilityRole="button"
-          accessibilityLabel="Replay question"
-        >
-          <ArrowClockwise size={16} color="#5F4DB2" weight="bold" />
-        </Pressable>
+        {/* Replay action with clear separation and breathing room */}
+        <View style={styles.replayWrapper}>
+          <Pressable
+            onPress={handleReplay}
+            style={({ pressed }) => [styles.replayBtn, pressed && styles.btnPressed]}
+            accessibilityRole="button"
+            accessibilityLabel="Replay question"
+            hitSlop={8}
+          >
+            <ArrowClockwise size={16} color="#5F4DB2" weight="bold" />
+          </Pressable>
+        </View>
       </View>
 
       {blocked && (
@@ -187,8 +195,8 @@ export function QuestionAudioPlayer({ sessionId, index }: QuestionAudioPlayerPro
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: 10,
-    marginBottom: 4,
+    marginTop: 12,
+    marginBottom: 6,
     width: '100%',
   },
   loadingRow: {
@@ -196,7 +204,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginTop: 10,
-    marginBottom: 4,
+    marginBottom: 6,
     paddingVertical: 6,
   },
   loadingText: {
@@ -207,60 +215,43 @@ const styles = StyleSheet.create({
   playerCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
     backgroundColor: '#F7F4EC',
     borderWidth: 1,
     borderColor: '#E7E0D4',
-    borderRadius: 16,
+    borderRadius: 18,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 12,
+    gap: 12,
   },
   playBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: '#5F4DB2',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#5F4DB2',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  replayBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(95, 77, 178, 0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  btnPressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.94 }],
-  },
-  infoCol: {
+  centerCol: {
     flex: 1,
     gap: 5,
   },
-  topRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  labelRow: {
+  titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 6,
   },
   headerLabel: {
     fontSize: 12,
     fontWeight: '700',
     color: '#0A1931',
   },
-  timeText: {
-    fontSize: 11,
-    fontFamily: 'SpaceMono-Bold',
-    color: '#5F6B80',
-  },
   trackContainer: {
-    height: 16,
+    height: 14,
     justifyContent: 'center',
   },
   trackBackground: {
@@ -273,6 +264,33 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: '#5F4DB2',
     borderRadius: 3,
+  },
+  timerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  timeText: {
+    fontSize: 11,
+    fontFamily: 'SpaceMono-Bold',
+    color: '#5F6B80',
+  },
+  replayWrapper: {
+    paddingLeft: 4,
+    borderLeftWidth: 1,
+    borderLeftColor: 'rgba(231, 224, 212, 0.8)',
+  },
+  replayBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(95, 77, 178, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 4,
+  },
+  btnPressed: {
+    opacity: 0.82,
+    transform: [{ scale: 0.94 }],
   },
   noticeRow: {
     flexDirection: 'row',

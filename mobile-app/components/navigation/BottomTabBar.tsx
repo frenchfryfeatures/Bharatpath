@@ -3,12 +3,14 @@
  * Features 4 core product tabs: Home, Jobs, Board, You.
  * Active tab has full rounded highlight container (#F1EAF7) with filled icon.
  */
+import { useState } from 'react';
 import { Pressable, View, Text, StyleSheet, Platform, ViewStyle } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { House, Briefcase, ListChecks, User } from 'phosphor-react-native';
+import { House, Briefcase, ListChecks, User, Sparkle } from 'phosphor-react-native';
 import { Colors, Radii, Spacing, Layout, Shadows } from '@/theme/tokens';
 import type { IconWeight } from 'phosphor-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { CareerAssistantModal } from '@/components/assistant/CareerAssistantModal';
 
 export type TabName = 'home' | 'jobs' | 'board' | 'you' | 'preview';
 
@@ -29,42 +31,88 @@ const tabs: TabConfig[] = [
 interface BottomTabBarProps {
   activeTab: TabName;
   onTabPress: (tab: TabName, href: string) => void;
+  onAssistantPress?: () => void;
   style?: ViewStyle;
 }
 
-export function BottomTabBar({ activeTab, onTabPress, style }: BottomTabBarProps) {
+export function BottomTabBar({ activeTab, onTabPress, onAssistantPress, style }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
-  return (
-    <View
-      style={[styles.wrapper, { bottom: Math.max(insets.bottom + 8, 12) }, style]}
-      pointerEvents="box-none"
-    >
-      <View style={styles.barContainer}>
-        {Platform.OS === 'web' ? (
-          <View style={styles.bar}>
-            {tabs.map((tab) => (
-              <TabItem
-                key={tab.name}
-                tab={tab}
-                isActive={activeTab === tab.name || (activeTab === 'preview' && tab.name === 'home')}
-                onPress={onTabPress}
-              />
-            ))}
-          </View>
-        ) : (
-          <BlurView intensity={70} tint="light" style={styles.blurBar}>
-            {tabs.map((tab) => (
-              <TabItem
-                key={tab.name}
-                tab={tab}
-                isActive={activeTab === tab.name || (activeTab === 'preview' && tab.name === 'home')}
-                onPress={onTabPress}
-              />
-            ))}
-          </BlurView>
-        )}
+  const [assistantVisible, setAssistantVisible] = useState(false);
+
+  const handleOpenAssistant = () => {
+    if (onAssistantPress) {
+      onAssistantPress();
+    } else {
+      setAssistantVisible(true);
+    }
+  };
+
+  const renderTabContent = () => (
+    <>
+      <TabItem
+        tab={tabs[0]}
+        isActive={activeTab === 'home' || (activeTab === 'preview')}
+        onPress={onTabPress}
+      />
+      <TabItem
+        tab={tabs[1]}
+        isActive={activeTab === 'jobs'}
+        onPress={onTabPress}
+      />
+
+      {/* Center AI Chatbot Button */}
+      <View style={styles.assistantCenterWrapper}>
+        <Pressable
+          onPress={handleOpenAssistant}
+          accessibilityRole="button"
+          accessibilityLabel="Open AI Career Assistant"
+          testID="career-assistant-center-tab-btn"
+          style={({ pressed }) => [
+            styles.assistantCenterBtn,
+            pressed && styles.assistantCenterBtnPressed,
+          ]}
+        >
+          <Sparkle size={24} color="#FFFFFF" weight="fill" />
+        </Pressable>
       </View>
-    </View>
+
+      <TabItem
+        tab={tabs[2]}
+        isActive={activeTab === 'board'}
+        onPress={onTabPress}
+      />
+      <TabItem
+        tab={tabs[3]}
+        isActive={activeTab === 'you'}
+        onPress={onTabPress}
+      />
+    </>
+  );
+
+  return (
+    <>
+      <View
+        style={[styles.wrapper, { bottom: Math.max(insets.bottom + 8, 12) }, style]}
+        pointerEvents="box-none"
+      >
+        <View style={styles.barContainer}>
+          {Platform.OS === 'web' ? (
+            <View style={styles.bar}>
+              {renderTabContent()}
+            </View>
+          ) : (
+            <BlurView intensity={70} tint="light" style={styles.blurBar}>
+              {renderTabContent()}
+            </BlurView>
+          )}
+        </View>
+      </View>
+
+      <CareerAssistantModal
+        visible={assistantVisible}
+        onClose={() => setAssistantVisible(false)}
+      />
+    </>
   );
 }
 
@@ -148,6 +196,28 @@ const styles = StyleSheet.create({
   tabPressed: {
     opacity: 0.85,
     transform: [{ scale: 0.97 }],
+  },
+  assistantCenterWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  assistantCenterBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#5F4DB2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#5F4DB2',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  assistantCenterBtnPressed: {
+    transform: [{ scale: 0.92 }],
+    opacity: 0.9,
   },
   label: {
     fontFamily: 'GeneralSans-Medium',

@@ -246,6 +246,13 @@ export default function FoundationPreview() {
   if (step === 'signup') {
     return (
       <SignUpScreen
+        initialFullName={userName}
+        initialEmail={userEmail}
+        initialPhone={typeof onboardingDraft?.phone === 'string' ? onboardingDraft.phone : ''}
+        initialWorkStatus={typeof onboardingDraft?.work_status === 'string' ? onboardingDraft.work_status : ''}
+        initialReferralCode={collegeReferralCode}
+        initialFileMeta={fileMeta}
+        initialCareerDetails={onboardingDraft ?? undefined}
         onResumeSelected={(meta) => {
           setFileMeta(meta);
           setIntakePayload({ source: 'upload', fileMeta: meta });
@@ -293,9 +300,14 @@ export default function FoundationPreview() {
         initialEmail={userEmail}
         onBack={() => setStep('intro')}
         onNavigateToSignUp={() => setStep('signup')}
-        onNavigateToVerification={(email, pass) => {
+        onNavigateToVerification={async (email, pass) => {
           setUserEmail(email);
           if (pass) setUserPassword(pass);
+          try {
+            await resendConfirmationCode(email);
+          } catch (e) {
+            console.warn('Could not resend confirmation code on login redirect:', e);
+          }
           setStep('verify-email');
         }}
         onForgotPassword={(typedEmail) => {
