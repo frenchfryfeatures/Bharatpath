@@ -16,6 +16,7 @@ import {
   Pressable,
   ScrollView,
   ActivityIndicator,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -26,6 +27,7 @@ import {
   NotePencil,
   WarningCircle,
   ArrowClockwise,
+  ArrowLeft,
 } from 'phosphor-react-native';
 import { Colors, Radii, Spacing } from '@/theme/tokens';
 import { UploadedFileMeta, ResumeIntakePayload } from './ResumeIntakeScreen';
@@ -278,8 +280,10 @@ export function ParsingScreen({
         setVersionDetails(details);
       }
 
+      if (isCancelledRef.current) return;
       setIsCompleted(true);
     } catch (err: any) {
+      if (isCancelledRef.current) return;
       console.error('[Parsing Error]:', err);
       if (err instanceof ApiError) {
         setErrorMsg(
@@ -303,7 +307,22 @@ export function ParsingScreen({
     }
   }, []);
 
+  const isCancelledRef = useRef(false);
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (onBack) {
+        isCancelledRef.current = true;
+        onBack();
+        return true;
+      }
+      return false;
+    });
+    return () => sub.remove();
+  }, [onBack]);
+
   const handleReviewPress = () => {
+    if (isCancelledRef.current) return;
     if (onReviewFound && versionId && versionDetails) {
       onReviewFound(versionId, versionDetails);
     }
@@ -317,6 +336,26 @@ export function ParsingScreen({
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* Top navigation back button */}
+          {onBack && (
+            <View style={styles.topHeaderRow}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.backButton,
+                  pressed && styles.pressed,
+                ]}
+                onPress={() => {
+                  isCancelledRef.current = true;
+                  onBack();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Go back"
+              >
+                <ArrowLeft size={18} color="#0A1931" weight="bold" />
+              </Pressable>
+            </View>
+          )}
+
           {/* Header Title & Subtitle */}
           <View style={styles.titleSection}>
             <Text style={styles.title}>{screenTitle}</Text>
@@ -485,9 +524,24 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   scrollContent: {
-    paddingTop: 24,
+    paddingTop: 12,
     paddingBottom: 20,
     gap: 18,
+  },
+  topHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingBottom: 4,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E7E0D4',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   titleSection: {
     gap: 2,

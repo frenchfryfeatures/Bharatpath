@@ -147,13 +147,18 @@ export default function FoundationPreview() {
   useEffect(() => {
     if (params.step) {
       setStep(params.step);
-      if (params.step === 'intro' || params.step === 'login') {
-        setUserEmail('');
-        setUserName('');
+      if (params.step === 'intro' || params.step === 'login' || params.step === 'intake') {
+        if (params.step === 'intro' || params.step === 'login') {
+          setUserEmail('');
+          setUserName('');
+        }
         setUserPassword('');
         setResumeVersionId(undefined);
         setResumeVersionDetails(null);
         setLocalCandidateScore(null);
+        setFileMeta(undefined);
+        setIntakePayload(undefined);
+        setOnboardingDraft(null);
       }
     }
   }, [params.step]);
@@ -191,7 +196,19 @@ export default function FoundationPreview() {
 
   const restoreOnboarding = async () => {
     try {
-      const [versions, profile] = await Promise.all([listResumeVersions(), getCareerProfile()]);
+      // Check if candidate has already completed scoring
+      const score = await getMyScore().catch(() => null);
+      if (!score || score.status !== 'READY' || score.value == null) {
+        // User closed app before completing scoring: require uploading resume again
+        setOnboardingSection(0);
+        setOnboardingDraft(null);
+        setIntakePayload(undefined);
+        setFileMeta(undefined);
+        setStep('intake');
+        return;
+      }
+
+      const [versions] = await Promise.all([listResumeVersions()]);
       const latest = versions.find((version) => !version.superseded);
       setOnboardingSection(0);
       setOnboardingDraft(null);
@@ -210,8 +227,11 @@ export default function FoundationPreview() {
         setResumeVersionDetails(null);
       }
     } catch {
-      refreshScore().catch(() => undefined);
-      router.replace('/home');
+      setOnboardingSection(0);
+      setOnboardingDraft(null);
+      setIntakePayload(undefined);
+      setFileMeta(undefined);
+      setStep('intake');
     }
   };
 
@@ -221,9 +241,23 @@ export default function FoundationPreview() {
         onFinish={async () => {
           const activeSession = session || (await getCurrentSession());
           if (activeSession) {
-            refreshScore().catch(() => undefined);
-            router.replace('/home');
-            restoreOnboarding().catch(() => undefined);
+            try {
+              const score = await getMyScore();
+              if (score?.status === 'READY' && score?.value != null) {
+                refreshScore().catch(() => undefined);
+                router.replace('/home');
+                restoreOnboarding().catch(() => undefined);
+                return;
+              }
+            } catch {
+              // No completed score (e.g. 402 or pending)
+            }
+            // User closed the app before completing scoring.
+            // Require uploading resume again to go for the score.
+            setFileMeta(undefined);
+            setIntakePayload(undefined);
+            setOnboardingDraft(null);
+            setStep('intake');
             return;
           }
           setStep('intro');
@@ -543,8 +577,10 @@ export default function FoundationPreview() {
         payload={intakePayload}
         initialDetails={fileMeta ? onboardingDraft ?? undefined : undefined}
         onBack={() => {
-          setOnboardingSection(0);
-          setStep('review');
+          setFileMeta(undefined);
+          setIntakePayload(undefined);
+          setOnboardingDraft(null);
+          setStep('intake');
         }}
         onReviewFound={async (verId, details) => {
           setResumeVersionId(verId);

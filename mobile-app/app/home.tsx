@@ -30,12 +30,34 @@ export default function HomeRoute() {
   const [activeTab, setActiveTab] = useState<TabName>('home');
   const scoreGain = useScoreChange(session?.userId, candidateScore);
 
-  // Re-fetch score and photo on screen focus
+  // Re-fetch score and photo on screen focus & ensure candidate has completed scoring
   useFocusEffect(
     useCallback(() => {
-      refreshScore().catch(() => undefined);
-      refreshPhoto().catch(() => undefined);
-    }, [refreshScore, refreshPhoto])
+      let isMounted = true;
+      async function verifyScoreGate() {
+        try {
+          const score = await getMyScore();
+          if (!score || score.status !== 'READY' || score.value == null) {
+            if (isMounted) {
+              router.replace('/?step=intake');
+            }
+            return;
+          }
+          if (isMounted) {
+            refreshScore().catch(() => undefined);
+            refreshPhoto().catch(() => undefined);
+          }
+        } catch {
+          if (isMounted) {
+            router.replace('/?step=intake');
+          }
+        }
+      }
+      verifyScoreGate();
+      return () => {
+        isMounted = false;
+      };
+    }, [router, refreshScore, refreshPhoto])
   );
 
   const handleTabPress = (tab: TabName, href: string) => {

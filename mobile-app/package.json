@@ -9,7 +9,7 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "test:score": "node tests/score-change.cjs",
-    "test:onboarding": "node tests/onboarding.cjs && node tests/structured-resume.cjs && node tests/resume-resilience.cjs && node tests/phone-input.cjs && node tests/unconfirmed-signup.cjs",
+    "test:onboarding": "node tests/onboarding.cjs && node tests/structured-resume.cjs && node tests/resume-resilience.cjs && node tests/phone-input.cjs && node tests/unconfirmed-signup.cjs && node tests/onboarding-score-gate.cjs",
     "test:notifications": "node tests/push-registration.cjs",
     "test:assistant-ui": "node tests/tab-and-assistant-ui.cjs",
     "test:validation": "node tests/conversation-validation.cjs",

@@ -540,12 +540,12 @@ export function StreakDetailScreen({ onBack }: StreakDetailScreenProps) {
             <View style={styles.sectionHeaderRow}>
               <View style={styles.sectionEyebrowRow}>
                 <Flame size={13} color="#FF6B00" weight="fill" />
-                <Text style={styles.sectionEyebrow}>
-                  {view === 'week'
-                    ? "THIS WEEK'S ACTIVITY"
-                    : view === 'month'
-                      ? "THIS MONTH'S ACTIVITY"
-                      : "THIS YEAR'S ACTIVITY"}
+                <Text
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                  style={styles.sectionEyebrow}
+                >
+                  STREAK ACTIVITY
                 </Text>
               </View>
 
@@ -1272,31 +1272,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 2,
-    gap: Spacing.sm,
+    gap: 6,
   },
   sectionEyebrowRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     flexShrink: 1,
+    minWidth: 0,
   },
   sectionEyebrow: {
     ...Typography.monoEyebrow,
     color: Colors.text.muted,
-    fontSize: 11,
+    fontSize: 10.5,
+    letterSpacing: 0.8,
   },
   segmentContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F1ECE2',
     borderRadius: Radii.pill,
-    padding: 3,
+    padding: 2,
     borderWidth: 1,
     borderColor: Colors.surface.border,
+    flexShrink: 0,
   },
   segmentBtn: {
-    paddingHorizontal: 11,
-    paddingVertical: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
     borderRadius: Radii.pill,
   },
   segmentBtnActive: {
