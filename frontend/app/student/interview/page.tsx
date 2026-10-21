@@ -68,7 +68,7 @@ export default function StudentInterviewPage() {
   const router = useRouter();
   const offer = useGetInterviewOfferQuery();
   const history = useGetInterviewHistoryQuery();
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected] = useState<string | null>(null);
   const recordings = useGetInterviewRecordingsQuery(selected ?? "", {
     skip: !selected,
   });
@@ -540,17 +540,12 @@ export default function StudentInterviewPage() {
                 <button
                   key={session.id}
                   type="button"
-                  onClick={() => {
-                    if (session.report_status === "READY") {
-                      router.push(`/student/interview/${session.id}/feedback`);
-                      return;
-                    }
-                    setSelected(session.id);
-                  }}
+                  disabled={session.report_status !== "READY"}
+                  onClick={() => router.push(`/student/interview/${session.id}/feedback`)}
                   className={`block w-full rounded-xl border p-3.5 text-left transition-colors ${
-                    selected === session.id
-                      ? "border-[#C9BEEB] bg-[#F1EAF7]"
-                      : "border-[#E7E0D4] bg-white hover:bg-[#FFFCF7]"
+                    session.report_status === "READY"
+                      ? "cursor-pointer border-[#E7E0D4] bg-white hover:bg-[#FFFCF7]"
+                      : "cursor-not-allowed border-[#E7E0D4] bg-[#FAF8F3] opacity-70"
                   }`}
                 >
                   <span className="flex flex-wrap items-center justify-between gap-2">
@@ -567,7 +562,7 @@ export default function StudentInterviewPage() {
                   </span>
                   <span className="mt-1 block text-[11px] text-[#5F6B80]">
                     {session.answers_stored}/{session.questions_asked} answers
-                    {session.report_status === "READY" && " · View feedback"}
+                    {session.report_status === "READY" ? " · View feedback" : " · Feedback not ready yet"}
                   </span>
                 </button>
               ))}
