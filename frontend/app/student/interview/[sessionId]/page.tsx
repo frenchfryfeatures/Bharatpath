@@ -25,12 +25,19 @@ function QuestionAudio({ sessionId, index }: { sessionId: string; index: number 
 
 /** Shown from the moment an answer is sent until the next question is on screen. */
 function NextQuestionWait() {
+  // The core icon alternates between a question mark and the thinking brain until the question arrives.
+  const [thinking, setThinking] = useState(false);
+  useEffect(() => {
+    const swap = setInterval(() => setThinking((value) => !value), 2200);
+    return () => clearInterval(swap);
+  }, []);
   return <div role="status" aria-live="polite" aria-busy="true" className="flex min-h-[420px] flex-col items-center justify-center px-6 py-10 text-center">
     <style>{`
       @keyframes bp-wait-ripple { 0% { transform: scale(0.62); opacity: 0.9; } 100% { transform: scale(1.12); opacity: 0; } }
       @keyframes bp-wait-breathe { 0%, 100% { transform: scale(0.94); opacity: 0.75; } 50% { transform: scale(1.06); opacity: 1; } }
       @keyframes bp-wait-float { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-6px) scale(1.05); } }
       @keyframes bp-wait-twinkle { 0%, 100% { transform: scale(1) rotate(0deg); } 50% { transform: scale(1.25) rotate(25deg); } }
+      @keyframes bp-wait-swap { 0% { transform: scale(0.4) rotate(-12deg); opacity: 0; } 100% { transform: scale(1) rotate(0); opacity: 1; } }
       @keyframes bp-wait-dots { 0%, 20% { opacity: 0.2; } 50% { opacity: 1; } 100% { opacity: 0.2; } }
       @media (prefers-reduced-motion: reduce) { .bp-wait * { animation: none !important; } }
     `}</style>
@@ -39,8 +46,10 @@ function NextQuestionWait() {
       <span className="absolute inset-0 rounded-full border-[3px] border-[#DCD3F3]" style={{ animation: "bp-wait-ripple 2.2s ease-out 1.1s infinite" }} />
       <span className="absolute inset-[34px] rounded-full bg-[#F1EDFA]" style={{ animation: "bp-wait-breathe 2.2s ease-in-out infinite" }} />
       <span className="relative grid h-[116px] w-[116px] place-items-center rounded-full bg-[#5F4DB2] text-white shadow-[0_12px_30px_rgba(95,77,178,0.35)]" style={{ animation: "bp-wait-float 2.2s ease-in-out infinite" }}>
-        <Brain size={52} fill="currentColor" strokeWidth={1.5} aria-hidden="true" />
-        <span className="absolute -right-1 -top-1 grid h-9 w-9 place-items-center rounded-full bg-[#3B2E7E] text-[#FFC85A]" style={{ animation: "bp-wait-twinkle 1.6s ease-in-out infinite" }}><Sparkles size={18} fill="currentColor" aria-hidden="true" /></span>
+        {thinking ? <>
+          <span key="brain" className="grid place-items-center" style={{ animation: "bp-wait-swap 0.5s ease-out" }}><Brain size={52} fill="currentColor" strokeWidth={1.5} aria-hidden="true" /></span>
+          <span key="spark" className="absolute -right-1 -top-1 grid h-9 w-9 place-items-center rounded-full bg-[#3B2E7E] text-[#FFC85A]" style={{ animation: "bp-wait-twinkle 1.6s ease-in-out infinite" }}><Sparkles size={18} fill="currentColor" aria-hidden="true" /></span>
+        </> : <span key="question" className="grid place-items-center" style={{ animation: "bp-wait-swap 0.5s ease-out" }}><span className="text-[64px] font-bold leading-none" aria-hidden="true">?</span></span>}
       </span>
     </span>
     <p className="mt-6 max-w-[260px] text-[20px] font-bold leading-[26px] text-[#0A1931]">Please wait, next question is coming…</p>
