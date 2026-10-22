@@ -33,7 +33,123 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.listing import Key, Ordering, SortField, SortOrder, contains
+from app.modules.admin.domain import PersonSearch
 from app.modules.admin.models import Dispute
+
+
+# ---------------------------------------------------------------------------
+# How each list may be sorted (2026-10-21)
+# ---------------------------------------------------------------------------
+# A sort's keys end in the row's id, so the order is total. Each table's keys
+# are what its router's `Literal` offers; `test_admin_list_sorts.py` holds the
+# two equal. The first entry is the list's default.
+def _by(*keys: Key, order: SortOrder) -> SortField:
+    return SortField(keys=keys, default_order=order)
+
+
+CANDIDATE_SORTS: dict[str, SortField] = {
+    "created_at": _by(
+        Key("u.created_at", "timestamptz", "created_at"), Key("u.id", "uuid", "id"), order="desc"
+    ),
+    "full_name": _by(
+        Key("p.full_name", "text", "full_name", nullable=True),
+        Key("u.id", "uuid", "id"),
+        order="asc",
+    ),
+}
+LEAD_SORTS: dict[str, SortField] = {
+    "created_at": _by(
+        Key("created_at", "timestamptz", "created_at"), Key("id", "uuid", "id"), order="desc"
+    ),
+    "full_name": _by(
+        Key("full_name", "text", "full_name", nullable=True), Key("id", "uuid", "id"), order="asc"
+    ),
+    "last_downloaded_at": _by(
+        Key("last_downloaded_at", "timestamptz", "last_downloaded_at", nullable=True),
+        Key("id", "uuid", "id"),
+        order="desc",
+    ),
+}
+KYB_SORTS: dict[str, SortField] = {
+    "created_at": _by(
+        Key("k.created_at", "timestamptz", "created_at"), Key("k.id", "uuid", "id"), order="desc"
+    ),
+    "submitted_at": _by(
+        Key("k.submitted_at", "timestamptz", "submitted_at", nullable=True),
+        Key("k.id", "uuid", "id"),
+        order="desc",
+    ),
+    "organisation": _by(
+        Key("t.name", "text", "organisation"), Key("k.id", "uuid", "id"), order="asc"
+    ),
+}
+#: HIGH above MEDIUM above LOW. Severities are words, and alphabetical order
+#: would put HIGH between nothing and LOW.
+_SEVERITY_RANK = "CASE s.severity WHEN 'HIGH' THEN 3 WHEN 'MEDIUM' THEN 2 ELSE 1 END"
+SIGNAL_SORTS: dict[str, SortField] = {
+    "created_at": _by(
+        Key("s.created_at", "timestamptz", "created_at"), Key("s.id", "uuid", "id"), order="asc"
+    ),
+    # Within a severity, still first in, first out.
+    "severity": _by(
+        Key(_SEVERITY_RANK, "integer", "severity_rank"),
+        Key("s.created_at", "timestamptz", "created_at", fixed="asc"),
+        Key("s.id", "uuid", "id", fixed="asc"),
+        order="desc",
+    ),
+}
+DISPUTE_SORTS: dict[str, SortField] = {
+    "created_at": _by(
+        Key("disputes.created_at", "timestamptz", "created_at"),
+        Key("disputes.id", "uuid", "id"),
+        order="asc",
+    ),
+    "resolved_at": _by(
+        Key("disputes.resolved_at", "timestamptz", "resolved_at", nullable=True),
+        Key("disputes.id", "uuid", "id"),
+        order="desc",
+    ),
+}
+AUDIT_SORTS: dict[str, SortField] = {
+    "occurred_at": _by(
+        Key("occurred_at", "timestamptz", "occurred_at"), Key("id", "bigint", "id"), order="desc"
+    ),
+}
+
+#: A candidate's phone: the account's, else the one given at onboarding --
+#: sign-up is by email, so most candidates' number is only in the profile.
+#: Both are E.164. The candidate list, the leads and the integrity queue
+#: read the same expression.
+_CANDIDATE_PHONE = "COALESCE(NULLIF(u.phone, ''), NULLIF(p.career->'details'->>'phone', ''))"
+
+
+def _person_where(
+    search: PersonSearch, *, name_sql: str, email_sql: str, phone_sql: str
+) -> tuple[str, dict[str, Any]]:
+    """`AND ...` narrowing a query to `search`, with its bound values. Part
+    of a name always; part of an email or phone only when the search says
+    `partial_contact` -- otherwise the whole address or number."""
+    clauses: list[str] = []
+    params: dict[str, Any] = {}
+    if search.name is not None:
+        clauses.append(f"{name_sql} ILIKE CAST(:_person_name AS text) ESCAPE '\\'")
+        params["_person_name"] = contains(search.name)
+    if search.email is not None:
+        if search.partial_contact:
+            clauses.append(f"{email_sql} LIKE CAST(:_person_email AS text) ESCAPE '\\'")
+            params["_person_email"] = contains(search.email)
+        else:
+            clauses.append(f"{email_sql} = CAST(:_person_email AS text)")
+            params["_person_email"] = search.email
+    if search.phone is not None:
+        if search.partial_contact:
+            clauses.append(f"{phone_sql} LIKE CAST(:_person_phone AS text)")
+            params["_person_phone"] = contains(search.phone)
+        else:
+            clauses.append(f"{phone_sql} = CAST(:_person_phone AS text)")
+            params["_person_phone"] = f"+{search.phone}"
+    return "".join(f"\n           AND {c}" for c in clauses), params
 
 
 # ---------------------------------------------------------------------------
@@ -88,21 +204,40 @@ async def dispute_queue(
     states: tuple[str, ...],
     kind: str | None,
     party: str | None,
-    after: tuple[datetime, uuid.UUID] | None,
+    assigned_to: uuid.UUID | None,
+    raiser: PersonSearch,
+    created_from: datetime | None,
+    created_before: datetime | None,
+    ordering: Ordering,
     limit: int,
 ) -> list[Dispute]:
-    """Oldest first: a queue is worked from the front."""
+    """Oldest first unless sorted otherwise: a queue is worked from the front.
+    `raiser` finds disputes by who raised them; `users` is not under RLS, and
+    the dispute policy still decides which disputes are read."""
     stmt = select(Dispute).where(Dispute.state.in_(states))
     if kind is not None:
         stmt = stmt.where(Dispute.kind == kind)
     if party is not None:
         stmt = stmt.where(Dispute.party == party)
-    if after is not None:
-        stmt = stmt.where(
-            (Dispute.created_at > after[0])
-            | ((Dispute.created_at == after[0]) & (Dispute.id > after[1]))
+    if assigned_to is not None:
+        stmt = stmt.where(Dispute.assigned_to == assigned_to)
+    if created_from is not None:
+        stmt = stmt.where(Dispute.created_at >= created_from)
+    if created_before is not None:
+        stmt = stmt.where(Dispute.created_at < created_before)
+    if raiser.given:
+        person, params = _person_where(
+            raiser, name_sql="p.full_name", email_sql="u.email", phone_sql=_CANDIDATE_PHONE
         )
-    stmt = stmt.order_by(Dispute.created_at, Dispute.id).limit(limit)
+        stmt = stmt.where(
+            text(
+                "disputes.raised_by IN (SELECT u.id FROM users u "  # noqa: S608 - constants
+                "LEFT JOIN candidate_profiles p ON p.user_id = u.id WHERE TRUE" + person + ")"
+            ).bindparams(**params)
+        )
+    after, params = ordering.where()
+    stmt = stmt.where(text(after).bindparams(**params)) if params else stmt
+    stmt = stmt.order_by(text(ordering.order_by())).limit(limit)
     return list((await session.execute(stmt)).scalars().all())
 
 
@@ -138,15 +273,20 @@ async def kyb_submissions(
     reader: AsyncSession,
     *,
     state: str | None,
-    after: tuple[datetime, uuid.UUID] | None,
+    organisation: str | None,
+    created_from: datetime | None,
+    created_before: datetime | None,
+    ordering: Ordering,
     limit: int,
 ) -> list[RowMapping]:
-    """The submissions record, newest first. **No answers and no documents**:
-    the list says who submitted and what happened, and a reviewer opens the
-    organisation for the rest."""
+    """The submissions record, newest first unless sorted otherwise. **No
+    answers and no documents**: the list says who submitted and what
+    happened, and a reviewer opens the organisation for the rest.
+    `organisation` is part of its name."""
+    after, after_params = ordering.where()
     return await _rows(
         reader,
-        """
+        f"""
         SELECT k.id, k.tenant_id, t.name AS organisation, k.state, k.form_version,
                k.submitted_at, k.reviewed_at, k.auto_approved, k.created_at,
                (SELECT count(*) FROM kyb_reviews r WHERE r.submission_id = k.id)
@@ -155,15 +295,22 @@ async def kyb_submissions(
           FROM kyb_submissions k
           JOIN tenants t ON t.id = k.tenant_id
          WHERE (CAST(:state AS text) IS NULL OR k.state = CAST(:state AS text))
-           AND (CAST(:after_at AS timestamptz) IS NULL
-                OR (k.created_at, k.id) < (CAST(:after_at AS timestamptz), CAST(:after_id AS uuid)))
-         ORDER BY k.created_at DESC, k.id DESC
+           AND (CAST(:organisation AS text) IS NULL
+                OR t.name ILIKE CAST(:organisation AS text) ESCAPE '\\')
+           AND (CAST(:created_from AS timestamptz) IS NULL
+                OR k.created_at >= CAST(:created_from AS timestamptz))
+           AND (CAST(:created_before AS timestamptz) IS NULL
+                OR k.created_at < CAST(:created_before AS timestamptz))
+           AND {after}
+         ORDER BY {ordering.order_by()}
          LIMIT :limit
-        """,
+        """,  # noqa: S608 - module constants, not values
         state=state,
-        after_at=after[0] if after else None,
-        after_id=after[1] if after else None,
+        organisation=contains(organisation) if organisation else None,
+        created_from=created_from,
+        created_before=created_before,
         limit=limit,
+        **after_params,
     )
 
 
@@ -199,33 +346,49 @@ async def integrity_signals(
     *,
     state: str,
     severity: str | None,
-    after: tuple[datetime, uuid.UUID] | None,
+    rule_id: str | None,
+    candidate: PersonSearch,
+    created_from: datetime | None,
+    created_before: datetime | None,
+    ordering: Ordering,
     limit: int,
 ) -> list[RowMapping]:
-    """Oldest first, whatever the severity: first in, first out is the order
-    nobody has to justify. `severity` filters for a reviewer who wants the
-    HIGH signals -- the ones already hiding someone from employers -- first.
+    """Oldest first, whatever the severity, unless sorted otherwise: first
+    in, first out is the order nobody has to justify. `severity` filters,
+    and the `severity` sort puts the HIGH signals -- the ones already hiding
+    someone from employers -- first, each severity still oldest first.
 
     Never the evidence: it can quote the CV, and only opening one signal
     (audited by its id) shows it."""
+    person, person_params = _person_where(
+        candidate, name_sql="p.full_name", email_sql="u.email", phone_sql=_CANDIDATE_PHONE
+    )
+    after, after_params = ordering.where()
     return await _rows(
         reader,
         f"""
-        SELECT {_SIGNAL_COLUMNS}
+        SELECT {_SIGNAL_COLUMNS}, {_SEVERITY_RANK} AS severity_rank
           FROM integrity_signals s
           {_SIGNAL_JOINS}
          WHERE s.state = CAST(:state AS text)
            AND (CAST(:severity AS text) IS NULL OR s.severity = CAST(:severity AS text))
-           AND (CAST(:after_at AS timestamptz) IS NULL
-                OR (s.created_at, s.id) > (CAST(:after_at AS timestamptz), CAST(:after_id AS uuid)))
-         ORDER BY s.created_at, s.id
+           AND (CAST(:rule_id AS text) IS NULL OR s.rule_id = CAST(:rule_id AS text))
+           AND (CAST(:created_from AS timestamptz) IS NULL
+                OR s.created_at >= CAST(:created_from AS timestamptz))
+           AND (CAST(:created_before AS timestamptz) IS NULL
+                OR s.created_at < CAST(:created_before AS timestamptz)){person}
+           AND {after}
+         ORDER BY {ordering.order_by()}
          LIMIT :limit
         """,  # noqa: S608 - module constants, not values
         state=state,
         severity=severity,
-        after_at=after[0] if after else None,
-        after_id=after[1] if after else None,
+        rule_id=rule_id,
+        created_from=created_from,
+        created_before=created_before,
         limit=limit,
+        **person_params,
+        **after_params,
     )
 
 
@@ -290,42 +453,47 @@ async def candidates(
     reader: AsyncSession,
     *,
     status: str | None,
-    name_contains: str | None,
-    email: str | None,
-    after: tuple[datetime, uuid.UUID] | None,
+    person: PersonSearch,
+    city: str | None,
+    created_from: datetime | None,
+    created_before: datetime | None,
+    ordering: Ordering,
     limit: int,
 ) -> list[RowMapping]:
-    """Candidate accounts, newest first, keyset by `(created_at, id)` and
-    served by `ix_users_pool_created`. Business accounts are never listed:
-    `pool` is the filter, not a role, because a candidate holds no membership.
-    `email` is an exact match on the normalised address -- a lookup for
-    someone who wrote to support, not a way to enumerate a domain."""
-    name = None
-    if name_contains:
-        name = name_contains.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    """Candidate accounts, newest first unless sorted otherwise; the default
+    is served by `ix_users_pool_created`. Business accounts are never
+    listed: `pool` is the filter, not a role, because a candidate holds no
+    membership. An email or phone matches in whole unless `person` says
+    `partial_contact` (`domain.partial_contact_search`)."""
+    where, person_params = _person_where(
+        person, name_sql="p.full_name", email_sql="u.email", phone_sql=_CANDIDATE_PHONE
+    )
+    after, after_params = ordering.where()
     return await _rows(
         reader,
-        """
-        SELECT u.id, u.status, u.phone, u.email, u.created_at,
+        f"""
+        SELECT u.id, u.status, {_CANDIDATE_PHONE} AS phone, u.email, u.created_at,
                p.full_name, p.city, p.state_code
           FROM users u
           LEFT JOIN candidate_profiles p ON p.user_id = u.id
          WHERE u.pool = 'CANDIDATE'
            AND (CAST(:status AS text) IS NULL OR u.status = CAST(:status AS text))
-           AND (CAST(:email AS text) IS NULL OR u.email = CAST(:email AS text))
-           AND (CAST(:name AS text) IS NULL
-                OR p.full_name ILIKE '%' || CAST(:name AS text) || '%' ESCAPE '\\')
-           AND (CAST(:after_at AS timestamptz) IS NULL
-                OR (u.created_at, u.id) < (CAST(:after_at AS timestamptz), CAST(:after_id AS uuid)))
-         ORDER BY u.created_at DESC, u.id DESC
+           AND (CAST(:city AS text) IS NULL OR p.city ILIKE CAST(:city AS text) ESCAPE '\\')
+           AND (CAST(:created_from AS timestamptz) IS NULL
+                OR u.created_at >= CAST(:created_from AS timestamptz))
+           AND (CAST(:created_before AS timestamptz) IS NULL
+                OR u.created_at < CAST(:created_before AS timestamptz)){where}
+           AND {after}
+         ORDER BY {ordering.order_by()}
          LIMIT :limit
-        """,
+        """,  # noqa: S608 - module constants, not values
         status=status,
-        email=email,
-        name=name,
-        after_at=after[0] if after else None,
-        after_id=after[1] if after else None,
+        city=contains(city) if city else None,
+        created_from=created_from,
+        created_before=created_before,
         limit=limit,
+        **person_params,
+        **after_params,
     )
 
 
@@ -333,11 +501,10 @@ async def candidates(
 #: from, and the stage itself. The CASE is `domain.lead_stage`, in SQL; an
 #: integration test holds the two equal. Shared by the list and the counts so
 #: they cannot disagree.
-_LEADS_CTE = """
+_LEADS_CTE = f"""
     WITH facts AS (
         SELECT u.id, u.email, u.locale, u.created_at,
-               COALESCE(NULLIF(u.phone, ''), NULLIF(p.career->'details'->>'phone', ''))
-                   AS phone,
+               {_CANDIDATE_PHONE} AS phone,
                p.full_name, p.city,
                COALESCE((p.career->>'completed')::boolean, false) AS profile_completed,
                d.template_key, d.first_downloaded_at, d.last_downloaded_at,
@@ -363,34 +530,46 @@ _LEADS_CTE = """
                     ELSE 'SIGNED_UP' END AS stage
           FROM facts
     )
-"""
+"""  # noqa: S608 - module constants, not values
 
 
 async def leads(
     reader: AsyncSession,
     *,
     stages: list[str],
-    after: tuple[datetime, uuid.UUID] | None,
+    person: PersonSearch,
+    created_from: datetime | None,
+    created_before: datetime | None,
+    ordering: Ordering,
     limit: int,
 ) -> list[RowMapping]:
-    """The sales follow-up list, newest sign-up first, keyset by
-    `(created_at, id)`. Active candidates only: a suspended or erased account
-    is nobody to call."""
+    """The sales follow-up list, newest sign-up first unless sorted
+    otherwise. Active candidates only: a suspended or erased account is
+    nobody to call."""
+    where, person_params = _person_where(
+        person, name_sql="full_name", email_sql="email", phone_sql="phone"
+    )
+    after, after_params = ordering.where()
     return await _rows(
         reader,
         _LEADS_CTE  # noqa: S608 - module constants, not values
-        + """
+        + f"""
         SELECT * FROM staged
          WHERE stage = ANY(CAST(:stages AS text[]))
-           AND (CAST(:after_at AS timestamptz) IS NULL
-                OR (created_at, id) < (CAST(:after_at AS timestamptz), CAST(:after_id AS uuid)))
-         ORDER BY created_at DESC, id DESC
+           AND (CAST(:created_from AS timestamptz) IS NULL
+                OR created_at >= CAST(:created_from AS timestamptz))
+           AND (CAST(:created_before AS timestamptz) IS NULL
+                OR created_at < CAST(:created_before AS timestamptz)){where}
+           AND {after}
+         ORDER BY {ordering.order_by()}
          LIMIT :limit
-        """,
+        """,  # noqa: S608 - module constants, not values
         stages=stages,
-        after_at=after[0] if after else None,
-        after_id=after[1] if after else None,
+        created_from=created_from,
+        created_before=created_before,
         limit=limit,
+        **person_params,
+        **after_params,
     )
 
 
@@ -696,14 +875,16 @@ async def audit_events(
     tenant_id: uuid.UUID | None,
     occurred_from: datetime | None,
     occurred_to: datetime | None,
-    after: tuple[datetime, int] | None,
+    ordering: Ordering,
     limit: int,
 ) -> list[RowMapping]:
-    """Newest first, keyset on (occurred_at, id). Each filter lands on one of
-    the three `ix_audit_*_time` indexes or on `target_id`'s own."""
+    """Newest first unless `ordering` says oldest, keyset on (occurred_at,
+    id). Each filter lands on one of the three `ix_audit_*_time` indexes or
+    on `target_id`'s own."""
+    after, after_params = ordering.where()
     return await _rows(
         reader,
-        """
+        f"""
         SELECT id, actor_id, actor_role, action, target_type, target_id, tenant_id,
                request_id, metadata, occurred_at
           FROM audit_events
@@ -716,11 +897,10 @@ async def audit_events(
                 OR occurred_at >= CAST(:occurred_from AS timestamptz))
            AND (CAST(:occurred_to AS timestamptz) IS NULL
                 OR occurred_at < CAST(:occurred_to AS timestamptz))
-           AND (CAST(:after_at AS timestamptz) IS NULL
-                OR (occurred_at, id) < (CAST(:after_at AS timestamptz), CAST(:after_id AS bigint)))
-         ORDER BY occurred_at DESC, id DESC
+           AND {after}
+         ORDER BY {ordering.order_by()}
          LIMIT :limit
-        """,
+        """,  # noqa: S608 - module constants, not values
         actor_id=actor_id,
         action=action,
         target_type=target_type,
@@ -728,9 +908,8 @@ async def audit_events(
         tenant_id=tenant_id,
         occurred_from=occurred_from,
         occurred_to=occurred_to,
-        after_at=after[0] if after else None,
-        after_id=after[1] if after else None,
         limit=limit,
+        **after_params,
     )
 
 

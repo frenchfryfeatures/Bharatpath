@@ -24,7 +24,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 from fastapi import status
@@ -36,9 +36,10 @@ from app.core import storage
 from app.core.audit import AuditAction, audit_event
 from app.core.db import get_admin_session_factory, set_transaction_tenant, set_transaction_user
 from app.core.errors import AppError, NotFoundError, PermissionDeniedError, ValidationError
+from app.core.listing import SortOrder, ordering, phone_digits, search_text
 from app.core.logging import get_logger
 from app.core.outbox import emit
-from app.core.pagination import clamp_limit, decode_cursor, encode_cursor
+from app.core.pagination import clamp_limit, ist_day_range
 from app.core.ratelimit import hit
 from app.core.tenant import TenantContext
 from app.modules.admin import repository
@@ -49,11 +50,13 @@ from app.modules.admin.domain import (
     IST_ZONE_NAME,
     OLDEST_ITEMS,
     UNPAID_STAGES,
+    PersonSearch,
     dashboard_sections,
     dispute_refusal,
     dispute_transition_refusal,
     mask_email,
     mask_phone,
+    partial_contact_search,
     party_for_role,
     throughput_series,
     throughput_start,
@@ -155,7 +158,7 @@ from app.modules.admin.schemas import (
 )
 from app.modules.applications.domain import stage_summary
 from app.modules.billing import service as billing_service
-from app.modules.billing.domain import DISCOUNT_POLICY_VERSION
+from app.modules.billing.domain import DISCOUNT_POLICY_VERSION, DiscountStatus
 from app.modules.candidate import service as candidate_service
 from app.modules.candidate.career import CareerResponse
 from app.modules.candidate.schemas import LocationRequest, NameRequest
@@ -274,21 +277,25 @@ async def _reveal(
         yield reader
 
 
-def _keyset(cursor: str | None, *, id_type: type = uuid.UUID) -> tuple[datetime, Any] | None:
-    if cursor is None:
-        return None
-    payload = decode_cursor(cursor)
-    try:
-        return datetime.fromisoformat(str(payload["t"])), id_type(payload["i"])
-    except (KeyError, ValueError, TypeError) as exc:
-        raise ValidationError(code="invalid_cursor") from exc
+def _person(
+    ctx: TenantContext, *, name: str | None, email: str | None, phone: str | None
+) -> PersonSearch:
+    """A list's name, email and phone search, as the caller's role may make
+    it: part of an email or phone only for a role that reads whole contacts
+    (`domain.partial_contact_search`). Blank is no search; a phone search
+    with no digit is 422 `phone_search_invalid`."""
+    address = search_text(email)
+    return PersonSearch(
+        name=search_text(name),
+        email=identity_service.normalise_email(address) if address else None,
+        phone=phone_digits(phone),
+        partial_contact=partial_contact_search(ctx.role),
+    )
 
 
-def _next(rows: list[Any], limit: int, *, at: str) -> str | None:
-    if len(rows) < limit:
-        return None
-    last = rows[-1]
-    return encode_cursor({"t": last[at].isoformat(), "i": str(last["id"])})
+def _sorted(sort: str, order: SortOrder | None) -> dict[str, str | None]:
+    """The sort, for an audit row: which field and which way, as asked."""
+    return {"sort": sort, "order": order}
 
 
 # ---------------------------------------------------------------------------
@@ -301,13 +308,21 @@ async def kyb_submissions(
     state: str | None,
     cursor: str | None,
     limit: int | None,
+    organisation: str | None = None,
+    created_from: date | None = None,
+    created_to: date | None = None,
+    sort: str = "created_at",
+    order: SortOrder | None = None,
     request_id: str | None = None,
     now: datetime | None = None,
 ) -> KybSubmissionsPage:
     """Every organisation's submissions. **A record while approval is
     automatic** (R15, plan v4): the switch is shown with the page so a
-    reviewer knows whether anything here is waiting on them."""
+    reviewer knows whether anything here is waiting on them. `organisation`
+    is part of its name; the days are IST, both ends inclusive."""
     size = clamp_limit(limit)
+    sorting = ordering(repository.KYB_SORTS, sort=sort, order=order, cursor=cursor)
+    start, end = ist_day_range(created_from, created_to)
     review_required = await kyb_service.require_approval(session, now=_now(now))
     async with _reveal(
         session,
@@ -316,10 +331,16 @@ async def kyb_submissions(
         target_type="kyb_submissions",
         target_id=None,
         request_id=request_id,
-        metadata={"view": "kyb_submissions", "state": state},
+        metadata={"view": "kyb_submissions", "state": state, **_sorted(sort, order)},
     ) as reader:
         rows = await repository.kyb_submissions(
-            reader, state=state, after=_keyset(cursor), limit=size
+            reader,
+            state=state,
+            organisation=search_text(organisation),
+            created_from=start,
+            created_before=end,
+            ordering=sorting,
+            limit=size,
         )
         logos = await profile_images_service.logo_urls(
             reader, tenant_ids=[r["tenant_id"] for r in rows]
@@ -331,7 +352,7 @@ async def kyb_submissions(
             )
             for r in rows
         ],
-        next_cursor=_next(rows, size, at="created_at"),
+        next_cursor=sorting.next_cursor(rows, size),
         review_required=review_required,
     )
 
@@ -428,9 +449,24 @@ async def integrity_queue(
     severity: str | None,
     cursor: str | None,
     limit: int | None,
+    rule_id: str | None = None,
+    name: str | None = None,
+    email: str | None = None,
+    phone: str | None = None,
+    created_from: date | None = None,
+    created_to: date | None = None,
+    sort: str = "created_at",
+    order: SortOrder | None = None,
     request_id: str | None = None,
 ) -> IntegritySignalsPage:
+    """The queue, oldest first unless sorted. `name`, `email` and `phone`
+    find the signals about one candidate -- the contact in whole for a role
+    that does not read contacts (`_person`). The search terms stay out of
+    the audit row; that a search was made does not."""
     size = clamp_limit(limit)
+    sorting = ordering(repository.SIGNAL_SORTS, sort=sort, order=order, cursor=cursor)
+    start, end = ist_day_range(created_from, created_to)
+    candidate = _person(ctx, name=name, email=email, phone=phone)
     async with _reveal(
         session,
         ctx,
@@ -438,17 +474,32 @@ async def integrity_queue(
         target_type="integrity_signals",
         target_id=None,
         request_id=request_id,
-        metadata={"view": "integrity_queue", "state": state, "severity": severity},
+        metadata={
+            "view": "integrity_queue",
+            "state": state,
+            "severity": severity,
+            "rule_id": rule_id,
+            **candidate.audit(),
+            **_sorted(sort, order),
+        },
     ) as reader:
         rows = await repository.integrity_signals(
-            reader, state=state, severity=severity, after=_keyset(cursor), limit=size
+            reader,
+            state=state,
+            severity=severity,
+            rule_id=search_text(rule_id),
+            candidate=candidate,
+            created_from=start,
+            created_before=end,
+            ordering=sorting,
+            limit=size,
         )
         photos = await profile_images_service.photo_urls(
             reader, user_ids=[r["candidate_id"] for r in rows]
         )
     return IntegritySignalsPage(
         items=[IntegritySignalRow.model_validate(_signal_fields(r, photos)) for r in rows],
-        next_cursor=_next(rows, size, at="created_at"),
+        next_cursor=sorting.next_cursor(rows, size),
     )
 
 
@@ -584,33 +635,43 @@ async def resolve_signal(
 async def list_tenants(
     session: AsyncSession,
     *,
+    ctx: TenantContext,
     tenant_type: str | None,
     status: str | None,
     name_contains: str | None,
     cursor: str | None,
     limit: int | None,
+    email: str | None = None,
+    phone: str | None = None,
+    created_from: date | None = None,
+    created_to: date | None = None,
+    sort: str = "name",
+    order: SortOrder | None = None,
 ) -> TenantsPage:
     """Organisation names and states. Not a reveal -- no person is named --
-    so not audited, and read on the app role: `tenants` is not under RLS."""
+    so not audited, and read on the app role: `tenants` is not under RLS.
+
+    `email` and `phone` find the organisation an active member belongs to:
+    in part for a role that reads whole contacts, else in whole (`_person`).
+    A row still names only the organisation."""
     size = clamp_limit(limit)
-    after: tuple[str, uuid.UUID] | None = None
-    if cursor is not None:
-        payload = decode_cursor(cursor)
-        try:
-            after = (str(payload["n"]), uuid.UUID(str(payload["i"])))
-        except (KeyError, ValueError) as exc:
-            raise ValidationError(code="invalid_cursor") from exc
+    sorting = ordering(identity_service.TENANT_SORTS, sort=sort, order=order, cursor=cursor)
+    start, end = ist_day_range(created_from, created_to)
+    member = _person(ctx, name=None, email=email, phone=phone)
     rows = await identity_service.list_tenants(
         session,
         tenant_type=tenant_type,
         status=status,
-        name_contains=name_contains,
-        after=after,
+        name_contains=search_text(name_contains),
+        member_email=member.email,
+        member_phone=member.phone,
+        partial_contact=member.partial_contact,
+        created_from=start,
+        created_before=end,
+        ordering=sorting,
         limit=size,
     )
-    next_cursor = (
-        encode_cursor({"n": rows[-1].name, "i": str(rows[-1].id)}) if len(rows) == size else None
-    )
+    next_cursor = sorting.next_cursor(rows, size)
     logos = await profile_images_service.logo_urls(session, tenant_ids=[row.id for row in rows])
     return TenantsPage(
         items=[
@@ -751,17 +812,31 @@ async def list_candidates(
     email: str | None,
     cursor: str | None,
     limit: int | None,
+    phone: str | None = None,
+    city: str | None = None,
+    created_from: date | None = None,
+    created_to: date | None = None,
+    sort: str = "created_at",
+    order: SortOrder | None = None,
     request_id: str | None = None,
 ) -> CandidatesPage:
-    """Candidate accounts, newest first -- the way in to a drill-down.
+    """Candidate accounts, newest first unless sorted -- the way in to a
+    drill-down.
 
     Candidates are not tenants, so `GET /admin/tenants` cannot list them. This
     is audited where that is not: every row names a person. The search terms
     stay out of the audit metadata (a name or an address is not an id); the
-    row records that a search was made, and by whom."""
+    row records that a search was made, how, and by whom.
+
+    Part of a name finds a candidate for anyone who may list them; part of
+    an email or phone only for a role that reads whole contacts, and anyone
+    else matches the whole address or number (`domain.partial_contact_search`).
+    """
     size = clamp_limit(limit)
-    name = (name_contains or "").strip() or None
-    address = identity_service.normalise_email(email) if email and email.strip() else None
+    sorting = ordering(repository.CANDIDATE_SORTS, sort=sort, order=order, cursor=cursor)
+    start, end = ist_day_range(created_from, created_to)
+    person = _person(ctx, name=name_contains, email=email, phone=phone)
+    place = search_text(city)
     async with _reveal(
         session,
         ctx,
@@ -772,16 +847,19 @@ async def list_candidates(
         metadata={
             "view": "candidates",
             "status": status,
-            "by_name": name is not None,
-            "by_email": address is not None,
+            **person.audit(),
+            "by_city": place is not None,
+            **_sorted(sort, order),
         },
     ) as reader:
         rows = await repository.candidates(
             reader,
             status=status,
-            name_contains=name,
-            email=address,
-            after=_keyset(cursor),
+            person=person,
+            city=place,
+            created_from=start,
+            created_before=end,
+            ordering=sorting,
             limit=size,
         )
         photos = await profile_images_service.photo_urls(reader, user_ids=[r["id"] for r in rows])
@@ -800,7 +878,7 @@ async def list_candidates(
             )
             for r in rows
         ],
-        next_cursor=_next(rows, size, at="created_at"),
+        next_cursor=sorting.next_cursor(rows, size),
     )
 
 
@@ -811,6 +889,13 @@ async def list_leads(
     stages: list[str] | None,
     cursor: str | None,
     limit: int | None,
+    name: str | None = None,
+    email: str | None = None,
+    phone: str | None = None,
+    signed_up_from: date | None = None,
+    signed_up_to: date | None = None,
+    sort: str = "created_at",
+    order: SortOrder | None = None,
     request_id: str | None = None,
 ) -> LeadsPage:
     """The sales follow-up list (2026-10-13): who signed up, or downloaded a
@@ -820,8 +905,12 @@ async def list_leads(
     why it is its own capability, held by exactly the roles that already read
     a whole contact, and why every page is audited on the request's session
     before anything is read. The audit row names the stages asked for, never
-    a person (a page names many)."""
+    a person (a page names many), and a search is recorded by how it was
+    made, never by the name, address or number searched for."""
     size = clamp_limit(limit)
+    sorting = ordering(repository.LEAD_SORTS, sort=sort, order=order, cursor=cursor)
+    start, end = ist_day_range(signed_up_from, signed_up_to)
+    person = _person(ctx, name=name, email=email, phone=phone)
     wanted: list[str] = sorted(set(stages)) if stages else list(UNPAID_STAGES)
     async with _reveal(
         session,
@@ -830,9 +919,17 @@ async def list_leads(
         target_type="candidates",
         target_id=None,
         request_id=request_id,
-        metadata={"view": "leads", "stages": wanted},
+        metadata={"view": "leads", "stages": wanted, **person.audit(), **_sorted(sort, order)},
     ) as reader:
-        rows = await repository.leads(reader, stages=wanted, after=_keyset(cursor), limit=size)
+        rows = await repository.leads(
+            reader,
+            stages=wanted,
+            person=person,
+            created_from=start,
+            created_before=end,
+            ordering=sorting,
+            limit=size,
+        )
     return LeadsPage(
         items=[
             LeadRow(
@@ -857,7 +954,7 @@ async def list_leads(
             )
             for r in rows
         ],
-        next_cursor=_next(rows, size, at="created_at"),
+        next_cursor=sorting.next_cursor(rows, size),
     )
 
 
@@ -1070,24 +1167,41 @@ async def dispute_queue(
     party: str | None,
     cursor: str | None,
     limit: int | None,
+    assigned_to: uuid.UUID | None = None,
+    name: str | None = None,
+    email: str | None = None,
+    phone: str | None = None,
+    created_from: date | None = None,
+    created_to: date | None = None,
+    sort: str = "created_at",
+    order: SortOrder | None = None,
 ) -> DisputesPage:
     """Open and in-review disputes by default, oldest first, across all three
-    groups. Rows carry identifiers; the description is read by opening one."""
+    groups. Rows carry identifiers; the description is read by opening one.
+    `name`, `email` and `phone` are the raiser's (a name is a candidate's
+    profile name: business accounts have none)."""
     await _bind_platform(session, ctx)
     size = clamp_limit(limit)
+    sorting = ordering(repository.DISPUTE_SORTS, sort=sort, order=order, cursor=cursor)
+    start, end = ist_day_range(created_from, created_to)
     states = (
         (state,) if state else tuple(s for s in DISPUTE_STATES if s not in CLOSED_DISPUTE_STATES)
     )
     rows = await repository.dispute_queue(
-        session, states=states, kind=kind, party=party, after=_keyset(cursor), limit=size
-    )
-    next_cursor = (
-        encode_cursor({"t": rows[-1].created_at.isoformat(), "i": str(rows[-1].id)})
-        if len(rows) == size
-        else None
+        session,
+        states=states,
+        kind=kind,
+        party=party,
+        assigned_to=assigned_to,
+        raiser=_person(ctx, name=name, email=email, phone=phone),
+        created_from=start,
+        created_before=end,
+        ordering=sorting,
+        limit=size,
     )
     return DisputesPage(
-        items=[DisputeRow.model_validate(row) for row in rows], next_cursor=next_cursor
+        items=[DisputeRow.model_validate(row) for row in rows],
+        next_cursor=sorting.next_cursor(rows, size),
     )
 
 
@@ -1260,6 +1374,7 @@ async def search_audit(
     occurred_to: datetime | None,
     cursor: str | None,
     limit: int | None,
+    order: SortOrder | None = None,
     request_id: str | None = None,
 ) -> AuditEventsPage:
     """SRS 2.25.4: by actor, action, target and time, server-paginated. The
@@ -1269,6 +1384,7 @@ async def search_audit(
     if occurred_from and occurred_to and occurred_from >= occurred_to:
         raise ValidationError(code="audit_time_range_invalid")
     size = clamp_limit(limit)
+    sorting = ordering(repository.AUDIT_SORTS, sort="occurred_at", order=order, cursor=cursor)
     filters = {
         "actor_id": str(actor_id) if actor_id else None,
         "action": action,
@@ -1277,6 +1393,7 @@ async def search_audit(
         "tenant_id": str(tenant_id) if tenant_id else None,
         "occurred_from": occurred_from.isoformat() if occurred_from else None,
         "occurred_to": occurred_to.isoformat() if occurred_to else None,
+        "order": order,
     }
     async with _reveal(
         session,
@@ -1296,12 +1413,12 @@ async def search_audit(
             tenant_id=tenant_id,
             occurred_from=occurred_from,
             occurred_to=occurred_to,
-            after=_keyset(cursor, id_type=int),
+            ordering=sorting,
             limit=size,
         )
     return AuditEventsPage(
         items=[AuditEventRow.model_validate(dict(r)) for r in rows],
-        next_cursor=_next(rows, size, at="occurred_at"),
+        next_cursor=sorting.next_cursor(rows, size),
     )
 
 
@@ -1782,10 +1899,32 @@ async def disable_discount_code(
 
 
 async def list_discount_codes(
-    session: AsyncSession, *, audience: str | None, cursor: str | None, limit: int | None
+    session: AsyncSession,
+    *,
+    audience: str | None,
+    cursor: str | None,
+    limit: int | None,
+    statuses: list[DiscountStatus] | None = None,
+    query: str | None = None,
+    created_from: date | None = None,
+    created_to: date | None = None,
+    sort: str = "created_at",
+    order: SortOrder | None = None,
 ) -> DiscountCodesPage:
+    """`status` is worked out as of now, as on each row; `q` is part of the
+    code or its label. Days are IST, both ends inclusive."""
+    start, end = ist_day_range(created_from, created_to)
     views, next_cursor = await billing_service.list_discount_codes(
-        session, audience=audience, cursor=cursor, limit=limit
+        session,
+        audience=audience,
+        cursor=cursor,
+        limit=limit,
+        statuses=tuple(dict.fromkeys(statuses)) if statuses else None,
+        query=search_text(query),
+        created_from=start,
+        created_before=end,
+        sort=sort,
+        order=order,
     )
     return DiscountCodesPage(
         items=[_discount(v) for v in views],
@@ -1799,11 +1938,37 @@ async def get_discount_code(session: AsyncSession, *, code_id: uuid.UUID) -> Dis
 
 
 async def discount_redemptions(
-    session: AsyncSession, *, code_id: uuid.UUID, cursor: str | None, limit: int | None
+    session: AsyncSession,
+    *,
+    ctx: TenantContext,
+    code_id: uuid.UUID,
+    cursor: str | None,
+    limit: int | None,
+    subscriber_type: str | None = None,
+    email: str | None = None,
+    phone: str | None = None,
+    redeemed_from: date | None = None,
+    redeemed_to: date | None = None,
+    sort: str = "redeemed_at",
+    order: SortOrder | None = None,
 ) -> DiscountRedemptionsPage:
-    """The usage log: who used a code, on which payment, for how much, when."""
+    """The usage log: who used a code, on which payment, for how much, when.
+    `email` and `phone` are the paying account's (`_person`)."""
+    start, end = ist_day_range(redeemed_from, redeemed_to)
+    payer = _person(ctx, name=None, email=email, phone=phone)
     rows, next_cursor = await billing_service.list_redemptions(
-        session, code_id=code_id, cursor=cursor, limit=limit
+        session,
+        code_id=code_id,
+        cursor=cursor,
+        limit=limit,
+        subscriber_type=subscriber_type,
+        payer_email=payer.email,
+        payer_phone=payer.phone,
+        partial_contact=payer.partial_contact,
+        redeemed_from=start,
+        redeemed_before=end,
+        sort=sort,
+        order=order,
     )
     names: dict[uuid.UUID, str] = {}
     for tenant_id in {r.subscriber_id for r in rows if r.subscriber_type == "TENANT"}:
@@ -2108,6 +2273,9 @@ async def list_search_filter_options(
     include_inactive: bool,
     cursor: str | None,
     limit: int | None,
+    featured: bool | None = None,
+    sort: str = "key",
+    order: SortOrder | None = None,
 ) -> SearchFilterOptionsPage:
     rows, next_cursor = await discovery_service.list_filter_options(
         session,
@@ -2116,6 +2284,9 @@ async def list_search_filter_options(
         include_inactive=include_inactive,
         cursor=cursor,
         limit=limit,
+        featured=featured,
+        sort=sort,
+        order=order,
     )
     return SearchFilterOptionsPage(
         items=[_filter_option(row) for row in rows],

@@ -19,6 +19,7 @@ from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.listing import Key, Ordering, SortField, contains
 from app.modules.billing.models import DiscountCode, DiscountRedemption, Payment, PaymentCallback
 
 
@@ -243,24 +244,97 @@ async def disable_discount_code(
     await session.flush()
 
 
+#: How the console may sort codes and their uses (2026-10-21); the first
+#: entry is the default. The admin router's `Literal`s offer these keys.
+DISCOUNT_CODE_SORTS: dict[str, SortField] = {
+    "created_at": SortField(
+        keys=(
+            Key("discount_codes.created_at", "timestamptz", "created_at"),
+            Key("discount_codes.id", "uuid", "id"),
+        ),
+        default_order="desc",
+    ),
+    "code": SortField(
+        keys=(Key("discount_codes.code", "text", "code"), Key("discount_codes.id", "uuid", "id")),
+        default_order="asc",
+    ),
+    "valid_until": SortField(
+        keys=(
+            Key("discount_codes.valid_until", "timestamptz", "valid_until", nullable=True),
+            Key("discount_codes.id", "uuid", "id"),
+        ),
+        default_order="asc",
+    ),
+}
+REDEMPTION_SORTS: dict[str, SortField] = {
+    "redeemed_at": SortField(
+        keys=(
+            Key("discount_redemptions.redeemed_at", "timestamptz", "redeemed_at"),
+            Key("discount_redemptions.id", "uuid", "id"),
+        ),
+        default_order="desc",
+    ),
+    "amount_minor": SortField(
+        keys=(
+            Key("discount_redemptions.amount_minor", "integer", "amount_minor"),
+            Key("discount_redemptions.id", "uuid", "id"),
+        ),
+        default_order="desc",
+    ),
+}
+
+#: `domain.discount_status`, in SQL, so a list can be filtered by it. The
+#: same precedence, the same comparisons; an integration test holds the two
+#: equal for every status. `:now` is bound, never the database's clock, so the
+#: filter and the status shown on each row are one instant.
+DISCOUNT_STATUS_SQL = """
+    CASE WHEN discount_codes.disabled_at IS NOT NULL THEN 'DISABLED'
+         WHEN CAST(:now AS timestamptz) < discount_codes.valid_from THEN 'SCHEDULED'
+         WHEN discount_codes.valid_until IS NOT NULL
+              AND CAST(:now AS timestamptz) >= discount_codes.valid_until THEN 'EXPIRED'
+         WHEN discount_codes.usage_limit IS NOT NULL
+              AND (SELECT count(*) FROM discount_redemptions r
+                    WHERE r.discount_code_id = discount_codes.id)
+                  >= discount_codes.usage_limit THEN 'EXHAUSTED'
+         ELSE 'ACTIVE' END
+"""
+
+
 async def list_discount_codes(
     session: AsyncSession,
     *,
     audience: str | None,
-    after: tuple[datetime, uuid.UUID] | None,
+    statuses: tuple[str, ...] | None,
+    query: str | None,
+    created_from: datetime | None,
+    created_before: datetime | None,
+    now: datetime,
+    ordering: Ordering,
     limit: int,
 ) -> list[DiscountCode]:
-    query = select(DiscountCode)
+    """`query` is part of the code (codes are upper case) or of its label."""
+    statement = select(DiscountCode)
     if audience is not None:
-        query = query.where(DiscountCode.audience == audience)
-    if after is not None:
-        query = query.where(
-            (DiscountCode.created_at < after[0])
-            | ((DiscountCode.created_at == after[0]) & (DiscountCode.id < after[1]))
+        statement = statement.where(DiscountCode.audience == audience)
+    if statuses:
+        statement = statement.where(
+            text(f"({DISCOUNT_STATUS_SQL}) = ANY(CAST(:statuses AS text[]))").bindparams(
+                now=now, statuses=list(statuses)
+            )
         )
-    result = await session.execute(
-        query.order_by(DiscountCode.created_at.desc(), DiscountCode.id.desc()).limit(limit)
-    )
+    if query:
+        statement = statement.where(
+            DiscountCode.code.like(contains(query.upper()), escape="\\")
+            | DiscountCode.label.ilike(contains(query), escape="\\")
+        )
+    if created_from is not None:
+        statement = statement.where(DiscountCode.created_at >= created_from)
+    if created_before is not None:
+        statement = statement.where(DiscountCode.created_at < created_before)
+    after, params = ordering.where()
+    if params:
+        statement = statement.where(text(after).bindparams(**params))
+    result = await session.execute(statement.order_by(text(ordering.order_by())).limit(limit))
     return list(result.scalars())
 
 
@@ -336,18 +410,50 @@ async def list_redemptions(
     session: AsyncSession,
     *,
     code_id: uuid.UUID,
-    after: tuple[datetime, uuid.UUID] | None,
+    subscriber_type: str | None,
+    payer_email: str | None,
+    payer_phone: str | None,
+    partial_contact: bool,
+    redeemed_from: datetime | None,
+    redeemed_before: datetime | None,
+    ordering: Ordering,
     limit: int,
 ) -> list[DiscountRedemption]:
+    """`payer_email` (normalised) and `payer_phone` (digits) are the paying
+    account's, in part only when `partial_contact`; `users` is not under RLS."""
     query = select(DiscountRedemption).where(DiscountRedemption.discount_code_id == code_id)
-    if after is not None:
+    if subscriber_type is not None:
+        query = query.where(DiscountRedemption.subscriber_type == subscriber_type)
+    if redeemed_from is not None:
+        query = query.where(DiscountRedemption.redeemed_at >= redeemed_from)
+    if redeemed_before is not None:
+        query = query.where(DiscountRedemption.redeemed_at < redeemed_before)
+    payer = []
+    params: dict[str, Any] = {}
+    if payer_email is not None:
+        if partial_contact:
+            payer.append("u.email LIKE CAST(:payer_email AS text) ESCAPE '\\'")
+            params["payer_email"] = contains(payer_email)
+        else:
+            payer.append("u.email = CAST(:payer_email AS text)")
+            params["payer_email"] = payer_email
+    if payer_phone is not None:
+        if partial_contact:
+            payer.append("u.phone LIKE CAST(:payer_phone AS text)")
+            params["payer_phone"] = contains(payer_phone)
+        else:
+            payer.append("u.phone = CAST(:payer_phone AS text)")
+            params["payer_phone"] = f"+{payer_phone}"
+    if payer:
         query = query.where(
-            (DiscountRedemption.redeemed_at < after[0])
-            | ((DiscountRedemption.redeemed_at == after[0]) & (DiscountRedemption.id < after[1]))
+            text(
+                "discount_redemptions.user_id IN (SELECT u.id FROM users u WHERE "  # noqa: S608 - constants
+                + " AND ".join(payer)
+                + ")"
+            ).bindparams(**params)
         )
-    result = await session.execute(
-        query.order_by(DiscountRedemption.redeemed_at.desc(), DiscountRedemption.id.desc()).limit(
-            limit
-        )
-    )
+    after, after_params = ordering.where()
+    if after_params:
+        query = query.where(text(after).bindparams(**after_params))
+    result = await session.execute(query.order_by(text(ordering.order_by())).limit(limit))
     return list(result.scalars())

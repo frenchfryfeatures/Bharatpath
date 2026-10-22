@@ -65,4 +65,11 @@ class CandidateProfile(Base):
             postgresql_ops={"city": "gin_trgm_ops"},
         ),
         Index("ix_candidate_profiles_state", "state_code"),
+        # Part of a name, in the console's lists (2026-10-21).
+        Index(
+            "ix_candidate_profiles_full_name_trgm",
+            "full_name",
+            postgresql_using="gin",
+            postgresql_ops={"full_name": "gin_trgm_ops"},
+        ),
     )

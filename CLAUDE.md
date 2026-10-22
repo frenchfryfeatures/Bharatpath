@@ -987,6 +987,23 @@ SUPPORT_AGENT).
   PLATFORM-bound transaction change state. Resolving records words and **moves
   nothing else**. A candidate's hire dispute is filed by `admin.open_hire_dispute`.
 
+**Searching and sorting the lists** (2026-10-21, `app/core/listing.py`,
+`backend-guide/13` §0.6). Every list takes `sort` + `order`; people lists
+take `name`, `email`, `phone` separately.
+
+- **A cursor carries its sort.** One from another sort or order is
+  `invalid_cursor`. A sort's keys end in the id; nullable keys sort last
+  either way. Each router `Literal` is held equal to its repository's
+  `*_SORTS` table by `tests/unit/test_admin_list_sorts.py`.
+- **Part of an email or phone only for `candidate_contact` roles**
+  (`domain.partial_contact_search`); others match the whole of it.
+  Otherwise a masked list spells out a contact one character at a time.
+  Never widen this without widening `candidate_contact`.
+- **Audit rows say how a list was searched, never what for**
+  (`PersonSearch.audit()`). Never put a term in metadata.
+- A candidate's phone is `_CANDIDATE_PHONE`: the account's, else the
+  onboarding one. Most candidates have only the second.
+
 **The console dashboard** (`GET /admin/dashboard`, 2026-09-23) is capability
 `dashboard`, held by every staff role. Each queue section inside is gated by
 `domain.dashboard_sections`, which reads the queue's own capability, so a
