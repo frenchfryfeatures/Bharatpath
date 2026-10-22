@@ -173,7 +173,7 @@ export function ResumeDetails() {
             )}
           </main>
 
-          <aside className={`${activeView?.name === "parsing" ? "hidden" : "hidden lg:sticky lg:top-6 lg:flex lg:flex-col lg:gap-4"}`}>
+          <aside className={`${activeView?.name === "parsing" ? "hidden" : "hidden lg:sticky lg:top-6 lg:flex lg:max-h-[calc(100dvh-3rem)] lg:flex-col lg:gap-4 lg:overflow-y-auto lg:pb-28"}`}>
             <InfoCard
               icon={<ShieldCheck className="h-5 w-5" aria-hidden="true" />}
               title="Your resume stays private"
@@ -210,10 +210,14 @@ export function ResumeDetails() {
   );
 }
 
+const HISTORY_PREVIEW = 3;
+
 /** One row per uploaded file, from GET /candidate/resume/files. */
 function ResumeHistory({ onOpen }: { onOpen: (versionId: string) => void }) {
   const files = useGetResumeFilesQuery();
+  const [showAll, setShowAll] = useState(false);
   if (!files.data?.length) return null;
+  const rows = showAll ? files.data : files.data.slice(0, HISTORY_PREVIEW);
   return (
     <div className="rounded-[20px] border border-[#E7E0D4] bg-white p-5">
       <div className="flex items-center gap-2 text-[#3A4761]">
@@ -221,7 +225,7 @@ function ResumeHistory({ onOpen }: { onOpen: (versionId: string) => void }) {
         <span className="text-[12px] font-bold uppercase tracking-[0.1em]">Resume history</span>
       </div>
       <ul className="mt-3 flex flex-col gap-2">
-        {files.data.map((file, index) => (
+        {rows.map((file, index) => (
           <li key={file.resumeFileId ?? `${file.name}-${index}`} className="flex items-center gap-2 rounded-xl bg-[#F7F4EC] px-3 py-2">
             <FileText className="h-4 w-4 shrink-0 text-[#5F4DB2]" aria-hidden="true" />
             <div className="min-w-0 flex-1">
@@ -236,6 +240,11 @@ function ResumeHistory({ onOpen }: { onOpen: (versionId: string) => void }) {
           </li>
         ))}
       </ul>
+      {files.data.length > HISTORY_PREVIEW && (
+        <button type="button" onClick={() => setShowAll((value) => !value)} className="mt-3 text-[12px] font-semibold text-[#5F4DB2] underline">
+          {showAll ? "Show less" : `Show all (${files.data.length})`}
+        </button>
+      )}
     </div>
   );
 }
