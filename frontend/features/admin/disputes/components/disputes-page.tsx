@@ -39,6 +39,7 @@ export function DisputesPage() {
 
   const {
     state,
+    filterControls,
     openDisputes,
     resolvedDisputes,
     rejectedDisputes,
@@ -63,6 +64,7 @@ export function DisputesPage() {
   return (
     <>
       <div className="min-w-0 space-y-0">
+        {filterControls}
         {/* ============================================================
             TABS
             ============================================================ */}

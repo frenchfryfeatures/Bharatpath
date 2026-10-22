@@ -1,5 +1,9 @@
 "use client";
 
+import { useAdminListFilters } from "@/features/admin/shared/list-filters";
+import { useCursorPagination } from "@/lib/pagination/use-cursor-pagination";
+
+
 import { Avatar } from "@/components/ui/avatar";
 
 import { useState } from "react";
@@ -27,7 +31,9 @@ interface CodeDrawerProps {
 export function CodeDrawer({ code, canWrite, onClose }: CodeDrawerProps) {
   useScrollLock(true);
   const dispatch = useAppDispatch();
-  const redemptions = useGetAdminDiscountRedemptionsQuery({ id: code.id, limit: 50 });
+  const filters = useAdminListFilters("redemptions");
+  const pager = useCursorPagination([code.id, filters.key], 50);
+  const redemptions = useGetAdminDiscountRedemptionsQuery({ ...filters.params, id: code.id, limit: pager.pageSize, cursor: pager.cursor });
   const [disableCode, disableState] = useDisableAdminDiscountCodeMutation();
   const [disableOpen, setDisableOpen] = useState(false);
 
@@ -93,6 +99,12 @@ export function CodeDrawer({ code, canWrite, onClose }: CodeDrawerProps) {
 
           <section>
             <h3 className="text-[13px] font-bold text-[#172033]">Successful redemptions</h3>
+            {filters.controls}
+            <div className="my-2 flex items-center gap-3">
+              <button type="button" disabled={pager.currentPage === 1 || redemptions.isFetching} onClick={pager.goToPreviousPage}>Previous</button>
+              <span>Page {pager.currentPage}</span>
+              <button type="button" disabled={!redemptions.data?.next_cursor || redemptions.isFetching} onClick={() => pager.goToNextPage(redemptions.data?.next_cursor)}>Next</button>
+            </div>
             <div className="mt-3 space-y-2">
               {redemptions.isLoading ? <p className="text-[12px] text-[#7b8494]">Loading redemptions…</p> : null}
               {redemptions.error ? (

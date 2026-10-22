@@ -1,5 +1,8 @@
 "use client";
 
+import { useAdminListFilters } from "@/features/admin/shared/list-filters";
+
+
 import { useCursorPagination } from "@/lib/pagination/use-cursor-pagination";
 import {
   useGetAdminLeadsQuery,
@@ -19,24 +22,17 @@ export const LEAD_STAGES: Record<LeadTab, LeadStage[]> = {
 };
 
 /** Reads `GET /admin/leads` for the open tab, and the stage counts for the tab labels. */
-export function useLeads(tab: LeadTab, enabled: boolean, search: string) {
-  const pager = useCursorPagination([tab]);
+export function useLeads(tab: LeadTab, enabled: boolean) {
+  const filters = useAdminListFilters("leads");
+  const pager = useCursorPagination([tab, filters.key]);
   const query = useGetAdminLeadsQuery(
-    { stages: LEAD_STAGES[tab], limit: pager.pageSize, cursor: pager.cursor },
+    { ...filters.params, stages: LEAD_STAGES[tab], limit: pager.pageSize, cursor: pager.cursor },
     { skip: !enabled },
   );
   const summary = useGetAdminLeadsSummaryQuery(undefined, { skip: !enabled });
 
-  // The list has no search parameter, so this narrows the page that is open.
-  const needle = search.trim().toLowerCase();
-  const all: LeadRow[] = query.data?.items ?? [];
-  const rows = needle
-    ? all.filter((lead) =>
-        [lead.full_name, lead.email, lead.phone, lead.city]
-          .filter(Boolean)
-          .some((value) => String(value).toLowerCase().includes(needle)),
-      )
-    : all;
+  // Search is applied by the backend across all pages.
+  const rows: LeadRow[] = query.data?.items ?? [];
 
   const nextCursor = query.data?.next_cursor ?? null;
   const counts: Record<LeadTab, number | null> = summary.data
@@ -57,6 +53,9 @@ export function useLeads(tab: LeadTab, enabled: boolean, search: string) {
 
   return {
     rows,
+    searching: filters.searching,
+    filterControls: filters.controls,
+    renderFilterControls: filters.renderControls,
     counts,
     pagination,
     isLoading: query.isLoading || query.isFetching,

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Plus, Search } from "lucide-react";
+import { Plus } from "lucide-react";
 
 import { usePageHeader } from "@/components/layout/header-context";
 import { useAppDispatch } from "@/store/hooks";
@@ -14,6 +14,7 @@ import { ErrorState } from "@/components/ui";
 
 import { LeadsTab, LEAD_TABS, type LeadTab } from "./leads-tab";
 import { useLeads } from "../hooks/use-leads";
+import { CandidatesTab } from "./candidates-tab";
 import { EmployersTab } from "./employers-tab";
 import { InstitutionsTab } from "./institutions-tab";
 import { UserDrawer } from "./user-drawer";
@@ -26,6 +27,7 @@ export function UsersPage({ section = "candidates" }: { section?: "candidates" |
   const [drawerMode, setDrawerMode] = useState<"create" | "invite" | null>(null);
   const searchParams = useSearchParams();
   const requestedSegment = searchParams.get("segment");
+  const isAllCandidates = !isOrganisations && searchParams.get("tab") === "all";
   const leadTab: LeadTab = searchParams.get("tab") === "signed_up" ? "signed_up" : "others";
   const selectedSegment: UserSegment = isOrganisations
     ? requestedSegment === "institutions" ? "institutions" : "employers"
@@ -39,7 +41,7 @@ export function UsersPage({ section = "candidates" }: { section?: "candidates" |
 
   const {
     segment,
-    search,
+    renderFilterControls,
     filteredUsers,
     isLoading,
     error,
@@ -47,16 +49,15 @@ export function UsersPage({ section = "candidates" }: { section?: "candidates" |
     selectedId,
     closeUser,
     setSegment,
-    setSearch,
     pageSize,
     currentPage,
     hasNextPage,
     setPageSize,
     goToNextPage,
     goToPreviousPage,
-  } = useUsers(selectedSegment, isOrganisations ? "" : leadTab);
+  } = useUsers(selectedSegment, isOrganisations || isAllCandidates);
 
-  const leads = useLeads(leadTab, !isOrganisations, search);
+  const leads = useLeads(leadTab, !isOrganisations && !isAllCandidates);
 
   // Organisation links can select a tab; old Users links still reach it.
   const dispatch = useAppDispatch();
@@ -78,21 +79,7 @@ export function UsersPage({ section = "candidates" }: { section?: "candidates" |
     onPageSizeChange: setPageSize,
   };
 
-  const leadsPagination = {
-    ...leads.pagination,
-    onNextPage: () => {
-      setSearch("");
-      leads.pagination.onNextPage();
-    },
-    onPreviousPage: () => {
-      setSearch("");
-      leads.pagination.onPreviousPage();
-    },
-    onPageSizeChange: (size: number) => {
-      setSearch("");
-      leads.pagination.onPageSizeChange(size);
-    },
-  };
+  const leadsPagination = leads.pagination;
 
   return (
     <div className="min-w-0 space-y-0">
@@ -143,8 +130,13 @@ export function UsersPage({ section = "candidates" }: { section?: "candidates" |
 
       {!isOrganisations ? <div className="overflow-x-auto border-b border-[#e7e9ee]">
         <div className="flex min-w-max items-center gap-1" role="tablist" aria-label="Candidates">
+          <button type="button" role="tab" aria-selected={isAllCandidates}
+            onClick={() => router.replace("/admin/users?tab=all", { scroll: false })}
+            className={`shrink-0 border-b-2 px-4 py-3 text-[13px] font-semibold ${isAllCandidates ? "border-[#315c9f] text-[#172033]" : "border-transparent text-[#687182]"}`}>
+            All candidates
+          </button>
           {LEAD_TABS.map(({ key, label }) => {
-            const active = leadTab === key;
+            const active = !isAllCandidates && leadTab === key;
             const count = leads.counts[key];
 
             return (
@@ -174,56 +166,45 @@ export function UsersPage({ section = "candidates" }: { section?: "candidates" |
       </div> : null}
 
       {/* ================================================================ */}
-      {/* SEARCH                                                            */}
+      {/* ACCOUNT ACTIONS                                                   */}
       {/* ================================================================ */}
 
-      <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <label className="flex h-[38px] w-full min-w-0 items-center gap-2 rounded-lg border border-[#e2e5eb] bg-white px-3 transition-colors focus-within:border-[#315c9f] sm:w-[246px]">
-          <Search className="h-4 w-4 shrink-0 text-[#667085]" />
-
-          <input
-            type="text"
-            value={search}
-            onChange={(event) =>
-              setSearch(event.target.value)
-            }
-            placeholder="Search by name"
-            className="w-full bg-transparent text-[12px] text-[#172033] outline-none placeholder:text-[#7b8494]"
-          />
-        </label>
-
-        <div className="flex flex-wrap items-center gap-2">
+      {(isOrganisations || isAllCandidates ? renderFilterControls : leads.renderFilterControls)(
+        <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
           <button
             type="button"
             onClick={() => setDrawerMode("invite")}
-            className="inline-flex h-[38px] min-w-0 flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#d7dce5] bg-white px-3 text-[12px] font-semibold text-[#172033] transition-colors hover:bg-[#f7f8fa] sm:flex-none sm:px-4"
+            className="inline-flex h-11 shrink-0 whitespace-nowrap cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#d7dce5] bg-white px-3 text-[12px] font-semibold text-[#172033] transition-colors hover:bg-[#f7f8fa] sm:flex-none sm:px-4"
           >
             Invite {segment === "candidates" ? "candidate" : segment === "employers" ? "employer" : "institution"}
           </button>
           <button
             type="button"
             onClick={() => setDrawerMode("create")}
-            className="inline-flex h-[38px] min-w-0 flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#151b2b] px-3 text-[12px] font-semibold text-white transition-colors hover:bg-[#20283d] sm:flex-none sm:px-4"
+            className="inline-flex h-11 shrink-0 whitespace-nowrap cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#151b2b] px-3 text-[12px] font-semibold text-white transition-colors hover:bg-[#20283d] sm:flex-none sm:px-4"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
             Create {segment === "candidates" ? "candidate" : segment === "employers" ? "employer" : "institution"}
           </button>
         </div>
-      </div>
+      )}
 
       {/* ================================================================ */}
       {/* TAB CONTENT                                                       */}
       {/* ================================================================ */}
 
-      {isOrganisations && error ? <ErrorState error={error} fallback="Could not load organisations." className="mb-3" /> : null}
-      {!isOrganisations && leads.error ? <ErrorState error={leads.error} fallback="Could not load candidates." className="mb-3" /> : null}
 
-      {segment === "candidates" && (
+      {(isOrganisations || isAllCandidates) && error ? <ErrorState error={error} fallback="Could not load users." className="mb-3" /> : null}
+      {!isOrganisations && !isAllCandidates && leads.error ? <ErrorState error={leads.error} fallback="Could not load candidates." className="mb-3" /> : null}
+
+      {segment === "candidates" && isAllCandidates && <CandidatesTab users={filteredUsers} isLoading={isLoading} onOpen={openUser} pagination={pagination} />}
+
+      {segment === "candidates" && !isAllCandidates && (
         <LeadsTab
           tab={leadTab}
           leads={leads.rows}
           isLoading={leads.isLoading}
-          searching={search.trim().length > 0}
+          searching={leads.searching}
           pagination={leadsPagination}
         />
       )}

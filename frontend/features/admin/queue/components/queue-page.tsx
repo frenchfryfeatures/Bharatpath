@@ -71,6 +71,7 @@ export function QueuePage() {
 
   const {
     tab,
+    filterControls,
     canViewKyb,
     canViewIntegrity,
     items,
@@ -287,6 +288,7 @@ export function QueuePage() {
   return (
     <>
       <div className="min-w-0 space-y-0">
+        {filterControls}
         {/* ================================================================ */}
         {/* Tabs                                                             */}
         {/* ================================================================ */}

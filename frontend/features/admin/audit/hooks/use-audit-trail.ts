@@ -1,5 +1,8 @@
 "use client";
 
+import { useAdminListFilters } from "@/features/admin/shared/list-filters";
+
+
 import { humanizeCode } from "@/lib/format/labels";
 
 import { useCallback } from "react";
@@ -32,22 +35,26 @@ function auditView(item: AuditEventRow): AuditItem {
 
 /** The platform audit trail (`GET /admin/audit-events`), newest first. */
 export function useAuditTrail() {
+  const filters = useAdminListFilters("audit");
+  const order = filters.params.order as "asc" | "desc" | undefined;
   const [fetchAudit] = useLazyGetAdminAuditEventsQuery();
   const audit = useCursorLoadMore<AuditEventRow>(
     useCallback(
       async (cursor) => {
         const page = await fetchAudit({
+          order,
           limit: AUDIT_PAGE_SIZE,
           cursor,
         }).unwrap();
         return { items: page.items, nextCursor: page.next_cursor };
       },
-      [fetchAudit],
+      [fetchAudit, order],
     ),
-    [],
+    [order],
   );
 
   return {
+    filterControls: filters.controls,
     items: audit.items.map(auditView),
     isLoading: audit.isLoading,
     isLoadingMore: audit.isLoadingMore,

@@ -1,8 +1,9 @@
 "use client";
 
-import { usePageSearch } from "@/lib/hooks/use-page-search";
+import { useAdminListFilters } from "@/features/admin/shared/list-filters";
+
+
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { useDebouncedSearch } from "@/lib/hooks/use-debounced-value";
 
 import {
   closeUser,
@@ -45,37 +46,36 @@ function candidateState(status: AdminCandidateRow["status"]): UserState {
   return "Active";
 }
 
-export function useUsers(segment: UserSegment, tab = "") {
+export function useUsers(segment: UserSegment, enabled = true) {
   const dispatch = useAppDispatch();
 
   const state = useAppSelector(
     selectAdminUsers,
   );
-  const [search, setSearch] = usePageSearch(`${segment}:${tab}`);
-  const debouncedSearch = useDebouncedSearch(search);
   const isCandidates = segment === "candidates";
   const tenantType = segment === "employers" ? "EMPLOYER" : "COLLEGE";
 
-  const pagination = useCursorPagination([segment, debouncedSearch]);
+  const filters = useAdminListFilters(isCandidates ? "candidates" : "tenants");
+  const pagination = useCursorPagination([segment, filters.key]);
 
   // Candidates come from GET /admin/candidates; employers and institutions
   // stay on GET /admin/tenants. Exactly one query runs per segment.
   const candidatesQuery = useGetAdminCandidatesQuery(
     {
-      q: debouncedSearch || undefined,
+      ...filters.params,
       limit: pagination.pageSize,
       cursor: pagination.cursor,
     },
-    { skip: !isCandidates },
+    { skip: !enabled || !isCandidates },
   );
   const tenantsQuery = useGetAdminTenantsQuery(
     {
       type: tenantType,
-      q: debouncedSearch || undefined,
+      ...filters.params,
       limit: pagination.pageSize,
       cursor: pagination.cursor,
     },
-    { skip: isCandidates },
+    { skip: !enabled || isCandidates },
   );
 
   const activeQuery = isCandidates ? candidatesQuery : tenantsQuery;
@@ -129,10 +129,11 @@ export function useUsers(segment: UserSegment, tab = "") {
 
   return {
     state,
+    filterControls: filters.controls,
+    renderFilterControls: filters.renderControls,
 
     segment,
 
-    search,
 
     users,
 
@@ -158,7 +159,6 @@ export function useUsers(segment: UserSegment, tab = "") {
 
     setSegment,
 
-    setSearch,
 
     openUser: (id: string) => dispatch(openUser(id)),
 

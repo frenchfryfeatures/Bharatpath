@@ -16,6 +16,7 @@ export type AuthIdentity = {
 export type AdminListParams = {
   cursor?: string;
   limit?: number;
+  order?: "asc" | "desc";
 };
 
 export type KybSubmissionRow = {
@@ -339,17 +340,26 @@ export type AuditEventRow = {
   occurred_at: string;
 };
 
-type KybListParams = AdminListParams & { state?: string };
-type IntegrityListParams = AdminListParams & {
+type CreatedRange = { created_from?: string; created_to?: string };
+type PersonSearchParams = { name?: string; email?: string; phone?: string };
+type KybListParams = AdminListParams & CreatedRange & { state?: string; organisation?: string; sort?: "created_at" | "submitted_at" | "organisation" };
+type IntegrityListParams = AdminListParams & CreatedRange & PersonSearchParams & {
+  rule_id?: string;
+  sort?: "created_at" | "severity";
   state?: "OPEN" | "CLEARED" | "CONFIRMED";
   severity?: "LOW" | "MEDIUM" | "HIGH";
 };
-type TenantListParams = AdminListParams & {
+type TenantListParams = AdminListParams & CreatedRange & {
+  email?: string;
+  phone?: string;
+  sort?: "name" | "created_at";
   type?: "EMPLOYER" | "COLLEGE";
   status?: "ACTIVE" | "SUSPENDED" | "CLOSED";
   q?: string;
 };
-type DisputeListParams = AdminListParams & {
+type DisputeListParams = AdminListParams & CreatedRange & PersonSearchParams & {
+  assigned_to?: string;
+  sort?: "created_at" | "resolved_at";
   state?: DisputeRow["state"];
   state_group?: "ACTIVE" | "CLOSED";
   kind?: DisputeRow["kind"];
@@ -402,6 +412,8 @@ type SearchFilterListParams = AdminListParams & {
   kind?: SearchFilterKind;
   q?: string;
   includeInactive?: boolean;
+  featured?: boolean;
+  sort?: "key" | "label" | "created_at";
 };
 
 /*
@@ -448,7 +460,9 @@ export type AdminCandidateRow = {
   created_at: string;
 };
 
-export type AdminCandidateListParams = AdminListParams & {
+export type AdminCandidateListParams = AdminListParams & CreatedRange & PersonSearchParams & {
+  city?: string;
+  sort?: "created_at" | "full_name";
   status?: "ACTIVE" | "SUSPENDED" | "DELETED";
   q?: string;
   email?: string;
@@ -691,6 +705,9 @@ export const adminApi = baseApi.injectEndpoints({
               kind: params.kind,
               q: params.q,
               include_inactive: params.includeInactive,
+              featured: params.featured,
+              sort: params.sort,
+              order: params.order,
               cursor: params.cursor,
               limit: params.limit,
             }
@@ -791,15 +808,11 @@ export const adminApi = baseApi.injectEndpoints({
       query: (params) => ({ url: "/admin/candidates", params: params ?? undefined }),
       providesTags: ["Admin"],
     }),
-    getAdminLeads: builder.query<CursorPage<LeadRow>, (AdminListParams & { stages?: LeadStage[] }) | void>({
-      // `stage` is repeated (stage=A&stage=B), which `params` would join with commas.
+    getAdminLeads: builder.query<CursorPage<LeadRow>, (AdminListParams & PersonSearchParams & { stages?: LeadStage[]; signed_up_from?: string; signed_up_to?: string; sort?: "created_at" | "full_name" | "last_downloaded_at" }) | void>({
+      // The shared base query serializes arrays as repeated query keys.
       query: (params) => {
-        const search = new URLSearchParams();
-        for (const stage of params?.stages ?? []) search.append("stage", stage);
-        if (params?.cursor) search.set("cursor", params.cursor);
-        if (params?.limit) search.set("limit", String(params.limit));
-        const query = search.toString();
-        return `/admin/leads${query ? `?${query}` : ""}`;
+        const { stages, ...rest } = params || {};
+        return { url: "/admin/leads", params: { ...rest, stage: stages } };
       },
       providesTags: ["Admin"],
     }),
@@ -807,7 +820,7 @@ export const adminApi = baseApi.injectEndpoints({
       query: () => "/admin/leads/summary",
       providesTags: ["Admin"],
     }),
-    getAdminDiscountCodes: builder.query<DiscountCodesPage, AdminListParams & { audience?: DiscountAudience }>({
+    getAdminDiscountCodes: builder.query<DiscountCodesPage, AdminListParams & CreatedRange & { audience?: DiscountAudience; q?: string; status?: DiscountStatus[]; sort?: "created_at" | "code" | "valid_until" }>({
       query: (params) => ({ url: "/admin/discount-codes", params }),
       providesTags: [{ type: "Admin", id: "DISCOUNT_CODES" }],
     }),
@@ -826,7 +839,7 @@ export const adminApi = baseApi.injectEndpoints({
         { type: "Admin", id: `DISCOUNT_CODE_${id}` },
       ],
     }),
-    getAdminDiscountRedemptions: builder.query<CursorPage<DiscountRedemption>, AdminListParams & { id: string }>({
+    getAdminDiscountRedemptions: builder.query<CursorPage<DiscountRedemption>, AdminListParams & { id: string; email?: string; phone?: string; subscriber_type?: "USER" | "TENANT"; redeemed_from?: string; redeemed_to?: string; sort?: "redeemed_at" | "amount_minor" }>({
       query: ({ id, ...params }) => ({ url: `/admin/discount-codes/${id}/redemptions`, params }),
       providesTags: (_result, _error, { id }) => [{ type: "Admin", id: `DISCOUNT_REDEMPTIONS_${id}` }],
     }),
