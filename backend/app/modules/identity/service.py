@@ -552,9 +552,9 @@ async def list_tenants(
     created_from: datetime | None = None,
     created_before: datetime | None = None,
 ) -> list[TenantView]:
-    """Customer organisations. `member_email` is normalised, `member_phone`
-    digits only; each matches an active member in part only when
-    `partial_contact`, else in whole."""
+    """Customer organisations. One search box: part of the name **or** an
+    active member's email (normalised) or phone (digits), the contact in part
+    only when `partial_contact`, else in whole."""
     rows = await repository.list_tenants(
         session,
         tenant_type=tenant_type,

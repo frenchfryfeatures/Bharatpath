@@ -11,7 +11,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import select, text, update
+from sqlalchemy import ColumnElement, or_, select, text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -267,40 +267,46 @@ async def list_tenants(
     limit: int,
 ) -> list[Tenant]:
     """The PLATFORM tenant is never listed: it is not a customer, and it
-    cannot be suspended. `member_email` / `member_phone` (normalised; the
-    phone as digits) find the organisation an active member belongs to --
-    in part when `partial_contact`, else the whole address or number.
-    `memberships` and `users` are not under RLS."""
+    cannot be suspended. One search box: an organisation matches if
+    `name_contains` is part of its name, **or** an active member's email or
+    phone matches `member_email` / `member_phone` (normalised; the phone as
+    digits) -- in part when `partial_contact`, else the whole address or
+    number. `memberships` and `users` are not under RLS."""
     stmt = select(Tenant).where(Tenant.type != "PLATFORM")
     if tenant_type is not None:
         stmt = stmt.where(Tenant.type == tenant_type)
     if status is not None:
         stmt = stmt.where(Tenant.status == status)
-    if name_contains:
-        stmt = stmt.where(Tenant.name.ilike(contains(name_contains), escape="\\"))
     if created_from is not None:
         stmt = stmt.where(Tenant.created_at >= created_from)
     if created_before is not None:
         stmt = stmt.where(Tenant.created_at < created_before)
-    member = (
-        select(Membership.id)
-        .join(User, User.id == Membership.user_id)
-        .where(Membership.tenant_id == Tenant.id, Membership.status == "ACTIVE")
-    )
+    contact: list[ColumnElement[bool]] = []
     if member_email is not None:
-        member = member.where(
+        contact.append(
             User.email.like(contains(member_email), escape="\\")
             if partial_contact
             else User.email == member_email
         )
     if member_phone is not None:
-        member = member.where(
+        contact.append(
             User.phone.like(contains(member_phone))
             if partial_contact
             else User.phone == f"+{member_phone}"
         )
-    if member_email is not None or member_phone is not None:
-        stmt = stmt.where(member.exists())
+    matches: list[ColumnElement[bool]] = []
+    if name_contains:
+        matches.append(Tenant.name.ilike(contains(name_contains), escape="\\"))
+    if contact:
+        matches.append(
+            select(Membership.id)
+            .join(User, User.id == Membership.user_id)
+            .where(Membership.tenant_id == Tenant.id, Membership.status == "ACTIVE")
+            .where(or_(*contact))
+            .exists()
+        )
+    if matches:
+        stmt = stmt.where(or_(*matches))
     after, params = ordering.where()
     if params:
         stmt = stmt.where(text(after).bindparams(**params))

@@ -996,8 +996,11 @@ SUPPORT_AGENT).
   nothing else**. A candidate's hire dispute is filed by `admin.open_hire_dispute`.
 
 **Searching and sorting the lists** (2026-10-21, `app/core/listing.py`,
-`backend-guide/13` §0.6). Every list takes `sort` + `order`; people lists
-take `name`, `email`, `phone` separately.
+`backend-guide/13` §0.6). Every list takes `sort` + `order` and **one
+search box, `q`** (2026-10-22): on a people list it is tried against name,
+email and phone at once, a match on any (`_person_where` ORs them). Text is
+tried as a phone only when it is shaped like one (`listing.phone_digits`):
+the digits of `ravi 2024` would match every number holding a 2024.
 
 - **A cursor carries its sort.** One from another sort or order is
   `invalid_cursor`. A sort's keys end in the id; nullable keys sort last
@@ -1007,8 +1010,9 @@ take `name`, `email`, `phone` separately.
   (`domain.partial_contact_search`); others match the whole of it.
   Otherwise a masked list spells out a contact one character at a time.
   Never widen this without widening `candidate_contact`.
-- **Audit rows say how a list was searched, never what for**
-  (`PersonSearch.audit()`). Never put a term in metadata.
+- **Audit rows say that a list was searched, never what for**
+  (`PersonSearch.audit()`: `searched`, `partial_contact`). Never put the
+  text in metadata.
 - A candidate's phone is `_CANDIDATE_PHONE`: the account's, else the
   onboarding one. Most candidates have only the second.
 

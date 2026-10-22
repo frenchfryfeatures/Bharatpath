@@ -2,17 +2,16 @@
 
 """Searching and sorting the console's lists (2026-10-21).
 
-Every `/admin` list takes `sort` and `order` beside its filters, and the ones
-about people take `name`, `email` and `phone`. Two rules matter more than the
-mechanics:
+Every `/admin` list takes `sort` and `order` beside its filters, and one
+search box, `q`; on a list of people it is tried against the name, the email
+and the phone at once (2026-10-22). Two rules matter more than the mechanics:
 
 * **Part of an email or phone is for the roles that read whole contacts.**
   An integrity reviewer lists candidates with their contacts masked; if part
   of an address matched, `a`, `ab`, `abc`... would spell it out. They match
   the whole address or number.
-* **The search terms never reach the audit row.** It records that a search
-  was made and how (`by_email`, `partial_contact`), never the name, address
-  or number.
+* **The search text never reaches the audit row.** It records that a
+  search was made (`searched`, `partial_contact`), never what was typed.
 
 The database is shared with every other test, so each test gives its people
 a letters-only token and narrows every list to it.
@@ -154,47 +153,45 @@ async def _walk(client: Any, url: str, headers: dict, **params: Any) -> list[dic
 
 
 # --- the candidate list -------------------------------------------------------------
-async def test_support_finds_a_candidate_by_part_of_a_name_email_or_phone(
+async def test_one_search_box_finds_a_candidate_by_name_email_or_phone(
     client: Any, mint_token: Any
 ) -> None:
+    """Support types anything into `q`: part of a name, part of an email or
+    the digits of a phone, and a candidate matching any of the three is in."""
     agent = await _staff(mint_token, "SUPPORT_AGENT")
     token = _token()
     p = await _people(token)
     url, headers = f"{ADMIN}/candidates", agent["headers"]
     asha, ravi, nameless = str(p["asha"]), str(p["ravi"]), str(p["nameless"])
 
-    assert set(await _ids(client, url, headers, email=token)) == {asha, ravi, nameless}
-    assert await _ids(client, url, headers, email=f" ASHA.{token} ") == [asha]
-    assert set(await _ids(client, url, headers, name=token.upper())) == {asha, ravi}
-    assert await _ids(client, url, headers, q=f"ravi {token}") == [ravi], "`q` still works"
+    # The token is in two names and in all three addresses.
+    assert set(await _ids(client, url, headers, q=token.upper())) == {asha, ravi, nameless}
+    assert await _ids(client, url, headers, q=f" ASHA.{token} ") == [asha], "part of an email"
+    assert await _ids(client, url, headers, q=f"ravi {token}") == [ravi], "part of a name"
+    assert await _ids(client, url, headers, q=f"zed.{token}@example.test") == [nameless]
 
     # The onboarding phone is searched as well as the account's, by its digits.
     spaced = f"{p['ravi_phone'][:3]} {p['ravi_phone'][3:8]}-{p['ravi_phone'][8:]}"
-    assert await _ids(client, url, headers, email=token, phone=spaced) == [ravi]
-    assert await _ids(client, url, headers, email=token, phone=p["asha_phone"][-6:]) == [asha]
-    [row] = (await client.get(url, params={"phone": p["ravi_phone"]}, headers=headers)).json()[
-        "items"
-    ]
+    assert await _ids(client, url, headers, q=spaced) == [ravi]
+    assert asha in await _ids(client, url, headers, q=p["asha_phone"][-6:])
+    [row] = (await client.get(url, params={"q": p["ravi_phone"]}, headers=headers)).json()["items"]
     assert row["phone_masked"].endswith(p["ravi_phone"][-4:])
     assert p["ravi_phone"] not in json.dumps(row), "the list still masks"
 
-    assert await _ids(client, url, headers, email=token, city="CHINCH") == [ravi]
+    assert await _ids(client, url, headers, q=token, city="CHINCH") == [ravi]
     today = _today().isoformat()
     week_ago = (_today() - timedelta(days=7)).isoformat()
-    assert set(await _ids(client, url, headers, email=token, created_from=week_ago)) == {
-        asha,
-        ravi,
-    }
-    assert await _ids(client, url, headers, email=token, created_to=week_ago) == [nameless]
+    assert set(await _ids(client, url, headers, q=token, created_from=week_ago)) == {asha, ravi}
+    assert await _ids(client, url, headers, q=token, created_to=week_ago) == [nameless]
     backwards = await client.get(
         url, params={"created_from": today, "created_to": week_ago}, headers=headers
     )
     assert backwards.status_code == 422 and backwards.json()["code"] == "invalid_date_range"
 
-    no_digits = await client.get(url, params={"phone": "call me"}, headers=headers)
-    assert no_digits.status_code == 422 and no_digits.json()["code"] == "phone_search_invalid"
-    wildcard = await client.get(url, params={"email": f"%{token}"}, headers=headers)
+    wildcard = await client.get(url, params={"q": f"%{token}"}, headers=headers)
     assert wildcard.json()["items"] == [], "a % in a search is a character, not a wildcard"
+    words = await client.get(url, params={"q": f"call {token}"}, headers=headers)
+    assert words.status_code == 200 and words.json()["items"] == [], "text is not a phone"
 
     leaked = await _scalar(
         "SELECT count(*) FROM audit_events WHERE actor_id = :u AND "
@@ -203,36 +200,38 @@ async def test_support_finds_a_candidate_by_part_of_a_name_email_or_phone(
         t=f"%{token}%",
         p=f"%{p['ravi_phone'][-6:]}%",
     )
-    assert int(leaked) == 0, "the audit row says how a search was made, never what for"
+    assert int(leaked) == 0, "the audit row says a search was made, never what for"
     how = await _scalar(
         "SELECT metadata FROM audit_events WHERE actor_id = :u "
-        "AND metadata->>'view' = 'candidates' AND metadata->>'by_phone' = 'true' LIMIT 1",
+        "AND metadata->>'view' = 'candidates' AND metadata->>'searched' = 'true' LIMIT 1",
         u=agent["user_id"],
     )
-    assert how["partial_contact"] is True and how["by_email"] is True
+    assert how["partial_contact"] is True
 
 
 async def test_a_role_that_cannot_read_contacts_matches_only_a_whole_one(
     client: Any, mint_token: Any
 ) -> None:
-    """The integrity reviewer lists candidates with masked contacts. Part of
-    an address or number finds nobody for them; the whole of it does."""
+    """The integrity reviewer lists candidates with masked contacts. In the
+    same search box, part of a name still finds someone -- the name is on the
+    row -- but part of an address or number finds nobody; the whole does."""
     reviewer = await _staff(mint_token, "INTEGRITY_REVIEWER")
     token = _token()
     p = await _people(token)
     url, headers = f"{ADMIN}/candidates", reviewer["headers"]
+    asha, ravi, nameless = str(p["asha"]), str(p["ravi"]), str(p["nameless"])
 
-    assert await _ids(client, url, headers, email=token) == []
-    assert await _ids(client, url, headers, email=f"asha.{token}@example.test") == [str(p["asha"])]
-    assert await _ids(client, url, headers, phone=p["ravi_phone"][-6:]) == []
-    assert await _ids(client, url, headers, phone=p["ravi_phone"]) == [str(p["ravi"])]
-    assert set(await _ids(client, url, headers, name=token)) == {
-        str(p["asha"]),
-        str(p["ravi"]),
-    }, "a name is on the row anyway"
+    assert set(await _ids(client, url, headers, q=token)) == {asha, ravi}, (
+        "by name only: the nameless account matches by part of its email, which "
+        "this role may not search"
+    )
+    assert await _ids(client, url, headers, q=f"zed.{token}") == []
+    assert await _ids(client, url, headers, q=f"zed.{token}@example.test") == [nameless]
+    assert await _ids(client, url, headers, q=p["ravi_phone"][-6:]) == []
+    assert await _ids(client, url, headers, q=p["ravi_phone"]) == [ravi]
     how = await _scalar(
         "SELECT metadata FROM audit_events WHERE actor_id = :u "
-        "AND metadata->>'view' = 'candidates' AND metadata->>'by_email' = 'true' LIMIT 1",
+        "AND metadata->>'view' = 'candidates' AND metadata->>'searched' = 'true' LIMIT 1",
         u=reviewer["user_id"],
     )
     assert how["partial_contact"] is False
@@ -250,28 +249,28 @@ async def test_candidates_sort_by_name_with_the_nameless_last_either_way(
     def ids(rows: list[dict]) -> list[str]:
         return [r["id"] for r in rows]
 
-    by_name = await _walk(client, url, headers, email=token, sort="full_name", limit=1)
+    by_name = await _walk(client, url, headers, q=token, sort="full_name", limit=1)
     assert ids(by_name) == [asha, ravi, nameless]
     by_name_desc = await _walk(
-        client, url, headers, email=token, sort="full_name", order="desc", limit=1
+        client, url, headers, q=token, sort="full_name", order="desc", limit=1
     )
     assert ids(by_name_desc) == [ravi, asha, nameless]
-    newest = await _walk(client, url, headers, email=token, limit=2)
+    newest = await _walk(client, url, headers, q=token, limit=2)
     assert ids(newest)[-1] == nameless, "newest first by default"
-    oldest = await _walk(client, url, headers, email=token, order="asc", limit=2)
+    oldest = await _walk(client, url, headers, q=token, order="asc", limit=2)
     assert ids(oldest)[0] == nameless
 
     first = await client.get(
-        url, params={"email": token, "sort": "full_name", "limit": 1}, headers=headers
+        url, params={"q": token, "sort": "full_name", "limit": 1}, headers=headers
     )
     cursor = first.json()["next_cursor"]
     elsewhere = await client.get(
-        url, params={"email": token, "sort": "created_at", "cursor": cursor}, headers=headers
+        url, params={"q": token, "sort": "created_at", "cursor": cursor}, headers=headers
     )
     assert elsewhere.status_code == 422 and elsewhere.json()["code"] == "invalid_cursor"
     turned = await client.get(
         url,
-        params={"email": token, "sort": "full_name", "order": "desc", "cursor": cursor},
+        params={"q": token, "sort": "full_name", "order": "desc", "cursor": cursor},
         headers=headers,
     )
     assert turned.status_code == 422 and turned.json()["code"] == "invalid_cursor"
@@ -288,20 +287,17 @@ async def test_the_leads_list_is_searched_and_sorted_the_same_way(
     p = await _people(token)
     url, headers = f"{ADMIN}/leads", agent["headers"]
 
-    rows = await _walk(client, url, headers, email=token, sort="full_name", limit=1)
+    rows = await _walk(client, url, headers, q=token, sort="full_name", limit=1)
     assert [r["id"] for r in rows] == [str(p["asha"]), str(p["ravi"]), str(p["nameless"])]
-    [ravi] = (
-        await client.get(
-            url, params={"email": token, "phone": p["ravi_phone"][-7:]}, headers=headers
-        )
-    ).json()["items"]
-    assert ravi["id"] == str(p["ravi"]) and ravi["phone"] == p["ravi_phone"]
-    assert await _ids(client, url, headers, name=f"asha {token}") == [str(p["asha"])]
-    week_ago = (_today() - timedelta(days=7)).isoformat()
-    assert await _ids(client, url, headers, email=token, signed_up_to=week_ago) == [
-        str(p["nameless"])
+    by_phone = (await client.get(url, params={"q": p["ravi_phone"][-7:]}, headers=headers)).json()[
+        "items"
     ]
-    never = await _walk(client, url, headers, email=token, sort="last_downloaded_at", limit=2)
+    [ravi] = [r for r in by_phone if r["id"] == str(p["ravi"])]
+    assert ravi["phone"] == p["ravi_phone"]
+    assert await _ids(client, url, headers, q=f"asha {token}") == [str(p["asha"])]
+    week_ago = (_today() - timedelta(days=7)).isoformat()
+    assert await _ids(client, url, headers, q=token, signed_up_to=week_ago) == [str(p["nameless"])]
+    never = await _walk(client, url, headers, q=token, sort="last_downloaded_at", limit=2)
     assert len(never) == 3, "nobody downloaded, and nobody is lost for it"
     leaked = await _scalar(
         "SELECT count(*) FROM audit_events WHERE actor_id = :u AND metadata::text ILIKE :t",
@@ -323,11 +319,9 @@ async def test_staff_find_an_organisation_by_a_members_email(client: Any, mint_t
     url = f"{ADMIN}/tenants"
     local = owner_email.split("@")[0]
 
-    assert await _ids(client, url, admin["headers"], email=local) == [employer["tenant_id"]]
-    assert await _ids(client, url, kyb["headers"], email=local) == []
-    assert await _ids(client, url, kyb["headers"], email=owner_email.upper()) == [
-        employer["tenant_id"]
-    ]
+    assert employer["tenant_id"] in await _ids(client, url, admin["headers"], q=local)
+    assert await _ids(client, url, kyb["headers"], q=local) == []
+    assert await _ids(client, url, kyb["headers"], q=owner_email.upper()) == [employer["tenant_id"]]
     newest = await _ids(client, url, admin["headers"], sort="created_at", type="EMPLOYER", limit=5)
     assert employer["tenant_id"] in newest, "just made, so among the newest"
     named = await client.get(url, params={"sort": "name", "limit": 3}, headers=admin["headers"])
@@ -354,11 +348,11 @@ async def test_the_integrity_queue_finds_a_candidates_signals_by_their_whole_ema
     signal_id = str(await _high_signal_id(version_id))
     url, email = f"{ADMIN}/integrity/signals", f"flagged.{token}@example.test"
 
-    assert signal_id in await _ids(client, url, reviewer["headers"], email=email)
-    assert await _ids(client, url, reviewer["headers"], email=token) == []
-    assert signal_id in await _ids(client, url, admin["headers"], email=token)
-    assert signal_id in await _ids(client, url, reviewer["headers"], name=token)
-    found = await _ids(client, url, reviewer["headers"], name=token, rule_id="no-such-rule")
+    assert signal_id in await _ids(client, url, reviewer["headers"], q=email)
+    assert await _ids(client, url, reviewer["headers"], q=f"flagged.{token}") == []
+    assert signal_id in await _ids(client, url, admin["headers"], q=f"flagged.{token}")
+    assert signal_id in await _ids(client, url, reviewer["headers"], q=token), "by name"
+    found = await _ids(client, url, reviewer["headers"], q=token, rule_id="no-such-rule")
     assert found == []
 
     by_severity = await client.get(
@@ -395,11 +389,11 @@ async def test_the_dispute_queue_finds_a_dispute_by_who_raised_it(
     dispute_id = raised.json()["id"]
     url = f"{ADMIN}/disputes"
 
-    assert await _ids(client, url, agent["headers"], email=token) == [dispute_id]
-    assert await _ids(client, url, agent["headers"], email=token, kind="HIRE") == []
+    assert await _ids(client, url, agent["headers"], q=token) == [dispute_id]
+    assert await _ids(client, url, agent["headers"], q=token, kind="HIRE") == []
     taken = await client.post(f"{url}/{dispute_id}/assign", headers=agent["headers"])
     assert taken.status_code == 200, taken.text
-    mine = await _ids(client, url, agent["headers"], assigned_to=str(agent["user_id"]), email=token)
+    mine = await _ids(client, url, agent["headers"], assigned_to=str(agent["user_id"]), q=token)
     assert mine == [dispute_id]
     newest = await client.get(url, params={"order": "desc", "limit": 5}, headers=agent["headers"])
     times = _times(newest.json()["items"])
