@@ -1,3 +1,5 @@
+# ruff: noqa: F811 - `made` is a pytest fixture imported from the search-filter tests
+
 """Searching and sorting the console's lists (2026-10-21).
 
 Every `/admin` list takes `sort` and `order` beside its filters, and the ones
@@ -39,6 +41,7 @@ from tests.integration.test_integrity_pipeline import (
     _high_signal_id,
     _scored_version,
 )
+from tests.integration.test_search_filters import _add, made  # noqa: F401 - fixture
 
 pytestmark = pytest.mark.integration
 
@@ -451,7 +454,7 @@ async def test_a_codes_status_filter_agrees_with_the_status_on_each_row(
     token = _token()
     now = datetime.now(UTC)
     label = f"List test {token}"
-    made = {
+    codes = {
         "active": await _make(client, admin, label=label),
         "scheduled": await _make(
             client, admin, label=label, valid_from=(now + timedelta(days=1)).isoformat()
@@ -463,11 +466,11 @@ async def test_a_codes_status_filter_agrees_with_the_status_on_each_row(
         "single": await _make(client, admin, label=label, usage_limit=1),
     }
     disabled = await client.post(
-        f"{ADMIN}/discount-codes/{made['disabled']['id']}/disable", headers=admin["headers"]
+        f"{ADMIN}/discount-codes/{codes['disabled']['id']}/disable", headers=admin["headers"]
     )
     assert disabled.status_code == 200, disabled.text
     payer = await _paying_candidate(mint_token)
-    checkout = await _checkout(client, payer, made["single"]["code"])
+    checkout = await _checkout(client, payer, codes["single"]["code"])
     assert checkout.status_code == 201, checkout.text
     assert await _settle(client, checkout.json()["payment_id"]) == "APPLIED"
 
@@ -477,7 +480,7 @@ async def test_a_codes_status_filter_agrees_with_the_status_on_each_row(
             everyone, _ = await billing_service.list_discount_codes(
                 session, audience=None, cursor=None, limit=100, query=token, now=at
             )
-            assert len(everyone) == len(made)
+            assert len(everyone) == len(codes)
             shown = {view.code.id: view.status for view in everyone}
             for status in statuses:
                 filtered, _ = await billing_service.list_discount_codes(
@@ -495,16 +498,16 @@ async def test_a_codes_status_filter_agrees_with_the_status_on_each_row(
 
     url = f"{ADMIN}/discount-codes"
     exhausted = await _ids(client, url, admin["headers"], q=token, status="EXHAUSTED")
-    assert exhausted == [made["single"]["id"]]
+    assert exhausted == [codes["single"]["id"]]
     both = await _ids(client, url, admin["headers"], q=token, status=["DISABLED", "SCHEDULED"])
-    assert set(both) == {made["disabled"]["id"], made["scheduled"]["id"]}
+    assert set(both) == {codes["disabled"]["id"], codes["scheduled"]["id"]}
     by_code = await _walk(client, url, admin["headers"], q=token, sort="code", limit=2)
-    codes = [r["code"] for r in by_code]
-    assert codes == sorted(codes) and len(codes) == len(made)
+    code_names = [r["code"] for r in by_code]
+    assert code_names == sorted(code_names) and len(code_names) == len(codes)
     by_expiry = await _walk(client, url, admin["headers"], q=token, sort="valid_until", limit=2)
-    assert by_expiry[0]["id"] == made["ending"]["id"], "codes that never end come last"
+    assert by_expiry[0]["id"] == codes["ending"]["id"], "codes that never end come last"
 
-    log = f"{url}/{made['single']['id']}/redemptions"
+    log = f"{url}/{codes['single']['id']}/redemptions"
     assert len(await _ids(client, log, admin["headers"], sort="amount_minor")) == 1
     redeemed_today = await _ids(client, log, admin["headers"], redeemed_from=_today().isoformat())
     assert len(redeemed_today) == 1
@@ -513,28 +516,24 @@ async def test_a_codes_status_filter_agrees_with_the_status_on_each_row(
 
 # --- search filter options ------------------------------------------------------------
 async def test_search_filter_options_sort_by_label_and_filter_by_featured(
-    client: Any, mint_token: Any
+    client: Any, mint_token: Any, made: list[str]
 ) -> None:
+    """Its own options, narrowed by a token: a CI database holds no starter
+    catalogue, and a local one holds 156 options nobody here made."""
     agent = await _staff(mint_token, "SUPPORT_AGENT")
-    url = f"{ADMIN}/search-filters"
-    by_label = await client.get(
-        url, params={"sort": "label", "kind": "CITY", "limit": 5}, headers=agent["headers"]
+    url, token = f"{ADMIN}/search-filters", _token()
+    for word, featured in (("zeta", False), ("alpha", True), ("mid", False), ("beta", False)):
+        await _add(client, agent, made, kind="SKILL", label=f"{word} {token}", featured=featured)
+
+    by_label = await _walk(client, url, agent["headers"], q=token, sort="label", limit=1)
+    assert [r["label"].split()[0] for r in by_label] == ["alpha", "beta", "mid", "zeta"]
+    backwards = await _walk(
+        client, url, agent["headers"], q=token, sort="label", order="desc", limit=3
     )
-    assert by_label.status_code == 200, by_label.text
-    following = await client.get(
-        url,
-        params={
-            "sort": "label",
-            "kind": "CITY",
-            "limit": 5,
-            "cursor": by_label.json()["next_cursor"],
-        },
-        headers=agent["headers"],
-    )
-    seen = [r["id"] for r in by_label.json()["items"] + following.json()["items"]]
-    assert len(seen) == len(set(seen)) == 10
-    featured = await client.get(url, params={"featured": "true"}, headers=agent["headers"])
-    assert all(r["featured"] for r in featured.json()["items"])
-    newest = await client.get(url, params={"sort": "created_at"}, headers=agent["headers"])
-    times = _times(newest.json()["items"])
-    assert times == sorted(times, reverse=True)
+    assert [r["id"] for r in backwards] == [r["id"] for r in reversed(by_label)]
+    [featured] = (
+        await client.get(url, params={"q": token, "featured": "true"}, headers=agent["headers"])
+    ).json()["items"]
+    assert featured["label"] == f"alpha {token}"
+    newest = await _walk(client, url, agent["headers"], q=token, sort="created_at", limit=2)
+    assert [r["id"] for r in newest] == list(reversed(made)), "newest first"
