@@ -57,6 +57,14 @@ class ResumeBuilderDraft(Base):
     )
     pushed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    #: When the draft last caught up with the candidate's resume: first
+    #: saved, refilled, pushed, or kept as it is on purpose (2026-10-22). A CV
+    #: read after this is one the draft has not seen, and the editor says so
+    #: (`out_of_date`). An autosave does not move it: typing is not catching up.
+    synced_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
     __table_args__ = (
         CheckConstraint(_TEMPLATES, name="ck_resume_builder_drafts_template"),
         CheckConstraint("download_count >= 0", name="ck_resume_builder_drafts_downloads"),

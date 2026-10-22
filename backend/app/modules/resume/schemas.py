@@ -56,6 +56,18 @@ class UploadTicketResponse(_Base):
     accepted_types: list[str]
 
 
+class UploadCompleteRequest(_Base):
+    """Optional: a client may complete an upload with no body at all.
+
+    `filename` is the name the candidate's device gave the file. It labels
+    the file in their own history and is trusted for nothing else -- the key
+    is ours and the type is read from the bytes. Cut to a display name on
+    the way in (`domain.clean_filename`).
+    """
+
+    filename: str | None = Field(default=None, max_length=1024)
+
+
 class UploadCompleteResponse(_Base):
     """202: the file is stored and accepted; parsing has not finished.
 
@@ -96,6 +108,46 @@ class ResumeFileStatusResponse(_Base):
     uploaded_at: datetime
     resume_version_id: uuid.UUID | None = Field(
         default=None, description="Present once parsing has produced a version."
+    )
+    filename: str | None = Field(
+        default=None, description="The name the file was uploaded with, if the client sent one."
+    )
+
+
+class ResumeFileSummary(_Base):
+    """One document in the candidate's list of resumes (2026-10-22).
+
+    A file, not a version: an upload and its corrections are one resume to
+    the person who sent it, and a failed upload has no version at all.
+    """
+
+    resume_file_id: uuid.UUID
+    filename: str | None = Field(
+        default=None,
+        description="As uploaded. Null for uploads from before names were kept "
+        "(2026-10-22) and for clients that did not send one.",
+    )
+    origin: Literal["UPLOAD", "BUILDER"] = Field(
+        description="UPLOAD: a file the candidate sent. BUILDER: the PDF the "
+        "resume builder drew when they made it their resume."
+    )
+    mime: str
+    size_bytes: int
+    uploaded_at: datetime
+    scan_status: str
+    parse_status: Literal["QUEUED", "DONE", "FAILED", "BLOCKED"]
+    parse_error_code: str | None = None
+    terminal: bool
+    latest_version_id: uuid.UUID | None = Field(
+        default=None,
+        description="The newest version made from this file -- its upload or "
+        "the latest correction of it. Open it with `GET /versions/{id}`; its "
+        "file with `GET /versions/{id}/document`. Null when it was never read.",
+    )
+    confirmed: bool = Field(description="The newest version is confirmed.")
+    current: bool = Field(
+        description="This file's versions include the one a score is computed "
+        "from now. At most one file is current."
     )
 
 
@@ -193,6 +245,19 @@ class ResumeVersionSummary(_Base):
         "superseded version can no longer be edited or confirmed."
     )
     created_at: datetime
+    resume_file_id: uuid.UUID | None = Field(
+        default=None,
+        description="The document this version was read from or drawn as. "
+        "Corrections carry it forward, so versions sharing it are one resume.",
+    )
+    filename: str | None = Field(default=None, description="That document's name, if kept.")
+    current: bool = Field(
+        default=False,
+        description="The version a score is computed from now: the newest "
+        "confirmed one, whichever chain it is in. At most one is current. "
+        "Use this rather than inferring it from `confirmed` and `superseded`, "
+        "which can both hold for two versions in different chains.",
+    )
 
 
 class ResumeSectionItem(_Base):

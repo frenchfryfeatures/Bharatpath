@@ -15,6 +15,8 @@ import pytest
 
 from app.modules.resume.domain import (
     DOCX,
+    MAX_FILENAME_CHARS,
+    clean_filename,
     normalise_pasted_text,
     sniff_mime,
     upload_key,
@@ -179,3 +181,47 @@ def test_the_shipped_settings_do_not_accept_legacy_doc() -> None:
     from app.settings import Settings
 
     assert "application/msword" not in Settings.model_fields["resume_allowed_mime_types"].default
+
+
+# --- the file's name, kept as a label (2026-10-22) ---------------------------
+HINDI = "\u0930\u093f\u091c\u093c\u094d\u092f\u0942\u092e\u0947.pdf"
+
+
+@pytest.mark.parametrize(
+    ("raw", "kept"),
+    [
+        ("Sameer Sharma CV.pdf", "Sameer Sharma CV.pdf"),
+        ("C:\\fakepath\\resume.docx", "resume.docx"),
+        ("../../etc/passwd", "passwd"),
+        ("  my\tresume \n final .pdf ", "my resume final .pdf"),
+        ("cv\x00.pdf", "cv.pdf"),
+        # A right-to-left override would make this read as `cvexe.pdf`.
+        ("cv\u202efdp.exe", "cvfdp.exe"),
+        (HINDI, HINDI),
+        # Joiners choose an Indic letter's form; they are kept.
+        ("\u0915\u094d\u200d\u0937.pdf", "\u0915\u094d\u200d\u0937.pdf"),
+        ("", None),
+        ("   ", None),
+        ("..", None),
+        ("folder/", None),
+        (None, None),
+    ],
+)
+def test_a_filename_is_cut_to_a_label(raw: str | None, kept: str | None) -> None:
+    assert clean_filename(raw) == kept
+
+
+def test_a_long_filename_keeps_its_extension() -> None:
+    name = clean_filename("a" * 400 + ".pdf")
+    assert name is not None
+    assert len(name) == MAX_FILENAME_CHARS
+    assert name.endswith(".pdf")
+
+
+def test_a_long_name_with_no_extension_is_cut() -> None:
+    assert clean_filename("b" * 400) == "b" * MAX_FILENAME_CHARS
+
+
+def test_cleaning_a_filename_is_idempotent() -> None:
+    once = clean_filename("C:\\x\\" + "c" * 300 + ".docx")
+    assert clean_filename(once) == once

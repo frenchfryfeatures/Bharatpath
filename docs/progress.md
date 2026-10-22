@@ -9,6 +9,48 @@ states. Newest entries first.
 
 ---
 
+## 2026-10-22 — Resume sync: the builder says when it is behind; a file history
+
+The frontend team reported two screens disagreeing: the builder
+(`/student/profile/resume/edit`) showed one name and headline, the review
+screen (`/student/profile/resume`) another. They also asked for "versioning"
+of uploaded resumes. Branch `feat/resume-sync`, migration
+`0021_resume_sync`. Guide 04 §2, §6, §6b and guide 18 §3b.
+
+- **Cause: two stores, joined only at refill and push.** The draft
+  (`resume_builder_drafts`) is filled in from the CV once, at first open,
+  and after that nothing that happens to versions reaches it. The review
+  screen reads versions. An unpushed draft (`pushed_is_current: false`) and
+  a CV uploaded after the draft were both invisible from the other screen.
+- **Decided: say so rather than sync silently.** `GET /draft` reports
+  `out_of_date` (+ `newer_resume_version_id`, `newer_resume_at`) when a CV
+  read from text is newer than `synced_at`. Moved by first save, refill,
+  push and the new `POST /draft/keep`; never by autosave. Overwriting the
+  draft would destroy the candidate's own edits. Writing builder edits into
+  the upload's chain would replace the CV's prose with rendered fields and
+  lower scores (CLAUDE.md, review-screen sections).
+- **Only text-read versions count**, which is what a refill reads.
+  Built versions are the draft itself. Form-built ones (profile completion)
+  hold only the answers. Known false prompt, accepted: a completed-profile
+  save that appends reviewed facts to an uploaded CV is a text EDIT, so it
+  offers a refill that would pull those same facts.
+- **`current` on `/versions`**: the newest confirmed version, the scoring
+  rule's answer. The web app guessed with `confirmed && !superseded`, which
+  holds for two versions once a builder push (a new chain) is confirmed.
+- **`GET /candidate/resume/files`**: one row per document (uploads and
+  builder PDFs, `origin`), with its newest version, `current`, and
+  failed/blocked uploads listed with their parse state.
+- **`resume_files.original_filename`**: optional `{"filename"}` body on
+  `…/uploads/{id}/complete`, `file.filename` on `/intake`, the builder's
+  `Name-Resume.pdf` on push. A label only (`domain.clean_filename`); NULL
+  for older uploads. Added to the export as section `resume_files`.
+- **Not built, deliberately:** "restore an older resume". It would be a new
+  version and a re-score: a product decision. Today the candidate
+  re-uploads.
+- Frontend handoff (not done here, backend-only): send `filename` on
+  complete; pick the shown version by `current`; banner on `out_of_date`
+  with Refill / Keep; a history screen from `/files`.
+
 ## 2026-10-21 — Searching and sorting every admin list
 
 Asked for in a backend session: "all admin APIs add filtering, sorting;

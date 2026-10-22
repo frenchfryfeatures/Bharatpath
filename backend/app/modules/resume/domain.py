@@ -9,6 +9,7 @@ this is the layer the invariant property tests exercise directly.
 
 from __future__ import annotations
 
+import unicodedata
 import uuid
 from dataclasses import dataclass
 from typing import Any, Final
@@ -117,6 +118,50 @@ def upload_key(*, user_id: uuid.UUID, upload_id: uuid.UUID) -> str:
     authorisation. Deriving it from the authenticated user closes that.
     """
     return f"resumes/{user_id}/{upload_id}"
+
+
+#: A file's name as it is shown back to its owner in their history.
+MAX_FILENAME_CHARS: Final = 255
+#: An extension longer than this is not one, and is cut with the rest.
+_MAX_EXTENSION_CHARS: Final = 10
+#: Format characters that are kept: ZWNJ and ZWJ choose an Indic letter's
+#: form, so dropping them would misspell a Hindi or Bengali filename.
+_JOINERS: Final = frozenset({"‌", "‍"})
+
+
+def clean_filename(raw: str | None) -> str | None:
+    """The name the candidate's device gave a file, fit to show back to them.
+
+    **A label and nothing else.** The object's key is derived from ids we
+    issued (`upload_key`) and its type from its bytes (`sniff_mime`), so a
+    name is never used to find, type or trust a file. It is the candidate's
+    own text, shown only to them, on their list of uploaded resumes.
+
+    The last path segment only (a browser may send `C:\\fakepath\\cv.pdf`),
+    no control or format characters but the two joiners (NUL cannot be
+    stored at all, and a right-to-left override makes `cv<RLO>fdp.exe` read
+    as `cvexe.pdf`),
+    whitespace collapsed, and at most 255 characters with the extension kept.
+    """
+    if raw is None:
+        return None
+    # Whitespace first, so a tab or a line break becomes a space rather than
+    # vanishing and joining two words; then every other control goes.
+    segment = " ".join(raw.replace("\\", "/").rsplit("/", 1)[-1].split())
+    name = " ".join(
+        "".join(
+            c for c in segment if c in _JOINERS or unicodedata.category(c) not in ("Cc", "Cf")
+        ).split()
+    )
+    if name in ("", ".", ".."):
+        return None
+    if len(name) > MAX_FILENAME_CHARS:
+        stem, dot, extension = name.rpartition(".")
+        if dot and stem and len(extension) <= _MAX_EXTENSION_CHARS:
+            name = f"{stem[: MAX_FILENAME_CHARS - len(extension) - 1].rstrip()}.{extension}"
+        else:
+            name = name[:MAX_FILENAME_CHARS].rstrip()
+    return name
 
 
 #: Characters removed before anything else. C0 controls and DEL, minus the

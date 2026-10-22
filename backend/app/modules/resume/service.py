@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -24,6 +25,7 @@ from app.core.outbox import emit
 from app.modules.resume import repository
 from app.modules.resume.domain import (
     build_edited_parsed,
+    clean_filename,
     refuse_version_change,
     sniff_mime,
     upload_key,
@@ -136,6 +138,7 @@ async def complete_upload(
     *,
     user_id: uuid.UUID,
     upload_id: uuid.UUID,
+    filename: str | None = None,
     settings: Settings | None = None,
 ) -> tuple[uuid.UUID, str, str]:
     """Validate what was actually stored, then record it -- in that order.
@@ -150,6 +153,10 @@ async def complete_upload(
     Completing the same upload twice returns the existing row instead of
     creating a second one -- the row id IS the upload id, so a retried request
     is naturally idempotent.
+
+    `filename` is the name the candidate's device gave the file, kept as a
+    label for their history (`domain.clean_filename`) and trusted for
+    nothing. A retry does not rename the row.
     """
     settings = settings or get_settings()
     bucket = settings.s3_bucket_resumes
@@ -193,6 +200,7 @@ async def complete_upload(
         mime=mime,
         size_bytes=meta["size_bytes"],
         scan_status=scan_status,
+        original_filename=clean_filename(filename),
     )
 
     # Emitted on the same transaction as the row. The relay publishes only
@@ -273,6 +281,7 @@ async def create_builder_version(
     structured: dict[str, Any],
     pdf: bytes,
     extractor: dict[str, Any],
+    filename: str | None = None,
 ) -> Any:
     """The resume-builder path (2026-10-13): a version and its PDF, together.
 
@@ -304,6 +313,7 @@ async def create_builder_version(
         mime="application/pdf",
         size_bytes=len(pdf),
         scan_status="CLEAN",
+        original_filename=clean_filename(filename),
     )
     await repository.set_parse_status(session, resume_file_id=file_id, status="DONE")
     row = await repository.create_version(
@@ -372,6 +382,103 @@ async def list_versions(session: AsyncSession, *, user_id: uuid.UUID) -> list[tu
     rows = await repository.list_versions(session, user_id=user_id, limit=MAX_VERSION_HISTORY)
     superseded = {r.supersedes_id for r in rows if r.supersedes_id is not None}
     return [(row, row.id in superseded) for row in rows]
+
+
+@dataclass(frozen=True, slots=True)
+class VersionEntry:
+    """One row of the version history, with what the list screen needs
+    beside the version itself."""
+
+    version: Any
+    superseded: bool
+    #: The version a score is computed from now: the newest confirmed one.
+    current: bool
+    #: The file's name, when the version has a file that kept one.
+    filename: str | None
+
+
+async def version_history(session: AsyncSession, *, user_id: uuid.UUID) -> list[VersionEntry]:
+    """`list_versions`, with which one is current and each file's name.
+
+    **Current is the scoring rule's answer, not a guess from the list**: the
+    newest confirmed version (`latest_confirmed_version`), whichever chain it
+    is in. A pushed builder resume starts a chain of its own, so "confirmed
+    and not superseded" can hold for two versions at once; this cannot.
+    """
+    rows = await list_versions(session, user_id=user_id)
+    current = await repository.latest_confirmed_version(session, user_id=user_id)
+    files = await repository.files_by_id(
+        session,
+        user_id=user_id,
+        resume_file_ids=list({row.resume_file_id for row, _ in rows if row.resume_file_id}),
+    )
+    return [
+        VersionEntry(
+            version=row,
+            superseded=superseded,
+            current=current is not None and row.id == current.id,
+            filename=(
+                files[row.resume_file_id].original_filename if row.resume_file_id in files else None
+            ),
+        )
+        for row, superseded in rows
+    ]
+
+
+@dataclass(frozen=True, slots=True)
+class FileEntry:
+    """One file in the candidate's list of resumes, and what became of it."""
+
+    file: Any
+    #: The newest version made from it (its upload, or the latest correction
+    #: of that), or None when it was never read -- failed, blocked, or queued.
+    latest_version: Any | None
+    #: Its versions include the one a score is computed from now.
+    current: bool
+    #: UPLOAD for a file the candidate sent; BUILDER for one the builder drew.
+    origin: str
+
+
+async def file_history(session: AsyncSession, *, user_id: uuid.UUID) -> list[FileEntry]:
+    """The candidate's resumes as files, newest first (2026-10-22).
+
+    One row per document rather than per version: an upload and its
+    corrections are one resume to the person who sent it. A file that never
+    produced a version is listed too, with its parse state, so the history
+    says an upload failed rather than silently missing it.
+    """
+    files = await repository.list_files(session, user_id=user_id, limit=MAX_VERSION_HISTORY)
+    versions = await repository.versions_of_files(
+        session, user_id=user_id, resume_file_ids=[f.id for f in files]
+    )
+    newest: dict[uuid.UUID, Any] = {}
+    for version in versions:  # newest first: keep the first seen per file
+        if version.resume_file_id is not None:
+            newest.setdefault(version.resume_file_id, version)
+    current = await repository.latest_confirmed_version(session, user_id=user_id)
+    current_file = current.resume_file_id if current is not None else None
+    return [
+        FileEntry(
+            file=f,
+            latest_version=newest.get(f.id),
+            current=current_file is not None and f.id == current_file,
+            origin=(
+                "BUILDER"
+                if (v := newest.get(f.id)) is not None and v.source == "BUILDER"
+                else "UPLOAD"
+            ),
+        )
+        for f in files
+    ]
+
+
+async def newest_text_version(
+    session: AsyncSession, *, user_id: uuid.UUID
+) -> tuple[uuid.UUID, datetime] | None:
+    """`(id, created_at)` of the newest CV read from text, confirmed or not;
+    never a built or form-built version. The resume builder compares it with
+    when its draft last caught up. Owner-scoped, ids only."""
+    return await repository.newest_text_version(session, user_id=user_id)
 
 
 async def get_version_for_review(
