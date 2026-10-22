@@ -21,12 +21,13 @@ not require one.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Query, Request, status
 
 from app.core.deps import CurrentUser, DbSession, get_request_id, require_role
+from app.core.listing import SortOrder
 from app.modules.admin import service
 from app.modules.admin.domain import CONSOLE_ROLES, DISPUTE_RAISER_ROLES, Capability, LeadStage
 from app.modules.admin.schemas import (
@@ -87,6 +88,7 @@ from app.modules.admin.schemas import (
     UpdateCourseModuleRequest,
     UpdateSearchFilterOptionRequest,
 )
+from app.modules.billing.domain import DiscountStatus
 from app.modules.kyb.schemas import KybSubmissionResponse
 from app.modules.notifications import service as notifications_service
 from app.modules.notifications.schemas import SuppressRequest, SuppressResponse
@@ -100,6 +102,42 @@ def can(capability: Capability) -> list[Any]:
 
 
 Limit = Query(default=None, ge=1, le=100)
+
+# --- searching and sorting the lists (2026-10-21) ------------------------------
+# Every list takes `sort` (one of its own fields) and `order`; without
+# `order`, each sort runs its natural way (dates newest first, names A-Z,
+# queues oldest first). A cursor belongs to the filters, `sort` and `order` it
+# was issued under: change any of them and start again without one (a cursor
+# from another sort is 422 `invalid_cursor`). The `Literal`s below are the
+# repositories' sort tables, held equal by `tests/unit/test_admin_list_sorts.py`.
+CandidateSort = Literal["created_at", "full_name"]
+LeadSort = Literal["created_at", "full_name", "last_downloaded_at"]
+KybSort = Literal["created_at", "submitted_at", "organisation"]
+SignalSort = Literal["created_at", "severity"]
+TenantSort = Literal["name", "created_at"]
+DisputeSort = Literal["created_at", "resolved_at"]
+DiscountCodeSort = Literal["created_at", "code", "valid_until"]
+RedemptionSort = Literal["redeemed_at", "amount_minor"]
+FilterOptionSort = Literal["key", "label", "created_at"]
+
+Order = Query(default=None, description="`asc` or `desc`; each sort has its own default")
+#: Part of a name, for anyone who may read the list.
+NameSearch = Query(default=None, max_length=100, description="Part of the name")
+#: The contact searches. Part of one only for a role that reads whole
+#: contacts (PLATFORM_ADMIN, SUPPORT_AGENT); for any other, the whole of it.
+EmailSearch = Query(
+    default=None,
+    max_length=320,
+    description="Part of the email for roles that read whole contacts; the whole address "
+    "for others. Case does not matter.",
+)
+PhoneSearch = Query(
+    default=None,
+    max_length=32,
+    description="Digits of the phone, spaces and `+` ignored: part of it for roles that read "
+    "whole contacts, the whole E.164 number for others. 422 `phone_search_invalid` "
+    "without a digit.",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -132,17 +170,30 @@ async def list_kyb_submissions(
     user: CurrentUser,
     session: DbSession,
     state: str | None = None,
+    organisation: str | None = Query(
+        default=None, max_length=100, description="Part of the organisation's name"
+    ),
+    created_from: date | None = Query(default=None, description="On or after this IST day"),
+    created_to: date | None = Query(default=None, description="On or before this IST day"),
+    sort: KybSort = "created_at",
+    order: SortOrder | None = Order,
     cursor: str | None = None,
     limit: int | None = Limit,
 ) -> KybSubmissionsPage:
     """While `review_required` is false this is a record, not a queue: every
-    submission was approved on arrival (R15)."""
+    submission was approved on arrival (R15). Newest first by default;
+    `submitted_at` puts never-submitted drafts last either way."""
     return await service.kyb_submissions(
         session,
         ctx=user,
         state=state,
         cursor=cursor,
         limit=limit,
+        organisation=organisation,
+        created_from=created_from,
+        created_to=created_to,
+        sort=sort,
+        order=order,
         request_id=get_request_id(request),
     )
 
@@ -238,9 +289,20 @@ async def integrity_queue(
     session: DbSession,
     state: Literal["OPEN", "CLEARED", "CONFIRMED"] = "OPEN",
     severity: Literal["LOW", "MEDIUM", "HIGH"] | None = None,
+    rule_id: str | None = Query(default=None, max_length=64),
+    name: str | None = NameSearch,
+    email: str | None = EmailSearch,
+    phone: str | None = PhoneSearch,
+    created_from: date | None = Query(default=None, description="Raised on or after this IST day"),
+    created_to: date | None = Query(default=None, description="Raised on or before this IST day"),
+    sort: SignalSort = "created_at",
+    order: SortOrder | None = Order,
     cursor: str | None = None,
     limit: int | None = Limit,
 ) -> IntegritySignalsPage:
+    """Oldest first by default. `sort=severity` is HIGH first (`desc`), each
+    severity still oldest first. `name`, `email` and `phone` are the
+    candidate's; the search terms are never written to the audit row."""
     return await service.integrity_queue(
         session,
         ctx=user,
@@ -248,6 +310,14 @@ async def integrity_queue(
         severity=severity,
         cursor=cursor,
         limit=limit,
+        rule_id=rule_id,
+        name=name,
+        email=email,
+        phone=phone,
+        created_from=created_from,
+        created_to=created_to,
+        sort=sort,
+        order=order,
         request_id=get_request_id(request),
     )
 
@@ -292,22 +362,38 @@ async def resolve_signal(
     summary="Employers and colleges by name",
 )
 async def list_tenants(
+    user: CurrentUser,
     session: DbSession,
     tenant_type: Literal["EMPLOYER", "COLLEGE"] | None = Query(default=None, alias="type"),
     status_filter: Literal["ACTIVE", "SUSPENDED", "CLOSED"] | None = Query(
         default=None, alias="status"
     ),
-    q: str | None = Query(default=None, max_length=100),
+    q: str | None = Query(default=None, max_length=100, description="Part of the name"),
+    email: str | None = EmailSearch,
+    phone: str | None = PhoneSearch,
+    created_from: date | None = Query(default=None, description="Created on or after this IST day"),
+    created_to: date | None = Query(default=None, description="Created on or before this IST day"),
+    sort: TenantSort = "name",
+    order: SortOrder | None = Order,
     cursor: str | None = None,
     limit: int | None = Limit,
 ) -> TenantsPage:
+    """By name by default. `email` and `phone` find the organisation an
+    active member of it belongs to; a row still names only the organisation."""
     return await service.list_tenants(
         session,
+        ctx=user,
         tenant_type=tenant_type,
         status=status_filter,
         name_contains=q,
         cursor=cursor,
         limit=limit,
+        email=email,
+        phone=phone,
+        created_from=created_from,
+        created_to=created_to,
+        sort=sort,
+        order=order,
     )
 
 
@@ -400,22 +486,46 @@ async def list_candidates(
     status_filter: Literal["ACTIVE", "SUSPENDED", "DELETED"] | None = Query(
         default=None, alias="status"
     ),
-    q: str | None = Query(default=None, max_length=100, description="Part of the full name"),
-    email: str | None = Query(default=None, max_length=320, description="The exact address"),
+    name: str | None = NameSearch,
+    q: str | None = Query(
+        default=None, max_length=100, description="Deprecated: the same as `name`"
+    ),
+    email: str | None = EmailSearch,
+    phone: str | None = PhoneSearch,
+    city: str | None = Query(default=None, max_length=100, description="Part of the city"),
+    created_from: date | None = Query(
+        default=None, description="Signed up on or after this IST day"
+    ),
+    created_to: date | None = Query(
+        default=None, description="Signed up on or before this IST day"
+    ),
+    sort: CandidateSort = "created_at",
+    order: SortOrder | None = Order,
     cursor: str | None = None,
     limit: int | None = Limit,
 ) -> CandidatesPage:
     """Candidates are not tenants, so `GET /admin/tenants` never lists them;
     this does. Whoever may open a candidate may find one -- the same
-    capability. Contacts are masked; open `/candidates/{user_id}` for the rest."""
+    capability. Contacts are masked; open `/candidates/{user_id}` for the rest.
+
+    Filters combine (AND). The phone is the account's, else the one given at
+    onboarding. Newest first by default; `full_name` puts unnamed accounts
+    last either way. Every page is an audit row recording that a search was
+    made and how -- never the name, address or number."""
     return await service.list_candidates(
         session,
         ctx=user,
         status=status_filter,
-        name_contains=q,
+        name_contains=name if name is not None else q,
         email=email,
         cursor=cursor,
         limit=limit,
+        phone=phone,
+        city=city,
+        created_from=created_from,
+        created_to=created_to,
+        sort=sort,
+        order=order,
         request_id=get_request_id(request),
     )
 
@@ -434,18 +544,38 @@ async def list_leads(
         default=None,
         description="Repeat to ask for several. Default: every stage before paying.",
     ),
+    name: str | None = NameSearch,
+    email: str | None = EmailSearch,
+    phone: str | None = PhoneSearch,
+    signed_up_from: date | None = Query(
+        default=None, description="Signed up on or after this IST day"
+    ),
+    signed_up_to: date | None = Query(
+        default=None, description="Signed up on or before this IST day"
+    ),
+    sort: LeadSort = "created_at",
+    order: SortOrder | None = Order,
     cursor: str | None = None,
     limit: int | None = Limit,
 ) -> LeadsPage:
     """Unmasked phone and email, because the list exists to make calls. Every
-    page is an audit row naming the stages asked for. `contact_suppressed`
-    marks someone staff already stopped contacting."""
+    page is an audit row naming the stages asked for, and how it was
+    searched -- never the terms. `contact_suppressed` marks someone staff
+    already stopped contacting. Newest sign-up first by default;
+    `last_downloaded_at` puts those who never downloaded last either way."""
     return await service.list_leads(
         session,
         ctx=user,
         stages=list(stage) if stage else None,
         cursor=cursor,
         limit=limit,
+        name=name,
+        email=email,
+        phone=phone,
+        signed_up_from=signed_up_from,
+        signed_up_to=signed_up_to,
+        sort=sort,
+        order=order,
         request_id=get_request_id(request),
     )
 
@@ -656,12 +786,37 @@ async def dispute_queue(
     state: Literal["OPEN", "IN_REVIEW", "RESOLVED", "REJECTED"] | None = None,
     kind: Literal["HIRE", "PAYMENT", "ACCOUNT", "OTHER"] | None = None,
     party: Literal["CANDIDATE", "EMPLOYER", "COLLEGE"] | None = None,
+    assigned_to: uuid.UUID | None = Query(default=None, description="The member of staff"),
+    name: str | None = Query(
+        default=None, max_length=100, description="Part of the raiser's name (candidates)"
+    ),
+    email: str | None = EmailSearch,
+    phone: str | None = PhoneSearch,
+    created_from: date | None = Query(default=None, description="Raised on or after this IST day"),
+    created_to: date | None = Query(default=None, description="Raised on or before this IST day"),
+    sort: DisputeSort = "created_at",
+    order: SortOrder | None = Order,
     cursor: str | None = None,
     limit: int | None = Limit,
 ) -> DisputesPage:
-    """Without `state`, what still needs someone: OPEN and IN_REVIEW."""
+    """Without `state`, what still needs someone: OPEN and IN_REVIEW. Oldest
+    first by default. `name`, `email` and `phone` are the raiser's."""
     return await service.dispute_queue(
-        session, ctx=user, state=state, kind=kind, party=party, cursor=cursor, limit=limit
+        session,
+        ctx=user,
+        state=state,
+        kind=kind,
+        party=party,
+        cursor=cursor,
+        limit=limit,
+        assigned_to=assigned_to,
+        name=name,
+        email=email,
+        phone=phone,
+        created_from=created_from,
+        created_to=created_to,
+        sort=sort,
+        order=order,
     )
 
 
@@ -738,11 +893,12 @@ async def search_audit(
     tenant_id: uuid.UUID | None = None,
     occurred_from: datetime | None = Query(default=None, alias="from"),
     occurred_to: datetime | None = Query(default=None, alias="to"),
+    order: SortOrder | None = Query(default=None, description="`desc` (default) or `asc`"),
     cursor: str | None = None,
     limit: int | None = Limit,
 ) -> AuditEventsPage:
-    """Newest first. `from` is inclusive, `to` exclusive. The search is itself
-    written to the trail, with its filters."""
+    """Newest first unless `order=asc`. `from` is inclusive, `to` exclusive.
+    The search is itself written to the trail, with its filters."""
     return await service.search_audit(
         session,
         ctx=user,
@@ -755,6 +911,7 @@ async def search_audit(
         occurred_to=occurred_to,
         cursor=cursor,
         limit=limit,
+        order=order,
         request_id=get_request_id(request),
     )
 
@@ -894,10 +1051,31 @@ async def create_discount_code(
 async def list_discount_codes(
     session: DbSession,
     audience: Literal["CANDIDATE", "EMPLOYER", "COLLEGE"] | None = None,
+    status_filter: list[DiscountStatus] | None = Query(
+        default=None, alias="status", description="Repeat for several; as worked out now"
+    ),
+    q: str | None = Query(default=None, max_length=100, description="Part of the code or label"),
+    created_from: date | None = Query(default=None, description="Made on or after this IST day"),
+    created_to: date | None = Query(default=None, description="Made on or before this IST day"),
+    sort: DiscountCodeSort = "created_at",
+    order: SortOrder | None = Order,
     cursor: str | None = None,
     limit: int | None = Limit,
 ) -> DiscountCodesPage:
-    return await service.list_discount_codes(session, audience=audience, cursor=cursor, limit=limit)
+    """Newest first by default. `valid_until` puts codes that never expire
+    last either way."""
+    return await service.list_discount_codes(
+        session,
+        audience=audience,
+        cursor=cursor,
+        limit=limit,
+        statuses=list(status_filter) if status_filter else None,
+        query=q,
+        created_from=created_from,
+        created_to=created_to,
+        sort=sort,
+        order=order,
+    )
 
 
 @router.get(
@@ -933,12 +1111,34 @@ async def disable_discount_code(
 )
 async def discount_redemptions(
     code_id: uuid.UUID,
+    user: CurrentUser,
     session: DbSession,
+    subscriber_type: Literal["USER", "TENANT"] | None = None,
+    email: str | None = EmailSearch,
+    phone: str | None = PhoneSearch,
+    redeemed_from: date | None = Query(default=None, description="On or after this IST day"),
+    redeemed_to: date | None = Query(default=None, description="On or before this IST day"),
+    sort: RedemptionSort = "redeemed_at",
+    order: SortOrder | None = Order,
     cursor: str | None = None,
     limit: int | None = Limit,
 ) -> DiscountRedemptionsPage:
-    """A use is recorded when its payment succeeds, not at checkout."""
-    return await service.discount_redemptions(session, code_id=code_id, cursor=cursor, limit=limit)
+    """A use is recorded when its payment succeeds, not at checkout. Newest
+    first by default. `email` and `phone` are the paying account's."""
+    return await service.discount_redemptions(
+        session,
+        ctx=user,
+        code_id=code_id,
+        cursor=cursor,
+        limit=limit,
+        subscriber_type=subscriber_type,
+        email=email,
+        phone=phone,
+        redeemed_from=redeemed_from,
+        redeemed_to=redeemed_to,
+        sort=sort,
+        order=order,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -955,10 +1155,14 @@ async def list_search_filter_options(
     kind: Literal["SKILL", "CITY"] | None = None,
     q: str | None = Query(default=None, max_length=100, description="In the key or an alias"),
     include_inactive: bool = False,
+    featured: bool | None = None,
+    sort: FilterOptionSort = "key",
+    order: SortOrder | None = Order,
     cursor: str | None = None,
     limit: int | None = Limit,
 ) -> SearchFilterOptionsPage:
-    """By kind, then key. Switched-off options only with `include_inactive`."""
+    """By kind, then key, by default. Switched-off options only with
+    `include_inactive`."""
     return await service.list_search_filter_options(
         session,
         kind=kind,
@@ -966,6 +1170,9 @@ async def list_search_filter_options(
         include_inactive=include_inactive,
         cursor=cursor,
         limit=limit,
+        featured=featured,
+        sort=sort,
+        order=order,
     )
 
 

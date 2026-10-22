@@ -9,6 +9,51 @@ states. Newest entries first.
 
 ---
 
+## 2026-10-21 — Searching and sorting every admin list
+
+Asked for in a backend session: "all admin APIs add filtering, sorting;
+searching name, email, phone". Branch `feat/admin-list-search`. Guide 13
+§0.6 has the table of every list's new parameters.
+
+- **`app/core/listing.py`, a keyset that follows the sort.** A cursor now
+  carries the sort, the order and the last row's value of every key; one
+  from another sort or order is 422 `invalid_cursor`. Nullable keys sort
+  last whichever the order (a NULL flag, then the value coalesced). One
+  direction compiles to a row comparison an index serves; mixed directions
+  expand to the OR form. The SQL is constants plus bound values.
+- **Ten lists** take `sort` + `order`; the people lists take `name`, `email`
+  and `phone` as separate parameters (the user's choice over one box), plus
+  IST date ranges and a few filters each. `/courses` and the per-person
+  drill-down sub-lists were left alone: short lists with nothing to page.
+- **Part of an email or phone only for the roles that read whole contacts**
+  (`admin.domain.partial_contact_search` = `candidate_contact`: admin and
+  support). Anyone else matches the whole address or number. The Integrity
+  Reviewer lists candidates masked, and a partial match would let them spell
+  out a hidden address one character at a time. Decided with the user.
+- **The candidate list's phone is now the account's, else the onboarding
+  one** -- the same expression the leads already used. Sign-up is by email,
+  so for most candidates `users.phone` is empty; searching only it would
+  find almost nobody. `phone_masked` follows.
+- **Audited lists record how they were searched, never what for**
+  (`PersonSearch.audit()`: `by_name`, `by_email`, `by_phone`,
+  `partial_contact`, plus `sort`/`order`).
+- **Discount status is filterable**: `billing.repository.DISCOUNT_STATUS_SQL`
+  is `domain.discount_status` in SQL, held equal by an integration test at
+  three instants that move codes between statuses.
+- **Migration `0020_admin_list_search`**: trigram GIN indexes on
+  `users.email` and `candidate_profiles.full_name`, idempotent (also in the
+  models, so the baseline builds them). `test_index_review.py` plans both,
+  and `candidate_profiles` joined its `GROWING` set so the name index is
+  really held. Phone search reads a `COALESCE` across two tables and no
+  index serves it; it scans the candidates the other filters left.
+- **Breaking for anyone holding an old cursor**: every list's cursor shape
+  changed, so a cursor issued before this deploy is `invalid_cursor`. The
+  console only keeps cursors while paging, so a reload is the whole cost.
+- `GET /admin/candidates?q=` still works (deprecated alias of `name`); the
+  frontend sends it.
+
+---
+
 ## 2026-10-16 — Interview questions read aloud by the server
 
 Until now the backend sent questions as text only, and anything spoken was

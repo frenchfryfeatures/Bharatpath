@@ -200,7 +200,7 @@ the candidate page. A test keeps the two equal.
 
 | Method and path | What it returns |
 |---|---|
-| `GET /admin/leads` | Active candidates by follow-up stage, newest sign-up first, keyset-paged (`cursor`, `limit` ≤ 100). `stage` may be repeated. Default: every stage before paying |
+| `GET /admin/leads` | Active candidates by follow-up stage, newest sign-up first, keyset-paged (`cursor`, `limit` ≤ 100). `stage` may be repeated. Default: every stage before paying. Also `name`, `email`, `phone` (each in part), `signed_up_from`/`signed_up_to` and `sort` = `created_at` \| `full_name` \| `last_downloaded_at` with `order` (2026-10-21, [13 §0.6](13-admin-console-and-disputes-apis.md#06-searching-and-sorting-every-list-2026-10-21)) |
 | `GET /admin/leads/summary` | How many active candidates are at each stage |
 
 **Stages**, computed on every read (the first that holds wins):
@@ -224,5 +224,5 @@ list exists for calling), `locale` (call them in it), `city`,
 bounce, a complaint, a request to support), so leave them alone.
 
 **Every page is an audit row** (`ADMIN_BYPASS_SESSION_OPENED`, metadata
-`{"view": "leads", "stages": [...]}`), written before anything is read. No
+`{"view": "leads", "stages": [...]}`, plus how it was searched and sorted -- never the terms), written before anything is read. No
 score, CV or photo is in the list.

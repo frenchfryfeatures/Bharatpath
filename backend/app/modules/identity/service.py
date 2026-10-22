@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import membership as membership_lookup
 from app.core.auth.directory import DirectoryError, InviteOutcome, get_account_directory
 from app.core.errors import AppError, ConflictError, NotFoundError
+from app.core.listing import Ordering
 from app.core.logging import get_logger
 from app.core.ratelimit import enforce
 from app.modules.identity import repository
@@ -533,21 +534,38 @@ async def get_tenant(session: AsyncSession, *, tenant_id: uuid.UUID) -> TenantVi
     return _tenant(row)
 
 
+#: The sorts `list_tenants` takes, for the caller to resolve a cursor against.
+TENANT_SORTS = repository.TENANT_SORTS
+
+
 async def list_tenants(
     session: AsyncSession,
     *,
     tenant_type: str | None,
     status: str | None,
     name_contains: str | None,
-    after: tuple[str, uuid.UUID] | None,
+    ordering: Ordering,
     limit: int,
+    member_email: str | None = None,
+    member_phone: str | None = None,
+    partial_contact: bool = False,
+    created_from: datetime | None = None,
+    created_before: datetime | None = None,
 ) -> list[TenantView]:
+    """Customer organisations. `member_email` is normalised, `member_phone`
+    digits only; each matches an active member in part only when
+    `partial_contact`, else in whole."""
     rows = await repository.list_tenants(
         session,
         tenant_type=tenant_type,
         status=status,
         name_contains=name_contains,
-        after=after,
+        member_email=member_email,
+        member_phone=member_phone,
+        partial_contact=partial_contact,
+        created_from=created_from,
+        created_before=created_before,
+        ordering=ordering,
         limit=limit,
     )
     return [_tenant(row) for row in rows]

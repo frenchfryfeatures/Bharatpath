@@ -11,10 +11,11 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import literal, select, text, tuple_, update
+from sqlalchemy import select, text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.listing import Key, Ordering, SortField, contains
 from app.modules.identity.models import Membership, Tenant, TenantSuspension, User
 
 
@@ -234,30 +235,76 @@ async def create_platform_tenant(session: AsyncSession) -> uuid.UUID:
     return tenant.id
 
 
+#: How the console may sort organisations (2026-10-21). By name is the
+#: default; the router's `Literal` offers exactly these keys.
+TENANT_SORTS: dict[str, SortField] = {
+    "name": SortField(
+        keys=(Key("tenants.name", "text", "name"), Key("tenants.id", "uuid", "id")),
+        default_order="asc",
+    ),
+    "created_at": SortField(
+        keys=(
+            Key("tenants.created_at", "timestamptz", "created_at"),
+            Key("tenants.id", "uuid", "id"),
+        ),
+        default_order="desc",
+    ),
+}
+
+
 async def list_tenants(
     session: AsyncSession,
     *,
     tenant_type: str | None,
     status: str | None,
     name_contains: str | None,
-    after: tuple[str, uuid.UUID] | None,
+    member_email: str | None,
+    member_phone: str | None,
+    partial_contact: bool,
+    created_from: datetime | None,
+    created_before: datetime | None,
+    ordering: Ordering,
     limit: int,
 ) -> list[Tenant]:
-    """Keyset by (name, id). The PLATFORM tenant is never listed: it is not a
-    customer, and it cannot be suspended."""
+    """The PLATFORM tenant is never listed: it is not a customer, and it
+    cannot be suspended. `member_email` / `member_phone` (normalised; the
+    phone as digits) find the organisation an active member belongs to --
+    in part when `partial_contact`, else the whole address or number.
+    `memberships` and `users` are not under RLS."""
     stmt = select(Tenant).where(Tenant.type != "PLATFORM")
     if tenant_type is not None:
         stmt = stmt.where(Tenant.type == tenant_type)
     if status is not None:
         stmt = stmt.where(Tenant.status == status)
     if name_contains:
-        escaped = name_contains.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        stmt = stmt.where(Tenant.name.ilike(f"%{escaped}%", escape="\\"))
-    if after is not None:
-        stmt = stmt.where(
-            tuple_(Tenant.name, Tenant.id) > tuple_(literal(after[0]), literal(after[1]))
+        stmt = stmt.where(Tenant.name.ilike(contains(name_contains), escape="\\"))
+    if created_from is not None:
+        stmt = stmt.where(Tenant.created_at >= created_from)
+    if created_before is not None:
+        stmt = stmt.where(Tenant.created_at < created_before)
+    member = (
+        select(Membership.id)
+        .join(User, User.id == Membership.user_id)
+        .where(Membership.tenant_id == Tenant.id, Membership.status == "ACTIVE")
+    )
+    if member_email is not None:
+        member = member.where(
+            User.email.like(contains(member_email), escape="\\")
+            if partial_contact
+            else User.email == member_email
         )
-    stmt = stmt.order_by(Tenant.name, Tenant.id).limit(limit)
+    if member_phone is not None:
+        member = member.where(
+            User.phone.like(contains(member_phone))
+            if partial_contact
+            else User.phone == f"+{member_phone}"
+        )
+    if member_email is not None or member_phone is not None:
+        stmt = stmt.where(member.exists())
+    after, params = ordering.where()
+    if params:
+        stmt = stmt.where(text(after).bindparams(**params))
+    stmt = stmt.order_by(text(ordering.order_by())).limit(limit)
     return list((await session.execute(stmt)).scalars().all())
 
 
