@@ -239,7 +239,7 @@ async def test_no_audit_row_means_no_reveal(client: Any, mint_token: Any, monkey
     for call in (
         lambda s: admin_service.candidate_drilldown(s, ctx=ctx, user_id=candidate["id"]),
         lambda s: admin_service.list_candidates(
-            s, ctx=ctx, status=None, name_contains=None, email=None, cursor=None, limit=None
+            s, ctx=ctx, status=None, query=None, cursor=None, limit=None
         ),
         lambda s: admin_service.employer_drilldown(s, ctx=ctx, tenant_id=tenant_id),
         lambda s: admin_service.college_drilldown(s, ctx=ctx, tenant_id=tenant_id),

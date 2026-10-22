@@ -9,6 +9,33 @@ states. Newest entries first.
 
 ---
 
+## 2026-10-22 — One search box (`q`) for every admin list
+
+The user asked for one `q` instead of the separate `name`, `email` and
+`phone` added the day before (deployed 2026-10-22 as `15a23af`). Branch
+`feat/admin-single-q`.
+
+- **`q` is tried against the name, the email and the phone at once**; a row
+  matching any is in (`admin.repository._person_where` now ORs them, and so
+  do the tenant and redemption searches). `name`, `email`, `phone` and
+  KYB's `organisation` are gone from every route. The frontend already sent
+  one `q` from its search box, so its box now also finds by contact.
+- **Text is a phone only when it is shaped like one** (digits with spaces,
+  `+`, `-`, `.` or brackets). `listing.phone_digits` returns None for
+  anything else instead of refusing it: in one box, the digits of
+  `ravi 2024` would match every number holding a 2024.
+  `phone_search_invalid` no longer exists.
+- **The contact rule is unchanged**: part of an email or phone only for
+  `candidate_contact` roles. For the Integrity Reviewer, `q` still finds by
+  part of a name (shown on the row) and by a whole address or number only.
+- Audit metadata: `by_name` / `by_email` / `by_phone` became one `searched`
+  beside `partial_contact`.
+- `tests/invariants/test_admin_console.py` calls `list_candidates` with
+  `query=None` instead of `name_contains=None, email=None`: the keyword
+  changed, the assertion did not.
+
+---
+
 ## 2026-10-22 — Resume sync: the builder says when it is behind; a file history
 
 The frontend team reported two screens disagreeing: the builder
@@ -50,6 +77,8 @@ of uploaded resumes. Branch `feat/resume-sync`, migration
 - Frontend handoff (not done here, backend-only): send `filename` on
   complete; pick the shown version by `current`; banner on `out_of_date`
   with Refill / Keep; a history screen from `/files`.
+
+---
 
 ## 2026-10-21 — Searching and sorting every admin list
 

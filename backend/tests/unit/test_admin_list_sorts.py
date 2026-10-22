@@ -88,13 +88,12 @@ def test_part_of_a_contact_is_for_the_roles_that_read_whole_contacts() -> None:
 
 
 def test_a_search_is_audited_by_how_it_was_made_never_by_its_terms() -> None:
-    search = PersonSearch(name="Asha", email="asha@example.com", phone="9876", partial_contact=True)
+    search = PersonSearch(name="9876", email="9876", phone="9876", partial_contact=True)
     audited = search.audit()
-    assert audited == {
-        "by_name": True,
-        "by_email": True,
-        "by_phone": True,
-        "partial_contact": True,
-    }
-    assert not {"Asha", "asha@example.com", "9876"} & {str(v) for v in audited.values()}
+    assert audited == {"searched": True, "partial_contact": True}
+    assert "9876" not in {str(v) for v in audited.values()}
     assert not PersonSearch().given
+    assert PersonSearch(partial_contact=False).audit() == {
+        "searched": False,
+        "partial_contact": False,
+    }

@@ -121,22 +121,16 @@ RedemptionSort = Literal["redeemed_at", "amount_minor"]
 FilterOptionSort = Literal["key", "label", "created_at"]
 
 Order = Query(default=None, description="`asc` or `desc`; each sort has its own default")
-#: Part of a name, for anyone who may read the list.
-NameSearch = Query(default=None, max_length=100, description="Part of the name")
-#: The contact searches. Part of one only for a role that reads whole
-#: contacts (PLATFORM_ADMIN, SUPPORT_AGENT); for any other, the whole of it.
-EmailSearch = Query(
+#: Every list has one search box, `q` (2026-10-22). On a list of people it is
+#: tried against the name, the email and the phone at once. Part of an email
+#: or phone matches only for a role that reads whole contacts
+#: (PLATFORM_ADMIN, SUPPORT_AGENT); for any other, the whole address or
+#: number. Text is read as a phone only when it looks like one.
+PersonQuery = Query(
     default=None,
     max_length=320,
-    description="Part of the email for roles that read whole contacts; the whole address "
-    "for others. Case does not matter.",
-)
-PhoneSearch = Query(
-    default=None,
-    max_length=32,
-    description="Digits of the phone, spaces and `+` ignored: part of it for roles that read "
-    "whole contacts, the whole E.164 number for others. 422 `phone_search_invalid` "
-    "without a digit.",
+    description="One search box: part of the name, the email or the phone (a match on any). "
+    "Roles that do not read whole contacts match only a whole email or number.",
 )
 
 
@@ -170,7 +164,7 @@ async def list_kyb_submissions(
     user: CurrentUser,
     session: DbSession,
     state: str | None = None,
-    organisation: str | None = Query(
+    q: str | None = Query(
         default=None, max_length=100, description="Part of the organisation's name"
     ),
     created_from: date | None = Query(default=None, description="On or after this IST day"),
@@ -189,7 +183,7 @@ async def list_kyb_submissions(
         state=state,
         cursor=cursor,
         limit=limit,
-        organisation=organisation,
+        query=q,
         created_from=created_from,
         created_to=created_to,
         sort=sort,
@@ -290,9 +284,7 @@ async def integrity_queue(
     state: Literal["OPEN", "CLEARED", "CONFIRMED"] = "OPEN",
     severity: Literal["LOW", "MEDIUM", "HIGH"] | None = None,
     rule_id: str | None = Query(default=None, max_length=64),
-    name: str | None = NameSearch,
-    email: str | None = EmailSearch,
-    phone: str | None = PhoneSearch,
+    q: str | None = PersonQuery,
     created_from: date | None = Query(default=None, description="Raised on or after this IST day"),
     created_to: date | None = Query(default=None, description="Raised on or before this IST day"),
     sort: SignalSort = "created_at",
@@ -301,8 +293,8 @@ async def integrity_queue(
     limit: int | None = Limit,
 ) -> IntegritySignalsPage:
     """Oldest first by default. `sort=severity` is HIGH first (`desc`), each
-    severity still oldest first. `name`, `email` and `phone` are the
-    candidate's; the search terms are never written to the audit row."""
+    severity still oldest first. `q` is the candidate's name, email or
+    phone; the search text is never written to the audit row."""
     return await service.integrity_queue(
         session,
         ctx=user,
@@ -311,9 +303,7 @@ async def integrity_queue(
         cursor=cursor,
         limit=limit,
         rule_id=rule_id,
-        name=name,
-        email=email,
-        phone=phone,
+        query=q,
         created_from=created_from,
         created_to=created_to,
         sort=sort,
@@ -368,9 +358,11 @@ async def list_tenants(
     status_filter: Literal["ACTIVE", "SUSPENDED", "CLOSED"] | None = Query(
         default=None, alias="status"
     ),
-    q: str | None = Query(default=None, max_length=100, description="Part of the name"),
-    email: str | None = EmailSearch,
-    phone: str | None = PhoneSearch,
+    q: str | None = Query(
+        default=None,
+        max_length=320,
+        description="Part of the organisation's name, or an active member's email or phone",
+    ),
     created_from: date | None = Query(default=None, description="Created on or after this IST day"),
     created_to: date | None = Query(default=None, description="Created on or before this IST day"),
     sort: TenantSort = "name",
@@ -378,18 +370,17 @@ async def list_tenants(
     cursor: str | None = None,
     limit: int | None = Limit,
 ) -> TenantsPage:
-    """By name by default. `email` and `phone` find the organisation an
-    active member of it belongs to; a row still names only the organisation."""
+    """By name by default. `q` matches the organisation's name, or the email
+    or phone of an active member of it; a row still names only the
+    organisation."""
     return await service.list_tenants(
         session,
         ctx=user,
         tenant_type=tenant_type,
         status=status_filter,
-        name_contains=q,
+        query=q,
         cursor=cursor,
         limit=limit,
-        email=email,
-        phone=phone,
         created_from=created_from,
         created_to=created_to,
         sort=sort,
@@ -486,12 +477,7 @@ async def list_candidates(
     status_filter: Literal["ACTIVE", "SUSPENDED", "DELETED"] | None = Query(
         default=None, alias="status"
     ),
-    name: str | None = NameSearch,
-    q: str | None = Query(
-        default=None, max_length=100, description="Deprecated: the same as `name`"
-    ),
-    email: str | None = EmailSearch,
-    phone: str | None = PhoneSearch,
+    q: str | None = PersonQuery,
     city: str | None = Query(default=None, max_length=100, description="Part of the city"),
     created_from: date | None = Query(
         default=None, description="Signed up on or after this IST day"
@@ -508,19 +494,18 @@ async def list_candidates(
     this does. Whoever may open a candidate may find one -- the same
     capability. Contacts are masked; open `/candidates/{user_id}` for the rest.
 
-    Filters combine (AND). The phone is the account's, else the one given at
-    onboarding. Newest first by default; `full_name` puts unnamed accounts
-    last either way. Every page is an audit row recording that a search was
-    made and how -- never the name, address or number."""
+    `q` matches the name, the email or the phone; other filters narrow it
+    (AND). The phone is the account's, else the one given at onboarding.
+    Newest first by default; `full_name` puts unnamed accounts last either
+    way. Every page is an audit row recording that a search was made --
+    never the text searched for."""
     return await service.list_candidates(
         session,
         ctx=user,
         status=status_filter,
-        name_contains=name if name is not None else q,
-        email=email,
+        query=q,
         cursor=cursor,
         limit=limit,
-        phone=phone,
         city=city,
         created_from=created_from,
         created_to=created_to,
@@ -544,9 +529,7 @@ async def list_leads(
         default=None,
         description="Repeat to ask for several. Default: every stage before paying.",
     ),
-    name: str | None = NameSearch,
-    email: str | None = EmailSearch,
-    phone: str | None = PhoneSearch,
+    q: str | None = PersonQuery,
     signed_up_from: date | None = Query(
         default=None, description="Signed up on or after this IST day"
     ),
@@ -569,9 +552,7 @@ async def list_leads(
         stages=list(stage) if stage else None,
         cursor=cursor,
         limit=limit,
-        name=name,
-        email=email,
-        phone=phone,
+        query=q,
         signed_up_from=signed_up_from,
         signed_up_to=signed_up_to,
         sort=sort,
@@ -787,11 +768,7 @@ async def dispute_queue(
     kind: Literal["HIRE", "PAYMENT", "ACCOUNT", "OTHER"] | None = None,
     party: Literal["CANDIDATE", "EMPLOYER", "COLLEGE"] | None = None,
     assigned_to: uuid.UUID | None = Query(default=None, description="The member of staff"),
-    name: str | None = Query(
-        default=None, max_length=100, description="Part of the raiser's name (candidates)"
-    ),
-    email: str | None = EmailSearch,
-    phone: str | None = PhoneSearch,
+    q: str | None = PersonQuery,
     created_from: date | None = Query(default=None, description="Raised on or after this IST day"),
     created_to: date | None = Query(default=None, description="Raised on or before this IST day"),
     sort: DisputeSort = "created_at",
@@ -800,7 +777,7 @@ async def dispute_queue(
     limit: int | None = Limit,
 ) -> DisputesPage:
     """Without `state`, what still needs someone: OPEN and IN_REVIEW. Oldest
-    first by default. `name`, `email` and `phone` are the raiser's."""
+    first by default. `q` is the raiser's name, email or phone."""
     return await service.dispute_queue(
         session,
         ctx=user,
@@ -810,9 +787,7 @@ async def dispute_queue(
         cursor=cursor,
         limit=limit,
         assigned_to=assigned_to,
-        name=name,
-        email=email,
-        phone=phone,
+        query=q,
         created_from=created_from,
         created_to=created_to,
         sort=sort,
@@ -1114,8 +1089,12 @@ async def discount_redemptions(
     user: CurrentUser,
     session: DbSession,
     subscriber_type: Literal["USER", "TENANT"] | None = None,
-    email: str | None = EmailSearch,
-    phone: str | None = PhoneSearch,
+    q: str | None = Query(
+        default=None,
+        max_length=320,
+        description="The paying account's email or phone; part of it for roles that read "
+        "whole contacts",
+    ),
     redeemed_from: date | None = Query(default=None, description="On or after this IST day"),
     redeemed_to: date | None = Query(default=None, description="On or before this IST day"),
     sort: RedemptionSort = "redeemed_at",
@@ -1124,7 +1103,7 @@ async def discount_redemptions(
     limit: int | None = Limit,
 ) -> DiscountRedemptionsPage:
     """A use is recorded when its payment succeeds, not at checkout. Newest
-    first by default. `email` and `phone` are the paying account's."""
+    first by default. `q` is the paying account's email or phone."""
     return await service.discount_redemptions(
         session,
         ctx=user,
@@ -1132,8 +1111,7 @@ async def discount_redemptions(
         cursor=cursor,
         limit=limit,
         subscriber_type=subscriber_type,
-        email=email,
-        phone=phone,
+        query=q,
         redeemed_from=redeemed_from,
         redeemed_to=redeemed_to,
         sort=sort,

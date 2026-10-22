@@ -127,9 +127,11 @@ _CANDIDATE_PHONE = "COALESCE(NULLIF(u.phone, ''), NULLIF(p.career->'details'->>'
 def _person_where(
     search: PersonSearch, *, name_sql: str, email_sql: str, phone_sql: str
 ) -> tuple[str, dict[str, Any]]:
-    """`AND ...` narrowing a query to `search`, with its bound values. Part
-    of a name always; part of an email or phone only when the search says
-    `partial_contact` -- otherwise the whole address or number."""
+    """`AND (...)` narrowing a query to rows whose name, email **or** phone
+    matches `search` -- one search box, three columns -- with its bound
+    values. Part of the name always; part of the email or phone only when
+    `partial_contact`, otherwise the whole address or number. Nothing when
+    no search was given."""
     clauses: list[str] = []
     params: dict[str, Any] = {}
     if search.name is not None:
@@ -149,7 +151,9 @@ def _person_where(
         else:
             clauses.append(f"{phone_sql} = CAST(:_person_phone AS text)")
             params["_person_phone"] = f"+{search.phone}"
-    return "".join(f"\n           AND {c}" for c in clauses), params
+    if not clauses:
+        return "", {}
+    return "\n           AND (" + " OR ".join(clauses) + ")", params
 
 
 # ---------------------------------------------------------------------------

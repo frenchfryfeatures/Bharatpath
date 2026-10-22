@@ -277,18 +277,19 @@ async def _reveal(
         yield reader
 
 
-def _person(
-    ctx: TenantContext, *, name: str | None, email: str | None, phone: str | None
-) -> PersonSearch:
-    """A list's name, email and phone search, as the caller's role may make
-    it: part of an email or phone only for a role that reads whole contacts
-    (`domain.partial_contact_search`). Blank is no search; a phone search
-    with no digit is 422 `phone_search_invalid`."""
-    address = search_text(email)
+def _person(ctx: TenantContext, query: str | None) -> PersonSearch:
+    """A list's one search box, read against name, email and phone at once,
+    as the caller's role may make it: part of an email or phone only for a
+    role that reads whole contacts (`domain.partial_contact_search`). The
+    text is tried as a phone only when it looks like one. Blank is no
+    search."""
+    text = search_text(query)
+    if text is None:
+        return PersonSearch(partial_contact=partial_contact_search(ctx.role))
     return PersonSearch(
-        name=search_text(name),
-        email=identity_service.normalise_email(address) if address else None,
-        phone=phone_digits(phone),
+        name=text,
+        email=identity_service.normalise_email(text),
+        phone=phone_digits(text),
         partial_contact=partial_contact_search(ctx.role),
     )
 
@@ -308,7 +309,7 @@ async def kyb_submissions(
     state: str | None,
     cursor: str | None,
     limit: int | None,
-    organisation: str | None = None,
+    query: str | None = None,
     created_from: date | None = None,
     created_to: date | None = None,
     sort: str = "created_at",
@@ -318,8 +319,8 @@ async def kyb_submissions(
 ) -> KybSubmissionsPage:
     """Every organisation's submissions. **A record while approval is
     automatic** (R15, plan v4): the switch is shown with the page so a
-    reviewer knows whether anything here is waiting on them. `organisation`
-    is part of its name; the days are IST, both ends inclusive."""
+    reviewer knows whether anything here is waiting on them. `query` is part
+    of the organisation's name; the days are IST, both ends inclusive."""
     size = clamp_limit(limit)
     sorting = ordering(repository.KYB_SORTS, sort=sort, order=order, cursor=cursor)
     start, end = ist_day_range(created_from, created_to)
@@ -336,7 +337,7 @@ async def kyb_submissions(
         rows = await repository.kyb_submissions(
             reader,
             state=state,
-            organisation=search_text(organisation),
+            organisation=search_text(query),
             created_from=start,
             created_before=end,
             ordering=sorting,
@@ -450,23 +451,21 @@ async def integrity_queue(
     cursor: str | None,
     limit: int | None,
     rule_id: str | None = None,
-    name: str | None = None,
-    email: str | None = None,
-    phone: str | None = None,
+    query: str | None = None,
     created_from: date | None = None,
     created_to: date | None = None,
     sort: str = "created_at",
     order: SortOrder | None = None,
     request_id: str | None = None,
 ) -> IntegritySignalsPage:
-    """The queue, oldest first unless sorted. `name`, `email` and `phone`
-    find the signals about one candidate -- the contact in whole for a role
-    that does not read contacts (`_person`). The search terms stay out of
+    """The queue, oldest first unless sorted. `query` finds the signals about
+    one candidate by name, email or phone -- the contact in whole for a role
+    that does not read contacts (`_person`). The search text stays out of
     the audit row; that a search was made does not."""
     size = clamp_limit(limit)
     sorting = ordering(repository.SIGNAL_SORTS, sort=sort, order=order, cursor=cursor)
     start, end = ist_day_range(created_from, created_to)
-    candidate = _person(ctx, name=name, email=email, phone=phone)
+    candidate = _person(ctx, query)
     async with _reveal(
         session,
         ctx,
@@ -638,11 +637,9 @@ async def list_tenants(
     ctx: TenantContext,
     tenant_type: str | None,
     status: str | None,
-    name_contains: str | None,
+    query: str | None,
     cursor: str | None,
     limit: int | None,
-    email: str | None = None,
-    phone: str | None = None,
     created_from: date | None = None,
     created_to: date | None = None,
     sort: str = "name",
@@ -651,18 +648,18 @@ async def list_tenants(
     """Organisation names and states. Not a reveal -- no person is named --
     so not audited, and read on the app role: `tenants` is not under RLS.
 
-    `email` and `phone` find the organisation an active member belongs to:
-    in part for a role that reads whole contacts, else in whole (`_person`).
-    A row still names only the organisation."""
+    `query` is part of the organisation's name, or an active member's email
+    or phone: in part for a role that reads whole contacts, else in whole
+    (`_person`). A row still names only the organisation."""
     size = clamp_limit(limit)
     sorting = ordering(identity_service.TENANT_SORTS, sort=sort, order=order, cursor=cursor)
     start, end = ist_day_range(created_from, created_to)
-    member = _person(ctx, name=None, email=email, phone=phone)
+    member = _person(ctx, query)
     rows = await identity_service.list_tenants(
         session,
         tenant_type=tenant_type,
         status=status,
-        name_contains=search_text(name_contains),
+        name_contains=member.name,
         member_email=member.email,
         member_phone=member.phone,
         partial_contact=member.partial_contact,
@@ -808,11 +805,9 @@ async def list_candidates(
     *,
     ctx: TenantContext,
     status: str | None,
-    name_contains: str | None,
-    email: str | None,
+    query: str | None,
     cursor: str | None,
     limit: int | None,
-    phone: str | None = None,
     city: str | None = None,
     created_from: date | None = None,
     created_to: date | None = None,
@@ -828,14 +823,16 @@ async def list_candidates(
     stay out of the audit metadata (a name or an address is not an id); the
     row records that a search was made, how, and by whom.
 
-    Part of a name finds a candidate for anyone who may list them; part of
-    an email or phone only for a role that reads whole contacts, and anyone
-    else matches the whole address or number (`domain.partial_contact_search`).
+    `query` is one search box, tried against the name, the email and the
+    phone. Part of a name finds a candidate for anyone who may list them;
+    part of an email or phone only for a role that reads whole contacts, and
+    anyone else matches the whole address or number
+    (`domain.partial_contact_search`).
     """
     size = clamp_limit(limit)
     sorting = ordering(repository.CANDIDATE_SORTS, sort=sort, order=order, cursor=cursor)
     start, end = ist_day_range(created_from, created_to)
-    person = _person(ctx, name=name_contains, email=email, phone=phone)
+    person = _person(ctx, query)
     place = search_text(city)
     async with _reveal(
         session,
@@ -889,9 +886,7 @@ async def list_leads(
     stages: list[str] | None,
     cursor: str | None,
     limit: int | None,
-    name: str | None = None,
-    email: str | None = None,
-    phone: str | None = None,
+    query: str | None = None,
     signed_up_from: date | None = None,
     signed_up_to: date | None = None,
     sort: str = "created_at",
@@ -910,7 +905,7 @@ async def list_leads(
     size = clamp_limit(limit)
     sorting = ordering(repository.LEAD_SORTS, sort=sort, order=order, cursor=cursor)
     start, end = ist_day_range(signed_up_from, signed_up_to)
-    person = _person(ctx, name=name, email=email, phone=phone)
+    person = _person(ctx, query)
     wanted: list[str] = sorted(set(stages)) if stages else list(UNPAID_STAGES)
     async with _reveal(
         session,
@@ -1168,9 +1163,7 @@ async def dispute_queue(
     cursor: str | None,
     limit: int | None,
     assigned_to: uuid.UUID | None = None,
-    name: str | None = None,
-    email: str | None = None,
-    phone: str | None = None,
+    query: str | None = None,
     created_from: date | None = None,
     created_to: date | None = None,
     sort: str = "created_at",
@@ -1178,7 +1171,7 @@ async def dispute_queue(
 ) -> DisputesPage:
     """Open and in-review disputes by default, oldest first, across all three
     groups. Rows carry identifiers; the description is read by opening one.
-    `name`, `email` and `phone` are the raiser's (a name is a candidate's
+    `query` is the raiser's name, email or phone (a name is a candidate's
     profile name: business accounts have none)."""
     await _bind_platform(session, ctx)
     size = clamp_limit(limit)
@@ -1193,7 +1186,7 @@ async def dispute_queue(
         kind=kind,
         party=party,
         assigned_to=assigned_to,
-        raiser=_person(ctx, name=name, email=email, phone=phone),
+        raiser=_person(ctx, query),
         created_from=start,
         created_before=end,
         ordering=sorting,
@@ -1945,17 +1938,16 @@ async def discount_redemptions(
     cursor: str | None,
     limit: int | None,
     subscriber_type: str | None = None,
-    email: str | None = None,
-    phone: str | None = None,
+    query: str | None = None,
     redeemed_from: date | None = None,
     redeemed_to: date | None = None,
     sort: str = "redeemed_at",
     order: SortOrder | None = None,
 ) -> DiscountRedemptionsPage:
     """The usage log: who used a code, on which payment, for how much, when.
-    `email` and `phone` are the paying account's (`_person`)."""
+    `query` is the paying account's email or phone (`_person`)."""
     start, end = ist_day_range(redeemed_from, redeemed_to)
-    payer = _person(ctx, name=None, email=email, phone=phone)
+    payer = _person(ctx, query)
     rows, next_cursor = await billing_service.list_redemptions(
         session,
         code_id=code_id,

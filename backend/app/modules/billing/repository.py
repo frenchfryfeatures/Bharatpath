@@ -419,8 +419,9 @@ async def list_redemptions(
     ordering: Ordering,
     limit: int,
 ) -> list[DiscountRedemption]:
-    """`payer_email` (normalised) and `payer_phone` (digits) are the paying
-    account's, in part only when `partial_contact`; `users` is not under RLS."""
+    """One search box: a use matches if the paying account's email matches
+    `payer_email` (normalised) **or** its phone matches `payer_phone`
+    (digits), in part only when `partial_contact`; `users` is not under RLS."""
     query = select(DiscountRedemption).where(DiscountRedemption.discount_code_id == code_id)
     if subscriber_type is not None:
         query = query.where(DiscountRedemption.subscriber_type == subscriber_type)
@@ -448,7 +449,7 @@ async def list_redemptions(
         query = query.where(
             text(
                 "discount_redemptions.user_id IN (SELECT u.id FROM users u WHERE "  # noqa: S608 - constants
-                + " AND ".join(payer)
+                + " OR ".join(payer)
                 + ")"
             ).bindparams(**params)
         )
