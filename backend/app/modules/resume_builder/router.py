@@ -74,6 +74,18 @@ async def reset_draft(user: CurrentUser, session: DbSession) -> DraftResponse:
 
 
 @router.post(
+    "/draft/keep",
+    response_model=DraftResponse,
+    dependencies=[CandidateOnly],
+    summary="Keep the draft as it is although a newer CV exists",
+)
+async def keep_draft(user: CurrentUser, session: DbSession) -> DraftResponse:
+    """The other answer to `out_of_date` (the first is `/draft/reset`). The
+    content is unchanged; the editor stops offering that CV."""
+    return await service.keep_draft(session, ctx=user)
+
+
+@router.post(
     "/preview",
     response_model=PreviewResponse,
     dependencies=[CandidateOnly],

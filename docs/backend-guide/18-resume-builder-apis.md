@@ -46,6 +46,10 @@ Left: the form. Right: the preview. Suggested client behaviour:
 4. "Download": save first, then `POST /candidate/resume-builder/download`.
 5. "Use this resume": save first, then `POST /candidate/resume-builder/push`,
    then go to the subscription screen with the returned `resume_version_id`.
+6. If the draft says `out_of_date: true`, show a banner such as "You
+   uploaded a newer resume on {newer_resume_at}. Refill from it?" with two
+   answers: **Refill** (`POST …/draft/reset`) or **Keep my draft**
+   (`POST …/draft/keep`). See §3b.
 
 ## 3. Endpoints
 
@@ -57,6 +61,7 @@ All require a **candidate** token. Others get 403, no token 401.
 | `GET /candidate/resume-builder/draft` | The saved draft, or a first draft from the CV and the onboarding answers (`saved: false`) |
 | `PUT /candidate/resume-builder/draft` | Save (autosave). Body: `template_key`, `content` |
 | `POST /candidate/resume-builder/draft/reset` | Start again from the CV and the onboarding answers, keeping the template |
+| `POST /candidate/resume-builder/draft/keep` | Keep the draft as it is although a newer CV exists: clears `out_of_date` without changing the content. `404 resume_builder_draft_missing` if nothing is saved |
 | `POST /candidate/resume-builder/preview` | Draw a draft without saving it. Body: `template_key`, `content`, optional `format` (`png` default, or `svg`) |
 | `POST /candidate/resume-builder/download` | The **saved** draft as `application/pdf`. Counted |
 | `POST /candidate/resume-builder/push` | Use the saved draft as my resume: an unconfirmed `BUILDER` version with the PDF as its file |
@@ -129,6 +134,37 @@ my profile" (`POST …/draft/reset`) rebuilds it with the CV.
 
 **Edits never write back to the onboarding answers.** "Fill in from my
 profile" is `POST …/draft/reset`.
+
+### 3b. Keeping the draft and the resume in step (2026-10-22)
+
+The builder's draft and the review screen are **two different things**. The
+draft is a working copy in `resume_builder_drafts`. The review screen shows
+a resume *version*. They meet in two places only: the draft is filled in
+from the CV (first open, or a refill), and the draft becomes a version on
+push. Uploading, pasting or correcting a CV on the review screen never
+rewrites the draft, because the draft holds the candidate's own edits.
+
+Instead, `GET /draft` (and the `PUT`) say when the draft is behind:
+
+```json
+{"out_of_date": true, "newer_resume_version_id": "…", "newer_resume_at": "2026-10-22T09:30:00Z", "…": "…"}
+```
+
+- **What counts:** a CV read from text (an upload, a paste, or a
+  correction of one) created after the draft last caught up. That is
+  exactly what a refill reads. The builder's own pushed version does not
+  count, and neither does a form-built version, which holds only the
+  answers the draft already started from.
+- **What catches it up:** the first save, `POST …/draft/reset` (refill),
+  `POST …/draft/keep` (keep, on purpose), or `POST …/push`. An autosave
+  does **not**: typing is not catching up.
+- `out_of_date` is always `false` on an unsaved draft (`saved: false`),
+  because that one was just filled in.
+
+The other direction stays explicit. Edits in the builder reach the review
+screen only through push, never by being written into the uploaded CV's
+version chain. That would replace the CV's own prose with text rendered
+from fields, and a correction would then lower a score.
 
 ### What a draft is refused for (422)
 

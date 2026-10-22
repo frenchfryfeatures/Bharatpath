@@ -16,7 +16,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, UploadFile, status
+from fastapi import APIRouter, Body, Depends, File, UploadFile, status
 
 from app.core.deps import (
     CANDIDATE,
@@ -33,11 +33,13 @@ from app.modules.resume.schemas import (
     ResumeConfirmResponse,
     ResumeEditRequest,
     ResumeFileStatusResponse,
+    ResumeFileSummary,
     ResumeSection,
     ResumeSectionItem,
     ResumeVersionDetailResponse,
     ResumeVersionResponse,
     ResumeVersionSummary,
+    UploadCompleteRequest,
     UploadCompleteResponse,
     UploadTicketResponse,
 )
@@ -63,7 +65,9 @@ async def direct_intake(
 
     content = await file.read(get_settings().resume_max_upload_bytes + 1)
     await file.close()
-    row = await onboarding_service.intake(session, user_id=user.user_id, content=content)
+    row = await onboarding_service.intake(
+        session, user_id=user.user_id, content=content, filename=file.filename
+    )
     return ResumeVersionResponse(
         resume_version_id=row.id, source="UPLOAD", confirmed=False, created_at=row.created_at
     )
@@ -105,7 +109,10 @@ async def create_upload(user: CurrentUser) -> UploadTicketResponse:
     summary="Validate a finished upload and queue parsing",
 )
 async def complete_upload(
-    upload_id: uuid.UUID, user: CurrentUser, session: DbSession
+    upload_id: uuid.UUID,
+    user: CurrentUser,
+    session: DbSession,
+    payload: UploadCompleteRequest | None = Body(default=None),
 ) -> UploadCompleteResponse:
     """202, not 200: the file is accepted, parsing has not happened yet.
 
@@ -113,9 +120,15 @@ async def complete_upload(
     accepting one, reads the size from S3 rather than believing the client,
     and sniffs the type from the stored bytes. A client that lies about any of
     the three changes nothing.
+
+    The body is optional: `{"filename": "..."}` labels the file in the
+    candidate's history (`GET /files`), and nothing else reads it.
     """
     resume_file_id, scan_status, parse_status = await service.complete_upload(
-        session, user_id=user.user_id, upload_id=upload_id
+        session,
+        user_id=user.user_id,
+        upload_id=upload_id,
+        filename=payload.filename if payload is not None else None,
     )
     return UploadCompleteResponse(
         resume_file_id=resume_file_id,
@@ -149,7 +162,40 @@ async def file_status(
         terminal=row.parse_status in PARSE_TERMINAL,
         uploaded_at=row.uploaded_at,
         resume_version_id=version.id if version is not None else None,
+        filename=row.original_filename,
     )
+
+
+@router.get(
+    "/files",
+    response_model=list[ResumeFileSummary],
+    dependencies=[CandidateOnly],
+    summary="List this candidate's resume files, newest first",
+)
+async def list_files(user: CurrentUser, session: DbSession) -> list[ResumeFileSummary]:
+    """**The uploaded-resumes history** (2026-10-22). One row per document --
+    each upload, and each PDF the builder drew -- with its newest version and
+    whether it is the resume being scored. Failed uploads are listed with
+    their parse state. No content: open a row with `GET /versions/{id}`."""
+    entries = await service.file_history(session, user_id=user.user_id)
+    return [
+        ResumeFileSummary(
+            resume_file_id=e.file.id,
+            filename=e.file.original_filename,
+            origin=e.origin,
+            mime=e.file.mime,
+            size_bytes=e.file.size_bytes,
+            uploaded_at=e.file.uploaded_at,
+            scan_status=e.file.scan_status,
+            parse_status=e.file.parse_status,
+            parse_error_code=e.file.parse_error_code,
+            terminal=e.file.parse_status in PARSE_TERMINAL,
+            latest_version_id=e.latest_version.id if e.latest_version is not None else None,
+            confirmed=e.latest_version is not None and e.latest_version.confirmed_at is not None,
+            current=e.current,
+        )
+        for e in entries
+    ]
 
 
 @router.post(
@@ -212,19 +258,23 @@ async def manual_entry(
 )
 async def list_versions(user: CurrentUser, session: DbSession) -> list[ResumeVersionSummary]:
     """The version chain. No content -- the list screen shows dates and
-    states, and every CV in full is a large response for a small view."""
-    rows = await service.list_versions(session, user_id=user.user_id)
+    states, and every CV in full is a large response for a small view.
+    `current` marks the version being scored; `filename` names its file."""
+    entries = await service.version_history(session, user_id=user.user_id)
     return [
         ResumeVersionSummary(
-            resume_version_id=row.id,
-            source=row.source,
-            confirmed=row.confirmed_at is not None,
-            confirmed_at=row.confirmed_at,
-            supersedes_id=row.supersedes_id,
-            superseded=superseded,
-            created_at=row.created_at,
+            resume_version_id=e.version.id,
+            source=e.version.source,
+            confirmed=e.version.confirmed_at is not None,
+            confirmed_at=e.version.confirmed_at,
+            supersedes_id=e.version.supersedes_id,
+            superseded=e.superseded,
+            created_at=e.version.created_at,
+            resume_file_id=e.version.resume_file_id,
+            filename=e.filename,
+            current=e.current,
         )
-        for row, superseded in rows
+        for e in entries
     ]
 
 

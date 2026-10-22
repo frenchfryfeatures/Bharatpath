@@ -59,6 +59,15 @@ class DraftResponse(ApiSchema):
     #: True when the draft is unchanged since it became that version: pushing
     #: again would write nothing new.
     pushed_is_current: bool = False
+    #: True when a CV was uploaded, pasted or corrected after the draft last
+    #: caught up with the candidate's resume (2026-10-22). The draft is left
+    #: as it is -- it holds the candidate's own edits -- and the editor offers
+    #: `POST /draft/reset` to refill from the newer CV, or `POST /draft/keep`
+    #: to keep the draft and stop asking. Pushing clears it too.
+    out_of_date: bool = False
+    #: That newer CV, when `out_of_date`.
+    newer_resume_version_id: uuid.UUID | None = None
+    newer_resume_at: datetime | None = None
 
 
 class PreviewRequest(DraftRequest):

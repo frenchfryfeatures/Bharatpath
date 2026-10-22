@@ -597,6 +597,14 @@ PDF download, and "push" to make it their resume. **No model is called.**
 - Completing the profile still creates the automatic MANUAL version. Both
   apps' current onboarding depends on it; remove it only when they have
   moved to the builder step.
+- **The draft is never synced into, and never syncs out except by push**
+  (2026-10-22). `synced_at` records when it last caught up (first save,
+  refill, push, `POST /draft/keep`, never autosave); a CV *read from text*
+  created after it makes `GET /draft` say `out_of_date`. Don't make an
+  upload rewrite the draft (it holds the candidate's edits), and don't make
+  builder edits write into an upload's chain (rendered fields replace the
+  prose Layer 1 reads). The review screen's "current" resume is
+  `current` on `/candidate/resume/versions`, never inferred.
 - **The follow-up list** (`GET /admin/leads`, `/admin/leads/summary`,
   capability `sales_leads`) carries **unmasked** phone and email. It is held
   equal to `candidate_contact` by a test, audited per page, and lists ACTIVE
