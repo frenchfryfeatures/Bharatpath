@@ -61,7 +61,7 @@ export function CareerOverview({
   const [editingSection, setEditingSection] = useState<CareerEditSection | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
-    const latest = versions.data?.find((version) => !version.superseded);
+    const latest = versions.data?.find((version) => version.current) ?? versions.data?.find((version) => !version.superseded);
     if (
       !profile.data ||
       profile.data.resume_version_id ||

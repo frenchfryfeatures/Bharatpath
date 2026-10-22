@@ -14,6 +14,7 @@ import {
   useDownloadBuilderMutation,
   useGetBuilderDraftQuery,
   useGetBuilderTemplatesQuery,
+  useKeepBuilderDraftMutation,
   usePreviewBuilderMutation,
   usePushBuilderMutation,
   useResetBuilderDraftMutation,
@@ -112,6 +113,7 @@ export function ResumeBuilderStep({
   const templates = useGetBuilderTemplatesQuery();
   const [saveDraft, saveState] = useSaveBuilderDraftMutation();
   const [resetDraft, resetState] = useResetBuilderDraftMutation();
+  const [keepDraft, keepState] = useKeepBuilderDraftMutation();
   const [preview, previewState] = usePreviewBuilderMutation();
   const [download, downloadState] = useDownloadBuilderMutation();
   const [push, pushState] = usePushBuilderMutation();
@@ -136,7 +138,7 @@ export function ResumeBuilderStep({
   const selectedTemplateName = templates.data?.templates.find((item) => item.key === selectedTemplate)?.name
     ?? selectedTemplate.charAt(0).toUpperCase() + selectedTemplate.slice(1);
   const dirty = content !== null && snapshot(content, selectedTemplate) !== savedSnapshot;
-  const busy = saveState.isLoading || pushState.isLoading || downloadState.isLoading || resetState.isLoading || finalizing;
+  const busy = saveState.isLoading || pushState.isLoading || downloadState.isLoading || resetState.isLoading || keepState.isLoading || finalizing;
 
   const draw = async (resume: StructuredResume, key: BuilderTemplateKey) => {
     const sequence = ++previewSequence.current;
@@ -279,6 +281,15 @@ export function ResumeBuilderStep({
     }
   };
 
+  // "Keep my draft" only dismisses the offer; the draft and the editor stay as they are.
+  const onKeepDraft = async () => {
+    try {
+      await keepDraft().unwrap();
+    } catch (failure) {
+      showErrorFeedback(getApiErrorMessage(failure, "We couldn't keep your draft. Please try again."));
+    }
+  };
+
   const patch = (changes: Partial<StructuredResume>) => {
     setError("");
     setContent((current) => (current ? { ...current, ...changes } : current));
@@ -329,6 +340,21 @@ export function ResumeBuilderStep({
           {pushState.isLoading || finalizing ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <Send size={16} aria-hidden="true" />} {profileMode ? "Save & update score" : "Submit"}
         </button>
       </header>
+
+      {draftQuery.data?.out_of_date && (
+        <div role="alert" className="flex flex-wrap items-center gap-3 border-b border-[#E9D9A6] bg-[#FBF3D9] px-4 py-3">
+          <div className="mr-auto min-w-0">
+            <p className="text-[13px] font-bold text-[#6B4E0A]">A newer resume was uploaded</p>
+            <p className="text-[12px] leading-5 text-[#85650F]">This draft was not filled from it. Refill replaces your draft with the new resume; keep my draft leaves your edits as they are.</p>
+          </div>
+          <button type="button" onClick={() => void onReset()} disabled={busy} className="flex items-center gap-2 rounded-full bg-[#5F4DB2] px-4 py-2 text-[13px] font-semibold text-white hover:bg-[#4A3E8F] disabled:opacity-60">
+            {resetState.isLoading && <Loader2 size={14} className="animate-spin" aria-hidden="true" />} Refill
+          </button>
+          <button type="button" onClick={() => void onKeepDraft()} disabled={busy} className="flex items-center gap-2 rounded-full border border-[#C9B46A] bg-white px-4 py-2 text-[13px] font-semibold text-[#6B4E0A] disabled:opacity-60">
+            {keepState.isLoading && <Loader2 size={14} className="animate-spin" aria-hidden="true" />} Keep my draft
+          </button>
+        </div>
+      )}
 
       <div className="flex border-b border-[#F0EBDF] lg:hidden" role="tablist">
         {(["edit", "preview"] as const).map((tab) => (

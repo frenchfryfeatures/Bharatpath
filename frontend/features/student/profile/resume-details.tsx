@@ -14,7 +14,7 @@ import { parseFailureMessage } from "@/features/student/onboarding/constants";
 import { StudentPage } from "@/features/student/shell";
 import { getApiErrorCode, getApiErrorMessage } from "@/lib/api/error-message";
 import { showErrorFeedback, showSuccessFeedback } from "@/lib/feedback/success-feedback";
-import { useCompleteResumeUploadMutation, useCreateResumeUploadMutation, useGetResumeVersionsQuery, useUploadResumeFileMutation } from "@/store/student";
+import { useCompleteResumeUploadMutation, useCreateResumeUploadMutation, useGetResumeFilesQuery, useGetResumeVersionsQuery, useUploadResumeFileMutation } from "@/store/student";
 import { useGetCareerProfileQuery, useLazyGetProfileResumeDocumentQuery } from "./career-api";
 import { ResumeTemplateDialog } from "./resume-template-dialog";
 
@@ -33,10 +33,8 @@ export function ResumeDetails() {
   const [uploadFile] = useUploadResumeFileMutation();
   const [completeUpload] = useCompleteResumeUploadMutation();
   const current = useMemo(
-    () => versions.data?.find((version) => version.confirmed && !version.superseded)
-      ?? versions.data?.find((version) => !version.superseded)
-      ?? versions.data?.find((version) => version.confirmed)
-      ?? versions.data?.[0],
+    // The server says which version is current; confirmed && !superseded can match two after a builder push.
+    () => versions.data?.find((version) => version.current) ?? versions.data?.[0],
     [versions.data],
   );
   const [view, setView] = useState<View | null>(null);
@@ -71,7 +69,7 @@ export function ResumeDetails() {
   const finishUpload = async (uploadId: string, fileName: string, fileSize: number) => {
     setView({ name: "parsing", fileName, fileSize, phase: "checking" });
     try {
-      const accepted = await completeUpload(uploadId).unwrap();
+      const accepted = await completeUpload({ uploadId, filename: fileName }).unwrap();
       setView({ name: "parsing", fileName, fileSize, phase: "reading", resumeFileId: accepted.resumeFileId });
     } catch (error) {
       const code = getApiErrorCode(error);
@@ -198,6 +196,7 @@ export function ResumeDetails() {
                 ) : null}
               </div>
             ) : null}
+            <ResumeHistory onOpen={(versionId) => setView({ name: "review", versionId })} />
           </aside>
         </div>
       </div>
@@ -208,6 +207,36 @@ export function ResumeDetails() {
         onTemplateSelected={(template) => { setResumeTemplatePromptOpen(false); router.replace(`/student/profile/resume/edit?template=${template}`); }}
       />
     </StudentPage>
+  );
+}
+
+/** One row per uploaded file, from GET /candidate/resume/files. */
+function ResumeHistory({ onOpen }: { onOpen: (versionId: string) => void }) {
+  const files = useGetResumeFilesQuery();
+  if (!files.data?.length) return null;
+  return (
+    <div className="rounded-[20px] border border-[#E7E0D4] bg-white p-5">
+      <div className="flex items-center gap-2 text-[#3A4761]">
+        <History className="h-4 w-4" aria-hidden="true" />
+        <span className="text-[12px] font-bold uppercase tracking-[0.1em]">Resume history</span>
+      </div>
+      <ul className="mt-3 flex flex-col gap-2">
+        {files.data.map((file, index) => (
+          <li key={file.resumeFileId ?? `${file.name}-${index}`} className="flex items-center gap-2 rounded-xl bg-[#F7F4EC] px-3 py-2">
+            <FileText className="h-4 w-4 shrink-0 text-[#5F4DB2]" aria-hidden="true" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[12px] font-semibold text-[#0A1931]">{file.name}</p>
+              <p className="text-[11px] text-[#5F6B80]">{[file.status && file.status.toLowerCase().replace(/_/g, " "), file.uploadedAt && formatDateTime(file.uploadedAt)].filter(Boolean).join(" · ")}</p>
+            </div>
+            {file.current ? (
+              <span className="rounded-full bg-[#E8F4EA] px-2 py-0.5 text-[10px] font-semibold text-[#1F6B45]">Current</span>
+            ) : file.latestVersionId ? (
+              <button type="button" onClick={() => onOpen(file.latestVersionId!)} className="text-[11px] font-semibold text-[#5F4DB2] underline">View</button>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
