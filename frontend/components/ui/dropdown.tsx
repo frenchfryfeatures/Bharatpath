@@ -21,6 +21,7 @@ export interface DropdownOption<T extends string = string> {
 }
 
 interface DropdownProps<T extends string = string> {
+  id?: string;
   value: T;
   options: DropdownOption<T>[];
   onChange: (value: T) => void;
@@ -37,9 +38,12 @@ interface DropdownProps<T extends string = string> {
   align?: "left" | "right";
 
   width?: string;
+  overlayOwner?: string;
+  overlayParent?: string;
 }
 
 export function Dropdown<T extends string = string>({
+  id,
   value,
   options,
   onChange,
@@ -51,6 +55,8 @@ export function Dropdown<T extends string = string>({
   disabled = false,
   align = "left",
   width = "w-[130px]",
+  overlayOwner,
+  overlayParent,
 }: DropdownProps<T>) {
   const [open, setOpen] =
     useState(false);
@@ -108,6 +114,7 @@ export function Dropdown<T extends string = string>({
       {/* Trigger */}
       <button
         ref={triggerRef}
+        id={id}
         type="button"
         disabled={disabled}
         aria-label={ariaLabel}
@@ -115,13 +122,13 @@ export function Dropdown<T extends string = string>({
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
         onClick={(event) => {
-          setOwner(event.currentTarget.closest<HTMLElement>("[data-overlay-owner]")?.dataset.overlayOwner);
+          setOwner(overlayOwner ?? event.currentTarget.closest<HTMLElement>("[data-overlay-owner]")?.dataset.overlayOwner);
           setOpen((current) => !current);
         }}
         onKeyDown={(event) => {
           if (["ArrowDown", "ArrowUp"].includes(event.key)) {
             event.preventDefault();
-            setOwner(event.currentTarget.closest<HTMLElement>("[data-overlay-owner]")?.dataset.overlayOwner);
+            setOwner(overlayOwner ?? event.currentTarget.closest<HTMLElement>("[data-overlay-owner]")?.dataset.overlayOwner);
             setOpen(true);
           }
           if (event.key === "Escape" && open) { event.stopPropagation(); closeMenu(); }
@@ -182,6 +189,7 @@ export function Dropdown<T extends string = string>({
           ref={menuRef}
           id={menuId}
           data-overlay-owner={owner}
+          data-overlay-parent={overlayParent}
           style={menuStyle}
           aria-label={ariaLabel || placeholder}
           tabIndex={-1}

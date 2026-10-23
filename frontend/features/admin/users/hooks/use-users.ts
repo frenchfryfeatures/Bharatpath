@@ -131,6 +131,7 @@ export function useUsers(segment: UserSegment, enabled = true) {
     state,
     filterControls: filters.controls,
     renderFilterControls: filters.renderControls,
+    searching: filters.searching,
 
     segment,
 

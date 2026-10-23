@@ -166,6 +166,7 @@ export function DiscountCodesPage() {
           resetPaging();
         }}
         itemLabel="codes"
+        searching={filters.searching}
         emptyTitle="No discount codes found"
         emptySubtitle=""
         isLoading={isLoading || isFetching}

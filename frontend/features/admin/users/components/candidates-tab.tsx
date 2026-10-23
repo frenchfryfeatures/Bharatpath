@@ -14,14 +14,14 @@ import type { UsersPagination, UserRow } from "../types";
 interface CandidatesTabProps {
   users: UserRow[];
   isLoading?: boolean;
-  onOpen: (id: string) => void;
+  searching?: boolean;
   pagination: UsersPagination;
 }
 
 export function CandidatesTab({
   users,
   isLoading,
-  onOpen,
+  searching,
   pagination,
 }: CandidatesTabProps) {
   const columns: ColumnDef<UserRow>[] = [
@@ -104,8 +104,9 @@ export function CandidatesTab({
       onPreviousPage={pagination.onPreviousPage}
       onPageSizeChange={pagination.onPageSizeChange}
       itemLabel="candidates"
+      searching={searching}
       emptyTitle="No candidates found"
-      emptySubtitle="Try a different name in the search box above."
+      emptySubtitle="Candidates will appear here when they join."
       isLoading={isLoading}
     />
   );

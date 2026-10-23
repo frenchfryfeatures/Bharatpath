@@ -42,6 +42,7 @@ export function UsersPage({ section = "candidates" }: { section?: "candidates" |
   const {
     segment,
     renderFilterControls,
+    searching,
     filteredUsers,
     isLoading,
     error,
@@ -197,7 +198,7 @@ export function UsersPage({ section = "candidates" }: { section?: "candidates" |
       {(isOrganisations || isAllCandidates) && error ? <ErrorState error={error} fallback="Could not load users." className="mb-3" /> : null}
       {!isOrganisations && !isAllCandidates && leads.error ? <ErrorState error={leads.error} fallback="Could not load candidates." className="mb-3" /> : null}
 
-      {segment === "candidates" && isAllCandidates && <CandidatesTab users={filteredUsers} isLoading={isLoading} onOpen={openUser} pagination={pagination} />}
+      {segment === "candidates" && isAllCandidates && <CandidatesTab users={filteredUsers} isLoading={isLoading} searching={searching} pagination={pagination} />}
 
       {segment === "candidates" && !isAllCandidates && (
         <LeadsTab
@@ -213,6 +214,7 @@ export function UsersPage({ section = "candidates" }: { section?: "candidates" |
         <EmployersTab
           users={filteredUsers}
           isLoading={isLoading}
+          searching={searching}
           onOpen={openUser}
           pagination={pagination}
         />
@@ -222,6 +224,7 @@ export function UsersPage({ section = "candidates" }: { section?: "candidates" |
         <InstitutionsTab
           users={filteredUsers}
           isLoading={isLoading}
+          searching={searching}
           onOpen={openUser}
           pagination={pagination}
         />

@@ -6,28 +6,27 @@ import { createPortal } from "react-dom";
 import { adminSearchParams } from "@/lib/ui/admin-search";
 import { useFloatingPanel } from "@/lib/hooks/use-floating-panel";
 import { SelectDropdown } from "@/components/ui/select-dropdown";
+import { DatePicker } from "@/components/ui/date-time-picker";
 import { useDebouncedSearch } from "@/lib/hooks/use-debounced-value";
 
-const PERSON = ["name", "email", "phone"];
 const CREATED = ["created_from", "created_to"];
 const CONFIG = {
-  candidates: { fields: [...PERSON, "city", ...CREATED], sorts: ["created_at", "full_name"] },
-  leads: { fields: [...PERSON, "signed_up_from", "signed_up_to"], sorts: ["created_at", "full_name", "last_downloaded_at"] },
-  kyb: { fields: ["organisation", ...CREATED], sorts: ["created_at", "submitted_at", "organisation"] },
-  integrity: { fields: [...PERSON, "rule_id", ...CREATED], sorts: ["created_at", "severity"] },
-  tenants: { fields: ["q", "email", "phone", ...CREATED], sorts: ["name", "created_at"] },
-  disputes: { fields: [...PERSON, "assigned_to", ...CREATED], sorts: ["created_at", "resolved_at"] },
+  candidates: { fields: ["city", ...CREATED], sorts: ["created_at", "full_name"] },
+  leads: { fields: ["signed_up_from", "signed_up_to"], sorts: ["created_at", "full_name", "last_downloaded_at"] },
+  kyb: { fields: [...CREATED], sorts: ["created_at", "submitted_at", "organisation"] },
+  integrity: { fields: ["rule_id", ...CREATED], sorts: ["created_at", "severity"] },
+  tenants: { fields: [...CREATED], sorts: ["name", "created_at"] },
+  disputes: { fields: ["assigned_to", ...CREATED], sorts: ["created_at", "resolved_at"] },
   audit: { fields: [], sorts: [] },
-  discounts: { fields: ["q", "audience", "status", ...CREATED], sorts: ["created_at", "code", "valid_until"] },
-  redemptions: { fields: ["email", "phone", "subscriber_type", "redeemed_from", "redeemed_to"], sorts: ["redeemed_at", "amount_minor"] },
+  discounts: { fields: ["audience", "status", ...CREATED], sorts: ["created_at", "code", "valid_until"] },
+  redemptions: { fields: ["subscriber_type", "redeemed_from", "redeemed_to"], sorts: ["redeemed_at", "amount_minor"] },
   attributes: { fields: ["featured", "includeInactive"], sorts: ["key", "label", "created_at"] },
 } satisfies Record<string, { fields: string[]; sorts: string[] }>;
 
 export type ListKind = keyof typeof CONFIG;
 type Values = Record<string, string | string[]>;
-const SEARCH_FIELDS = ["name", "email", "phone", "organisation", "q"];
 const STATUSES = ["ACTIVE", "SCHEDULED", "EXPIRED", "EXHAUSTED", "DISABLED"];
-const label = (key: string) => key === "includeInactive" ? "Include inactive" : key === "q" ? "Code or label" : key === "assigned_to" ? "Assigned staff user ID" : key.replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase());
+const label = (key: string) => key === "includeInactive" ? "Include inactive" : key === "assigned_to" ? "Assigned staff user ID" : key === "last_downloaded_at" ? "Candidate's last resume download" : key.replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase());
 
 
 const compact = (values: Values): Values => Object.fromEntries(Object.entries(values).filter(([, value]) => Array.isArray(value) ? value.length > 0 : value.trim().length > 0));
@@ -40,7 +39,7 @@ export function useAdminListFilters(kind: ListKind) {
   const search = searches[kind] || "";
   const debounced = useDebouncedSearch(search);
   const applied = all[kind] || {};
-  const params = { ...applied, ...(SEARCH_LISTS.includes(kind) ? adminSearchParams(kind, debounced) : {}) };
+  const params: Values = { ...applied, ...(SEARCH_LISTS.includes(kind) ? adminSearchParams(debounced) : {}) };
   const renderControls = (actions?: ReactNode) => <ListFilters key={kind} kind={kind} applied={applied} search={search}
     onSearch={(value) => setSearches((old) => ({ ...old, [kind]: value }))}
     onApply={(value) => setAll((old) => ({ ...old, [kind]: value }))} actions={actions} />;
@@ -63,7 +62,7 @@ function ListFilters({ kind, applied, search, onSearch, onApply, actions }: {
   const panelId = useId();
   const panelStyle = useFloatingPanel(open, trigger, panel, { width: 600, align: "right" });
   const config = CONFIG[kind];
-  const fields = config.fields.filter((field) => !SEARCH_FIELDS.includes(field));
+  const fields = config.fields;
   const active = Object.entries(compact(applied));
   const count = active.length;
   const close = () => { setOpen(false); trigger.current?.focus(); };
@@ -75,6 +74,7 @@ function ListFilters({ kind, applied, search, onSearch, onApply, actions }: {
     const outside = (event: PointerEvent) => {
       const target = event.target as HTMLElement;
       if (target.closest<HTMLElement>("[data-overlay-owner]")?.dataset.overlayOwner === panelId) return;
+      if (target.closest<HTMLElement>("[data-overlay-parent]")?.dataset.overlayParent === panelId) return;
       if (!trigger.current?.contains(target) && !panel.current?.contains(target)) setOpen(false);
     };
     const escape = (event: KeyboardEvent) => {
@@ -131,14 +131,17 @@ function ListFilters({ kind, applied, search, onSearch, onApply, actions }: {
               </label>;
             })}</div></fieldset>;
           return <div key={field} className="flex min-w-0 flex-col gap-1.5"><label htmlFor={`${panelId}-${field}`} className="text-xs font-medium text-[#344054]">{label(field)}</label>
-            {options ? <SelectDropdown ariaLabel={label(field)} value={String(value)} onChange={(next) => set(field, next)} options={[{ value: "", label: "All" }, ...options]} /> : <input id={`${panelId}-${field}`} className={inputClass} type={from || to ? "date" : "text"} value={String(value)} maxLength={100}
-              min={to ? String(draft[field.replace(/_to$/, "_from")] || "") : undefined} max={from ? String(draft[field.replace(/_from$/, "_to")] || "") : undefined}
+            {options ? <SelectDropdown id={`${panelId}-${field}`} ariaLabel={label(field)} value={String(value)} onChange={(next) => set(field, next)} options={[{ value: "", label: "All" }, ...options]} />
+              : from || to ? <DatePicker id={`${panelId}-${field}`} ariaLabel={label(field)} value={String(value)} onChange={(next) => set(field, next)} className={inputClass}
+                min={to ? String(draft[field.replace(/_to$/, "_from")] || "") : undefined} max={from ? String(draft[field.replace(/_from$/, "_to")] || "") : undefined} />
+              : <input id={`${panelId}-${field}`} className={inputClass} type="text" value={String(value)} maxLength={100}
               pattern={field === "assigned_to" ? "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}" : undefined}
               onChange={(event) => set(field, event.target.value)} />}
           </div>;
         })}
         {config.sorts.length > 0 && <div className="flex min-w-0 flex-col gap-1.5"><span className="text-xs font-medium text-[#344054]">Sort by</span>
-          <SelectDropdown ariaLabel="Sort by" value={String(draft.sort || "")} onChange={(value) => set("sort", value)} options={[{ value: "", label: `${label(config.sorts[0])} (default)` }, ...config.sorts.map((sort) => ({ value: sort, label: label(sort) }))]} />
+          <SelectDropdown ariaLabel="Sort by" value={draft.sort === config.sorts[0] ? "" : String(draft.sort || "")} onChange={(value) => set("sort", value)} options={[{ value: "", label: label(config.sorts[0]) }, ...config.sorts.slice(1).map((sort) => ({ value: sort, label: label(sort) }))]} />
+          {kind === "leads" && draft.sort === "last_downloaded_at" && <p className="text-[11px] leading-4 text-[#8b94a5]">When the candidate last downloaded their built resume. Candidates who never downloaded one appear last.</p>}
         </div>}
         <div className="flex min-w-0 flex-col gap-1.5"><span className="text-xs font-medium text-[#344054]">Order</span>
           <SelectDropdown ariaLabel="Order" value={String(draft.order || "")} onChange={(value) => set("order", value)} options={[{ value: "", label: "Default" }, { value: "asc", label: "Ascending" }, { value: "desc", label: "Descending" }]} />

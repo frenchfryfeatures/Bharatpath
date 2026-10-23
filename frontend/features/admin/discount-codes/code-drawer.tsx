@@ -125,7 +125,7 @@ export function CodeDrawer({ code, canWrite, onClose }: CodeDrawerProps) {
                 </div>
               ))}
               {redemptions.data?.items.length === 0 ? (
-                <p className="text-[12px] text-[#7b8494]">No successful redemptions yet.</p>
+                <p className="text-[12px] text-[#7b8494]">{filters.searching ? "No results found. Try a different search or clear your search." : "No successful redemptions yet."}</p>
               ) : null}
             </div>
           </section>

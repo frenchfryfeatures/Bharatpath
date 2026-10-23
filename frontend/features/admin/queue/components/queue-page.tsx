@@ -72,6 +72,7 @@ export function QueuePage() {
   const {
     tab,
     filterControls,
+    searching,
     canViewKyb,
     canViewIntegrity,
     items,
@@ -360,6 +361,7 @@ export function QueuePage() {
             onPreviousPage={pagination.onPreviousPage}
             onPageSizeChange={pagination.onPageSizeChange}
             itemLabel={isKyb ? "submissions" : "flags"}
+            searching={searching}
             isLoading={isLoading}
             emptyTitle={
               isKyb

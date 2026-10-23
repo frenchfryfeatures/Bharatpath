@@ -12,6 +12,7 @@ import type { UsersPagination, UserRow } from "../types";
 interface InstitutionsTabProps {
   users: UserRow[];
   isLoading?: boolean;
+  searching?: boolean;
   onOpen: (id: string) => void;
   pagination: UsersPagination;
 }
@@ -19,6 +20,7 @@ interface InstitutionsTabProps {
 export function InstitutionsTab({
   users,
   isLoading,
+  searching,
   onOpen,
   pagination,
 }: InstitutionsTabProps) {
@@ -94,6 +96,7 @@ export function InstitutionsTab({
       onPreviousPage={pagination.onPreviousPage}
       onPageSizeChange={pagination.onPageSizeChange}
       itemLabel="institutions"
+      searching={searching}
       emptyTitle="No institutions found"
       emptySubtitle=""
       isLoading={isLoading}

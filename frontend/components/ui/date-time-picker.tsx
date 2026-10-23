@@ -16,6 +16,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { Dropdown } from "./dropdown";
 
 const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 const MONTHS = [
@@ -40,6 +41,8 @@ interface DateTimePickerProps {
   ariaDescribedBy?: string;
   ariaLabel?: string;
   dateOnly?: boolean;
+  min?: string;
+  max?: string;
 }
 
 function pad(value: number) {
@@ -110,12 +113,15 @@ export function DateTimePicker({
   ariaDescribedBy,
   ariaLabel,
   dateOnly = false,
+  min,
+  max,
 }: Readonly<DateTimePickerProps>) {
   const generatedId = useId();
   const controlId = id ?? generatedId;
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+  const [overlayParent, setOverlayParent] = useState<string>();
   const selected = useMemo(() => parseValue(value, dateOnly), [value, dateOnly]);
   const [visibleMonth, setVisibleMonth] = useState(() => {
     const initial = parseValue(value, dateOnly) ?? new Date();
@@ -170,10 +176,12 @@ export function DateTimePicker({
     if (!open) return;
     function onPointerDown(event: MouseEvent) {
       const target = event.target as Node;
+      if (target instanceof Element && target.closest<HTMLElement>("[data-overlay-owner]")?.dataset.overlayOwner === controlId) return;
       if (!triggerRef.current?.contains(target) && !popoverRef.current?.contains(target)) close();
     }
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
+        if (event.target instanceof Element && event.target.closest<HTMLElement>("[role='listbox'][data-overlay-owner]")?.dataset.overlayOwner === controlId) return;
         event.stopPropagation();
         close(true);
       }
@@ -184,15 +192,17 @@ export function DateTimePicker({
       document.removeEventListener("mousedown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown, true);
     };
-  }, [close, open]);
+  }, [close, controlId, open]);
 
   function openPicker() {
     const current = selected ?? new Date();
+    setOverlayParent(triggerRef.current?.closest<HTMLElement>("[data-overlay-owner]")?.dataset.overlayOwner);
     setVisibleMonth(new Date(current.getFullYear(), current.getMonth(), 1));
     setOpen(true);
   }
 
   function chooseDay(day: Date) {
+    if (dateOnly && !dateInRange(day)) return;
     if (dateOnly) {
       onChange(toValue(day, true));
       close(true);
@@ -214,12 +224,19 @@ export function DateTimePicker({
   const days = calendarDays(visibleMonth);
   const today = new Date();
 
+  function dateInRange(day: Date) {
+    const dayValue = toValue(day, true);
+    return (!min || dayValue >= min.slice(0, 10)) && (!max || dayValue <= max.slice(0, 10));
+  }
+
   const popover = open && placement ? (
     <div
       ref={popoverRef}
+      data-overlay-owner={controlId}
+      data-overlay-parent={overlayParent}
       role="dialog"
       aria-label={dateOnly ? "Choose date" : "Choose date and time"}
-      className="bp-date-time-popover fixed z-[200] overflow-y-auto overscroll-contain rounded-xl border border-[#dfe3e9] bg-white p-3 shadow-[0_18px_45px_rgba(20,31,51,0.18)]"
+      className="bp-date-time-popover fixed z-[1050] overflow-y-auto overscroll-contain rounded-xl border border-[#dfe3e9] bg-white p-3 shadow-[0_18px_45px_rgba(20,31,51,0.18)]"
       style={{
         top: placement.top,
         left: placement.left,
@@ -257,14 +274,16 @@ export function DateTimePicker({
           const isSelected = selected ? sameDay(day, selected) : false;
           const isToday = sameDay(day, today);
           const inMonth = day.getMonth() === visibleMonth.getMonth();
+          const outsideRange = dateOnly && !dateInRange(day);
           return (
             <button
               key={day.toISOString()}
               type="button"
               aria-label={day.toLocaleDateString("en-IN", { dateStyle: "long" })}
               aria-pressed={isSelected}
+              disabled={outsideRange}
               onClick={() => chooseDay(day)}
-              className={`mx-auto grid h-8 w-8 place-items-center rounded-lg text-[11px] font-medium transition-colors ${
+              className={`mx-auto grid h-8 w-8 place-items-center rounded-lg text-[11px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${
                 isSelected
                   ? "bg-[#315c9f] font-semibold text-white shadow-sm hover:bg-[#244f8e]"
                   : inMonth
@@ -281,23 +300,27 @@ export function DateTimePicker({
       {!dateOnly ? <div className="mt-3 flex items-center gap-2 border-t border-[#edf0f3] pt-3">
         <Clock3 size={15} className="shrink-0 text-[#687384]" />
         <span className="mr-auto text-[11px] font-semibold text-[#344054]">Time</span>
-        <select
-          aria-label="Hour"
-          value={selected?.getHours() ?? 9}
-          onChange={(event) => setTime("hour", Number(event.target.value))}
-          className="h-8 rounded-lg border border-[#dfe3e9] bg-white px-2 text-[11px] font-medium text-[#263247] outline-none focus:border-[#315c9f]"
-        >
-          {HOURS.map((hour) => <option key={hour} value={hour}>{pad(hour)}</option>)}
-        </select>
+        <Dropdown
+          ariaLabel="Hour"
+          value={pad(selected?.getHours() ?? 9)}
+          options={HOURS.map((hour) => ({ value: pad(hour), label: pad(hour) }))}
+          onChange={(hour) => setTime("hour", Number(hour))}
+          width="w-[70px]"
+          buttonClassName="h-8 rounded-lg border-[#dfe3e9] px-2 text-[11px] text-[#263247] focus:border-[#315c9f]"
+          overlayOwner={controlId}
+          overlayParent={overlayParent}
+        />
         <span className="text-[#8a93a3]">:</span>
-        <select
-          aria-label="Minute"
-          value={selected?.getMinutes() ?? 0}
-          onChange={(event) => setTime("minute", Number(event.target.value))}
-          className="h-8 rounded-lg border border-[#dfe3e9] bg-white px-2 text-[11px] font-medium text-[#263247] outline-none focus:border-[#315c9f]"
-        >
-          {MINUTES.map((minute) => <option key={minute} value={minute}>{pad(minute)}</option>)}
-        </select>
+        <Dropdown
+          ariaLabel="Minute"
+          value={pad(selected?.getMinutes() ?? 0)}
+          options={MINUTES.map((minute) => ({ value: pad(minute), label: pad(minute) }))}
+          onChange={(minute) => setTime("minute", Number(minute))}
+          width="w-[70px]"
+          buttonClassName="h-8 rounded-lg border-[#dfe3e9] px-2 text-[11px] text-[#263247] focus:border-[#315c9f]"
+          overlayOwner={controlId}
+          overlayParent={overlayParent}
+        />
       </div> : null}
 
       <div className="mt-3 flex items-center justify-between gap-2">
@@ -312,6 +335,7 @@ export function DateTimePicker({
         <div className="flex gap-1.5">
           <button
             type="button"
+            disabled={dateOnly && !dateInRange(today)}
             onClick={() => {
               const now = new Date();
               now.setSeconds(0, 0);
@@ -319,7 +343,7 @@ export function DateTimePicker({
               setVisibleMonth(new Date(now.getFullYear(), now.getMonth(), 1));
               if (dateOnly) close(true);
             }}
-            className="rounded-lg px-2.5 py-2 text-[11px] font-semibold text-[#315c9f] hover:bg-[#edf3fb]"
+            className="rounded-lg px-2.5 py-2 text-[11px] font-semibold text-[#315c9f] hover:bg-[#edf3fb] disabled:cursor-not-allowed disabled:opacity-40"
           >
             {dateOnly ? "Today" : "Now"}
           </button>

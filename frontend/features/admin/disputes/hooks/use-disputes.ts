@@ -88,6 +88,7 @@ export function useDisputes() {
   return {
     state,
     filterControls: filters.controls,
+    searching: filters.searching,
 
     openDisputes,
 

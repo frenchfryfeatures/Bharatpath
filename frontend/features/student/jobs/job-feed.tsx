@@ -160,8 +160,8 @@ export function JobFeed() {
         ) : (
           <EmptyState
             icon={<Search size={22} />}
-            title="No jobs match"
-            message="Try clearing a filter or changing your search."
+            title={debouncedSearch.trim() ? "No results found" : qualifiedOnly || workMode || location || skill || minSalaryMinor ? "No jobs match these filters" : "No jobs available yet"}
+            message={debouncedSearch.trim() ? "Try a different search or clear your search." : qualifiedOnly || workMode || location || skill || minSalaryMinor ? "Try clearing a filter." : "Check back later for new jobs."}
           />
         )}
       </div>

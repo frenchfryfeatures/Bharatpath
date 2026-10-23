@@ -150,6 +150,7 @@ export function useQueue() {
   return {
     state,
     filterControls: filters.controls,
+    searching: filters.searching,
 
     tab,
     canViewKyb,

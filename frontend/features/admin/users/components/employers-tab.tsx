@@ -12,6 +12,7 @@ import type { UsersPagination, UserRow } from "../types";
 interface EmployersTabProps {
   users: UserRow[];
   isLoading?: boolean;
+  searching?: boolean;
   onOpen: (id: string) => void;
   pagination: UsersPagination;
 }
@@ -19,6 +20,7 @@ interface EmployersTabProps {
 export function EmployersTab({
   users,
   isLoading,
+  searching,
   onOpen,
   pagination,
 }: EmployersTabProps) {
@@ -94,6 +96,7 @@ export function EmployersTab({
       onPreviousPage={pagination.onPreviousPage}
       onPageSizeChange={pagination.onPageSizeChange}
       itemLabel="employers"
+      searching={searching}
       emptyTitle="No employers found"
       emptySubtitle=""
       isLoading={isLoading}

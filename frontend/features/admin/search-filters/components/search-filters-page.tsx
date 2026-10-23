@@ -602,6 +602,7 @@ export function SearchFiltersPage() {
           isLoading={tableLoading}
           skeletonRows={10}
           emptyTitle="No attributes match this view."
+          searching={Boolean(debouncedSearch.trim())}
           emptySubtitle=""
           paginationMode="cursor"
           pageSize={pagination.pageSize}

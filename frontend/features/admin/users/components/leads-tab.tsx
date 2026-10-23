@@ -200,14 +200,11 @@ export function LeadsTab({ tab, leads, isLoading, searching, pagination }: Leads
       onPreviousPage={pagination.onPreviousPage}
       onPageSizeChange={pagination.onPageSizeChange}
       itemLabel="candidates"
+      searching={searching}
       emptyTitle={followUp ? "No one is waiting for a follow-up" : "No paid candidates yet"}
-      emptySubtitle={
-        searching
-          ? "Nothing on this page matches. Search covers the page that is open; use Next to look further."
-          : followUp
-            ? "Everyone who signed up has paid or joined through a college."
-            : "Candidates who pay or get a college seat appear here."
-      }
+      emptySubtitle={followUp
+        ? "Everyone who signed up has paid or joined through a college."
+        : "Candidates who pay or get a college seat appear here."}
       isLoading={isLoading}
     />
   );

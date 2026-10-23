@@ -40,6 +40,7 @@ export function DisputesPage() {
   const {
     state,
     filterControls,
+    searching,
     openDisputes,
     resolvedDisputes,
     rejectedDisputes,
@@ -152,6 +153,7 @@ export function DisputesPage() {
                   router.replace(`/admin/disputes?tab=open&review=${encodeURIComponent(id)}`, { scroll: false });
                 }}
                 isLoading={openLoading}
+                searching={searching}
                 pagination={openPagination}
               />
             )}
@@ -164,6 +166,7 @@ export function DisputesPage() {
                   router.replace(`/admin/disputes?tab=resolved&review=${encodeURIComponent(id)}`, { scroll: false });
                 }}
                 isLoading={resolvedLoading}
+                searching={searching}
                 pagination={resolvedPagination}
                 emptyTitle="No resolved disputes"
               />
@@ -177,6 +180,7 @@ export function DisputesPage() {
                   router.replace(`/admin/disputes?tab=rejected&review=${encodeURIComponent(id)}`, { scroll: false });
                 }}
                 isLoading={rejectedLoading}
+                searching={searching}
                 pagination={rejectedPagination}
                 emptyTitle="No rejected disputes"
               />
