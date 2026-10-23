@@ -243,17 +243,18 @@ def search_text(term: str | None) -> str | None:
 
 
 _NOT_DIGIT = re.compile(r"\D")
+#: What a phone number looks like typed: digits, with spaces, `+`, dashes,
+#: dots or brackets between them, and nothing else.
+_PHONE_LIKE = re.compile(r"[\d\s+().-]*\d[\d\s+().-]*")
 
 
 def phone_digits(term: str | None) -> str | None:
-    """The digits of a phone search, so `+91 98765-43210` and `9876543210`
-    both match what is stored (E.164, digits after the `+`). Text with no
-    digit at all is 422 `phone_search_invalid` rather than a search that
-    matches everyone."""
+    """The digits of a search that looks like a phone number, so
+    `+91 98765-43210` and `9876543210` both match what is stored (E.164,
+    digits after the `+`); None for anything else. Only a phone-shaped
+    search is read as one: the digits of `ravi 2024` would match every
+    number with a 2024 in it."""
     text = search_text(term)
-    if text is None:
+    if text is None or not _PHONE_LIKE.fullmatch(text):
         return None
-    digits = _NOT_DIGIT.sub("", text)
-    if not digits:
-        raise ValidationError(code="phone_search_invalid")
-    return digits
+    return _NOT_DIGIT.sub("", text)

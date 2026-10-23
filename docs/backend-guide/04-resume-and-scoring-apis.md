@@ -123,7 +123,16 @@ never write into another candidate's storage prefix even if it tried.
 
 Requires: `CANDIDATE` role.
 
-**No request body** — just the `upload_id` from step 1, in the path.
+**Optional request body** (`UploadCompleteRequest`, since 2026-10-22):
+```json
+{ "filename": "Priya Sharma CV.pdf" }
+```
+Send the name the file had on the device. It labels the file in the
+candidate's history (§6b) and nothing else reads it: the key and the type
+are still the server's. It is cut to a display name (last path segment, no
+control characters, at most 255 characters). Sending no body is still
+accepted, and the file is listed with `filename: null`. A retry does not
+rename the file.
 
 **Response** — `202 Accepted` (`UploadCompleteResponse`):
 ```json
@@ -164,7 +173,8 @@ parsing settles.
   "parse_error_code": null,
   "terminal": true,
   "uploaded_at": "2026-09-17T10:00:00Z",
-  "resume_version_id": "3a1c..."
+  "resume_version_id": "3a1c...",
+  "filename": "Priya Sharma CV.pdf"
 }
 ```
 | Field | Meaning |
@@ -280,13 +290,59 @@ created, **newest first, no content** — just enough for a history screen
   {
     "resume_version_id": "3a1c...", "source": "EDIT", "confirmed": true,
     "confirmed_at": "2026-09-17T11:00:00Z", "supersedes_id": "9f2e...",
-    "superseded": false, "created_at": "2026-09-17T10:55:00Z"
+    "superseded": false, "created_at": "2026-09-17T10:55:00Z",
+    "resume_file_id": "9f2e...", "filename": "Priya Sharma CV.pdf",
+    "current": true
   }
 ]
 ```
 `superseded: true` means a *newer* version has replaced this one — a
 superseded version can no longer be edited or confirmed (it's frozen
 history at that point).
+
+**`current` is the version being scored:** the newest confirmed one,
+whichever chain it is in. At most one is `true`, and none before anything
+is confirmed. **Use it to pick the resume to show. Don't infer it from
+`confirmed && !superseded`.** A builder push starts a chain of its own,
+so after one is confirmed, two versions are confirmed and unsuperseded at once.
+
+`resume_file_id` is the document the version was read from or drawn as.
+Corrections carry it forward, so versions sharing one are the same resume.
+`filename` is that document's name (§2), or `null`.
+
+---
+
+## 6b. `GET /candidate/resume/files` — the uploaded-resumes history
+
+Requires: `CANDIDATE` role. Added 2026-10-22. **One row per document,
+newest first.** That covers each upload and each PDF the resume builder drew
+when the candidate pushed. An upload and its corrections are one row. An
+upload that failed or was blocked is listed too, with no version, so the
+history shows that it did not work. At most 50.
+
+**Response** — `200 OK`, array of `ResumeFileSummary`:
+```json
+[
+  {
+    "resume_file_id": "9f2e...", "filename": "Priya Sharma CV.pdf",
+    "origin": "UPLOAD", "mime": "application/pdf", "size_bytes": 84211,
+    "uploaded_at": "2026-10-20T09:12:00Z", "scan_status": "CLEAN",
+    "parse_status": "DONE", "parse_error_code": null, "terminal": true,
+    "latest_version_id": "3a1c...", "confirmed": true, "current": true
+  }
+]
+```
+| Field | Meaning |
+|---|---|
+| `origin` | `UPLOAD` (a file the candidate sent) or `BUILDER` (the builder's PDF). Filter on it for an "uploaded files only" list. |
+| `latest_version_id` | The newest version made from this file: the upload, or the latest correction of it. Open it with §7 and its file with §7b. `null` when the file was never read. |
+| `confirmed` | That newest version is confirmed. |
+| `current` | This file holds the version being scored now. At most one row. |
+| `filename` | As sent in §2. `null` for uploads from before 2026-10-22. |
+
+There is no "restore an older resume" action. Making an older CV the
+scored one again would be a new version and a re-score, which is a product
+decision that hasn't been taken. Today the candidate uploads it again.
 
 ---
 

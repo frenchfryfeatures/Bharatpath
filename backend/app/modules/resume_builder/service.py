@@ -107,7 +107,7 @@ async def get_draft(session: AsyncSession, *, ctx: TenantContext) -> DraftRespon
             content=await _prefilled(session, ctx),
             saved=False,
         )
-    return _response(row)
+    return await _synced_response(session, row)
 
 
 async def save_draft(
@@ -118,7 +118,7 @@ async def save_draft(
     row = await repository.save_draft(
         session, user_id=ctx.user_id, template_key=payload.template_key, content=content
     )
-    return _response(row)
+    return await _synced_response(session, row)
 
 
 async def reset_draft(session: AsyncSession, *, ctx: TenantContext) -> DraftResponse:
@@ -129,9 +129,25 @@ async def reset_draft(session: AsyncSession, *, ctx: TenantContext) -> DraftResp
     current = await repository.get_draft(session, user_id=ctx.user_id)
     template_key = current.template_key if current is not None else domain.DEFAULT_TEMPLATE
     content = _checked(await _prefilled(session, ctx))
-    row = await repository.save_draft(
+    await repository.save_draft(
         session, user_id=ctx.user_id, template_key=template_key, content=content
     )
+    await repository.mark_synced(session, user_id=ctx.user_id)
+    row = await repository.get_draft(session, user_id=ctx.user_id)
+    assert row is not None  # just written in this transaction
+    return _response(row)
+
+
+async def keep_draft(session: AsyncSession, *, ctx: TenantContext) -> DraftResponse:
+    """Keep the draft as it is although a newer CV exists: the answer to
+    `out_of_date` that is not a refill. The content does not change; the
+    draft stops reporting that CV, and reports the next one."""
+    _candidate(ctx)
+    if await repository.get_draft(session, user_id=ctx.user_id) is None:
+        raise DraftMissingError()
+    await repository.mark_synced(session, user_id=ctx.user_id)
+    row = await repository.get_draft(session, user_id=ctx.user_id)
+    assert row is not None
     return _response(row)
 
 
@@ -210,6 +226,7 @@ async def push(session: AsyncSession, *, ctx: TenantContext) -> PushResponse:
             "template_key": row.template_key,
             "templates_version": domain.TEMPLATES_VERSION,
         },
+        filename=_filename(content),
     )
     await career_service.attach_resume(
         session,
@@ -291,7 +308,32 @@ def _pushed_is_current(row: ResumeBuilderDraft) -> bool:
     return row.pushed_at is not None and row.pushed_at >= row.updated_at
 
 
+async def _synced_response(session: AsyncSession, row: ResumeBuilderDraft) -> DraftResponse:
+    """The draft, and whether a CV arrived that it has not caught up with.
+
+    **Only a CV read from text counts** (`resume.service.newest_text_version`):
+    that is what a refill draws from (`_read_cv`). A version this builder
+    pushed is the draft itself, and a form-built one (completing the profile
+    writes one) holds only the answers the draft already started from --
+    counting either would ask the candidate to refill from what they have.
+    """
+    response = _response(row)
+    newest = await resume_service.newest_text_version(session, user_id=row.user_id)
+    if newest is None or newest[1] <= row.synced_at:
+        return response
+    version_id, created_at = newest
+    return response.model_copy(
+        update={
+            "out_of_date": True,
+            "newer_resume_version_id": version_id,
+            "newer_resume_at": created_at,
+        }
+    )
+
+
 def _response(row: ResumeBuilderDraft) -> DraftResponse:
+    """The stored draft. `out_of_date` is left False: a response from an
+    action that just caught the draft up (refill, keep) has nothing newer."""
     return DraftResponse(
         template_key=row.template_key,
         content=StructuredResume.model_validate(row.content),

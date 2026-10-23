@@ -37,7 +37,10 @@ async def save_draft(
     session: AsyncSession, *, user_id: uuid.UUID, template_key: str, content: dict[str, Any]
 ) -> ResumeBuilderDraft:
     """Upsert, so the first save and every autosave after it are one
-    statement, and two concurrent saves cannot both try to insert."""
+    statement, and two concurrent saves cannot both try to insert.
+
+    The first save sets `synced_at` (its default); an autosave leaves it, so
+    typing never hides that a newer CV arrived."""
     await session.execute(
         insert(ResumeBuilderDraft)
         .values(user_id=user_id, template_key=template_key, content=content)
@@ -71,5 +74,19 @@ async def record_push(
     await session.execute(
         update(ResumeBuilderDraft)
         .where(ResumeBuilderDraft.user_id == user_id)
-        .values(pushed_version_id=resume_version_id, pushed_at=func.clock_timestamp())
+        .values(
+            pushed_version_id=resume_version_id,
+            pushed_at=func.clock_timestamp(),
+            synced_at=func.clock_timestamp(),
+        )
+    )
+
+
+async def mark_synced(session: AsyncSession, *, user_id: uuid.UUID) -> None:
+    """The draft has caught up with the candidate's resume: refilled from it,
+    or kept as it is on purpose. `clock_timestamp()` for the reason above."""
+    await session.execute(
+        update(ResumeBuilderDraft)
+        .where(ResumeBuilderDraft.user_id == user_id)
+        .values(synced_at=func.clock_timestamp())
     )

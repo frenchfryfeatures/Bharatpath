@@ -287,9 +287,14 @@ def partial_contact_search(role: str) -> bool:
 
 @dataclass(frozen=True)
 class PersonSearch:
-    """Who a list is narrowed to: part of the name, and the email and phone
-    in part or whole (`partial_contact`). `email` is normalised (trimmed,
-    lower case) and `phone` is digits only, as the service hands them over."""
+    """A list's one search box (`q`), matched against a person's name, email
+    and phone at once: a row matches if any of the three does.
+
+    The service hands over `name` (the text, trimmed), `email` (the text,
+    normalised) and `phone` (its digits, only when the text looks like a
+    phone number). Part of the name always matches; part of the email or
+    phone only when `partial_contact` -- otherwise the whole address or
+    number (`partial_contact_search`)."""
 
     name: str | None = None
     email: str | None = None
@@ -301,14 +306,9 @@ class PersonSearch:
         return any(v is not None for v in (self.name, self.email, self.phone))
 
     def audit(self) -> dict[str, bool]:
-        """What the audit row says about the search: that it was made and how,
-        never the name, address or number searched for."""
-        return {
-            "by_name": self.name is not None,
-            "by_email": self.email is not None,
-            "by_phone": self.phone is not None,
-            "partial_contact": self.partial_contact,
-        }
+        """What the audit row says about the search: that one was made, and
+        whether contacts matched in part. Never the text searched for."""
+        return {"searched": self.given, "partial_contact": self.partial_contact}
 
 
 # ---------------------------------------------------------------------------

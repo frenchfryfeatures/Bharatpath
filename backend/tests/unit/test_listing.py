@@ -161,13 +161,21 @@ def test_search_text_is_literal() -> None:
 
 @pytest.mark.parametrize(
     ("typed", "digits"),
-    [("+91 98765-43210", "919876543210"), ("98765", "98765"), (None, None), ("   ", None)],
+    [
+        ("+91 98765-43210", "919876543210"),
+        ("(+91) 98765.43210", "919876543210"),
+        ("98765", "98765"),
+        (None, None),
+        ("   ", None),
+    ],
 )
-def test_a_phone_search_is_its_digits(typed: str | None, digits: str | None) -> None:
+def test_a_phone_shaped_search_is_its_digits(typed: str | None, digits: str | None) -> None:
     assert phone_digits(typed) == digits
 
 
-def test_a_phone_search_without_a_digit_is_refused_not_a_match_for_everyone() -> None:
-    with pytest.raises(ValidationError) as refused:
-        phone_digits("call me")
-    assert refused.value.code == "phone_search_invalid"
+@pytest.mark.parametrize("typed", ["call me", "ravi 2024", "asha99@example.com", "+"])
+def test_only_a_phone_shaped_search_is_read_as_a_phone(typed: str) -> None:
+    """One search box takes names and emails too. The digits of `ravi 2024`
+    would match every number holding a 2024, so text that is not shaped like
+    a phone number is not tried as one."""
+    assert phone_digits(typed) is None

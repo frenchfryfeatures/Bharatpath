@@ -9,6 +9,7 @@ no other module may import it (import-linter contract `module-privacy`).
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import func, select, update
@@ -26,6 +27,7 @@ async def create_resume_file(
     mime: str,
     size_bytes: int,
     scan_status: str,
+    original_filename: str | None = None,
 ) -> ResumeFile:
     """Insert the row for an upload that has already been validated.
 
@@ -40,6 +42,7 @@ async def create_resume_file(
         mime=mime,
         size_bytes=size_bytes,
         scan_status=scan_status,
+        original_filename=original_filename,
     )
     session.add(row)
     await session.flush()
@@ -60,6 +63,48 @@ async def get_resume_file(
         select(ResumeFile).where(ResumeFile.id == resume_file_id, ResumeFile.user_id == user_id)
     )
     return result.scalar_one_or_none()
+
+
+async def list_files(session: AsyncSession, *, user_id: uuid.UUID, limit: int) -> list[ResumeFile]:
+    """The candidate's files, newest first: uploads, and the PDFs the builder
+    drew. Failed and blocked uploads too -- they have no version, and the
+    history is the only place a candidate sees that one did not work."""
+    result = await session.execute(
+        select(ResumeFile)
+        .where(ResumeFile.user_id == user_id)
+        .order_by(ResumeFile.uploaded_at.desc(), ResumeFile.id.desc())
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
+async def files_by_id(
+    session: AsyncSession, *, user_id: uuid.UUID, resume_file_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, ResumeFile]:
+    if not resume_file_ids:
+        return {}
+    result = await session.execute(
+        select(ResumeFile).where(ResumeFile.user_id == user_id, ResumeFile.id.in_(resume_file_ids))
+    )
+    return {row.id: row for row in result.scalars().all()}
+
+
+async def versions_of_files(
+    session: AsyncSession, *, user_id: uuid.UUID, resume_file_ids: list[uuid.UUID]
+) -> list[ResumeVersion]:
+    """Every version made from these files, newest first. An edit carries
+    its file forward, so a file's versions are its upload and its corrections."""
+    if not resume_file_ids:
+        return []
+    result = await session.execute(
+        select(ResumeVersion)
+        .where(
+            ResumeVersion.user_id == user_id,
+            ResumeVersion.resume_file_id.in_(resume_file_ids),
+        )
+        .order_by(ResumeVersion.created_at.desc(), ResumeVersion.id.desc())
+    )
+    return list(result.scalars().all())
 
 
 async def set_scan_status(session: AsyncSession, *, resume_file_id: uuid.UUID, status: str) -> None:
@@ -164,6 +209,27 @@ async def list_versions(
         .limit(limit)
     )
     return list(result.scalars().all())
+
+
+async def newest_text_version(
+    session: AsyncSession, *, user_id: uuid.UUID
+) -> tuple[uuid.UUID, datetime] | None:
+    """`(id, created_at)` of the newest CV read from text -- an upload, a
+    paste, or a correction of one -- confirmed or not. Never a version the
+    resume builder drew, nor a form-built one: those hold nothing the
+    builder's draft did not already start from. Ids only, no content."""
+    result = await session.execute(
+        select(ResumeVersion.id, ResumeVersion.created_at)
+        .where(
+            ResumeVersion.user_id == user_id,
+            ResumeVersion.source != "BUILDER",
+            ResumeVersion.parsed.has_key("raw_text"),
+        )
+        .order_by(ResumeVersion.created_at.desc(), ResumeVersion.id.desc())
+        .limit(1)
+    )
+    row = result.one_or_none()
+    return None if row is None else (row.id, row.created_at)
 
 
 async def successor_of(
