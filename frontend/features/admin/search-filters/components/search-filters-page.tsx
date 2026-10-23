@@ -1,5 +1,8 @@
 "use client";
 
+import { useAdminListFilters } from "@/features/admin/shared/list-filters";
+
+
 import { usePageSearch } from "@/lib/hooks/use-page-search";
 
 import { useState } from "react";
@@ -114,9 +117,9 @@ export function SearchFiltersPage() {
   const [kind, setKind] = useState<SearchFilterKind>("SKILL");
   const [search, setSearch] = usePageSearch();
   const debouncedSearch = useDebouncedSearch(search);
-  const [includeInactive, setIncludeInactive] = useState(false);
+  const filters = useAdminListFilters("attributes");
   const pagination = useCursorPagination(
-    [kind, debouncedSearch, includeInactive],
+    [kind, debouncedSearch, filters.key],
     10,
   );
   const [editor, setEditor] = useState<{
@@ -141,9 +144,9 @@ export function SearchFiltersPage() {
     isFetching,
     refetch,
   } = useGetAdminSearchFiltersQuery({
+    ...filters.params,
     kind,
     q: debouncedSearch || undefined,
-    includeInactive,
     cursor: pagination.cursor,
     limit: pagination.pageSize,
   });
@@ -408,6 +411,7 @@ export function SearchFiltersPage() {
 
   return (
     <div className="min-w-0 space-y-4">
+      {filters.controls}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e7e9ee]">
         <div className="flex items-center gap-1">
           {(["SKILL", "CITY"] as const).map((value) => (
@@ -474,14 +478,7 @@ export function SearchFiltersPage() {
             className="min-w-0 flex-1 bg-transparent text-[12px] text-[#172033] outline-none placeholder:text-[#8a92a0]"
           />
         </label>
-        <label className="flex h-9 items-center gap-2 rounded-lg border border-[#e2e5eb] bg-white px-3 text-[12px] font-semibold text-[#566176]">
-          <input
-            type="checkbox"
-            checked={includeInactive}
-            onChange={(event) => setIncludeInactive(event.target.checked)}
-          />
-          Show inactive
-        </label>
+
       </div>
 
       {error ? (
@@ -605,6 +602,7 @@ export function SearchFiltersPage() {
           isLoading={tableLoading}
           skeletonRows={10}
           emptyTitle="No attributes match this view."
+          searching={Boolean(debouncedSearch.trim())}
           emptySubtitle=""
           paginationMode="cursor"
           pageSize={pagination.pageSize}

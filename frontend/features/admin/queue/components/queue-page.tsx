@@ -71,6 +71,8 @@ export function QueuePage() {
 
   const {
     tab,
+    filterControls,
+    searching,
     canViewKyb,
     canViewIntegrity,
     items,
@@ -287,6 +289,7 @@ export function QueuePage() {
   return (
     <>
       <div className="min-w-0 space-y-0">
+        {filterControls}
         {/* ================================================================ */}
         {/* Tabs                                                             */}
         {/* ================================================================ */}
@@ -358,6 +361,7 @@ export function QueuePage() {
             onPreviousPage={pagination.onPreviousPage}
             onPageSizeChange={pagination.onPageSizeChange}
             itemLabel={isKyb ? "submissions" : "flags"}
+            searching={searching}
             isLoading={isLoading}
             emptyTitle={
               isKyb

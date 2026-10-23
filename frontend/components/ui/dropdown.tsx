@@ -6,9 +6,13 @@ import {
 } from "lucide-react";
 import {
   useEffect,
+  useId,
   useRef,
   useState,
 } from "react";
+
+import { createPortal } from "react-dom";
+import { useFloatingPanel } from "@/lib/hooks/use-floating-panel";
 
 export interface DropdownOption<T extends string = string> {
   value: T;
@@ -17,6 +21,7 @@ export interface DropdownOption<T extends string = string> {
 }
 
 interface DropdownProps<T extends string = string> {
+  id?: string;
   value: T;
   options: DropdownOption<T>[];
   onChange: (value: T) => void;
@@ -33,9 +38,12 @@ interface DropdownProps<T extends string = string> {
   align?: "left" | "right";
 
   width?: string;
+  overlayOwner?: string;
+  overlayParent?: string;
 }
 
 export function Dropdown<T extends string = string>({
+  id,
   value,
   options,
   onChange,
@@ -47,72 +55,41 @@ export function Dropdown<T extends string = string>({
   disabled = false,
   align = "left",
   width = "w-[130px]",
+  overlayOwner,
+  overlayParent,
 }: DropdownProps<T>) {
   const [open, setOpen] =
     useState(false);
 
-  const dropdownRef =
-    useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuId = useId();
+  const [owner, setOwner] = useState<string>();
+  const menuStyle = useFloatingPanel(open, triggerRef, menuRef, { maxHeight: 280, align });
+  const selectedOption = options.find((option) => option.value === value);
 
-  const selectedOption =
-    options.find(
-      (option) => option.value === value,
-    );
-
-  /*
-   * Close when clicking outside.
-   */
   useEffect(() => {
-    function handleClickOutside(
-      event: MouseEvent,
-    ) {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(
-          event.target as Node,
-        )
-      ) {
-        setOpen(false);
-      }
-    }
-
-    document.addEventListener(
-      "mousedown",
-      handleClickOutside,
-    );
-
-    return () => {
-      document.removeEventListener(
-        "mousedown",
-        handleClickOutside,
-      );
+    if (!open) return;
+    const outside = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!dropdownRef.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false);
     };
-  }, []);
+    const frame = requestAnimationFrame(() => {
+      if (menuStyle.visibility !== "visible") return;
+      const selected = menuRef.current?.querySelector<HTMLElement>('[aria-selected="true"]:not(:disabled)');
+      const first = menuRef.current?.querySelector<HTMLElement>('[role="option"]:not(:disabled)');
+      (selected ?? first ?? menuRef.current)?.focus({ preventScroll: true });
+      selected?.scrollIntoView({ block: "nearest" });
+    });
+    document.addEventListener("pointerdown", outside);
+    return () => { cancelAnimationFrame(frame); document.removeEventListener("pointerdown", outside); };
+  }, [open, menuStyle.visibility]);
 
-  /*
-   * Close dropdown on Escape.
-   */
-  useEffect(() => {
-    function handleEscape(
-      event: KeyboardEvent,
-    ) {
-      if (event.key === "Escape") {
-        setOpen(false);
-      }
-    }
-
-    document.addEventListener(
-      "keydown",
-      handleEscape,
-    );
-
-    return () => {
-      document.removeEventListener(
-        "keydown",
-        handleEscape,
-      );
-    };
-  }, []);
+  function closeMenu() {
+    setOpen(false);
+    triggerRef.current?.focus({ preventScroll: true });
+  }
 
   function handleSelect(
     option: DropdownOption<T>,
@@ -122,7 +99,7 @@ export function Dropdown<T extends string = string>({
     }
 
     onChange(option.value);
-    setOpen(false);
+    closeMenu();
   }
 
   return (
@@ -136,14 +113,26 @@ export function Dropdown<T extends string = string>({
     >
       {/* Trigger */}
       <button
+        ref={triggerRef}
+        id={id}
         type="button"
         disabled={disabled}
         aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={open}
-        onClick={() =>
-          setOpen((current) => !current)
-        }
+        aria-controls={open ? menuId : undefined}
+        onClick={(event) => {
+          setOwner(overlayOwner ?? event.currentTarget.closest<HTMLElement>("[data-overlay-owner]")?.dataset.overlayOwner);
+          setOpen((current) => !current);
+        }}
+        onKeyDown={(event) => {
+          if (["ArrowDown", "ArrowUp"].includes(event.key)) {
+            event.preventDefault();
+            setOwner(overlayOwner ?? event.currentTarget.closest<HTMLElement>("[data-overlay-owner]")?.dataset.overlayOwner);
+            setOpen(true);
+          }
+          if (event.key === "Escape" && open) { event.stopPropagation(); closeMenu(); }
+        }}
         className={`
           flex
           h-[36px]
@@ -195,15 +184,30 @@ export function Dropdown<T extends string = string>({
       </button>
 
       {/* Menu */}
-      {open && (
+      {open && createPortal(
         <div
+          ref={menuRef}
+          id={menuId}
+          data-overlay-owner={owner}
+          data-overlay-parent={overlayParent}
+          style={menuStyle}
+          aria-label={ariaLabel || placeholder}
+          tabIndex={-1}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") { event.stopPropagation(); closeMenu(); return; }
+            if (event.key === "Tab") { closeMenu(); return; }
+            const keys = ["ArrowDown", "ArrowUp", "Home", "End"];
+            if (!keys.includes(event.key)) return;
+            event.preventDefault();
+            const items = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="option"]:not(:disabled)'));
+            const current = items.indexOf(document.activeElement as HTMLButtonElement);
+            const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : (current + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+            items[next]?.focus();
+          }}
           role="listbox"
           className={`
-            absolute
-            z-[100]
-            mt-[5px]
-            max-h-[280px]
-            w-full
+            z-[1100]
+            overscroll-contain
             overflow-y-auto
             rounded-[9px]
             border
@@ -211,9 +215,6 @@ export function Dropdown<T extends string = string>({
             bg-white
             p-[4px]
             shadow-[0_8px_24px_rgba(19,26,38,0.12)]
-            ${align === "right"
-              ? "right-0"
-              : "left-0"}
             ${menuClassName}
           `}
         >
@@ -271,7 +272,7 @@ export function Dropdown<T extends string = string>({
               </button>
             );
           })}
-        </div>
+        </div>, document.body
       )}
     </div>
   );

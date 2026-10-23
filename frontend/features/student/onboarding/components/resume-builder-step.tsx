@@ -14,6 +14,7 @@ import {
   useDownloadBuilderMutation,
   useGetBuilderDraftQuery,
   useGetBuilderTemplatesQuery,
+  useKeepBuilderDraftMutation,
   usePreviewBuilderMutation,
   usePushBuilderMutation,
   useResetBuilderDraftMutation,
@@ -94,8 +95,8 @@ const blank = {
 
 /**
  * The resume builder: a form on the left, the rendered resume on the right.
- * A profile template choice is saved before the editor opens; other edits
- * remain explicit until the candidate saves or submits them.
+ * Template and content changes stay in the editor until the candidate saves
+ * or submits them.
  */
 export function ResumeBuilderStep({
   onBack,
@@ -112,6 +113,7 @@ export function ResumeBuilderStep({
   const templates = useGetBuilderTemplatesQuery();
   const [saveDraft, saveState] = useSaveBuilderDraftMutation();
   const [resetDraft, resetState] = useResetBuilderDraftMutation();
+  const [keepDraft, keepState] = useKeepBuilderDraftMutation();
   const [preview, previewState] = usePreviewBuilderMutation();
   const [download, downloadState] = useDownloadBuilderMutation();
   const [push, pushState] = usePushBuilderMutation();
@@ -133,10 +135,8 @@ export function ResumeBuilderStep({
 
   const snapshot = (resume: StructuredResume, key: BuilderTemplateKey) => JSON.stringify([key, resume]);
   const selectedTemplate = template;
-  const selectedTemplateName = templates.data?.templates.find((item) => item.key === selectedTemplate)?.name
-    ?? selectedTemplate.charAt(0).toUpperCase() + selectedTemplate.slice(1);
   const dirty = content !== null && snapshot(content, selectedTemplate) !== savedSnapshot;
-  const busy = saveState.isLoading || pushState.isLoading || downloadState.isLoading || resetState.isLoading || finalizing;
+  const busy = saveState.isLoading || pushState.isLoading || downloadState.isLoading || resetState.isLoading || keepState.isLoading || finalizing;
 
   const draw = async (resume: StructuredResume, key: BuilderTemplateKey) => {
     const sequence = ++previewSequence.current;
@@ -279,6 +279,15 @@ export function ResumeBuilderStep({
     }
   };
 
+  // "Keep my draft" only dismisses the offer; the draft and the editor stay as they are.
+  const onKeepDraft = async () => {
+    try {
+      await keepDraft().unwrap();
+    } catch (failure) {
+      showErrorFeedback(getApiErrorMessage(failure, "We couldn't keep your draft. Please try again."));
+    }
+  };
+
   const patch = (changes: Partial<StructuredResume>) => {
     setError("");
     setContent((current) => (current ? { ...current, ...changes } : current));
@@ -330,6 +339,21 @@ export function ResumeBuilderStep({
         </button>
       </header>
 
+      {draftQuery.data?.out_of_date && (
+        <div role="alert" className="flex flex-wrap items-center gap-3 border-b border-[#E9D9A6] bg-[#FBF3D9] px-4 py-3">
+          <div className="mr-auto min-w-0">
+            <p className="text-[13px] font-bold text-[#6B4E0A]">A newer resume was uploaded</p>
+            <p className="text-[12px] leading-5 text-[#85650F]">This draft was not filled from it. Refill replaces your draft with the new resume; keep my draft leaves your edits as they are.</p>
+          </div>
+          <button type="button" onClick={() => void onReset()} disabled={busy} className="flex items-center gap-2 rounded-full bg-[#5F4DB2] px-4 py-2 text-[13px] font-semibold text-white hover:bg-[#4A3E8F] disabled:opacity-60">
+            {resetState.isLoading && <Loader2 size={14} className="animate-spin" aria-hidden="true" />} Refill
+          </button>
+          <button type="button" onClick={() => void onKeepDraft()} disabled={busy} className="flex items-center gap-2 rounded-full border border-[#C9B46A] bg-white px-4 py-2 text-[13px] font-semibold text-[#6B4E0A] disabled:opacity-60">
+            {keepState.isLoading && <Loader2 size={14} className="animate-spin" aria-hidden="true" />} Keep my draft
+          </button>
+        </div>
+      )}
+
       <div className="flex border-b border-[#F0EBDF] lg:hidden" role="tablist">
         {(["edit", "preview"] as const).map((tab) => (
           <button key={tab} type="button" role="tab" aria-selected={mobileTab === tab} onClick={() => setMobileTab(tab)}
@@ -342,26 +366,22 @@ export function ResumeBuilderStep({
           <div key={editorKey} className="mx-auto flex max-w-xl flex-col gap-6">
             {error && <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</p>}
             <p className="text-[13px] leading-5 text-[#3A4761]">
-              {profileMode ? "The preview shows your last saved resume. Save your edits to update it before downloading." : "We filled this in from your onboarding answers. Correct anything, add your projects, then press Save to keep your changes."}
+              {profileMode ? "The preview shows your current details and template. Save your changes before downloading." : "We filled this in from your onboarding answers. Correct anything, add your projects, then press Save to keep your changes."}
             </p>
 
             <Section title="Template" action={<button type="button" onClick={() => setResetOpen(true)} disabled={busy} className="flex items-center gap-1 text-xs text-[#5F6B80] underline disabled:opacity-50"><RotateCcw size={12} aria-hidden="true" /> Refill from my answers</button>}>
-              {!profileMode ? (
-                <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Resume template">
-                  {(templates.data?.templates ?? []).map((item) => (
-                    <button key={item.key} type="button" role="radio" aria-checked={selectedTemplate === item.key} onClick={() => { setTemplate(item.key); void draw(content, item.key); }}
-                      className={`rounded-xl border p-3 text-left ${selectedTemplate === item.key ? "border-[#5F4DB2] bg-[#F1EAF7]" : "border-[#DDD6C7] bg-white hover:border-[#5F4DB2]"}`}>
-                      <span className="block text-sm font-semibold">{item.name}</span>
-                      <span className="mt-0.5 block text-[11px] leading-4 text-[#5F6B80]">{item.description}</span>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-xl border border-[#5F4DB2] bg-[#F1EAF7] p-3">
-                  <span className="block text-sm font-semibold">{selectedTemplateName}</span>
-                  <span className="mt-0.5 block text-[11px] leading-4 text-[#5F6B80]">Change this template from the update resume screen.</span>
-                </div>
-              )}
+              {templates.isLoading && <p className="flex items-center gap-2 text-[12px] text-[#5F6B80]"><Loader2 size={14} className="animate-spin" aria-hidden="true" /> Loading templates…</p>}
+              {templates.isError && <p role="alert" className="text-[12px] text-red-700">Templates could not be loaded. <button type="button" onClick={() => void templates.refetch()} className="underline">Try again</button></p>}
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Resume template">
+                {(templates.data?.templates ?? []).map((item) => (
+                  <button key={item.key} type="button" role="radio" aria-checked={selectedTemplate === item.key} disabled={busy} onClick={() => { if (item.key === selectedTemplate) return; setTemplate(item.key); void draw(content, item.key); }}
+                    className={`rounded-xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-60 ${selectedTemplate === item.key ? "border-[#5F4DB2] bg-[#F1EAF7]" : "border-[#DDD6C7] bg-white hover:border-[#5F4DB2]"}`}>
+                    <span className="block text-sm font-semibold">{item.name}</span>
+                    <span className="mt-0.5 block text-[11px] leading-4 text-[#5F6B80]">{item.description}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="text-[12px] leading-5 text-[#5F6B80]">Choose a template to preview it with your current details. Save to keep your choice.</p>
             </Section>
 
             <Section title="About you">

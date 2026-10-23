@@ -445,6 +445,9 @@ function PlacePicker({ value, onChange }: { value: unknown; onChange: (value: un
               {canAddCustom && <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => add(trimmed)} className="block w-full rounded-lg px-3 py-2 text-left text-[14px] text-[#4A3E8F] hover:bg-[#F7F4FC] focus-visible:bg-[#F7F4FC] focus-visible:outline-none">Add “{trimmed}”</button>}
             </div>
           )}
+          {open && trimmed && matches.length === 0 && !canAddCustom && (
+            <p role="status" className="mt-2 text-[12px] text-[#5F6B80]">No places match your search.</p>
+          )}
         </div>
       )}
       {selected.length > 0 && (

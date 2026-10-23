@@ -20,6 +20,8 @@ interface JobsTableProps {
   pageSize: number;
   hasNextPage: boolean;
   isLoading?: boolean;
+  searching?: boolean;
+  filteredByStatus?: boolean;
   onNextPage: () => void;
   onPreviousPage: () => void;
   onPageSizeChange: (pageSize: number) => void;
@@ -272,6 +274,8 @@ export function JobsTable({
   pageSize,
   hasNextPage,
   isLoading = false,
+  searching = false,
+  filteredByStatus = false,
   onNextPage,
   onPreviousPage,
   onPageSizeChange,
@@ -298,15 +302,10 @@ export function JobsTable({
       onPreviousPage={onPreviousPage}
       onPageSizeChange={onPageSizeChange}
       itemLabel="jobs"
+      searching={searching}
       isLoading={isLoading}
-      emptyTitle={
-        isLoading ? "Loading jobs…" : "No jobs found"
-      }
-      emptySubtitle={
-        isLoading
-          ? "Please wait while we fetch your job postings."
-          : "Try changing your search or status filter."
-      }
+      emptyTitle={filteredByStatus ? "No jobs with this status" : "No jobs yet"}
+      emptySubtitle={filteredByStatus ? "Try another status filter." : "Your job postings will appear here."}
       className="overflow-x-auto"
     />
   );

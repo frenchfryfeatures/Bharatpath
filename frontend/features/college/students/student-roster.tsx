@@ -197,6 +197,7 @@ export function StudentRoster() {
         onNextPage={studentsPagination.goToNextPage}
         onPreviousPage={studentsPagination.goToPreviousPage}
         isLoading={isLoadingStudents}
+        searching={Boolean(search.trim())}
         onView={(student) => {
           if (student.candidateId) router.push(`/college/students/${student.candidateId}`);
         }}

@@ -1,5 +1,8 @@
 "use client";
 
+import { useAdminListFilters } from "@/features/admin/shared/list-filters";
+
+
 import { humanizeCode } from "@/lib/format/labels";
 
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -71,14 +74,17 @@ export function useQueue() {
   const canViewIntegrity = canAccessAdminQueueTab(role, "integrity");
   const tab = canAccessAdminQueueTab(role, state.tab) ? state.tab : canViewKyb ? "kyb" : "integrity";
 
-  const pager = useCursorPagination([tab]);
+  const filters = useAdminListFilters(tab === "kyb" ? "kyb" : "integrity");
+  const pager = useCursorPagination([tab, filters.key]);
 
   const kybQuery = useGetAdminKybSubmissionsQuery({
+    ...(tab === "kyb" ? filters.params : {}),
     state: "SUBMITTED",
     limit: pager.pageSize,
     cursor: tab === "kyb" ? pager.cursor : undefined,
   }, { skip: !canViewKyb });
   const integrityQuery = useGetAdminIntegritySignalsQuery({
+    ...(tab === "integrity" ? filters.params : {}),
     state: "OPEN",
     limit: pager.pageSize,
     cursor: tab === "integrity" ? pager.cursor : undefined,
@@ -143,6 +149,8 @@ export function useQueue() {
 
   return {
     state,
+    filterControls: filters.controls,
+    searching: filters.searching,
 
     tab,
     canViewKyb,

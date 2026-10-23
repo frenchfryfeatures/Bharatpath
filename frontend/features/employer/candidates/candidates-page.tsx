@@ -221,7 +221,9 @@ export function CandidatesPage() {
 
             {!isCandidateListLoading && !error && candidates.length === 0 && (
               <div className="rounded-[12px] border border-dashed border-[#dfe3e9] bg-white p-10 text-center text-[12px] text-[#737d8c]">
-                No candidates match the selected filters.
+                {committedSearch.trim()
+                  ? "No results found. Try a different search or clear your search."
+                  : "No candidates match the selected filters."}
               </div>
             )}
 

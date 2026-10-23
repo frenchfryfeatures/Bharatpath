@@ -14,7 +14,7 @@ import { parseFailureMessage } from "@/features/student/onboarding/constants";
 import { StudentPage } from "@/features/student/shell";
 import { getApiErrorCode, getApiErrorMessage } from "@/lib/api/error-message";
 import { showErrorFeedback, showSuccessFeedback } from "@/lib/feedback/success-feedback";
-import { useCompleteResumeUploadMutation, useCreateResumeUploadMutation, useGetResumeVersionsQuery, useUploadResumeFileMutation } from "@/store/student";
+import { useCompleteResumeUploadMutation, useCreateResumeUploadMutation, useGetResumeFilesQuery, useGetResumeVersionsQuery, useUploadResumeFileMutation } from "@/store/student";
 import { useGetCareerProfileQuery, useLazyGetProfileResumeDocumentQuery } from "./career-api";
 import { ResumeTemplateDialog } from "./resume-template-dialog";
 
@@ -33,19 +33,21 @@ export function ResumeDetails() {
   const [uploadFile] = useUploadResumeFileMutation();
   const [completeUpload] = useCompleteResumeUploadMutation();
   const current = useMemo(
-    () => versions.data?.find((version) => version.confirmed && !version.superseded)
-      ?? versions.data?.find((version) => !version.superseded)
-      ?? versions.data?.find((version) => version.confirmed)
-      ?? versions.data?.[0],
+    // The server says which version is current; confirmed && !superseded can match two after a builder push.
+    () => versions.data?.find((version) => version.current) ?? versions.data?.[0],
     [versions.data],
   );
   const [view, setView] = useState<View | null>(null);
   const [resumeTemplatePromptOpen, setResumeTemplatePromptOpen] = useState(false);
   const activeView: View | null =
     view ?? (current ? { name: "review", versionId: current.resumeVersionId } : null);
+  const selectedFromHistory = view?.name === "review" && view.versionId !== current?.resumeVersionId;
+  const selectedVersion = activeView?.name === "review"
+    ? versions.data?.find((version) => version.resumeVersionId === activeView.versionId)
+    : undefined;
 
   const cancelUpdate = () => {
-    setView(current ? { name: "review", versionId: current.resumeVersionId } : null);
+    setView(null);
   };
 
   const openResume = async () => {
@@ -71,7 +73,7 @@ export function ResumeDetails() {
   const finishUpload = async (uploadId: string, fileName: string, fileSize: number) => {
     setView({ name: "parsing", fileName, fileSize, phase: "checking" });
     try {
-      const accepted = await completeUpload(uploadId).unwrap();
+      const accepted = await completeUpload({ uploadId, filename: fileName }).unwrap();
       setView({ name: "parsing", fileName, fileSize, phase: "reading", resumeFileId: accepted.resumeFileId });
     } catch (error) {
       const code = getApiErrorCode(error);
@@ -103,7 +105,7 @@ export function ResumeDetails() {
         <input ref={fileInput} type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="sr-only" aria-label="Upload a new resume" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void startUpload(file); }} />
         <button
           type="button"
-          onClick={() => router.push("/student/profile")}
+          onClick={() => router.push("/student/profile#profile-reports")}
           className="mb-5 inline-flex cursor-pointer items-center gap-2 rounded-full border border-[#E7E0D4] bg-white px-3.5 py-2 text-[13px] font-semibold text-[#3A4761] transition hover:bg-[#F7F4EC] hover:text-[#0A1931]"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to profile
@@ -146,9 +148,9 @@ export function ResumeDetails() {
                     <h1 className="mt-1 text-[24px] font-bold leading-8 tracking-[-0.02em] text-[#0A1931] lg:text-[22px] lg:leading-7">Resume details</h1>
                     <p className="mt-1 text-[13px] leading-5 text-[#5F6B80]">Review your profile details or replace the source file.</p>
                   </div>
-                  <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold ${current.confirmed ? "bg-[#E8F4EA] text-[#1F6B45]" : "bg-[#F7EFD6] text-[#85650F]"}`}>
-                    {current.confirmed && <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />}
-                    {current.confirmed ? "Ready for your profile" : "Needs confirmation"}
+                  <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold ${selectedFromHistory ? "bg-[#EEE8FA] text-[#5F4DB2]" : current.confirmed ? "bg-[#E8F4EA] text-[#1F6B45]" : "bg-[#F7EFD6] text-[#85650F]"}`}>
+                    {selectedFromHistory ? <History className="h-3.5 w-3.5" aria-hidden="true" /> : current.confirmed && <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />}
+                    {selectedFromHistory ? "Viewing history" : current.confirmed ? "Ready for your profile" : "Needs confirmation"}
                   </span>
                 </header>
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -170,12 +172,19 @@ export function ResumeDetails() {
                     </button>
                   )}
                 </div>
-                <ReviewStep key={activeView.versionId} resumeVersionId={activeView.versionId} title="Your details" subtitle="Review each section and use the edit button to update it. Changes are saved as a new version." confirmLabel="Save & update score" startOverLabel="Cancel and return to previous resume" onStartOver={cancelUpdate} onConfirmed={() => { showSuccessFeedback("Resume saved and score update started."); setView(null); void versions.refetch(); }} />
+                {selectedFromHistory && <div role="status" className="flex items-start gap-3 rounded-[18px] border border-[#D9D0F5] bg-[#F8F5FF] px-4 py-3 text-[#3A4761]">
+                  <History className="mt-0.5 h-4 w-4 shrink-0 text-[#5F4DB2]" aria-hidden="true" />
+                  <div className="min-w-0">
+                    <p className="break-words text-[13px] font-semibold text-[#0A1931]">Viewing: {selectedVersion?.filename || "Saved resume"}</p>
+                    <p className="mt-1 text-[12px] leading-5">{selectedVersion ? `Version from ${formatDateTime(selectedVersion.createdAt)}. ` : ""}Save & update score to use this resume for your profile.</p>
+                  </div>
+                </div>}
+                <ReviewStep key={activeView.versionId} resumeVersionId={activeView.versionId} title="Your details" subtitle="Review each section and use the edit button to update it. Changes are saved as a new version." confirmLabel="Save & update score" startOverLabel="Cancel and return to previous resume" restoreFromHistory={selectedFromHistory} onStartOver={cancelUpdate} onConfirmed={() => { showSuccessFeedback("Resume saved and score update started."); setView(null); void versions.refetch(); }} />
               </div>
             )}
           </main>
 
-          <aside className={`${activeView?.name === "parsing" ? "hidden" : "hidden lg:sticky lg:top-6 lg:flex lg:flex-col lg:gap-4"}`}>
+          <aside className={`${activeView?.name === "parsing" ? "hidden" : "hidden lg:sticky lg:top-6 lg:flex lg:max-h-[calc(100dvh-3rem)] lg:flex-col lg:gap-4 lg:overflow-y-auto lg:pb-28"}`}>
             <InfoCard
               icon={<ShieldCheck className="h-5 w-5" aria-hidden="true" />}
               title="Your resume stays private"
@@ -198,6 +207,7 @@ export function ResumeDetails() {
                 ) : null}
               </div>
             ) : null}
+            <ResumeHistory selectedVersionId={activeView?.name === "review" ? activeView.versionId : undefined} currentVersionId={current?.resumeVersionId} onOpen={(versionId) => setView({ name: "review", versionId })} />
           </aside>
         </div>
       </div>
@@ -208,6 +218,46 @@ export function ResumeDetails() {
         onTemplateSelected={(template) => { setResumeTemplatePromptOpen(false); router.replace(`/student/profile/resume/edit?template=${template}`); }}
       />
     </StudentPage>
+  );
+}
+
+const HISTORY_PREVIEW = 3;
+
+/** One row per uploaded file, from GET /candidate/resume/files. */
+function ResumeHistory({ onOpen, selectedVersionId, currentVersionId }: { onOpen: (versionId: string) => void; selectedVersionId?: string; currentVersionId?: string }) {
+  const files = useGetResumeFilesQuery();
+  const [showAll, setShowAll] = useState(false);
+  if (!files.data?.length) return null;
+  const rows = showAll ? files.data : files.data.slice(0, HISTORY_PREVIEW);
+  return (
+    <div className="rounded-[20px] border border-[#E7E0D4] bg-white p-5">
+      <div className="flex items-center gap-2 text-[#3A4761]">
+        <History className="h-4 w-4" aria-hidden="true" />
+        <span className="text-[12px] font-bold uppercase tracking-[0.1em]">Resume history</span>
+      </div>
+      <ul className="mt-3 flex flex-col gap-2">
+        {rows.map((file, index) => (
+          <li key={file.resumeFileId ?? `${file.name}-${index}`} className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${file.latestVersionId === selectedVersionId || (file.current && selectedVersionId === currentVersionId) ? "border-[#8D79D8] bg-[#F1EAF7]" : "border-transparent bg-[#F7F4EC]"}`}>
+            <FileText className="h-4 w-4 shrink-0 text-[#5F4DB2]" aria-hidden="true" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[12px] font-semibold text-[#0A1931]">{file.name}</p>
+              <p className="text-[11px] text-[#5F6B80]">{[file.status && file.status.toLowerCase().replace(/_/g, " "), file.uploadedAt && formatDateTime(file.uploadedAt)].filter(Boolean).join(" · ")}</p>
+            </div>
+            {file.current && <span className="rounded-full bg-[#E8F4EA] px-2 py-0.5 text-[10px] font-semibold text-[#1F6B45]">Current</span>}
+            {(file.latestVersionId === selectedVersionId || (file.current && selectedVersionId === currentVersionId)) ? (
+              <span className="rounded-full bg-[#E8E1FA] px-2 py-0.5 text-[10px] font-semibold text-[#5F4DB2]">Viewing</span>
+            ) : file.latestVersionId ? (
+              <button type="button" onClick={() => onOpen(file.latestVersionId!)} className="text-[11px] font-semibold text-[#5F4DB2] underline">View</button>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+      {files.data.length > HISTORY_PREVIEW && (
+        <button type="button" onClick={() => setShowAll((value) => !value)} className="mt-3 text-[12px] font-semibold text-[#5F4DB2] underline">
+          {showAll ? "Show less" : `Show all (${files.data.length})`}
+        </button>
+      )}
+    </div>
   );
 }
 
