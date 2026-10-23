@@ -59,7 +59,22 @@ export function CareerOverview({
   const attemptedPrefill = useRef<string | null>(null);
   const fields = useGetCareerFieldsQuery();
   const [editingSection, setEditingSection] = useState<CareerEditSection | null>(null);
+  const editScrollTop = useRef<number | null>(null);
   const [error, setError] = useState("");
+  const openEditor = (section: CareerEditSection) => {
+    editScrollTop.current = document.querySelector<HTMLElement>("main.bp-scrollbar")?.scrollTop ?? null;
+    setEditingSection(section);
+  };
+  const closeEditor = () => {
+    setEditingSection(null);
+    requestAnimationFrame(() => {
+      const scrollContainer = document.querySelector<HTMLElement>("main.bp-scrollbar");
+      if (scrollContainer && editScrollTop.current !== null) {
+        scrollContainer.scrollTop = editScrollTop.current;
+      }
+      editScrollTop.current = null;
+    });
+  };
   useEffect(() => {
     const latest = versions.data?.find((version) => version.current) ?? versions.data?.find((version) => !version.superseded);
     if (
@@ -193,7 +208,7 @@ export function CareerOverview({
             Review the details extracted from your resume and add anything
             missing.
           </p>
-          <PillButton onClick={() => setEditingSection("all")} className="w-full">
+          <PillButton onClick={() => openEditor("all")} className="w-full">
             Edit profile details
           </PillButton>
         </div>
@@ -259,7 +274,7 @@ export function CareerOverview({
                 <button
                   type="button"
                   onClick={() => {
-                    setEditingSection(group.id as CareerEditSection);
+                    openEditor(group.id as CareerEditSection);
                   }}
                   aria-label={`Edit ${group.title}`}
                   className="grid h-9 w-9 place-items-center rounded-xl border border-[#E7E0D4] text-[#5F4DB2] transition hover:bg-[#F1EAF7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30"
@@ -323,7 +338,7 @@ export function CareerOverview({
         <Modal
           open
           variant="student"
-          onClose={() => setEditingSection(null)}
+          onClose={closeEditor}
           title={editingSection === "all" ? "Edit profile details" : `Edit ${groups.find((group) => group.id === editingSection)?.title.toLowerCase()}`}
           panelClassName="max-w-3xl"
         >
@@ -333,8 +348,8 @@ export function CareerOverview({
               editing
               editSection={editingSection}
               initialSection={editingSection === "headline" ? 3 : Math.max(0, editableSections.indexOf(editingSection as (typeof editableSections)[number]))}
-              onDone={() => setEditingSection(null)}
-              onBack={() => setEditingSection(null)}
+              onDone={closeEditor}
+              onBack={closeEditor}
             />
           </div>
         </Modal>

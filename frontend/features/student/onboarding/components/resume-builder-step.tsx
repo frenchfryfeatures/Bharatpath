@@ -95,8 +95,8 @@ const blank = {
 
 /**
  * The resume builder: a form on the left, the rendered resume on the right.
- * A profile template choice is saved before the editor opens; other edits
- * remain explicit until the candidate saves or submits them.
+ * Template and content changes stay in the editor until the candidate saves
+ * or submits them.
  */
 export function ResumeBuilderStep({
   onBack,
@@ -135,8 +135,6 @@ export function ResumeBuilderStep({
 
   const snapshot = (resume: StructuredResume, key: BuilderTemplateKey) => JSON.stringify([key, resume]);
   const selectedTemplate = template;
-  const selectedTemplateName = templates.data?.templates.find((item) => item.key === selectedTemplate)?.name
-    ?? selectedTemplate.charAt(0).toUpperCase() + selectedTemplate.slice(1);
   const dirty = content !== null && snapshot(content, selectedTemplate) !== savedSnapshot;
   const busy = saveState.isLoading || pushState.isLoading || downloadState.isLoading || resetState.isLoading || keepState.isLoading || finalizing;
 
@@ -368,26 +366,22 @@ export function ResumeBuilderStep({
           <div key={editorKey} className="mx-auto flex max-w-xl flex-col gap-6">
             {error && <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</p>}
             <p className="text-[13px] leading-5 text-[#3A4761]">
-              {profileMode ? "The preview shows your last saved resume. Save your edits to update it before downloading." : "We filled this in from your onboarding answers. Correct anything, add your projects, then press Save to keep your changes."}
+              {profileMode ? "The preview shows your current details and template. Save your changes before downloading." : "We filled this in from your onboarding answers. Correct anything, add your projects, then press Save to keep your changes."}
             </p>
 
             <Section title="Template" action={<button type="button" onClick={() => setResetOpen(true)} disabled={busy} className="flex items-center gap-1 text-xs text-[#5F6B80] underline disabled:opacity-50"><RotateCcw size={12} aria-hidden="true" /> Refill from my answers</button>}>
-              {!profileMode ? (
-                <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Resume template">
-                  {(templates.data?.templates ?? []).map((item) => (
-                    <button key={item.key} type="button" role="radio" aria-checked={selectedTemplate === item.key} onClick={() => { setTemplate(item.key); void draw(content, item.key); }}
-                      className={`rounded-xl border p-3 text-left ${selectedTemplate === item.key ? "border-[#5F4DB2] bg-[#F1EAF7]" : "border-[#DDD6C7] bg-white hover:border-[#5F4DB2]"}`}>
-                      <span className="block text-sm font-semibold">{item.name}</span>
-                      <span className="mt-0.5 block text-[11px] leading-4 text-[#5F6B80]">{item.description}</span>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-xl border border-[#5F4DB2] bg-[#F1EAF7] p-3">
-                  <span className="block text-sm font-semibold">{selectedTemplateName}</span>
-                  <span className="mt-0.5 block text-[11px] leading-4 text-[#5F6B80]">Change this template from the update resume screen.</span>
-                </div>
-              )}
+              {templates.isLoading && <p className="flex items-center gap-2 text-[12px] text-[#5F6B80]"><Loader2 size={14} className="animate-spin" aria-hidden="true" /> Loading templates…</p>}
+              {templates.isError && <p role="alert" className="text-[12px] text-red-700">Templates could not be loaded. <button type="button" onClick={() => void templates.refetch()} className="underline">Try again</button></p>}
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Resume template">
+                {(templates.data?.templates ?? []).map((item) => (
+                  <button key={item.key} type="button" role="radio" aria-checked={selectedTemplate === item.key} disabled={busy} onClick={() => { if (item.key === selectedTemplate) return; setTemplate(item.key); void draw(content, item.key); }}
+                    className={`rounded-xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-60 ${selectedTemplate === item.key ? "border-[#5F4DB2] bg-[#F1EAF7]" : "border-[#DDD6C7] bg-white hover:border-[#5F4DB2]"}`}>
+                    <span className="block text-sm font-semibold">{item.name}</span>
+                    <span className="mt-0.5 block text-[11px] leading-4 text-[#5F6B80]">{item.description}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="text-[12px] leading-5 text-[#5F6B80]">Choose a template to preview it with your current details. Save to keep your choice.</p>
             </Section>
 
             <Section title="About you">

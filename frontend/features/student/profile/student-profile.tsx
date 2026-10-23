@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChangePasswordModal } from "@/components/auth/change-password-modal";
 import { CareerOverview } from "./career-overview";
@@ -39,6 +39,8 @@ import { Skeleton } from "@/components/common/loading";
 import { StudentProfileSkeleton } from "@/features/student/loading";
 import { StudentPage } from "@/features/student/shell";
 
+const profileReturnScrollKey = "student-profile-return-scroll";
+
 export function StudentProfile() {
   const router = useRouter();
   const [passwordOpen, setPasswordOpen] = useState(false);
@@ -48,12 +50,35 @@ export function StudentProfile() {
   const score = useGetStudentScoreQuery();
   const applications = useGetStudentApplicationCountQuery("ACTIVE");
   const courses = useGetStudentCoursesQuery();
-  if (
+  const isLoading =
     profile.isLoading ||
     score.isLoading ||
     applications.isLoading ||
-    courses.isLoading
-  ) {
+    courses.isLoading;
+  const openReportsPage = (href: string) => {
+    const scrollTop = document.querySelector<HTMLElement>("main.bp-scrollbar")?.scrollTop;
+    if (scrollTop !== undefined) {
+      sessionStorage.setItem(profileReturnScrollKey, String(scrollTop));
+    }
+    router.push(href);
+  };
+
+  useEffect(() => {
+    if (isLoading) return;
+    const sectionId = window.location.hash.slice(1);
+    const savedScrollTop = sessionStorage.getItem(profileReturnScrollKey);
+    const frame = requestAnimationFrame(() => {
+      if (sectionId.startsWith("profile-")) {
+        document.getElementById(sectionId)?.scrollIntoView({ block: "start" });
+      } else if (savedScrollTop !== null) {
+        document.querySelector<HTMLElement>("main.bp-scrollbar")?.scrollTo({ top: Number(savedScrollTop) });
+      }
+      sessionStorage.removeItem(profileReturnScrollKey);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [isLoading]);
+
+  if (isLoading) {
     return <StudentProfileSkeleton />;
   }
 
@@ -105,7 +130,7 @@ export function StudentProfile() {
                   title="Resume review"
                   detail="Review your document and scoring history"
                   tone="violet"
-                  onClick={() => router.push("/student/profile/resume")}
+                  onClick={() => openReportsPage("/student/profile/resume")}
                 />
                 <ProfileAction
                   icon={FilePenLine}
@@ -129,21 +154,21 @@ export function StudentProfile() {
                   title="Skill courses"
                   detail={`${courses.data?.length ?? 0} available · ${courses.data?.filter((course) => course.completed).length ?? 0} completed`}
                   tone="blue"
-                  onClick={() => router.push("/student/courses")}
+                  onClick={() => openReportsPage("/student/courses")}
                 />
                 <ProfileAction
                   icon={GraduationCap}
                   title="College"
                   detail="Link a college, answer invitations, manage consent"
                   tone="blue"
-                  onClick={() => router.push("/student/college")}
+                  onClick={() => openReportsPage("/student/college")}
                 />
                 <ProfileAction
                   icon={ClipboardList}
                   title="Attribute check"
                   detail="12 short questions about how you work"
                   tone="blue"
-                  onClick={() => router.push("/student/attribute")}
+                  onClick={() => openReportsPage("/student/attribute")}
                 />
                 <ProfileAction
                   icon={Languages}
@@ -214,8 +239,8 @@ export function StudentProfile() {
       <ResumeTemplateDialog
         open={resumeTemplatePromptOpen}
         onClose={() => setResumeTemplatePromptOpen(false)}
-        onKeep={() => { setResumeTemplatePromptOpen(false); router.push("/student/profile/resume/edit?template=keep"); }}
-        onTemplateSelected={(template) => { setResumeTemplatePromptOpen(false); router.push(`/student/profile/resume/edit?template=${template}`); }}
+        onKeep={() => { setResumeTemplatePromptOpen(false); openReportsPage("/student/profile/resume/edit?template=keep"); }}
+        onTemplateSelected={(template) => { setResumeTemplatePromptOpen(false); openReportsPage(`/student/profile/resume/edit?template=${template}`); }}
       />
     </StudentPage>
   );

@@ -15,6 +15,7 @@ interface ReviewStepProps {
   subtitle?: string;
   confirmLabel?: string;
   startOverLabel?: string;
+  restoreFromHistory?: boolean;
 }
 
 /* -------------------------------------------------------------------------
@@ -28,6 +29,7 @@ export function ReviewStep({
   subtitle = "Nothing is scored until you confirm. Tap anything that looks wrong.",
   confirmLabel = "Confirm",
   startOverLabel = "Use a different resume",
+  restoreFromHistory = false,
 }: Readonly<ReviewStepProps>) {
   const version = useGetResumeVersionQuery(resumeVersionId);
 
@@ -88,6 +90,7 @@ export function ReviewStep({
       subtitle={subtitle}
       confirmLabel={confirmLabel}
       startOverLabel={startOverLabel}
+      restoreFromHistory={restoreFromHistory}
     />
   );
 }

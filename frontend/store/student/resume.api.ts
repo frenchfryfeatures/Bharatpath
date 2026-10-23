@@ -58,6 +58,7 @@ export interface ResumeVersionCreated {
 }
 
 export interface ResumeVersionSummary extends ResumeVersionCreated {
+  filename: string | null;
   confirmedAt: string | null;
   supersedesId: string | null;
   superseded: boolean;
@@ -152,6 +153,7 @@ interface VersionCreatedResponse {
 }
 
 interface VersionSummaryResponse extends VersionCreatedResponse {
+  filename?: string | null;
   confirmed_at: string | null;
   supersedes_id: string | null;
   superseded: boolean;
@@ -174,6 +176,7 @@ const mapCreated = (response: VersionCreatedResponse): ResumeVersionCreated => (
 
 const mapSummary = (response: VersionSummaryResponse): ResumeVersionSummary => ({
   ...mapCreated(response),
+  filename: response.filename ?? null,
   confirmedAt: response.confirmed_at,
   supersedesId: response.supersedes_id,
   superseded: response.superseded,

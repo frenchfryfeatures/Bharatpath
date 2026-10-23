@@ -11,7 +11,7 @@ import { AppSelect } from "@/components/ui/app-select";
 import { getApiErrorCode, getApiErrorMessage } from "@/lib/api/error-message";
 import { useScrollLock } from "@/hooks/use-scroll-lock";
 import { PhoneNumberInput } from "@/components/ui/phone-number-input";
-import { useConfirmResumeVersionMutation, useEditResumeVersionMutation, type ResumeVersionDetail } from "@/store/student";
+import { useConfirmResumeVersionMutation, useEditResumeVersionMutation, useSubmitResumeTextMutation, type ResumeVersionDetail } from "@/store/student";
 import { Card, DoneDot, ErrorNote, fieldBorder, fieldClass, PillButton } from "./ui";
 import { validateReviewedResume, type ReviewIssue, type ReviewPath } from "./resume-review-validation";
 
@@ -49,7 +49,7 @@ const contactGroups = [
   { title: "Professional profiles", fields: ["linkedin", "github", "behance", "dev_to", "stack_overflow", "medium"] },
   { title: "Social profiles", fields: ["instagram", "tiktok", "pinterest", "x_twitter"] },
 ] as const;
-const wideSections = new Set<SectionKey>(["basics", "contacts", "experience", "education", "projects", "other_sections"]);
+const wideSections = new Set<SectionKey>(["basics", "contacts", "experience", "education", "skills", "projects", "other_sections"]);
 
 function setPath(doc: StructuredResume, path: Path, value: unknown): StructuredResume {
   const copy = structuredClone(doc);
@@ -186,9 +186,9 @@ function InputTree({ name, value, path, onChange, issues }: {
   );
 }
 
-export function StructuredResumeReview({ version, onConfirmed, onStartOver, title, subtitle, confirmLabel, startOverLabel }: {
+export function StructuredResumeReview({ version, onConfirmed, onStartOver, title, subtitle, confirmLabel, startOverLabel, restoreFromHistory = false }: {
   version: ResumeVersionDetail; onConfirmed: (confirmedAt: string) => void; onStartOver: () => void;
-  title: string; subtitle: string; confirmLabel: string; startOverLabel: string;
+  title: string; subtitle: string; confirmLabel: string; startOverLabel: string; restoreFromHistory?: boolean;
 }) {
   const [draft, setDraft] = useState<StructuredResume>(() => structuredClone(version.structuredResume!));
   const [editing, setEditing] = useState<SectionKey | null>(null);
@@ -198,14 +198,15 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
   const [createdId, setCreatedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editVersion, editState] = useEditResumeVersionMutation();
+  const [submitResumeText, submitTextState] = useSubmitResumeTextMutation();
   const [confirmVersion, confirmState] = useConfirmResumeVersionMutation();
   const drawerRef = useRef<HTMLElement>(null);
   const errorRef = useRef<HTMLDivElement>(null);
   const drawerTriggerRef = useRef<HTMLElement | null>(null);
   const drawerTitleId = useId();
-  const busy = editState.isLoading || confirmState.isLoading;
+  const busy = editState.isLoading || submitTextState.isLoading || confirmState.isLoading;
   const [saved, setSaved] = useState(false);
-  const canConfirm = dirty || (!saved && (Boolean(createdId) || !version.confirmed));
+  const canConfirm = !saved && (restoreFromHistory || dirty || Boolean(createdId) || !version.confirmed);
   const selectedSection = sections.find((section) => section.key === editing);
   const DrawerIcon = selectedSection?.icon ?? PencilLine;
   const draftIssues = validateReviewedResume(draft);
@@ -280,7 +281,16 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
     }
     try {
       let target = createdId ?? version.resumeVersionId;
-      if (dirty) {
+      if (restoreFromHistory && !createdId) {
+        const text = structuredResumeToText(draft);
+        if (text.length < 50) { setError("Add at least 50 characters of resume details before saving."); return; }
+        const created = version.source === "BUILDER"
+          ? await submitResumeText(text).unwrap()
+          : await editVersion({ resumeVersionId: version.resumeVersionId, edit: { text }, __suppressSuccessFeedback: true }).unwrap();
+        target = created.resumeVersionId;
+        setCreatedId(target);
+        setDirty(false);
+      } else if (dirty) {
         const text = structuredResumeToText(draft);
         if (text.length < 50) { setError("Add at least 50 characters of resume details before saving."); return; }
         const created = await editVersion({ resumeVersionId: target, edit: { text }, __suppressSuccessFeedback: true }).unwrap();
@@ -288,7 +298,7 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
         setCreatedId(target);
         setDirty(false);
       }
-      if (!version.confirmed || dirty || createdId) {
+      if (!version.confirmed || restoreFromHistory || dirty || createdId) {
         const confirmed = await confirmVersion(target).unwrap();
         setSaved(true);
         onConfirmed(confirmed.confirmedAt);
