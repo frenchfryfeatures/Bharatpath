@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { Award, BriefcaseBusiness, Check, ContactRound, FolderKanban, GraduationCap, Heart, Languages, List, PencilLine, Plus, Trash2, Trophy, UserRound, Wrench, X, type LucideIcon } from "lucide-react";
 import { StructuredResumeSectionView, resumeLabel, type StructuredResume } from "@/components/resume/structured-resume";
@@ -8,10 +9,10 @@ import { languageProficiencyOptions } from "@/components/resume/language-profici
 import { PartialDateSelect } from "@/components/resume/partial-date-select";
 import { structuredResumeToText } from "@/components/resume/structured-resume-text";
 import { AppSelect } from "@/components/ui/app-select";
-import { getApiErrorCode, getApiErrorMessage } from "@/lib/api/error-message";
+import { getApiErrorCode, getApiErrorMessage, getApiErrorParams } from "@/lib/api/error-message";
 import { useScrollLock } from "@/hooks/use-scroll-lock";
 import { PhoneNumberInput } from "@/components/ui/phone-number-input";
-import { useConfirmResumeVersionMutation, useEditResumeVersionMutation, useSubmitResumeTextMutation, type ResumeVersionDetail } from "@/store/student";
+import { useConfirmResumeVersionMutation, useEditResumeVersionMutation, useSubmitResumeTextMutation, type ResumeScoringWindow, type ResumeVersionDetail } from "@/store/student";
 import { Card, DoneDot, ErrorNote, fieldBorder, fieldClass, PillButton } from "./ui";
 import { validateReviewedResume, type ReviewIssue, type ReviewPath } from "./resume-review-validation";
 
@@ -50,6 +51,45 @@ const contactGroups = [
   { title: "Social profiles", fields: ["instagram", "tiktok", "pinterest", "x_twitter"] },
 ] as const;
 const wideSections = new Set<SectionKey>(["basics", "contacts", "experience", "education", "skills", "projects", "other_sections"]);
+const builderSectionByReviewSection: Record<SectionKey, string> = {
+  basics: "about",
+  full_name: "about",
+  headline: "about",
+  location: "about",
+  summary: "about",
+  contacts: "contacts",
+  experience: "experience",
+  education: "education",
+  skills: "skills",
+  projects: "projects",
+  certifications: "certifications",
+  languages: "languages",
+  achievements: "achievements-and-interests",
+  interests: "achievements-and-interests",
+  other_sections: "other-sections",
+};
+
+function formatScoringTimeInIst(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return `${new Intl.DateTimeFormat("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "Asia/Kolkata",
+  }).format(date)} IST`;
+}
+
+function scoringAvailabilityLabel(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return formatScoringTimeInIst(value);
+  const days = Math.max(0, Math.ceil((date.getTime() - Date.now()) / 86_400_000));
+  const relative = days === 0 ? "today" : `in ${days} ${days === 1 ? "day" : "days"}`;
+  return `${formatScoringTimeInIst(value)} (${relative})`;
+}
 
 function setPath(doc: StructuredResume, path: Path, value: unknown): StructuredResume {
   const copy = structuredClone(doc);
@@ -186,10 +226,12 @@ function InputTree({ name, value, path, onChange, issues }: {
   );
 }
 
-export function StructuredResumeReview({ version, onConfirmed, onStartOver, title, subtitle, confirmLabel, startOverLabel, restoreFromHistory = false }: {
+export function StructuredResumeReview({ version, onConfirmed, onStartOver, title, subtitle, confirmLabel, startOverLabel, restoreFromHistory = false, scoringWindow, scoringWindowKnown, scoringWindowError, onRefreshScoringWindow }: {
   version: ResumeVersionDetail; onConfirmed: (confirmedAt: string) => void; onStartOver: () => void;
   title: string; subtitle: string; confirmLabel: string; startOverLabel: string; restoreFromHistory?: boolean;
+  scoringWindow?: ResumeScoringWindow; scoringWindowKnown: boolean; scoringWindowError: boolean; onRefreshScoringWindow: () => void;
 }) {
+  const router = useRouter();
   const [draft, setDraft] = useState<StructuredResume>(() => structuredClone(version.structuredResume!));
   const [editing, setEditing] = useState<SectionKey | null>(null);
   const [drawerDraft, setDrawerDraft] = useState<StructuredResume | null>(null);
@@ -197,6 +239,8 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
   const [dirty, setDirty] = useState(false);
   const [createdId, setCreatedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [cooldownNextScoringAt, setCooldownNextScoringAt] = useState<string | null>(null);
+  const [savedWithoutScoring, setSavedWithoutScoring] = useState(false);
   const [editVersion, editState] = useEditResumeVersionMutation();
   const [submitResumeText, submitTextState] = useSubmitResumeTextMutation();
   const [confirmVersion, confirmState] = useConfirmResumeVersionMutation();
@@ -205,8 +249,16 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
   const drawerTriggerRef = useRef<HTMLElement | null>(null);
   const drawerTitleId = useId();
   const busy = editState.isLoading || submitTextState.isLoading || confirmState.isLoading;
+  const savingResume = editState.isLoading || submitTextState.isLoading;
   const [saved, setSaved] = useState(false);
-  const canConfirm = !saved && (restoreFromHistory || dirty || Boolean(createdId) || !version.confirmed);
+  const isBuilderResume = version.source === "BUILDER";
+  const scoringEligibilityPending = !scoringWindowKnown;
+  const scoringIsUnlimited = scoringWindow?.intervalDays === 0;
+  const scoringCooldownActive = !scoringEligibilityPending && !scoringIsUnlimited && (cooldownNextScoringAt !== null || scoringWindow?.canConfirmNow === false);
+  const scoreUpdateUnavailable = scoringEligibilityPending || scoringCooldownActive;
+  const nextScoringAt = cooldownNextScoringAt ?? scoringWindow?.nextScoringAt ?? null;
+  const canConfirm = !saved && !scoreUpdateUnavailable && (restoreFromHistory || dirty || Boolean(createdId) || !version.confirmed);
+  const hasPendingSave = dirty || (restoreFromHistory && !createdId);
   const selectedSection = sections.find((section) => section.key === editing);
   const DrawerIcon = selectedSection?.icon ?? PencilLine;
   const draftIssues = validateReviewedResume(draft);
@@ -248,10 +300,18 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
   }, [error, editing]);
 
   const openDrawer = (section: SectionKey, validate = false) => {
+    if (isBuilderResume) return;
     drawerTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setDrawerDraft(structuredClone(draft));
     setShowValidation(validate);
     setEditing(section);
+  };
+  const editSection = (section: SectionKey) => {
+    if (isBuilderResume) {
+      router.push(`/student/profile/resume/edit?from=resume-details&section=${encodeURIComponent(builderSectionByReviewSection[section])}`);
+      return;
+    }
+    openDrawer(section);
   };
   const closeDrawer = () => { setEditing(null); setDrawerDraft(null); setShowValidation(false); };
   const changeDrawer = (path: Path, value: unknown) => setDrawerDraft((current) => current ? setPath(current, path, value) : current);
@@ -268,43 +328,71 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
       setDirty(true);
       setSaved(false);
       setError(null);
+      setSavedWithoutScoring(false);
     }
     closeDrawer();
   };
-  const confirm = async () => {
+  const saveChanges = async (reportSaveOnly = false): Promise<string | null> => {
     setError(null);
     const firstIssue = draftIssues[0];
     if (firstIssue) {
       setError("Complete or remove the highlighted entries before saving.");
       openDrawer(sectionForPath(firstIssue.path), true);
-      return;
+      return null;
     }
     try {
       let target = createdId ?? version.resumeVersionId;
+      let savedNewVersion = false;
       if (restoreFromHistory && !createdId) {
         const text = structuredResumeToText(draft);
-        if (text.length < 50) { setError("Add at least 50 characters of resume details before saving."); return; }
+        if (text.length < 50) { setError("Add at least 50 characters of resume details before saving."); return null; }
         const created = version.source === "BUILDER"
           ? await submitResumeText(text).unwrap()
           : await editVersion({ resumeVersionId: version.resumeVersionId, edit: { text }, __suppressSuccessFeedback: true }).unwrap();
         target = created.resumeVersionId;
         setCreatedId(target);
         setDirty(false);
+        savedNewVersion = true;
       } else if (dirty) {
         const text = structuredResumeToText(draft);
-        if (text.length < 50) { setError("Add at least 50 characters of resume details before saving."); return; }
+        if (text.length < 50) { setError("Add at least 50 characters of resume details before saving."); return null; }
         const created = await editVersion({ resumeVersionId: target, edit: { text }, __suppressSuccessFeedback: true }).unwrap();
         target = created.resumeVersionId;
         setCreatedId(target);
         setDirty(false);
+        savedNewVersion = true;
       }
-      if (!version.confirmed || restoreFromHistory || dirty || createdId) {
+      if (reportSaveOnly && savedNewVersion) setSavedWithoutScoring(true);
+      return target;
+    } catch (failure) {
+      setError(getApiErrorCode(failure) === "resume_version_superseded" ? "This resume changed in another tab. Reload the latest version." : getApiErrorMessage(failure, "The resume could not be saved. Please try again."));
+      return null;
+    }
+  };
+  const confirm = async () => {
+    const target = await saveChanges();
+    if (!target) return;
+    if (!version.confirmed || restoreFromHistory || dirty || createdId) {
+      try {
         const confirmed = await confirmVersion(target).unwrap();
         setSaved(true);
         onConfirmed(confirmed.confirmedAt);
+      } catch (failure) {
+        if (getApiErrorCode(failure) === "resume_scoring_cooldown") {
+          const next = getApiErrorParams(failure)?.next_scoring_at;
+          // Disable immediately, even if a malformed response omits the date;
+          // the follow-up window request supplies the authoritative value.
+          setCooldownNextScoringAt(typeof next === "string" ? next : "");
+          setSavedWithoutScoring(true);
+          setError(null);
+        } else {
+          setError(getApiErrorCode(failure) === "resume_version_superseded" ? "This resume changed in another tab. Reload the latest version." : getApiErrorMessage(failure, "The resume could not be saved. Please try again."));
+        }
+      } finally {
+        // Eligibility is server-owned. Refresh it after every confirm attempt;
+        // a cooldown refusal is displayed and never automatically retried.
+        onRefreshScoringWindow();
       }
-    } catch (failure) {
-      setError(getApiErrorCode(failure) === "resume_version_superseded" ? "This resume changed in another tab. Reload the latest version." : getApiErrorMessage(failure, "The resume could not be saved. Please try again."));
     }
   };
   return (
@@ -329,9 +417,9 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
                   : hasContent(draft, key) && <DoneDot />}
                 <button
                   type="button"
-                  onClick={() => openDrawer(key)}
-                  aria-label={`Edit ${label}`}
-                  aria-haspopup="dialog"
+                  onClick={() => editSection(key)}
+                  aria-label={isBuilderResume ? `Edit ${label} in resume builder` : `Edit ${label}`}
+                  aria-haspopup={isBuilderResume ? undefined : "dialog"}
                   className="grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-xl border border-[#E7E0D4] text-[#5F4DB2] transition hover:bg-[#F1EAF7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30"
                 >
                   <PencilLine size={17} aria-hidden="true" />
@@ -343,9 +431,24 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
         })}
       </div>
       <div className="sticky bottom-0 -mx-1 flex flex-col gap-3 border-t border-[#E7E0D4] bg-[#FFFCF7]/95 px-1 pb-3.5 pt-4 backdrop-blur">
-        <PillButton onClick={() => void confirm()} isLoading={busy} disabled={busy || !canConfirm} className="w-full py-[18px] lg:py-3 lg:text-[14px]">
-          {canConfirm ? confirmLabel : "Already confirmed"}
+        <PillButton onClick={() => void confirm()} isLoading={confirmState.isLoading} disabled={busy || !canConfirm} className="w-full py-[18px] lg:py-3 lg:text-[14px]">
+          {scoringEligibilityPending ? "Checking score availability" : scoringCooldownActive ? "Score update unavailable" : canConfirm ? confirmLabel : "Already confirmed"}
         </PillButton>
+        {scoreUpdateUnavailable && (
+          <div role="status" className="space-y-1 text-center text-[12px] leading-4 text-[#5F6B80]">
+            {scoringEligibilityPending
+              ? <p>{scoringWindowError ? "We could not check score availability. You can save your resume, but its score will not be updated." : "Checking whether this resume can update your score. You can still save your resume."}</p>
+              : nextScoringAt
+                ? <p>Your next resume can be scored on {scoringAvailabilityLabel(nextScoringAt)}.</p>
+                : <p>Your resume can be saved now, but its score cannot be updated yet.</p>}
+            {savedWithoutScoring && <p className="font-medium text-[#3A4761]">Resume saved. Your score was not updated.</p>}
+          </div>
+        )}
+        {scoreUpdateUnavailable && hasPendingSave && (
+          <PillButton variant="secondary" onClick={() => void saveChanges(true)} isLoading={savingResume} disabled={busy} className="w-full py-3 lg:py-2.5 lg:text-[13px]">
+            Save resume only
+          </PillButton>
+        )}
         <div className="flex items-center justify-between gap-3 text-[12px] leading-4 text-[#5F6B80]">
           <span>Your edits create a new resume version.</span>
           <button type="button" disabled={busy || !canConfirm} onClick={() => { setDraft(structuredClone(version.structuredResume!)); setDirty(false); closeDrawer(); setError(null); onStartOver(); }} className="cursor-pointer font-semibold text-[#3A4761] transition hover:text-[#0A1931] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-[#3A4761]">{startOverLabel}</button>
