@@ -9,15 +9,15 @@ import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
 import { useConfirmResumeVersionMutation, useGetBuilderDraftQuery, useGetResumeScoringWindowQuery, type BuilderTemplateKey } from "@/store/student";
 
 function nextScoringMessage(nextScoringAt: string | null | undefined): string {
-  if (!nextScoringAt) return "Resume saved. Your score was not updated.";
+  if (!nextScoringAt) return "You can apply this resume when your scoring window reopens.";
   const date = new Date(nextScoringAt);
-  if (Number.isNaN(date.getTime())) return "Resume saved. Your score was not updated.";
+  if (Number.isNaN(date.getTime())) return "You can apply this resume when your scoring window reopens.";
   const days = Math.max(0, Math.ceil((date.getTime() - Date.now()) / 86_400_000));
   const relative = days === 0 ? "today" : `in ${days} ${days === 1 ? "day" : "days"}`;
   const formatted = new Intl.DateTimeFormat("en-IN", {
     day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata",
   }).format(date);
-  return `Resume saved. Your score was not updated. You can update it again on ${formatted} IST (${relative}).`;
+  return `You can apply this resume on ${formatted} IST (${relative}).`;
 }
 
 export function ResumeBuilderEditor({ templateKey, section, returnTo = "profile" }: { templateKey?: BuilderTemplateKey; section?: string; returnTo?: "profile" | "resume-details" }) {
@@ -27,14 +27,25 @@ export function ResumeBuilderEditor({ templateKey, section, returnTo = "profile"
   const [confirmVersion] = useConfirmResumeVersionMutation();
   const scoreWindow = scoringWindow.data;
   const scoringEligibilityKnown = scoreWindow !== undefined;
-  const scoreUpdateAvailable = scoreWindow !== undefined && (scoreWindow.intervalDays === 0 || scoreWindow.canConfirmNow);
-  const scoringCooldown = scoringEligibilityKnown && !scoreUpdateAvailable;
+  const scoringCooldown = scoreWindow !== undefined && scoreWindow.intervalDays !== 0 && !scoreWindow.canConfirmNow;
+
+  const checkScoringWindow = async () => {
+    try {
+      const freshWindow = await scoringWindow.refetch().unwrap();
+      if (freshWindow.intervalDays !== 0 && !freshWindow.canConfirmNow) {
+        showSuccessFeedback(nextScoringMessage(freshWindow.nextScoringAt));
+        return false;
+      }
+      return true;
+    } catch (failure) {
+      showErrorFeedback(getApiErrorMessage(failure, "Score availability could not be checked. Try again."));
+      return false;
+    }
+  };
 
   const finish = async (resumeVersionId: string, alreadyConfirmed: boolean) => {
     if (alreadyConfirmed) {
       showSuccessFeedback("Your resume is already up to date.");
-    } else if (!scoreUpdateAvailable) {
-      showSuccessFeedback(nextScoringMessage(scoringWindow.data?.nextScoringAt));
     } else {
       try {
         await confirmVersion(resumeVersionId).unwrap();
@@ -66,9 +77,9 @@ export function ResumeBuilderEditor({ templateKey, section, returnTo = "profile"
         initialTemplate={selectedTemplate}
         focusSection={section}
         profileMode
-        profileSubmissionLabel={scoreUpdateAvailable ? "Save & update score" : "Save resume only"}
-        profileScoreUpdateDisabled={!scoreUpdateAvailable}
-        profileSubmissionNotice={!scoringEligibilityKnown ? "Checking score availability. You can save your resume, but its score will not be updated until eligibility is confirmed." : scoringCooldown ? `Score updates are unavailable. Save your resume now; ${scoringWindow.data?.nextScoringAt ? nextScoringMessage(scoringWindow.data.nextScoringAt).replace("Resume saved. Your score was not updated. ", "") : "you can update the score when your scoring window reopens."}` : undefined}
+        profileSubmissionLabel="Save & update score"
+        profileSubmissionNotice={!scoringEligibilityKnown ? "Score availability is checked when you apply this resume." : scoringCooldown ? nextScoringMessage(scoringWindow.data?.nextScoringAt) : undefined}
+        onBeforeSubmit={checkScoringWindow}
         onBack={() => router.replace(returnTo === "resume-details" ? "/student/profile/resume" : "/student/profile#profile-reports")}
         onSubmitted={(result) => finish(result.resume_version_id, result.confirmed)}
       />

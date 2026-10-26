@@ -14,7 +14,7 @@ import { parseFailureMessage } from "@/features/student/onboarding/constants";
 import { StudentPage } from "@/features/student/shell";
 import { getApiErrorCode, getApiErrorMessage } from "@/lib/api/error-message";
 import { showErrorFeedback, showSuccessFeedback } from "@/lib/feedback/success-feedback";
-import { useCompleteResumeUploadMutation, useCreateResumeUploadMutation, useGetResumeFilesQuery, useGetResumeScoringWindowQuery, useGetResumeVersionsQuery, useUploadResumeFileMutation, type ResumeScoringWindow } from "@/store/student";
+import { useCompleteResumeUploadMutation, useCreateResumeUploadMutation, useGetBuilderDraftQuery, useGetResumeFilesQuery, useGetResumeScoringWindowQuery, useGetResumeVersionsQuery, useUploadResumeFileMutation, type ResumeScoringWindow } from "@/store/student";
 import { useGetCareerProfileQuery, useLazyGetProfileResumeDocumentQuery } from "./career-api";
 import { ResumeTemplateDialog } from "./resume-template-dialog";
 
@@ -27,6 +27,7 @@ export function ResumeDetails() {
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
   const versions = useGetResumeVersionsQuery();
+  const builderDraft = useGetBuilderDraftQuery();
   const profile = useGetCareerProfileQuery();
   const [getDocument, documentState] = useLazyGetProfileResumeDocumentQuery();
   const [createUpload] = useCreateResumeUploadMutation();
@@ -173,6 +174,17 @@ export function ResumeDetails() {
                     </button>
                   )}
                 </div>
+                {builderDraft.data && !builderDraft.data.pushed_is_current && (
+                  <div role="status" className="flex flex-wrap items-center gap-3 rounded-[18px] border border-[#D9D0F5] bg-[#F8F5FF] px-4 py-3">
+                    <div className="mr-auto min-w-0">
+                      <p className="text-[13px] font-bold text-[#0A1931]">You have builder changes that aren’t applied yet</p>
+                      <p className="mt-1 text-[12px] leading-5 text-[#5F6B80]">Apply your saved draft to use it on your profile.</p>
+                    </div>
+                    <button type="button" onClick={() => router.push("/student/profile/resume/edit?from=resume-details")} className="inline-flex items-center gap-2 rounded-full bg-[#5F4DB2] px-4 py-2 text-[12px] font-semibold text-white transition hover:bg-[#4A3E8F]">
+                      Open resume builder <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
+                  </div>
+                )}
                 {selectedFromHistory && <div role="status" className="flex items-start gap-3 rounded-[18px] border border-[#D9D0F5] bg-[#F8F5FF] px-4 py-3 text-[#3A4761]">
                   <History className="mt-0.5 h-4 w-4 shrink-0 text-[#5F4DB2]" aria-hidden="true" />
                   <div className="min-w-0">

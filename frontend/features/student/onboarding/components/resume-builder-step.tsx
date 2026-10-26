@@ -111,17 +111,18 @@ export function ResumeBuilderStep({
   profileMode = false,
   profileSubmissionLabel,
   profileSubmissionNotice,
-  profileScoreUpdateDisabled = false,
+  onBeforeSubmit,
   focusSection,
 }: {
   onBack: () => void;
   onSubmitted: (result: BuilderPush) => void | Promise<void>;
   initialTemplate?: BuilderTemplateKey;
   profileMode?: boolean;
-  /** Allows the profile page to turn this into a save-only action during a scoring cooldown. */
+  /** Overrides the profile submission button label. */
   profileSubmissionLabel?: string;
   profileSubmissionNotice?: string;
-  profileScoreUpdateDisabled?: boolean;
+  /** Runs immediately before saving/pushing a profile resume. */
+  onBeforeSubmit?: () => Promise<boolean>;
   /** The builder section to scroll to when opened from a builder resume review. */
   focusSection?: string;
 }) {
@@ -251,7 +252,9 @@ export function ResumeBuilderStep({
   };
 
   const onSave = async () => {
-    if (await save()) showSuccessFeedback("Resume saved.");
+    if (await save()) showSuccessFeedback(profileMode
+      ? "Draft saved. Press Save & update score to use it on your profile."
+      : "Draft saved.");
   };
 
   const needsSave = dirty || savedSnapshot === "";
@@ -284,6 +287,7 @@ export function ResumeBuilderStep({
       setError("Add experience, education, or at least one skill before submitting your resume.");
       return;
     }
+    if (profileMode && onBeforeSubmit && !(await onBeforeSubmit())) return;
     if (needsSave && !(await save())) return;
     try {
       setFinalizing(true);
@@ -368,16 +372,9 @@ export function ResumeBuilderStep({
         <button type="button" onClick={() => void onDownload()} disabled={busy} className="flex items-center gap-2 rounded-full border border-[#DDD6C7] px-4 py-2 text-sm font-semibold disabled:opacity-50">
           {downloadState.isLoading ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <Download size={16} aria-hidden="true" />} Download
         </button>
-        {profileMode && profileScoreUpdateDisabled && (
-          <button type="button" disabled aria-describedby="builder-score-availability" className="flex items-center gap-2 rounded-full border border-[#5F4DB2] bg-[#F4F0FC] px-5 py-2 text-sm font-semibold text-[#5F4DB2] opacity-60">
-            <Send size={16} aria-hidden="true" /> Update score
-          </button>
-        )}
-        {(!profileMode || !profileScoreUpdateDisabled) && (
-          <button type="button" onClick={() => void onSubmit()} disabled={busy} className="flex items-center gap-2 rounded-full bg-[#5F4DB2] px-5 py-2 text-sm font-semibold text-white hover:bg-[#4A3E8F] disabled:opacity-60">
-            {pushState.isLoading || finalizing ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <Send size={16} aria-hidden="true" />} {profileMode ? profileSubmissionLabel ?? "Save & update score" : "Submit"}
-          </button>
-        )}
+        <button type="button" onClick={() => void onSubmit()} disabled={busy} className="flex items-center gap-2 rounded-full bg-[#5F4DB2] px-5 py-2 text-sm font-semibold text-white hover:bg-[#4A3E8F] disabled:opacity-60">
+          {pushState.isLoading || finalizing ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <Send size={16} aria-hidden="true" />} {profileMode ? profileSubmissionLabel ?? "Save & update score" : "Submit"}
+        </button>
       </header>
       {profileMode && profileSubmissionNotice && (
         <div id="builder-score-availability" role="status" className="border-b border-[#E9D9A6] bg-[#FFFAE9] px-4 py-2 text-[12px] leading-5 text-[#6B4E0A]">

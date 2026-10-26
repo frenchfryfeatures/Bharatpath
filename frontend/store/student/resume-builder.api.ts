@@ -63,6 +63,7 @@ export const studentResumeBuilderApi = baseApi.injectEndpoints({
 
     saveBuilderDraft: builder.mutation<BuilderDraft, BuilderDraftBody>({
       query: (body) => ({ url: `${BASE}/draft`, method: "PUT", body }),
+      invalidatesTags: [{ type: "Student", id: "BUILDER_DRAFT" }],
     }),
 
     resetBuilderDraft: builder.mutation<BuilderDraft, void>({
