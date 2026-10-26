@@ -4,8 +4,8 @@ import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
 import { ResumeBuilderStep } from "@/features/student/onboarding/components/resume-builder-step";
-import { getApiErrorCode, getApiErrorParams } from "@/lib/api/error-message";
-import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
+import { getApiErrorCode, getApiErrorMessage, getApiErrorParams } from "@/lib/api/error-message";
+import { showErrorFeedback, showSuccessFeedback } from "@/lib/feedback/success-feedback";
 import { useConfirmResumeVersionMutation, useGetBuilderDraftQuery, useGetResumeScoringWindowQuery, type BuilderTemplateKey } from "@/store/student";
 
 function nextScoringMessage(nextScoringAt: string | null | undefined): string {
@@ -78,6 +78,7 @@ export function ResumeBuilderEditor({ templateKey, section, returnTo = "profile"
         focusSection={section}
         profileMode
         profileSubmissionLabel="Save & update score"
+        profileSubmissionDisabled={scoringCooldown}
         profileSubmissionNotice={!scoringEligibilityKnown ? "Score availability is checked when you apply this resume." : scoringCooldown ? nextScoringMessage(scoringWindow.data?.nextScoringAt) : undefined}
         onBeforeSubmit={checkScoringWindow}
         onBack={() => router.replace(returnTo === "resume-details" ? "/student/profile/resume" : "/student/profile#profile-reports")}

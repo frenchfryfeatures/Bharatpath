@@ -110,6 +110,7 @@ export function ResumeBuilderStep({
   initialTemplate,
   profileMode = false,
   profileSubmissionLabel,
+  profileSubmissionDisabled = false,
   profileSubmissionNotice,
   onBeforeSubmit,
   focusSection,
@@ -120,6 +121,7 @@ export function ResumeBuilderStep({
   profileMode?: boolean;
   /** Overrides the profile submission button label. */
   profileSubmissionLabel?: string;
+  profileSubmissionDisabled?: boolean;
   profileSubmissionNotice?: string;
   /** Runs immediately before saving/pushing a profile resume. */
   onBeforeSubmit?: () => Promise<boolean>;
@@ -281,6 +283,7 @@ export function ResumeBuilderStep({
   };
 
   const onSubmit = async () => {
+    if (profileMode && profileSubmissionDisabled) return;
     if (!validateBeforeAction()) return;
     if (content && content.experience.length === 0 && content.education.length === 0 && content.skills.length === 0) {
       setMobileTab("edit");
@@ -372,7 +375,7 @@ export function ResumeBuilderStep({
         <button type="button" onClick={() => void onDownload()} disabled={busy} className="flex items-center gap-2 rounded-full border border-[#DDD6C7] px-4 py-2 text-sm font-semibold disabled:opacity-50">
           {downloadState.isLoading ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <Download size={16} aria-hidden="true" />} Download
         </button>
-        <button type="button" onClick={() => void onSubmit()} disabled={busy} className="flex items-center gap-2 rounded-full bg-[#5F4DB2] px-5 py-2 text-sm font-semibold text-white hover:bg-[#4A3E8F] disabled:opacity-60">
+        <button type="button" onClick={() => void onSubmit()} disabled={busy || (profileMode && profileSubmissionDisabled)} className="flex items-center gap-2 rounded-full bg-[#5F4DB2] px-5 py-2 text-sm font-semibold text-white hover:bg-[#4A3E8F] disabled:cursor-not-allowed disabled:opacity-60">
           {pushState.isLoading || finalizing ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <Send size={16} aria-hidden="true" />} {profileMode ? profileSubmissionLabel ?? "Save & update score" : "Submit"}
         </button>
       </header>
