@@ -200,6 +200,14 @@ attached to it.
   latch (conditional UPDATE, `WHERE confirmed_at IS NULL`). An edit never
   inherits confirmation — that would be the gate reached through a side door.
 
+- **One confirmation per `resume.scoring_interval`** (default 15 days,
+  2026-10-26). Uploads, pastes, edits and builder pushes are unlimited;
+  the confirm, being the only door to scoring, is where the limit lives
+  (409 `resume_scoring_cooldown`, `GET /candidate/resume/scoring-window`).
+  Measured from the last `confirmed_at`, under a per-candidate advisory
+  lock, checked after the idempotent-retry branch. Add-on re-scores are
+  not confirmations. **A test that confirms twice for one candidate calls
+  `age_resume_confirmations`** (`tests/conftest.py`) in between.
 - **Review-screen sections are a view of `raw_text`, never stored**
   (`resume/sections.py`, 2026-09-23). A `sections` edit is assembled back into
   text. Do not "upgrade" it to the structured form: that drops the prose Layer 1

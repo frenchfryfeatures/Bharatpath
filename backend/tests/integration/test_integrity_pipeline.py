@@ -19,7 +19,7 @@ from typing import Any
 import pytest
 from sqlalchemy import text
 
-from tests.conftest import _seed_url, sessions
+from tests.conftest import _seed_url, age_resume_confirmations, sessions
 
 pytestmark = pytest.mark.integration
 
@@ -306,6 +306,7 @@ async def test_a_clean_reupload_does_not_wash_away_an_unreviewed_signal(
     await _evaluate(candidate, injected_id, INJECTED_CV, EXTRACTED)
 
     clean_body = CLEAN_CV + f"\n{uuid.uuid4()}"
+    await age_resume_confirmations(candidate)  # past `resume.scoring_interval`
     clean_id, _ = await _scored_version(candidate, clean_body, EXTRACTED)
     await _evaluate(candidate, clean_id, clean_body, EXTRACTED)
 

@@ -14,7 +14,7 @@ from typing import Any
 import pytest
 from sqlalchemy import text
 
-from tests.conftest import _seed_url, sessions
+from tests.conftest import _seed_url, age_resume_confirmations, sessions
 
 pytestmark = pytest.mark.integration
 
@@ -224,6 +224,7 @@ async def test_the_last_confirmed_version_stays_scorable_until_a_correction_is_c
         scorable = await service.get_scorable_version(session, user_id=candidate)
     assert scorable.id == original.id
 
+    await age_resume_confirmations(candidate)  # past `resume.scoring_interval`
     await _confirm(candidate, edited.id)
     async with factory() as session:
         scorable = await service.get_scorable_version(session, user_id=candidate)

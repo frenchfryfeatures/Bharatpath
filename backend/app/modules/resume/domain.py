@@ -12,6 +12,7 @@ from __future__ import annotations
 import unicodedata
 import uuid
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import Any, Final
 
 #: Magic numbers, longest first so a prefix never shadows a longer match.
@@ -272,6 +273,68 @@ def refuse_version_change(*, is_superseded: bool) -> VersionRefusal | None:
             "This version has been replaced by a newer one. Edit the newest version instead.",
         )
     return None
+
+
+# ---------------------------------------------------------------------------
+# How often a resume may go to scoring (2026-10-26)
+# ---------------------------------------------------------------------------
+#: Uploads, pastes, corrections and builder pushes are unlimited; a
+#: *confirmation* is what sends a resume to scoring, and a candidate gets one
+#: per interval. Ours, not the client's.
+DEFAULT_SCORING_INTERVAL_DAYS: Final = 15
+#: 0 switches the limit off. The ceiling is a year: anything longer is a
+#: typo that would lock a candidate out of correcting their score.
+MAX_SCORING_INTERVAL_DAYS: Final = 365
+
+
+class ScoringIntervalError(ValueError):
+    """The configured scoring interval cannot be applied."""
+
+
+@dataclass(frozen=True, slots=True)
+class ScoringInterval:
+    days: int
+    version: str
+
+    @property
+    def period(self) -> timedelta:
+        return timedelta(days=self.days)
+
+
+DEFAULT_SCORING_INTERVAL: Final = ScoringInterval(
+    days=DEFAULT_SCORING_INTERVAL_DAYS, version="code-v1"
+)
+
+
+def scoring_interval_from_config(value: object, *, version: str) -> ScoringInterval:
+    """Parse `{"days": n}`, 0 to 365. Strict: anything doubtful raises.
+
+    A bad row must not quietly become the default, nor a number nobody meant.
+    """
+    if not isinstance(value, dict) or set(value) != {"days"}:
+        raise ScoringIntervalError('expected {"days": <int>}')
+    days = value["days"]
+    if isinstance(days, bool) or not isinstance(days, int):
+        raise ScoringIntervalError("days must be an integer")
+    if not 0 <= days <= MAX_SCORING_INTERVAL_DAYS:
+        raise ScoringIntervalError(f"days must be between 0 and {MAX_SCORING_INTERVAL_DAYS}")
+    return ScoringInterval(days=days, version=version)
+
+
+def next_scoring_at(
+    *, last_confirmed_at: datetime | None, interval: ScoringInterval, now: datetime
+) -> datetime | None:
+    """When this candidate may next confirm a resume, or None if they may now.
+
+    **Measured from the last confirmation, not the last score.** Confirming is
+    the act that spends the turn: a score that is still being computed, or
+    one whose extraction failed and is being retried, has already been asked
+    for. The first confirmation is always allowed.
+    """
+    if last_confirmed_at is None or interval.days == 0:
+        return None
+    at = last_confirmed_at + interval.period
+    return at if now < at else None
 
 
 def edit_provenance(previous_extractor: dict[str, Any] | None) -> dict[str, Any]:

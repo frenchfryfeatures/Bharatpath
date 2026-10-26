@@ -18,7 +18,7 @@ import pytest
 from sqlalchemy import text
 
 from app.modules.resume.domain import upload_key
-from tests.conftest import _seed_url, sessions
+from tests.conftest import _seed_url, age_resume_confirmations, sessions
 from tests.integration.test_candidate_marketplace import _candidate
 from tests.integration.test_resume_intake import PDF, FakeS3
 
@@ -163,6 +163,7 @@ async def test_current_follows_the_newest_confirmation_across_chains(
     versions = await _get(client, me, "/versions")
     assert [v["resume_version_id"] for v in versions if v["current"]] == [first]
 
+    await age_resume_confirmations(me["id"])  # past `resume.scoring_interval`
     await _confirm(me["id"], second)
     versions = await _get(client, me, "/versions")
     assert [v["resume_version_id"] for v in versions if v["current"]] == [second]

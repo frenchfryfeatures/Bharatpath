@@ -34,6 +34,7 @@ from app.modules.resume.schemas import (
     ResumeEditRequest,
     ResumeFileStatusResponse,
     ResumeFileSummary,
+    ResumeScoringWindowResponse,
     ResumeSection,
     ResumeSectionItem,
     ResumeVersionDetailResponse,
@@ -394,6 +395,25 @@ async def confirm_version(
         resume_version_id=row.id,
         confirmed_at=row.confirmed_at,
         already_confirmed=already,
+    )
+
+
+@router.get(
+    "/scoring-window",
+    response_model=ResumeScoringWindowResponse,
+    dependencies=[CandidateOnly],
+    summary="When this candidate may next confirm a resume for scoring",
+)
+async def scoring_window(user: CurrentUser, session: DbSession) -> ResumeScoringWindowResponse:
+    """Read before showing the confirm button. Not paywalled: it says when,
+    and the confirm itself is still behind the subscription. A confirm inside
+    the window answers 409 `resume_scoring_cooldown` with the same date."""
+    window = await service.scoring_window(session, user_id=user.user_id)
+    return ResumeScoringWindowResponse(
+        interval_days=window.interval_days,
+        last_confirmed_at=window.last_confirmed_at,
+        next_scoring_at=window.next_scoring_at,
+        can_confirm_now=window.next_scoring_at is None,
     )
 
 

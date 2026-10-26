@@ -13,20 +13,25 @@ import asyncio
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Final
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import storage
-from app.core.errors import ConflictError, NotFoundError, ValidationError
+from app.core.errors import AppError, ConflictError, NotFoundError, ValidationError
 from app.core.logging import get_logger
 from app.core.outbox import emit
 from app.modules.resume import repository
 from app.modules.resume.domain import (
+    DEFAULT_SCORING_INTERVAL,
+    ScoringInterval,
+    ScoringIntervalError,
     build_edited_parsed,
     clean_filename,
+    next_scoring_at,
     refuse_version_change,
+    scoring_interval_from_config,
     sniff_mime,
     upload_key,
     validate_upload,
@@ -109,6 +114,65 @@ class ResumeNotConfirmedError(ConflictError):
 
     code = "resume_not_confirmed"
     title = "No confirmed resume"
+
+
+class ScoringCooldownError(ConflictError):
+    """A confirmation sends a resume to scoring, and a candidate gets one per
+    `resume.scoring_interval`. Uploading and correcting stay open; only the
+    confirm waits. `params` carry `next_scoring_at` and `interval_days` for
+    the client's copy."""
+
+    code = "resume_scoring_cooldown"
+    title = "Your resume can be scored again later"
+
+
+class ScoringIntervalInvalidError(AppError):
+    """The `resume.scoring_interval` row is malformed. A 500, never the
+    default: a bad row must not silently decide how often people are scored."""
+
+    code = "resume_scoring_interval_invalid"
+    title = "Scoring interval is misconfigured"
+
+
+#: The `config_values` key replacing `DEFAULT_SCORING_INTERVAL`:
+#: `{"days": n}`, 0 (off) to 365.
+SCORING_INTERVAL_CONFIG_KEY: Final = "resume.scoring_interval"
+
+
+@dataclass(frozen=True, slots=True)
+class ScoringWindow:
+    """When this candidate may next send a resume to scoring."""
+
+    interval_days: int
+    last_confirmed_at: datetime | None
+    #: None when a confirmation is allowed now.
+    next_scoring_at: datetime | None
+
+
+async def load_scoring_interval(session: AsyncSession, *, now: datetime) -> ScoringInterval:
+    """The interval in force at `now`: the latest config row, else the code default."""
+    row = await repository.current_config(session, key=SCORING_INTERVAL_CONFIG_KEY, now=now)
+    if row is None:
+        return DEFAULT_SCORING_INTERVAL
+    try:
+        return scoring_interval_from_config(row.value, version=f"config-v{row.version}")
+    except ScoringIntervalError as exc:
+        logger.error("resume_scoring_interval_invalid", config_version=row.version, error=str(exc))
+        raise ScoringIntervalInvalidError() from exc
+
+
+async def scoring_window(
+    session: AsyncSession, *, user_id: uuid.UUID, now: datetime | None = None
+) -> ScoringWindow:
+    """Read-only: what the confirm gate would say about timing right now."""
+    now = now or datetime.now(UTC)
+    interval = await load_scoring_interval(session, now=now)
+    last = await repository.last_confirmed_at(session, user_id=user_id)
+    return ScoringWindow(
+        interval_days=interval.days,
+        last_confirmed_at=last,
+        next_scoring_at=next_scoring_at(last_confirmed_at=last, interval=interval, now=now),
+    )
 
 
 async def issue_upload_ticket(
@@ -590,7 +654,15 @@ async def confirm_version(
     timestamp rather than moving it -- when the candidate approved the content
     is a fact about them, not about how many times their phone lost signal
     mid-request.
+
+    **One confirmation per `resume.scoring_interval`** (2026-10-26), checked
+    after the retry so a lost response never reads as a refusal. Uploads and
+    corrections are unlimited; this is the only door to scoring, so it is the
+    only place the limit lives. Taken under a per-candidate lock, first, so a
+    concurrent confirm of the same version still finds it confirmed rather
+    than finding the interval spent.
     """
+    await repository.lock_confirmations(session, user_id=user_id)
     existing = await repository.get_version(
         session, resume_version_id=resume_version_id, user_id=user_id
     )
@@ -604,6 +676,15 @@ async def confirm_version(
 
     if existing.confirmed_at is not None:
         return existing, True
+
+    window = await scoring_window(session, user_id=user_id)
+    if window.next_scoring_at is not None:
+        raise ScoringCooldownError(
+            params={
+                "next_scoring_at": window.next_scoring_at.isoformat(),
+                "interval_days": window.interval_days,
+            }
+        )
 
     row = await repository.confirm_version(
         session, resume_version_id=resume_version_id, user_id=user_id
