@@ -480,12 +480,56 @@ Requires: `CANDIDATE` role. **This is SRS 1.4.4, the mandatory confirm gate.**
    `confirmed_at` timestamp, never a new one. When a candidate approved
    their content is a fact about them, not about how many times their phone
    lost signal mid-request.
-4. Otherwise: the confirmation is written (a one-way latch — `confirmed_at`
+4. Has this candidate confirmed **any** version in the last
+   `resume.scoring_interval` days (default **15**)? If so, `409
+   resume_scoring_cooldown` with `params.next_scoring_at` (ISO timestamp)
+   and `params.interval_days`. Nothing is confirmed, nothing is scored, and
+   the last confirmed version stays the one scored. The first confirmation
+   is always allowed.
+5. Otherwise: the confirmation is written (a one-way latch — `confirmed_at`
    can only move from `NULL` to a value, never back), and **only now** the
    `resume.version_confirmed` event fires.
 
 That event is what a background worker picks up to actually run scoring —
 see §0 above for why it's this specific event and not "version created."
+
+**Uploading is never limited; scoring is** (2026-10-26). A candidate may
+upload, paste, correct and push from the builder as often as they like. Only
+the confirm, which is what sends a resume to scoring, is held to one per
+interval. The interval is measured from the last *confirmation*, not the last
+score, so a score that's still computing has already used the turn. A retry
+of a confirmation already made still answers `200 already_confirmed` (check 3
+runs first). The interval is `config_values` key `resume.scoring_interval`,
+`{"days": n}`, 0 (off) to 365; change it by inserting a new version of the
+row. A malformed row is a `500`, never the default. Add-on re-scores (a
+course or interview completed) are not confirmations and are not limited.
+
+---
+
+## 9b. `GET /candidate/resume/scoring-window` — when the next confirm is allowed
+
+Requires: `CANDIDATE` role. **Not paywalled** — it only says when; the
+confirm itself still needs a subscription.
+
+**Response** — `200 OK` (`ResumeScoringWindowResponse`):
+```json
+{
+  "interval_days": 15,
+  "last_confirmed_at": "2026-10-20T09:00:00Z",
+  "next_scoring_at": "2026-11-04T09:00:00Z",
+  "can_confirm_now": false
+}
+```
+| Field | Meaning |
+|---|---|
+| `interval_days` | One confirmation per this many days. `0` means no limit. |
+| `last_confirmed_at` | The candidate's last confirmation, or `null` if none. |
+| `next_scoring_at` | When a confirmation is next allowed; `null` means now. |
+| `can_confirm_now` | `next_scoring_at == null`. |
+
+Read it before showing the review screen's confirm button, so the app can say
+"Your next scoring is available on 4 Nov" instead of letting the tap fail.
+The `409` from §9 carries the same date.
 
 ---
 

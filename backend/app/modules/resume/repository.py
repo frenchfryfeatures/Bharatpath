@@ -12,9 +12,10 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.models import ConfigValue
 from app.modules.resume.models import ResumeFile, ResumeVersion
 
 
@@ -291,6 +292,36 @@ async def confirm_version(
         )
         .values(confirmed_at=func.now())
         .returning(ResumeVersion)
+    )
+    return result.scalar_one_or_none()
+
+
+async def lock_confirmations(session: AsyncSession, *, user_id: uuid.UUID) -> None:
+    """Serialise one candidate's confirmations, so two confirms of different
+    versions (an upload and a builder push) cannot both read "allowed" and
+    both send a resume to scoring inside one interval."""
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+        {"key": f"resume-confirm:{user_id}"},
+    )
+
+
+async def last_confirmed_at(session: AsyncSession, *, user_id: uuid.UUID) -> datetime | None:
+    """When this candidate last confirmed any version, or None. A timestamp,
+    never a row: `latest_confirmed_version` stays the one query that returns
+    a version for scoring."""
+    return await session.scalar(
+        select(func.max(ResumeVersion.confirmed_at)).where(ResumeVersion.user_id == user_id)
+    )
+
+
+async def current_config(session: AsyncSession, *, key: str, now: datetime) -> ConfigValue | None:
+    """The highest version of a config key in effect at `now`."""
+    result = await session.execute(
+        select(ConfigValue)
+        .where(ConfigValue.key == key, ConfigValue.effective_from <= now)
+        .order_by(ConfigValue.version.desc())
+        .limit(1)
     )
     return result.scalar_one_or_none()
 

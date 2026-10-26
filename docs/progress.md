@@ -9,6 +9,45 @@ states. Newest entries first.
 
 ---
 
+## 2026-10-26 — Unlimited uploads, one scoring per 15 days
+
+Asked for: a candidate may upload as many resumes as they like, but only
+one may be scored every 15 days. Branch `feat/resume-scoring-interval`, no migration.
+Guide 04 §9 and §9b.
+
+- **The limit sits on the confirm, not on upload or on the score task.**
+  `resume.version_confirmed` is the only event that reaches scoring, so
+  `resume.service.confirm_version` refuses a second confirmation inside
+  the interval with 409 `resume_scoring_cooldown` (`params.next_scoring_at`,
+  `params.interval_days`). Nothing is latched, nothing emitted, and the last
+  confirmed version stays the one scored. Uploads, pastes, edits and builder
+  pushes are untouched.
+- **Measured from the last `confirmed_at`**, not the last score: a score
+  still computing (or retrying a failed extraction) has already been asked
+  for. The first confirmation is always allowed. A retry of a confirmation
+  already made still answers `already_confirmed` (that check runs first).
+- **Per-candidate advisory lock** (`repository.lock_confirmations`), taken
+  before anything is read, so two confirms of different versions cannot both
+  pass, and a concurrent confirm of the same version still reads as a retry.
+- **Config, not code:** `resume.scoring_interval`, `{"days": n}`, 0 (off)
+  to 365, strict reader (`domain.scoring_interval_from_config`), seeded at
+  15 by `seed_config.py`, so the next deploy writes the row. The 15 is the
+  backend lead's number; change it by inserting version 2.
+- **`GET /candidate/resume/scoring-window`**, not paywalled: `interval_days`,
+  `last_confirmed_at`, `next_scoring_at`, `can_confirm_now`, so the app can
+  show the date before the tap fails.
+- Add-on re-scores (course, interview) are not confirmations and are not
+  limited.
+- Tests: `tests/unit/test_resume_scoring_interval.py`,
+  `tests/integration/test_resume_scoring_interval.py`. Four existing tests
+  confirmed twice for one candidate; they now call
+  `age_resume_confirmations` (conftest) in between, which moves earlier
+  confirmations a year back as the migrator.
+- **For the app teams:** the review screen needs to read the window and
+  handle the new 409. Not done here (backend only).
+
+---
+
 ## 2026-10-22 — One search box (`q`) for every admin list
 
 The user asked for one `q` instead of the separate `name`, `email` and

@@ -426,6 +426,21 @@ class ResumeConfirmResponse(_Base):
     )
 
 
+class ResumeScoringWindowResponse(_Base):
+    """When this candidate may next confirm a resume, and so send it to
+    scoring. Uploads and corrections are never limited; only the confirm is."""
+
+    interval_days: int = Field(description="One confirmation per this many days. 0 means no limit.")
+    last_confirmed_at: datetime | None = Field(
+        default=None, description="The candidate's last confirmation, if any."
+    )
+    next_scoring_at: datetime | None = Field(
+        default=None,
+        description="When a confirmation is next allowed. Null means now.",
+    )
+    can_confirm_now: bool
+
+
 # ---------------------------------------------------------------------------
 # A CV shown to someone other than its owner (2026-10-05)
 # ---------------------------------------------------------------------------
