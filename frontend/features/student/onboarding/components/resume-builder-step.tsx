@@ -28,6 +28,7 @@ type Education = StructuredResume["education"][number];
 type Project = StructuredResume["projects"][number];
 type Certification = StructuredResume["certifications"][number];
 type Language = StructuredResume["languages"][number];
+type OtherSection = StructuredResume["other_sections"][number];
 type RowErrors = Record<string, string>;
 
 const required = (value: string, label: string) => value.trim() ? "" : `Enter ${label}.`;
@@ -73,13 +74,17 @@ const validateLanguage = (item: Language): RowErrors => ({
   name: required(item.name, "a language"),
   proficiency: required(item.proficiency, "a proficiency"),
 });
+const validateOtherSection = (item: OtherSection): RowErrors => ({
+  heading: required(item.heading, "a section heading"),
+});
 
 function hasInvalidRows(resume: StructuredResume) {
   return resume.experience.some((item) => rowHasErrors(validateExperience(item)))
     || resume.education.some((item) => rowHasErrors(validateEducation(item)))
     || resume.projects.some((item) => rowHasErrors(validateProject(item)))
     || resume.certifications.some((item) => rowHasErrors(validateCertification(item)))
-    || resume.languages.some((item) => rowHasErrors(validateLanguage(item)));
+    || resume.languages.some((item) => rowHasErrors(validateLanguage(item)))
+    || resume.other_sections.some((item) => rowHasErrors(validateOtherSection(item)));
 }
 
 const input =
@@ -91,6 +96,7 @@ const blank = {
   project: (): Project => ({ name: "", role: "", description: "", technologies: [], url: "", start_date: "", end_date: "" }),
   certification: (): Certification => ({ name: "", issuer: "", issue_date: "", expiry_date: "", credential_id: "", url: "" }),
   language: (): Language => ({ name: "", proficiency: "" }),
+  otherSection: (): OtherSection => ({ heading: "", items: [] }),
 };
 
 /**
@@ -103,11 +109,21 @@ export function ResumeBuilderStep({
   onSubmitted,
   initialTemplate,
   profileMode = false,
+  profileSubmissionLabel,
+  profileSubmissionNotice,
+  profileScoreUpdateDisabled = false,
+  focusSection,
 }: {
   onBack: () => void;
   onSubmitted: (result: BuilderPush) => void | Promise<void>;
   initialTemplate?: BuilderTemplateKey;
   profileMode?: boolean;
+  /** Allows the profile page to turn this into a save-only action during a scoring cooldown. */
+  profileSubmissionLabel?: string;
+  profileSubmissionNotice?: string;
+  profileScoreUpdateDisabled?: boolean;
+  /** The builder section to scroll to when opened from a builder resume review. */
+  focusSection?: string;
 }) {
   const draftQuery = useGetBuilderDraftQuery();
   const templates = useGetBuilderTemplatesQuery();
@@ -132,6 +148,8 @@ export function ResumeBuilderStep({
   const [entryTemplateError, setEntryTemplateError] = useState("");
   const loaded = useRef(false);
   const previewSequence = useRef(0);
+  const focusedSection = useRef<string | null>(null);
+  const editorScrollRef = useRef<HTMLDivElement>(null);
 
   const snapshot = (resume: StructuredResume, key: BuilderTemplateKey) => JSON.stringify([key, resume]);
   const selectedTemplate = template;
@@ -183,6 +201,22 @@ export function ResumeBuilderStep({
       }
     });
   }, [draftQuery.data]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!focusSection || !content || focusedSection.current === focusSection) return;
+    focusedSection.current = focusSection;
+    const timer = window.setTimeout(() => {
+      const editorPane = editorScrollRef.current;
+      const section = document.getElementById(`builder-section-${focusSection}`);
+      if (editorPane && section) {
+        const paneTop = editorPane.getBoundingClientRect().top;
+        const sectionTop = section.getBoundingClientRect().top;
+        editorPane.scrollTo({ top: editorPane.scrollTop + sectionTop - paneTop - 16, behavior: "smooth" });
+      }
+      section?.querySelector<HTMLElement>("input, textarea, button")?.focus({ preventScroll: true });
+    }, 100);
+    return () => window.clearTimeout(timer);
+  }, [content, focusSection]);
 
   const validateBeforeAction = () => {
     if (!content) return false;
@@ -334,10 +368,22 @@ export function ResumeBuilderStep({
         <button type="button" onClick={() => void onDownload()} disabled={busy} className="flex items-center gap-2 rounded-full border border-[#DDD6C7] px-4 py-2 text-sm font-semibold disabled:opacity-50">
           {downloadState.isLoading ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <Download size={16} aria-hidden="true" />} Download
         </button>
-        <button type="button" onClick={() => void onSubmit()} disabled={busy} className="flex items-center gap-2 rounded-full bg-[#5F4DB2] px-5 py-2 text-sm font-semibold text-white hover:bg-[#4A3E8F] disabled:opacity-60">
-          {pushState.isLoading || finalizing ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <Send size={16} aria-hidden="true" />} {profileMode ? "Save & update score" : "Submit"}
-        </button>
+        {profileMode && profileScoreUpdateDisabled && (
+          <button type="button" disabled aria-describedby="builder-score-availability" className="flex items-center gap-2 rounded-full border border-[#5F4DB2] bg-[#F4F0FC] px-5 py-2 text-sm font-semibold text-[#5F4DB2] opacity-60">
+            <Send size={16} aria-hidden="true" /> Update score
+          </button>
+        )}
+        {(!profileMode || !profileScoreUpdateDisabled) && (
+          <button type="button" onClick={() => void onSubmit()} disabled={busy} className="flex items-center gap-2 rounded-full bg-[#5F4DB2] px-5 py-2 text-sm font-semibold text-white hover:bg-[#4A3E8F] disabled:opacity-60">
+            {pushState.isLoading || finalizing ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <Send size={16} aria-hidden="true" />} {profileMode ? profileSubmissionLabel ?? "Save & update score" : "Submit"}
+          </button>
+        )}
       </header>
+      {profileMode && profileSubmissionNotice && (
+        <div id="builder-score-availability" role="status" className="border-b border-[#E9D9A6] bg-[#FFFAE9] px-4 py-2 text-[12px] leading-5 text-[#6B4E0A]">
+          {profileSubmissionNotice}
+        </div>
+      )}
 
       {draftQuery.data?.out_of_date && (
         <div role="alert" className="flex flex-wrap items-center gap-3 border-b border-[#E9D9A6] bg-[#FBF3D9] px-4 py-3">
@@ -362,7 +408,7 @@ export function ResumeBuilderStep({
       </div>
 
       <div className="grid min-h-0 flex-1 lg:grid-cols-2">
-        <div className={`min-h-0 overflow-y-auto px-4 py-5 sm:px-6 ${mobileTab === "edit" ? "" : "hidden lg:block"}`}>
+        <div ref={editorScrollRef} className={`min-h-0 overflow-y-auto px-4 py-5 sm:px-6 ${mobileTab === "edit" ? "" : "hidden lg:block"}`}>
           <div key={editorKey} className="mx-auto flex max-w-xl flex-col gap-6">
             {error && <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</p>}
             <p className="text-[13px] leading-5 text-[#3A4761]">
@@ -384,14 +430,14 @@ export function ResumeBuilderStep({
               <p className="text-[12px] leading-5 text-[#5F6B80]">Choose a template to preview it with your current details. Save to keep your choice.</p>
             </Section>
 
-            <Section title="About you">
+            <Section id="builder-section-about" title="About you">
               <Text label="Full name" value={content.full_name} onChange={(full_name) => patch({ full_name })} error={showValidation ? required(content.full_name, "your full name") : ""} />
               <Text label="Headline" value={content.headline} onChange={(headline) => patch({ headline })} placeholder="e.g. Data Analyst" />
               <Text label="City" value={content.location} onChange={(location) => patch({ location })} />
               <Text label="Summary" value={content.summary} onChange={(summary) => patch({ summary })} multiline placeholder="Two or three lines about your work." />
             </Section>
 
-            <Section title="Contact and links">
+            <Section id="builder-section-contacts" title="Contact and links">
               <Text label="Email" value={contacts.email} onChange={(email) => patch({ contacts: { ...contacts, email } })} />
               <div className="flex min-w-0 flex-col gap-1">
                 <span className="text-[12px] font-semibold text-[#3A4761]">Phone</span>
@@ -408,7 +454,7 @@ export function ResumeBuilderStep({
               <Text label="Website" value={contacts.website} onChange={(website) => patch({ contacts: { ...contacts, website } })} />
             </Section>
 
-            <Section title="Experience">
+            <Section id="builder-section-experience" title="Experience">
               <Repeater items={content.experience} blank={blank.experience} validate={validateExperience} showErrors={showValidation} onChange={(experience) => patch({ experience })} addLabel="Add experience" empty="Freshers can leave this empty."
                 render={(item, set, errors) => (<>
                   <Row><Text label="Job title" value={item.job_title} onChange={(job_title) => set({ job_title })} error={errors.job_title} /><Text label="Company" value={item.company} onChange={(company) => set({ company })} error={errors.company} /></Row>
@@ -421,7 +467,7 @@ export function ResumeBuilderStep({
                 </>)} />
             </Section>
 
-            <Section title="Education">
+            <Section id="builder-section-education" title="Education">
               <Repeater items={content.education} blank={blank.education} validate={validateEducation} showErrors={showValidation} onChange={(education) => patch({ education })} addLabel="Add education"
                 render={(item, set, errors) => (<>
                   <Row><Text label="Qualification" value={item.qualification} onChange={(qualification) => set({ qualification })} placeholder="B.Com" error={errors.qualification} /><Text label="Field of study" value={item.field_of_study} onChange={(field_of_study) => set({ field_of_study })} /></Row>
@@ -432,11 +478,11 @@ export function ResumeBuilderStep({
                 </>)} />
             </Section>
 
-            <Section title="Skills">
+            <Section id="builder-section-skills" title="Skills">
               <BadgeListField label="Skills" singular="skill" value={content.skills} onChange={(skills) => patch({ skills })} maxItems={150} maxLength={300} />
             </Section>
 
-            <Section title="Projects">
+            <Section id="builder-section-projects" title="Projects">
               <Repeater items={content.projects} blank={blank.project} validate={validateProject} showErrors={showValidation} onChange={(projects) => patch({ projects })} addLabel="Add a project" empty="Add projects to make your resume stronger."
                 render={(item, set, errors) => (<>
                   <Row><Text label="Project name" value={item.name} onChange={(name) => set({ name })} error={errors.name} /><Text label="Your role" value={item.role} onChange={(role) => set({ role })} /></Row>
@@ -447,7 +493,7 @@ export function ResumeBuilderStep({
                 </>)} />
             </Section>
 
-            <Section title="Certifications">
+            <Section id="builder-section-certifications" title="Certifications">
               <Repeater items={content.certifications} blank={blank.certification} validate={validateCertification} showErrors={showValidation} onChange={(certifications) => patch({ certifications })} addLabel="Add certification"
                 render={(item, set, errors) => (<>
                   <Row><Text label="Name" value={item.name} onChange={(name) => set({ name })} error={errors.name} /><Text label="Issued by" value={item.issuer} onChange={(issuer) => set({ issuer })} error={errors.issuer} /></Row>
@@ -455,16 +501,20 @@ export function ResumeBuilderStep({
                 </>)} />
             </Section>
 
-            <Section title="Languages">
+            <Section id="builder-section-languages" title="Languages">
               <Repeater items={content.languages} blank={blank.language} validate={validateLanguage} showErrors={showValidation} onChange={(languages) => patch({ languages })} addLabel="Add language"
                 render={(item, set, errors) => (
                   <Row><Text label="Language" value={item.name} onChange={(name) => set({ name })} error={errors.name} /><ProficiencyField value={item.proficiency} onChange={(proficiency) => set({ proficiency })} error={errors.proficiency} /></Row>
                 )} />
             </Section>
 
-            <Section title="Achievements and interests">
+            <Section id="builder-section-achievements-and-interests" title="Achievements and interests">
               <BadgeListField label="Achievements" singular="achievement" value={content.achievements} onChange={(achievements) => patch({ achievements })} maxItems={60} maxLength={5000} />
               <BadgeListField label="Interests" singular="interest" value={content.interests} onChange={(interests) => patch({ interests })} maxItems={40} maxLength={300} />
+            </Section>
+            <Section id="builder-section-other-sections" title="Other sections">
+              <Repeater items={content.other_sections} blank={blank.otherSection} validate={validateOtherSection} showErrors={showValidation} onChange={(other_sections) => patch({ other_sections })} addLabel="Add other section" empty="Add an extra section for details that do not fit elsewhere."
+                render={(item, set, errors) => <><Text label="Section heading" value={item.heading} onChange={(heading) => set({ heading })} error={errors.heading} /><ListText label="Items (one per line)" value={item.items} onChange={(items) => set({ items })} lines /></>} />
             </Section>
           </div>
         </div>
@@ -496,9 +546,9 @@ export function ResumeBuilderStep({
   );
 }
 
-function Section({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
+function Section({ id, title, action, children }: { id?: string; title: string; action?: ReactNode; children: ReactNode }) {
   return (
-    <section className="flex flex-col gap-3 rounded-2xl border border-[#E7E0D4] bg-white p-4">
+    <section id={id} className="flex flex-col gap-3 scroll-mt-4 rounded-2xl border border-[#E7E0D4] bg-white p-4">
       <div className="flex items-center justify-between gap-3"><h2 className="text-[15px] font-bold">{title}</h2>{action}</div>
       {children}
     </section>

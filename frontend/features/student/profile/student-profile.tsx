@@ -239,8 +239,8 @@ export function StudentProfile() {
       <ResumeTemplateDialog
         open={resumeTemplatePromptOpen}
         onClose={() => setResumeTemplatePromptOpen(false)}
-        onKeep={() => { setResumeTemplatePromptOpen(false); openReportsPage("/student/profile/resume/edit?template=keep"); }}
-        onTemplateSelected={(template) => { setResumeTemplatePromptOpen(false); openReportsPage(`/student/profile/resume/edit?template=${template}`); }}
+        onKeep={() => { setResumeTemplatePromptOpen(false); openReportsPage("/student/profile/resume/edit?template=keep&from=profile"); }}
+        onTemplateSelected={(template) => { setResumeTemplatePromptOpen(false); openReportsPage(`/student/profile/resume/edit?template=${template}&from=profile`); }}
       />
     </StudentPage>
   );

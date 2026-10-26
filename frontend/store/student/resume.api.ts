@@ -138,6 +138,14 @@ export interface ResumeConfirmed {
   alreadyConfirmed: boolean;
 }
 
+/** The candidate's eligibility to confirm a resume for scoring. */
+export interface ResumeScoringWindow {
+  intervalDays: number;
+  lastConfirmedAt: string | null;
+  nextScoringAt: string | null;
+  canConfirmNow: boolean;
+}
+
 export type ResumeEdit =
   | { sections: Array<Pick<ResumeSection, "kind" | "heading" | "body">> }
   | { structured: ManualResume }
@@ -345,6 +353,22 @@ export const studentResumeApi = baseApi.injectEndpoints({
       ],
     }),
 
+    getResumeScoringWindow: builder.query<ResumeScoringWindow, void>({
+      query: () => "/candidate/resume/scoring-window",
+      transformResponse: (response: {
+        interval_days: number;
+        last_confirmed_at: string | null;
+        next_scoring_at: string | null;
+        can_confirm_now: boolean;
+      }) => ({
+        intervalDays: response.interval_days,
+        lastConfirmedAt: response.last_confirmed_at,
+        nextScoringAt: response.next_scoring_at,
+        canConfirmNow: response.can_confirm_now,
+      }),
+      providesTags: [{ type: "Student", id: "RESUME_SCORING_WINDOW" }],
+    }),
+
     editResumeVersion: builder.mutation<
       ResumeVersionCreated,
       {
@@ -382,6 +406,7 @@ export const studentResumeApi = baseApi.injectEndpoints({
         { type: "Student", id: "BUILDER_DRAFT" },
         { type: "Student", id: `RESUME_VERSION_${id}` },
         { type: "Student", id: "SCORE" },
+        { type: "Student", id: "RESUME_SCORING_WINDOW" },
       ],
     }),
   }),
@@ -399,6 +424,7 @@ export const {
   useLazyGetResumeVersionsQuery,
   useGetResumeFilesQuery,
   useGetResumeVersionQuery,
+  useGetResumeScoringWindowQuery,
   useEditResumeVersionMutation,
   useConfirmResumeVersionMutation,
 } = studentResumeApi;

@@ -14,7 +14,7 @@ import { parseFailureMessage } from "@/features/student/onboarding/constants";
 import { StudentPage } from "@/features/student/shell";
 import { getApiErrorCode, getApiErrorMessage } from "@/lib/api/error-message";
 import { showErrorFeedback, showSuccessFeedback } from "@/lib/feedback/success-feedback";
-import { useCompleteResumeUploadMutation, useCreateResumeUploadMutation, useGetResumeFilesQuery, useGetResumeVersionsQuery, useUploadResumeFileMutation } from "@/store/student";
+import { useCompleteResumeUploadMutation, useCreateResumeUploadMutation, useGetResumeFilesQuery, useGetResumeScoringWindowQuery, useGetResumeVersionsQuery, useUploadResumeFileMutation, type ResumeScoringWindow } from "@/store/student";
 import { useGetCareerProfileQuery, useLazyGetProfileResumeDocumentQuery } from "./career-api";
 import { ResumeTemplateDialog } from "./resume-template-dialog";
 
@@ -37,6 +37,7 @@ export function ResumeDetails() {
     () => versions.data?.find((version) => version.current) ?? versions.data?.[0],
     [versions.data],
   );
+  const scoringWindow = useGetResumeScoringWindowQuery(undefined, { skip: !current?.confirmed });
   const [view, setView] = useState<View | null>(null);
   const [resumeTemplatePromptOpen, setResumeTemplatePromptOpen] = useState(false);
   const activeView: View | null =
@@ -176,7 +177,7 @@ export function ResumeDetails() {
                   <History className="mt-0.5 h-4 w-4 shrink-0 text-[#5F4DB2]" aria-hidden="true" />
                   <div className="min-w-0">
                     <p className="break-words text-[13px] font-semibold text-[#0A1931]">Viewing: {selectedVersion?.filename || "Saved resume"}</p>
-                    <p className="mt-1 text-[12px] leading-5">{selectedVersion ? `Version from ${formatDateTime(selectedVersion.createdAt)}. ` : ""}Save & update score to use this resume for your profile.</p>
+                    <p className="mt-1 text-[12px] leading-5">{selectedVersion ? `Version from ${formatDateTime(selectedVersion.createdAt)}. ` : ""}Save this resume to use it for your profile. Its score updates only when you are eligible.</p>
                   </div>
                 </div>}
                 <ReviewStep key={activeView.versionId} resumeVersionId={activeView.versionId} title="Your details" subtitle="Review each section and use the edit button to update it. Changes are saved as a new version." confirmLabel="Save & update score" startOverLabel="Cancel and return to previous resume" restoreFromHistory={selectedFromHistory} onStartOver={cancelUpdate} onConfirmed={() => { showSuccessFeedback("Resume saved and score update started."); setView(null); void versions.refetch(); }} />
@@ -201,9 +202,12 @@ export function ResumeDetails() {
                 </p>
                 <p className="mt-1 text-[11px] leading-5 text-[#5F6B80]">Updated {formatDateTime(current.createdAt)}</p>
                 {current.confirmed ? (
-                  <span className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#1F6B45]">
-                    <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> Ready for your profile
-                  </span>
+                  <>
+                    <span className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#1F6B45]">
+                      <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> Ready for your profile
+                    </span>
+                    <ResumeScoreStatus window={scoringWindow.data} loading={scoringWindow.isLoading} error={scoringWindow.isError} />
+                  </>
                 ) : null}
               </div>
             ) : null}
@@ -214,14 +218,40 @@ export function ResumeDetails() {
       <ResumeTemplateDialog
         open={resumeTemplatePromptOpen}
         onClose={() => setResumeTemplatePromptOpen(false)}
-        onKeep={() => { setResumeTemplatePromptOpen(false); router.replace("/student/profile/resume/edit?template=keep"); }}
-        onTemplateSelected={(template) => { setResumeTemplatePromptOpen(false); router.replace(`/student/profile/resume/edit?template=${template}`); }}
+        onKeep={() => { setResumeTemplatePromptOpen(false); router.replace("/student/profile/resume/edit?template=keep&from=resume-details"); }}
+        onTemplateSelected={(template) => { setResumeTemplatePromptOpen(false); router.replace(`/student/profile/resume/edit?template=${template}&from=resume-details`); }}
       />
     </StudentPage>
   );
 }
 
 const HISTORY_PREVIEW = 3;
+
+function ResumeScoreStatus({ window, loading, error }: { window?: ResumeScoringWindow; loading: boolean; error: boolean }) {
+  if (loading) return <p className="mt-3 text-[11px] leading-5 text-[#5F6B80]">Checking when you can refresh your resume score…</p>;
+  if (error || !window) return null;
+  if (window.intervalDays === 0 || window.canConfirmNow) return <p className="mt-3 text-[11px] leading-5 text-[#5F6B80]">Your score is calculated from this resume. You can refresh it now by confirming an updated resume.</p>;
+  if (!window.nextScoringAt) return <p className="mt-3 text-[11px] leading-5 text-[#5F6B80]">Your score is calculated from this resume. Score refresh is temporarily unavailable.</p>;
+  return <p className="mt-3 text-[11px] leading-5 text-[#5F6B80]">Your score is calculated from this resume. You can refresh it again on {formatScoreRefreshTime(window.nextScoringAt)} ({timeUntil(window.nextScoringAt)}).</p>;
+}
+
+function formatScoreRefreshTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return `${new Intl.DateTimeFormat("en-IN", {
+    day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata",
+  }).format(date)} IST`;
+}
+
+function timeUntil(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "later";
+  const milliseconds = Math.max(0, date.getTime() - Date.now());
+  const days = Math.floor(milliseconds / 86_400_000);
+  const hours = Math.ceil((milliseconds % 86_400_000) / 3_600_000);
+  if (days > 0) return `${days} ${days === 1 ? "day" : "days"} ${hours ? `and ${hours} ${hours === 1 ? "hour" : "hours"} ` : ""}remaining`.trim();
+  return `${Math.max(1, hours)} ${hours === 1 ? "hour" : "hours"} remaining`;
+}
 
 /** One row per uploaded file, from GET /candidate/resume/files. */
 function ResumeHistory({ onOpen, selectedVersionId, currentVersionId }: { onOpen: (versionId: string) => void; selectedVersionId?: string; currentVersionId?: string }) {
