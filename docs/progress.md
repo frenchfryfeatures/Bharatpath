@@ -9,6 +9,25 @@ states. Newest entries first.
 
 ---
 
+## 2026-11-03 — Public website (`website/`), and one sign-in per audience
+
+A separate Next.js static export at `website/` (branch `Rishabh/WebsiteWork`):
+home, jobs with filters, students, employers, colleges, about, FAQ, contact,
+privacy/terms drafts, and sign-in / sign-up pages per audience. Sitemap and
+placeholders are in `website/README.md`.
+
+- **No admin route on the website.** Only student/employer/college auth
+  pages are generated. They hand over to the portal.
+- **Portal `LoginForm` reads `?as=student|employer|college`**, preselects
+  that account type and hides the selector (and with it the Admin tab).
+  Bare `/login` is unchanged, so staff sign-in still works.
+- **The listed jobs are examples**, labelled on the page: the API has no
+  public jobs endpoint.
+- App Store URL is empty until the iOS listing exists
+  (`NEXT_PUBLIC_APP_STORE_URL`); the badge says "Coming soon".
+
+---
+
 ## 2026-10-26 — Unlimited uploads, one scoring per 15 days
 
 Asked for: a candidate may upload as many resumes as they like, but only
