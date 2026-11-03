@@ -20,21 +20,21 @@ const ROUTES = [
 
 export default function ContactPage() {
   return (
-    <section className="mx-auto max-w-[1240px] px-4 pb-10 pt-14 sm:px-6 lg:px-10 lg:pt-20">
-      <h1 className="text-[clamp(40px,5.6vw,80px)] font-semibold leading-[1] tracking-[-0.045em]">Talk to us</h1>
+    <section className="shell pb-10 pt-14 lg:pt-20">
+      <h1 className="text-[clamp(40px,5.6vw,80px)] font-bold leading-[1] tracking-[-0.045em]">Talk to us</h1>
       <p className="mt-5 max-w-[52ch] text-[17px] text-muted">
         Write to us and a person will reply, usually within one working day. Choose what it is about so it reaches the right team.
       </p>
       <ul className="mt-12 grid gap-2 md:grid-cols-2">
         {ROUTES.map(({ icon: Icon, title, body, subject }) => (
           <li key={title}>
-            <a href={mail(subject)} className="group flex h-full flex-col justify-between gap-8 rounded-[6px] bg-surface p-6 transition-colors hover:bg-line sm:p-8">
+            <a href={mail(subject)} className="group flex h-full flex-col justify-between gap-8 rounded-[24px] bg-sand p-6 transition-colors hover:bg-lavender sm:p-8">
               <span>
-                <Icon className="h-6 w-6 text-navy" aria-hidden="true" />
+                <Icon className="h-6 w-6 text-purple" aria-hidden="true" />
                 <span className="mt-4 block text-[22px] font-semibold tracking-[-0.02em]">{title}</span>
                 <span className="mt-2 block max-w-[44ch] text-muted">{body}</span>
               </span>
-              <span className="inline-flex items-center gap-2 text-[15px] font-medium text-navy">
+              <span className="inline-flex items-center gap-2 text-[15px] font-medium text-purple">
                 <Mail className="h-4 w-4" aria-hidden="true" /> {CONTACT_EMAIL}
               </span>
             </a>

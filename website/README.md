@@ -19,6 +19,8 @@ npm run build                  # static site in out/
 |---|---|---|
 | `/` | Home | Hero with a working job search, the three audiences, how it works, trust, **app download (Play Store / App Store)**, FAQ, sign-up |
 | `/jobs/` | Job listing | Search + filters: location, work mode, job type, experience, employer size (MSME / startup / enterprise / non-profit), industry, minimum pay, sort. Filters live in the URL |
+| `/jobs/<id>/` | Job detail | One page per example role: facts, skills, how applying works, similar roles |
+| `/government-jobs/` | Government jobs bulletin | Notices from official government sites, filter by category, state and source; linked from the footer |
 | `/students/` | Students & job seekers | CV upload or builder, review before scoring, interview practice, who viewed you, college linking |
 | `/employers/` | Employers & MSMEs | Who it is for (MSME first), posting, search, pipeline, team |
 | `/colleges/` | Colleges & institutions | Referral codes, seats, student consent, cohort figures |
@@ -60,14 +62,55 @@ portal's bare `/login`, which nothing on this site links to.
   described as behind a profile open, which is what the product does.
 - No invented social proof: no logos, testimonials or user counts.
 
+## Government jobs bulletin
+
+`/government-jobs/` lists recruitment notices fetched from official
+government websites. `npm run build` runs `scripts/fetch-gov-jobs.mjs` first
+(`npm run fetch:gov` runs it alone), which reads `content/gov-sources.json`
+and writes `content/gov-jobs.json`; the page is rendered from that file. A
+static site only changes when it is rebuilt, so **schedule a daily rebuild**
+for the bulletin to stay current.
+
+Sources are empty until the list is confirmed. Each entry:
+
+```json
+{
+  "id": "ncs",
+  "name": "National Career Service",
+  "homepage": "https://www.ncs.gov.in/",
+  "feed": "https://.../rss.xml",
+  "format": "rss",
+  "state": "All India",
+  "category": "optional, otherwise guessed from the title"
+}
+```
+
+`format` is `rss` (RSS or Atom) or `json`; a JSON source adds a mapping,
+`"json": { "items": "data.notices", "title": "postName", "link": "url",
+"published": "date", "lastDate": "closingDate" }`. A source whose site has no
+feed needs its own small parser added to the script.
+
+- Only title, link and dates are kept. **Descriptions are dropped**: they
+  carry eligibility text, age limits included, and the platform carries no
+  age field (invariant 5). Eligibility is read on the official notice.
+- A source that fails keeps its previous notices and is marked failing; the
+  build never fails over the bulletin. Notices older than 120 days drop off.
+- Every notice opens on its official source. The page says BharatPath does
+  not run these recruitments and warns against paying for a job.
+
 ## Design
 
-Colour is the logo's navy and saffron; type is General Sans, shared with the
-portal. One radius, no resting shadows, no gradients. The pages show working
-pieces of the product (a search, an application tracker, a candidate card, a
-cohort panel) rather than illustrations: direction "the product performs",
-dealt by the taste-skill and checked against impeccable's craft floor, with
-the dark, quiet, fragment-led feel of tryanchora.com as reference. The page
-structure (search-first home, audience paths, filterable listing, separate
-employer and campus entry points, app download on the home page) follows the
-established Indian job-portal pattern without naming any portal.
+The website shares the **student portal's visual language**
+(`frontend/features/student`): purple `#5F4DB2` for action, navy ink
+`#0A1931`, warm cream grounds (`#FFFCF7`, `#F7F4EC`), lavender and gold tint
+cards, 20-28px card radii, pill buttons and General Sans. Tokens are in
+`app/globals.css`; buttons, chips and section headings in
+`components/ui.tsx`.
+
+Pages are built from modules (search hero, audience doors, category grid,
+listing cards, city chips, steps, audience bands, trust grid, app band, FAQ,
+sign-up). They show working pieces of the product rather than
+illustrations. Layout is checked at 390, 820, 1024, 1440 and 1920px, and
+reviewed with impeccable's detector (`impeccable detect <url>`) against the
+running site; the cream-palette warning is accepted, because cream is the
+portal's own ground.

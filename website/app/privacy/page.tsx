@@ -46,7 +46,7 @@ export default function PrivacyPage() {
       <section>
         <h2>Contact</h2>
         <p>
-          Questions or complaints about your data: <a className="text-navy underline" href={`mailto:${CONTACT_EMAIL}?subject=Privacy`}>{CONTACT_EMAIL}</a>.
+          Questions or complaints about your data: <a className="text-purple underline" href={`mailto:${CONTACT_EMAIL}?subject=Privacy`}>{CONTACT_EMAIL}</a>.
         </p>
       </section>
     </LegalPage>

@@ -9,6 +9,21 @@ states. Newest entries first.
 
 ---
 
+## 2026-11-03 (later) — Website restyled to the student portal; government jobs bulletin
+
+- `website/` now uses the student portal's look (purple `#5F4DB2`, ink
+  `#0A1931`, cream grounds, tinted cards, pill buttons) and a modular
+  listing-site layout: search hero, categories, featured roles, cities,
+  per-role detail pages (`/jobs/<id>/`). Reviewed with impeccable's detector
+  against the running site at 390/820/1024/1440/1920px.
+- **Government jobs bulletin** at `/government-jobs/`, linked from the
+  footer. `scripts/fetch-gov-jobs.mjs` runs before every build and reads
+  `content/gov-sources.json`, which is **empty until the client sends the
+  source links**. Keeps title, link and dates only; descriptions (which carry
+  age limits) are dropped. Needs a scheduled rebuild to stay current.
+
+---
+
 ## 2026-11-03 — Public website (`website/`), and one sign-in per audience
 
 A separate Next.js static export at `website/` (branch `Rishabh/WebsiteWork`):

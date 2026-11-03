@@ -13,13 +13,13 @@ const ROWS = [
 export function CohortPanel() {
   const max = ROWS[0].value;
   return (
-    <div data-ui className="w-full max-w-[440px] rounded-[8px] bg-paper p-5 text-ink">
+    <div data-ui className="w-full max-w-[440px] rounded-[20px] border border-line bg-paper shadow-card p-5 text-ink">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[15px] font-semibold">B.Com and BBA, final year</p>
           <p className="text-[13px] text-muted">Placement season 2026–27</p>
         </div>
-        <span className="rounded-[4px] bg-surface px-2 py-0.5 text-[13px]">Example</span>
+        <span className="rounded-full bg-sand px-2.5 py-1 text-[13px] font-medium text-body">Example</span>
       </div>
       <dl className="mt-5 space-y-3">
         {ROWS.map((r) => (
@@ -28,8 +28,8 @@ export function CohortPanel() {
               <dt className="text-muted">{r.label}</dt>
               <dd className="tabular font-medium">{r.value}</dd>
             </div>
-            <div className="mt-1 h-2 rounded-full bg-surface" aria-hidden="true">
-              <div className="h-2 rounded-full bg-navy" style={{ width: `${(r.value / max) * 100}%` }} />
+            <div className="mt-1 h-2 rounded-full bg-sand" aria-hidden="true">
+              <div className="h-2 rounded-full bg-purple" style={{ width: `${(r.value / max) * 100}%` }} />
             </div>
           </div>
         ))}

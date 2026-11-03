@@ -35,9 +35,9 @@ export function portalSignupUrl(audience: Audience): string {
 }
 
 export const NAV_LINKS = [
-  { href: "/jobs/", label: "Jobs" },
-  { href: "/students/", label: "Students" },
+  { href: "/jobs/", label: "Find jobs" },
   { href: "/employers/", label: "Employers" },
   { href: "/colleges/", label: "Colleges" },
+  { href: "/students/", label: "Students" },
   { href: "/about/", label: "About" },
 ] as const;

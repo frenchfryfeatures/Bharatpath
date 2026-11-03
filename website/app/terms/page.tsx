@@ -40,7 +40,7 @@ export default function TermsPage() {
       <section>
         <h2>Contact</h2>
         <p>
-          <a className="text-navy underline" href={`mailto:${CONTACT_EMAIL}?subject=Terms`}>{CONTACT_EMAIL}</a>
+          <a className="text-purple underline" href={`mailto:${CONTACT_EMAIL}?subject=Terms`}>{CONTACT_EMAIL}</a>
         </p>
       </section>
     </LegalPage>

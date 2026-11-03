@@ -1,14 +1,13 @@
 @import "tailwindcss";
 
 /*
- * BharatPath public website.
+ * BharatPath public website -- in the student portal's visual language
+ * (frontend/features/student): purple #5F4DB2 for action, navy ink
+ * #0A1931 for type, warm cream grounds, lavender and gold tint cards,
+ * 20-24px card radii and pill buttons. General Sans throughout.
  *
- * Colour comes from the logo: the deep navy of the "B" and the saffron of the
- * path. Navy carries the ink and the primary action; saffron is a field
- * colour, used for one stage per page and never as a red-amber-green ramp
- * (docs/design-system.md §1 -- nothing here may read as a bureau score).
- *
- * One radius (6px), no resting shadows, no gradients. Depth is a tone step.
+ * The score is never drawn as a red-to-green gauge (docs/design-system.md
+ * §1); bands are a single-hue position marker.
  */
 
 @font-face { font-family: "General Sans"; src: url("./fonts/GeneralSans-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
@@ -19,124 +18,110 @@
 @theme {
   --font-sans: "General Sans", "Noto Sans", ui-sans-serif, system-ui, sans-serif;
 
-  --color-ground: #f4f5f7;
-  --color-surface: #e8ebf0;
-  --color-paper: #ffffff;
-  --color-ink: #0c1730;
-  --color-muted: #4a5568;
-  --color-line: #d3d9e2;
-  --color-navy: #0b2a6b;
-  --color-navy-deep: #081c49;
-  --color-navy-soft: #1d3c80;
-  --color-saffron: #f6b70c;
-  --color-saffron-soft: #fde7a6;
-  --color-on-navy: #f2f5fb;
-  --color-on-navy-muted: #b6c3de;
-  --color-focus: #1a56db;
-  --color-ok: #1b6b3a;
+  --color-cream: #fffcf7;      /* page ground */
+  --color-sand: #f7f4ec;       /* alternate section ground */
+  --color-paper: #ffffff;      /* cards */
+  --color-line: #e7e0d4;       /* borders */
+  --color-line-strong: #ddd6c7;
+  --color-ink: #0a1931;
+  --color-body: #3a4761;
+  --color-muted: #5f6b80;
+  --color-faint: #8891a0;
+  --color-purple: #5f4db2;
+  --color-purple-deep: #4a3e8f;
+  --color-purple-night: #2e2667;
+  --color-lavender: #f1eaf7;
+  --color-lavender-2: #e0dbf4;
+  --color-lilac: #ddd6f2;
+  --color-lilac-line: #cdc4ea;
+  --color-gold: #f4d685;
+  --color-gold-soft: #f7efd6;
+  --color-gold-ink: #7a5c0e;
+  --color-green: #1f6b45;
+  --color-green-soft: #e6f1ea;
+  --color-focus: #5f4db2;
 
-  --radius-ui: 6px;
+  --shadow-card: 0 4px 14px rgba(10, 25, 49, 0.05);
+  --shadow-lift: 0 14px 30px rgba(10, 25, 49, 0.09);
+  --shadow-purple: 0 8px 20px rgba(95, 77, 178, 0.22);
+  --shadow-float: 0 24px 60px -24px rgba(46, 38, 103, 0.35);
 }
 
 html {
   -webkit-text-size-adjust: 100%;
   scroll-behavior: smooth;
+  scroll-padding-top: 88px;
 }
 
 body {
-  background: var(--color-ground);
+  background: var(--color-cream);
   color: var(--color-ink);
   font-family: var(--font-sans);
   font-size: 16px;
   line-height: 1.55;
-  font-feature-settings: "ss01";
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-::selection {
-  background: var(--color-saffron);
-  color: var(--color-ink);
-}
+::selection { background: var(--color-lavender-2); color: var(--color-ink); }
+::placeholder { color: #6b7587; opacity: 1; }
 
 :focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: 3px;
-  border-radius: 2px;
+  border-radius: 8px;
 }
 
-a {
-  text-underline-offset: 0.2em;
-  text-decoration-thickness: 1px;
-}
+a { text-underline-offset: 0.2em; text-decoration-thickness: 1px; }
+h1, h2, h3 { text-wrap: balance; }
+p { text-wrap: pretty; }
+.tabular { font-variant-numeric: tabular-nums; }
 
-h1, h2, h3 {
-  text-wrap: balance;
-  letter-spacing: -0.025em;
+/* Page width: grows on very large screens rather than stranding content. */
+.shell {
+  width: 100%;
+  max-width: 1320px;
+  margin-inline: auto;
+  padding-inline: 16px;
 }
-
-p {
-  text-wrap: pretty;
-}
-
-.tabular {
-  font-variant-numeric: tabular-nums;
-}
+@media (min-width: 640px) { .shell { padding-inline: 24px; } }
+@media (min-width: 1024px) { .shell { padding-inline: 40px; } }
+@media (min-width: 1800px) { .shell { max-width: 1520px; } }
 
 /* The one loud moment: the hero headline rises from behind its baseline. */
-.mask-line {
-  display: block;
-  overflow: hidden;
-  padding-bottom: 0.08em;
-}
-.mask-line > span {
-  display: block;
-  transform: translateY(105%);
-  animation: rise 900ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-.mask-line:nth-child(2) > span {
-  animation-delay: 110ms;
-}
-.fade-up {
-  opacity: 0;
-  animation: fade-up 700ms cubic-bezier(0.16, 1, 0.3, 1) 380ms forwards;
-}
+.mask-line { display: block; overflow: hidden; padding-bottom: 0.06em; }
+.mask-line > span { display: block; transform: translateY(105%); animation: rise 900ms cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.mask-line:nth-child(2) > span { animation-delay: 110ms; }
+.fade-up { opacity: 0; animation: fade-up 650ms cubic-bezier(0.16, 1, 0.3, 1) 300ms forwards; }
+.swap-in { animation: swap-in 320ms cubic-bezier(0.16, 1, 0.3, 1) both; }
 
-@keyframes rise {
-  to { transform: translateY(0); }
-}
-@keyframes fade-up {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
+@keyframes rise { to { transform: translateY(0); } }
+@keyframes fade-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes swap-in { from { opacity: 0; transform: translateY(6px) scale(0.99); } to { opacity: 1; transform: none; } }
 
-/* Sections settle in as they arrive; already visible if JS never runs. */
-[data-reveal] {
-  transition: opacity 600ms cubic-bezier(0.16, 1, 0.3, 1), transform 600ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-.js [data-reveal]:not(.is-in) {
-  opacity: 0;
-  transform: translateY(14px);
-}
+/* Sections settle in as they arrive; fully visible if JS never runs. */
+[data-reveal] { transition: opacity 600ms cubic-bezier(0.16, 1, 0.3, 1), transform 600ms cubic-bezier(0.16, 1, 0.3, 1); }
+.js [data-reveal]:not(.is-in) { opacity: 0; transform: translateY(14px); }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
-  .mask-line > span, .fade-up { animation: none; transform: none; opacity: 1; }
+  .mask-line > span, .fade-up, .swap-in { animation: none; transform: none; opacity: 1; }
   .js [data-reveal]:not(.is-in) { opacity: 1; transform: none; }
   * { transition-duration: 0ms !important; }
 }
 
-/* FAQ tiles: the plus becomes a minus by turning one bar. */
-details.faq-tile > summary { list-style: none; cursor: pointer; }
-details.faq-tile > summary::-webkit-details-marker { display: none; }
-details.faq-tile .plus-v { transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1); }
-details.faq-tile[open] .plus-v { transform: rotate(90deg); }
+/* FAQ: the plus becomes a minus by turning one bar. */
+details.faq-item > summary { list-style: none; cursor: pointer; }
+details.faq-item > summary::-webkit-details-marker { display: none; }
+details.faq-item .plus-v { transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1); }
+details.faq-item[open] .plus-v { transform: rotate(90deg); }
 
-/* Interface fragments keep the product's own conventions. */
-[data-ui] {
-  font-size: 14px;
-  line-height: 1.45;
-  letter-spacing: 0;
-}
+[data-ui] { font-size: 14px; line-height: 1.45; }
 
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
 .scrollbar-thin { scrollbar-width: thin; scrollbar-color: var(--color-line) transparent; }
+
+/* Grid items never stretch their track past the viewport (a chip row or a
+   long word otherwise widens the whole page on a phone). */
+.grid > * { min-width: 0; }

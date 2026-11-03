@@ -1,51 +1,60 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 
 import { Logo } from "@/components/logo";
+import { buttonClass } from "@/components/ui";
 import { NAV_LINKS } from "@/lib/site";
 
 export function SiteHeader() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const isActive = (href: string) => pathname === href || pathname?.startsWith(href);
+  const close = () => setOpen(false);
 
   return (
-    <header className="sticky top-0 z-40 bg-ground/95 backdrop-blur-[2px]">
-      <div className="mx-auto flex h-16 max-w-[1240px] items-center justify-between px-4 sm:px-6 lg:px-10">
+    <header className={`sticky top-0 z-40 transition-[background,box-shadow] duration-200 ${scrolled || open ? "bg-cream/95 shadow-[0_1px_0_var(--color-line)] backdrop-blur-sm" : "bg-cream"}`}>
+      <div className="shell flex h-[72px] items-center justify-between gap-6">
         <Logo />
 
-        <nav aria-label="Main" className="hidden items-center gap-7 md:flex">
+        <nav aria-label="Main" className="hidden items-center gap-1 lg:flex">
           {NAV_LINKS.map((l) => (
             <Link
               key={l.href}
               href={l.href}
-              className={`text-[15px] transition-colors hover:text-ink ${isActive(l.href) ? "font-medium text-ink" : "text-muted"}`}
+              aria-current={isActive(l.href) ? "page" : undefined}
+              className={`rounded-full px-4 py-2 text-[15px] font-medium transition-colors ${
+                isActive(l.href) ? "bg-lavender text-purple-deep" : "text-body hover:bg-sand hover:text-ink"
+              }`}
             >
               {l.label}
             </Link>
           ))}
         </nav>
 
-        <div className="hidden items-center gap-2 md:flex">
-          <Link href="/login/" className="rounded-[6px] px-3.5 py-2 text-[15px] text-ink transition-colors hover:bg-surface">
+        <div className="hidden items-center gap-2 lg:flex">
+          <Link href="/login/" className={buttonClass("ghost")}>
             Sign in
           </Link>
-          <Link
-            href="/signup/"
-            className="rounded-[6px] bg-navy px-4 py-2 text-[15px] font-medium text-on-navy transition-colors hover:bg-navy-deep"
-          >
+          <Link href="/signup/" className={buttonClass("primary")}>
             Create account
           </Link>
         </div>
 
         <button
           type="button"
-          className="-mr-2 inline-flex h-11 w-11 items-center justify-center rounded-[6px] text-ink md:hidden"
+          className="-mr-2 inline-flex h-11 w-11 items-center justify-center rounded-full text-ink hover:bg-sand lg:hidden"
           aria-expanded={open}
           aria-controls="mobile-nav"
           aria-label={open ? "Close menu" : "Open menu"}
@@ -56,23 +65,30 @@ export function SiteHeader() {
       </div>
 
       {open && (
-        <nav id="mobile-nav" aria-label="Main" className="border-t border-line bg-ground px-4 pb-6 pt-2 md:hidden">
-          <ul>
-            {NAV_LINKS.map((l) => (
-              <li key={l.href}>
-                <Link href={l.href} onClick={() => setOpen(false)} className="block py-3 text-[18px] text-ink">
-                  {l.label}
+        <nav id="mobile-nav" aria-label="Main" className="border-t border-line bg-cream lg:hidden">
+          <div className="shell pb-6 pt-3">
+            <ul className="grid gap-1 sm:grid-cols-2">
+              {NAV_LINKS.map((l) => (
+                <li key={l.href}>
+                  <Link href={l.href} onClick={close} className="block rounded-2xl px-4 py-3 text-[17px] font-medium text-ink hover:bg-sand">
+                    {l.label}
+                  </Link>
+                </li>
+              ))}
+              <li>
+                <Link href="/government-jobs/" onClick={close} className="block rounded-2xl px-4 py-3 text-[17px] font-medium text-ink hover:bg-sand">
+                  Government jobs
                 </Link>
               </li>
-            ))}
-          </ul>
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <Link href="/login/" onClick={() => setOpen(false)} className="rounded-[6px] bg-surface px-4 py-3 text-center text-[15px] font-medium text-ink">
-              Sign in
-            </Link>
-            <Link href="/signup/" onClick={() => setOpen(false)} className="rounded-[6px] bg-navy px-4 py-3 text-center text-[15px] font-medium text-on-navy">
-              Create account
-            </Link>
+            </ul>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <Link href="/login/" onClick={close} className={buttonClass("secondary")}>
+                Sign in
+              </Link>
+              <Link href="/signup/" onClick={close} className={buttonClass("primary")}>
+                Create account
+              </Link>
+            </div>
           </div>
         </nav>
       )}

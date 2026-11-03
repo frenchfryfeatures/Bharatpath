@@ -7,6 +7,7 @@ import { PipelineFragment, PostJobFragment, TeamFragment } from "@/components/fr
 import { PageHero } from "@/components/page-hero";
 import { SplitRow, SplitRows } from "@/components/split-rows";
 import { EMPLOYER_FAQ } from "@/content/faq";
+import { SectionHeading } from "@/components/ui";
 
 export const metadata: Metadata = {
   title: "Hire on BharatPath",
@@ -31,17 +32,16 @@ export default function EmployersPage() {
         primary={{ href: "/signup/employer/", label: "Create business account" }}
         secondary={{ href: "/login/employer/", label: "Employer sign in" }}
         fragment={<CandidateCard band={2} />}
+        stage="purple"
       />
 
-      <section aria-labelledby="who-hires" className="mx-auto max-w-[1240px] px-4 pt-24 sm:px-6 lg:px-10">
-        <h2 id="who-hires" className="text-[26px] font-semibold tracking-[-0.02em]">
-          Built for every kind of employer
-        </h2>
-        <dl className="mt-10 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+      <section aria-labelledby="who-hires" className="shell pt-10 sm:pt-16">
+        <SectionHeading id="who-hires" title="Built for every kind of employer" lead="Most hiring in India happens in MSMEs. The tools here cost a small business the same few minutes they cost a large one." />
+        <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 lg:gap-4">
           {WHO.map((w, i) => (
-            <div key={w.name} data-reveal className={`rounded-[6px] p-5 ${i === 0 ? "bg-saffron" : "bg-surface"}`}>
-              <dt className="text-[18px] font-semibold leading-snug">{w.name}</dt>
-              <dd className={`mt-2 text-[15px] ${i === 0 ? "text-ink" : "text-muted"}`}>{w.line}</dd>
+            <div key={w.name} data-reveal className={`rounded-[24px] p-6 ${i === 0 ? "bg-purple text-white" : "border border-line bg-paper shadow-card"}`}>
+              <dt className="text-[18px] font-bold leading-snug tracking-[-0.02em]">{w.name}</dt>
+              <dd className={`mt-2 text-[15px] ${i === 0 ? "text-white/80" : "text-muted"}`}>{w.line}</dd>
             </div>
           ))}
         </dl>
@@ -57,7 +57,7 @@ export default function EmployersPage() {
           title="Search people, not piles of CVs."
           body="Filter by skill, city and experience. Cards show the name, skills and a band; open the profile you want for the phone, email and CV."
           fragment={<CandidateCard band={3} />}
-          stage="navy"
+          stage="purple"
         />
         <SplitRow
           title="Move applicants on one board."
@@ -68,12 +68,12 @@ export default function EmployersPage() {
           title="Share the work with your team."
           body="Add recruiters to post roles and move applicants, and viewers who can only look. The owner stays in charge."
           fragment={<TeamFragment />}
-          stage="navy"
+          stage="purple"
         />
       </SplitRows>
 
       <FaqList items={EMPLOYER_FAQ} group="employer-faq" />
-      <CtaOpen title={["Make your", "next hire."]} />
+      <CtaOpen title="Make your next hire" />
     </>
   );
 }

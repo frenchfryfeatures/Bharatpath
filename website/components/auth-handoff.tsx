@@ -34,18 +34,18 @@ export function AuthHandoff({ copy, mode }: { copy: AudienceCopy; mode: "login" 
   const others = (["student", "employer", "college"] as const).filter((a) => a !== copy.slug);
 
   return (
-    <section className="px-2 sm:px-3">
-      <div className="grid overflow-hidden rounded-[6px] lg:min-h-[80svh] lg:grid-cols-2">
-        <div className="flex flex-col justify-between gap-10 bg-navy px-5 py-10 text-on-navy sm:px-10 lg:px-12 lg:py-14">
-          <p className="text-[15px] text-on-navy-muted">{copy.name}</p>
+    <section className="shell pt-4 sm:pt-6">
+      <div className="grid overflow-hidden rounded-[28px] lg:min-h-[78svh] lg:grid-cols-2">
+        <div className="flex flex-col justify-between gap-10 bg-purple px-5 py-10 text-white sm:px-10 lg:px-12 lg:py-14">
+          <p className="text-[15px] text-white/75">{copy.name}</p>
           <div>
-            <h1 className="max-w-[18ch] text-[clamp(34px,4vw,56px)] font-semibold leading-[1.04] tracking-[-0.035em]">
+            <h1 className="max-w-[18ch] text-[clamp(34px,4vw,56px)] font-bold leading-[1.04] tracking-[-0.035em]">
               {signIn ? copy.signInTitle : copy.signUpTitle}
             </h1>
             <ul className="mt-8 space-y-3">
               {copy.points.map((p) => (
-                <li key={p} className="flex items-start gap-3 text-[16px] text-on-navy-muted">
-                  <Check className="mt-1 h-4 w-4 shrink-0 text-saffron" aria-hidden="true" />
+                <li key={p} className="flex items-start gap-3 text-[16px] text-white/75">
+                  <Check className="mt-1 h-4 w-4 shrink-0 text-gold" aria-hidden="true" />
                   {p}
                 </li>
               ))}
@@ -53,22 +53,22 @@ export function AuthHandoff({ copy, mode }: { copy: AudienceCopy; mode: "login" 
           </div>
           {copy.slug === "student" && (
             <div>
-              <p className="mb-3 text-[15px] text-on-navy-muted">Or use the app</p>
+              <p className="mb-3 text-[15px] text-white/75">Or use the app</p>
               <AppBadges tone="light" />
             </div>
           )}
         </div>
 
-        <div className="flex items-center bg-surface px-5 py-12 sm:px-10 lg:px-16">
+        <div className="flex items-center bg-sand px-5 py-12 sm:px-10 lg:px-16">
           <div className="w-full max-w-[440px]">
             {signIn ? (
-              <form onSubmit={onSubmit} noValidate data-ui className="rounded-[8px] bg-paper p-6 sm:p-8">
+              <form onSubmit={onSubmit} noValidate data-ui className="rounded-[24px] bg-paper p-6 sm:p-8">
                 <p className="text-[20px] font-semibold tracking-[-0.01em]">Sign in</p>
                 <p className="mt-1 text-[14px] text-muted">{copy.signInLead}</p>
                 <label htmlFor="email" className="mt-6 block text-[14px] font-medium">
                   Email address
                 </label>
-                <div className="mt-1.5 flex items-center gap-2 rounded-[6px] border border-line px-3 focus-within:border-navy">
+                <div className="mt-1.5 flex items-center gap-2 rounded-[24px] border border-line px-3 focus-within:border-purple">
                   <Mail className="h-4 w-4 text-muted" aria-hidden="true" />
                   <input
                     id="email"
@@ -95,18 +95,18 @@ export function AuthHandoff({ copy, mode }: { copy: AudienceCopy; mode: "login" 
                     You enter your password on the next screen, on our secure sign-in.
                   </p>
                 )}
-                <button type="submit" className="mt-6 flex h-[52px] w-full items-center justify-center gap-2 rounded-[6px] bg-navy text-[15px] font-medium text-on-navy transition-colors hover:bg-navy-deep">
+                <button type="submit" className="mt-6 flex h-[52px] w-full items-center justify-center gap-2 rounded-full bg-purple text-[15px] font-medium text-white transition-colors hover:bg-purple-deep">
                   Continue <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </button>
                 <p className="mt-5 text-center text-[14px] text-muted">
                   New here?{" "}
-                  <Link href={`/signup/${copy.slug}/`} className="font-medium text-navy hover:underline">
+                  <Link href={`/signup/${copy.slug}/`} className="font-medium text-purple hover:underline">
                     Create an account
                   </Link>
                 </p>
               </form>
             ) : (
-              <div data-ui className="rounded-[8px] bg-paper p-6 sm:p-8">
+              <div data-ui className="rounded-[24px] bg-paper p-6 sm:p-8">
                 <p className="text-[20px] font-semibold tracking-[-0.01em]">Sign up</p>
                 <p className="mt-1 text-[14px] text-muted">{copy.signUpLead}</p>
                 <ol className="mt-6 space-y-3 text-[14px]">
@@ -116,20 +116,20 @@ export function AuthHandoff({ copy, mode }: { copy: AudienceCopy; mode: "login" 
                     copy.slug === "student" ? "Add your CV, or build one" : copy.slug === "employer" ? "Add your organisation and post a role" : "Set up your college and invite students",
                   ].map((s, i) => (
                     <li key={s} className="flex items-center gap-3">
-                      <span className="tabular flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface text-[13px] font-semibold">{i + 1}</span>
+                      <span className="tabular flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sand text-[13px] font-semibold">{i + 1}</span>
                       {s}
                     </li>
                   ))}
                 </ol>
                 <a
                   href={portalSignupUrl(copy.slug)}
-                  className="mt-7 flex h-[52px] w-full items-center justify-center gap-2 rounded-[6px] bg-navy text-[15px] font-medium text-on-navy transition-colors hover:bg-navy-deep"
+                  className="mt-7 flex h-[52px] w-full items-center justify-center gap-2 rounded-full bg-purple text-[15px] font-medium text-white transition-colors hover:bg-purple-deep"
                 >
                   Create account <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </a>
                 <p className="mt-5 text-center text-[14px] text-muted">
                   Already registered?{" "}
-                  <Link href={`/login/${copy.slug}/`} className="font-medium text-navy hover:underline">
+                  <Link href={`/login/${copy.slug}/`} className="font-medium text-purple hover:underline">
                     Sign in
                   </Link>
                 </p>
@@ -140,7 +140,7 @@ export function AuthHandoff({ copy, mode }: { copy: AudienceCopy; mode: "login" 
               {others.map((o, i) => (
                 <span key={o}>
                   {i > 0 && " or "}
-                  <Link href={`/${mode}/${o}/`} className="font-medium text-navy hover:underline">
+                  <Link href={`/${mode}/${o}/`} className="font-medium text-purple hover:underline">
                     {o === "student" ? "candidate" : o} {signIn ? "sign in" : "sign up"}
                   </Link>
                 </span>

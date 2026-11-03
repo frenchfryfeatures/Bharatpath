@@ -16,20 +16,19 @@ function AppleIcon() {
   );
 }
 
-const badge =
-  "inline-flex min-h-[52px] min-w-[176px] items-center gap-3 rounded-[6px] px-4 py-2 text-left transition-colors";
+const badge = "inline-flex min-h-[54px] min-w-[172px] items-center gap-3 rounded-2xl px-4 py-2 text-left transition-all duration-150";
 
 /** Store badges drawn in our own type, not the stores' artwork, so they sit in the page. */
 export function AppBadges({ tone = "dark" }: { tone?: "dark" | "light" }) {
-  const live = tone === "dark" ? "bg-ink text-paper hover:bg-navy-deep" : "bg-paper text-ink hover:bg-surface";
-  const soon = tone === "dark" ? "bg-surface text-muted" : "bg-navy-soft text-on-navy-muted";
+  const live = tone === "dark" ? "bg-ink text-white hover:bg-purple-night" : "bg-paper text-ink hover:bg-lavender";
+  const soon = tone === "dark" ? "border border-line bg-paper text-muted" : "bg-white/15 text-white";
 
   return (
     <div className="flex flex-wrap gap-3">
       <a href={PLAY_STORE_URL} target="_blank" rel="noopener noreferrer" className={`${badge} ${live}`}>
         <PlayIcon />
         <span className="leading-tight">
-          <span className="block text-[13px] opacity-80">Get it on</span>
+          <span className="block text-[13px] opacity-75">Get it on</span>
           <span className="block text-[17px] font-semibold">Google Play</span>
         </span>
       </a>
@@ -37,7 +36,7 @@ export function AppBadges({ tone = "dark" }: { tone?: "dark" | "light" }) {
         <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" className={`${badge} ${live}`}>
           <AppleIcon />
           <span className="leading-tight">
-            <span className="block text-[13px] opacity-80">Download on the</span>
+            <span className="block text-[13px] opacity-75">Download on the</span>
             <span className="block text-[17px] font-semibold">App Store</span>
           </span>
         </a>
@@ -45,7 +44,7 @@ export function AppBadges({ tone = "dark" }: { tone?: "dark" | "light" }) {
         <span className={`${badge} ${soon}`} aria-label="App Store: coming soon">
           <AppleIcon />
           <span className="leading-tight">
-            <span className="block text-[13px]">Coming soon to the</span>
+            <span className="block text-[13px]">Coming soon on the</span>
             <span className="block text-[17px] font-semibold">App Store</span>
           </span>
         </span>

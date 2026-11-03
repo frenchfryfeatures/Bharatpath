@@ -9,7 +9,7 @@ const BANDS = ["Entry", "Developing", "Solid", "Strong"] as const;
  */
 export function CandidateCard({ band = 2 }: { band?: number }) {
   return (
-    <div data-ui className="w-full max-w-[420px] rounded-[8px] bg-paper p-5 text-ink">
+    <div data-ui className="w-full max-w-[420px] rounded-[20px] border border-line bg-paper shadow-card p-5 text-ink">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[15px] font-semibold">Priya S.</p>
@@ -17,7 +17,7 @@ export function CandidateCard({ band = 2 }: { band?: number }) {
             <MapPin className="h-3.5 w-3.5" aria-hidden="true" /> Nagpur · 2 years experience
           </p>
         </div>
-        <span className="rounded-[4px] bg-surface px-2 py-0.5 text-[13px]">Example</span>
+        <span className="rounded-full bg-sand px-2.5 py-1 text-[13px] font-medium text-body">Example</span>
       </div>
 
       <div className="mt-4">
@@ -27,14 +27,14 @@ export function CandidateCard({ band = 2 }: { band?: number }) {
         </div>
         <div className="mt-2 grid grid-cols-4 gap-1" aria-hidden="true">
           {BANDS.map((b, i) => (
-            <span key={b} className={`h-1.5 rounded-full ${i === band ? "bg-navy" : "bg-surface"}`} />
+            <span key={b} className={`h-1.5 rounded-full ${i === band ? "bg-purple" : "bg-sand"}`} />
           ))}
         </div>
       </div>
 
       <div className="mt-4 flex flex-wrap gap-1.5">
         {["Patient care", "ICU", "Marathi", "Hindi"].map((s) => (
-          <span key={s} className="rounded-[4px] bg-surface px-2 py-0.5 text-[13px]">
+          <span key={s} className="rounded-full bg-sand px-2.5 py-1 text-[13px] font-medium text-body">
             {s}
           </span>
         ))}
@@ -44,7 +44,7 @@ export function CandidateCard({ band = 2 }: { band?: number }) {
         <span className="flex items-center gap-1.5 text-[13px] text-muted">
           <Lock className="h-3.5 w-3.5" aria-hidden="true" /> Phone, email and CV on open
         </span>
-        <span className="rounded-[6px] bg-navy px-3 py-1.5 text-[13px] font-medium text-on-navy">Open profile</span>
+        <span className="rounded-full bg-purple px-3.5 py-1.5 text-[13px] font-medium text-white">Open profile</span>
       </div>
     </div>
   );

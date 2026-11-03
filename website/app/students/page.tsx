@@ -10,6 +10,7 @@ import { PageHero } from "@/components/page-hero";
 import { SplitRow, SplitRows } from "@/components/split-rows";
 import { ViewedByDemo } from "@/components/trust-demos";
 import { STUDENT_FAQ } from "@/content/faq";
+import { Steps } from "@/components/steps";
 
 export const metadata: Metadata = {
   title: "For students and job seekers",
@@ -26,6 +27,7 @@ export default function StudentsPage() {
         primary={{ href: "/signup/student/", label: "Create free account" }}
         secondary={{ href: "/jobs/", label: "Browse jobs" }}
         fragment={<ApplicationTracker reached={2} title="Staff nurse" org="Multi-speciality hospital · Nagpur" />}
+        stage="purple"
       />
 
       <SplitRows id="students-how" heading="What you get">
@@ -38,7 +40,7 @@ export default function StudentsPage() {
           title="You check it before anyone scores it."
           body="We show you every line we read from your CV. Fix what is wrong, then confirm. A misread never turns into your score."
           fragment={<ResumeReview />}
-          stage="navy"
+          stage="purple"
         />
         <SplitRow
           title="Practise interviews out loud."
@@ -48,19 +50,20 @@ export default function StudentsPage() {
         <SplitRow
           title="Know who opened your profile."
           body="Employers see your skills and band on a search card. Your phone, email and CV appear only when they open your full profile, and you see which organisations did."
-          fragment={<div className="w-full max-w-[400px]"><ViewedByDemo /></div>}
+          fragment={<div className="w-full max-w-[420px] rounded-[20px] border border-line bg-paper p-4 shadow-card"><ViewedByDemo /></div>}
         />
         <SplitRow
           title="Linked to your college, if you want."
           body="If your college is on BharatPath, join with its code. It counts you in its placement figures; it sees you by name only if you choose to share."
           fragment={<ConsentFragment />}
-          stage="navy"
+          stage="purple"
         />
       </SplitRows>
 
+      <Steps heading="How it works for candidates" />
       <AppDownload />
       <FaqList items={STUDENT_FAQ} group="student-faq" />
-      <CtaOpen title={["Your path", "starts here."]} />
+      <CtaOpen title="Your path starts here" />
     </>
   );
 }

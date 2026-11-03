@@ -24,6 +24,7 @@ export default function CollegesPage() {
         primary={{ href: "/signup/college/", label: "Register your college" }}
         secondary={{ href: "/login/college/", label: "College sign in" }}
         fragment={<CohortPanel />}
+        stage="gold"
       />
 
       <SplitRows id="college-how" heading="How it works for colleges">
@@ -36,7 +37,7 @@ export default function CollegesPage() {
           title="Your seats cover their access."
           body="Your plan comes with seats. A linked student on one of your seats gets the full platform without paying for a plan of their own."
           fragment={<ApplicationTracker reached={1} title="Accounts assistant" org="Textile exporter · Ludhiana" />}
-          stage="navy"
+          stage="purple"
         />
         <SplitRow
           title="Students decide what you see."
@@ -47,12 +48,12 @@ export default function CollegesPage() {
           title="Figures you can take to a review."
           body="Applied, shortlisted, interviewed and hired, by cohort. Small groups show counts only, so no number points to one student."
           fragment={<CohortPanel />}
-          stage="navy"
+          stage="purple"
         />
       </SplitRows>
 
       <FaqList items={COLLEGE_FAQ} group="college-faq" />
-      <CtaOpen title={["Bring your", "batch on board."]} />
+      <CtaOpen title="Bring your batch on board" />
     </>
   );
 }
