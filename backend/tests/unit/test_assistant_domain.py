@@ -36,6 +36,7 @@ from app.modules.assistant.domain import (
     decode_state,
     encode_state,
     excerpt,
+    monthly_salary_floor_minor,
     parse_plan,
     salary_words,
     scrub,
@@ -114,6 +115,14 @@ def test_salary_reads_in_rupees_and_never_when_undisclosed() -> None:
     )
     assert words == "₹25,000-35,000 per month"
     assert salary_words(minimum_minor=1, maximum_minor=2, period="MONTHLY", disclosed=False) is None
+
+
+def test_a_salary_floor_reaches_the_board_as_a_month() -> None:
+    """The board's filter is a monthly floor in paise. "6 LPA" arrives as a
+    year's rupees and is divided down; "25k a month" passes through."""
+    assert monthly_salary_floor_minor(None) is None
+    assert monthly_salary_floor_minor(25_000) == 2_500_000
+    assert monthly_salary_floor_minor(600_000) == 5_000_000
 
 
 # --- what the model returns -----------------------------------------------------

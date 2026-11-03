@@ -24,8 +24,13 @@ import { CollegeErrorState } from "../../components/college-error-state";
 import { seatStat } from "../../seat-stat";
 import { ScoreDistribution } from "./score-distribution";
 
-function formatMetric(value: number | null): number {
-  return value ?? 0;
+/**
+ * A withheld figure arrives as `null` (the cohort is under the privacy floor,
+ * or a cell is under `min_cell_size`) and is never 0: drawing it as 0 told a
+ * college its median score was zero.
+ */
+function formatMetric(value: number | null | undefined): string | number {
+  return value ?? "—";
 }
 
 export function CollegeDashboard() {
@@ -192,7 +197,7 @@ function CohortFunnel({
               {row.label}
             </span>
             <span className="text-[15px] font-semibold text-[#151b2b]">
-              {row.value ?? 0}
+              {formatMetric(row.value)}
             </span>
           </div>
         ))}

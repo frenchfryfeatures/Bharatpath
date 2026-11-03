@@ -376,6 +376,51 @@ async def test_an_undisclosed_salary_is_flagged_on_the_board(client: Any, mint_t
     assert item["salary_disclosed"] is False
 
 
+async def test_the_board_says_what_a_salary_is_per_and_filters_by_the_month(
+    client: Any, mint_token: Any
+) -> None:
+    """The list had no period, so both apps drew an annual ₹6 LPA posting as
+    ₹72 LPA; and the monthly salary filter compared raw figures, so every
+    annual posting cleared every monthly floor."""
+    employer = await _employer(client, mint_token)
+    marker = f"Period{uuid.uuid4().hex[:8]}"
+    # ₹6-9 LPA a year: ₹50,000-75,000 a month.
+    annual = await _board_job(
+        client,
+        employer,
+        **_job_body(
+            title=f"{marker} annual",
+            salary_min_minor=60_000_000,
+            salary_max_minor=90_000_000,
+            details=_with("compensation", period="ANNUAL"),
+        ),
+    )
+    # ₹40,000-60,000 a month.
+    monthly = await _board_job(
+        client,
+        employer,
+        **_job_body(
+            title=f"{marker} monthly", salary_min_minor=4_000_000, salary_max_minor=6_000_000
+        ),
+    )
+    candidate = await _candidate(mint_token, scored=False)
+
+    listed = await client.get(BOARD, params={"q": marker}, headers=candidate["headers"])
+    periods = {item["id"]: item["salary_period"] for item in listed.json()["items"]}
+    assert periods == {annual["id"]: "ANNUAL", monthly["id"]: "MONTHLY"}
+
+    async def above(floor_minor: int) -> set[str]:
+        return set(await _board_ids(client, candidate, q=marker, min_salary_minor=floor_minor))
+
+    # ₹55,000 a month: the annual job tops out at ₹75,000 a month, the
+    # monthly one at ₹60,000.
+    assert await above(5_500_000) == {annual["id"], monthly["id"]}
+    # ₹70,000 a month: only the annual one reaches it.
+    assert await above(7_000_000) == {annual["id"]}
+    # ₹1,00,000 a month: neither. Compared raw, the annual one cleared it.
+    assert await above(10_000_000) == set()
+
+
 @pytest.mark.parametrize("visibility", ["PRIVATE", "INVITE_ONLY"])
 async def test_only_public_jobs_are_listed_on_the_board(
     client: Any, mint_token: Any, visibility: str

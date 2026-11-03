@@ -2,6 +2,7 @@ import { baseApi } from "@/store/api/base-api";
 import {
   candidateDetailsWithDefaults,
   type CandidateJobDetails,
+  type SalaryPeriod,
 } from "@/features/jobs/job-details";
 import type {
   CollegeLink,
@@ -114,6 +115,7 @@ export interface JobResponse {
   salary_min_minor: number;
   salary_max_minor: number;
   salary_disclosed?: boolean;
+  salary_period?: SalaryPeriod;
   can_apply_externally?: boolean;
   published_at: string;
   eligibility: JobListing["eligibility"];
@@ -283,6 +285,7 @@ export function mapJob(response: JobResponse): JobListing {
     salaryMinMinor: response.salary_min_minor,
     salaryMaxMinor: response.salary_max_minor,
     salaryDisclosed: response.salary_disclosed ?? true,
+    salaryPeriod: response.salary_period ?? response.details?.compensation?.period ?? "",
     canApplyExternally: response.can_apply_externally ?? false,
     publishedAt: response.published_at,
     eligibility: response.eligibility,

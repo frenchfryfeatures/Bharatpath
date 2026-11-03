@@ -284,12 +284,25 @@ offset, because offset pagination on a growing table skips/repeats rows).
       "employer_logo_url": "https://…presigned…",
       "skills": ["Python"], "location": "Bangalore", "work_mode": "HYBRID",
       "salary_min_minor": 8000000, "salary_max_minor": 15000000,
+      "salary_disclosed": true, "salary_period": "MONTHLY",
       "published_at": "...", "eligibility": "ELIGIBLE"
     }
   ],
   "next_cursor": null
 }
 ```
+
+**`salary_period`** (2026-11-03) is what the two figures are *per*:
+`ANNUAL`, `MONTHLY`, `DAILY`, `HOURLY`, or `""` for a posting that never
+said (read it as monthly). It is on every summary -- this list, the job
+detail and both recommended-jobs lists. Draw the range in that period: the
+lists used to assume monthly, so an annual ₹6 LPA posting read as ₹72 LPA.
+
+**`min_salary_minor` is a monthly floor, in paise** (the apps offer ₹10k /
+₹15k / ₹20k / ₹25k a month). It is compared with each posting's top figure
+converted to a month (annual ÷ 12, daily × 260 ÷ 12, hourly × 2080 ÷ 12), so
+annual and monthly postings filter alike. Compared raw, every annual posting
+cleared every monthly floor.
 
 `employer_logo_url` (2026-10-09) is the employer's logo, or `null` if it has
 none. It is a presigned link that **expires in 15 minutes**: draw it from the

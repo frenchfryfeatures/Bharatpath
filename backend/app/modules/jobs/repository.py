@@ -24,10 +24,12 @@ from datetime import datetime
 from typing import Any, Final
 
 from sqlalchemy import (
+    BigInteger,
     DateTime,
     String,
     Text,
     bindparam,
+    case,
     column,
     false,
     func,
@@ -285,6 +287,26 @@ def _contains(value: str) -> str:
     return f"%{escaped}%"
 
 
+def _monthly_salary_max() -> Any:
+    """A posting's top salary as monthly paise, whatever period it was entered in.
+
+    The columns hold the figure in the posting's own period
+    (`details.compensation.period`), and the board's salary filter is a
+    *monthly* floor -- both apps offer ₹10k / ₹15k / ₹20k / ₹25k a month.
+    Compared raw, an annual ₹6 LPA posting (6,00,00,000 paise) cleared every
+    monthly floor, and a monthly one could never clear an annual figure. An
+    unstated period is monthly, which is what the composer defaults to.
+    """
+    period = Job.details["compensation"]["period"].astext
+    top = Job.salary_max_minor.cast(BigInteger)
+    return case(
+        (period == "ANNUAL", top / 12),
+        (period == "DAILY", top * 260 / 12),
+        (period == "HOURLY", top * 2080 / 12),
+        else_=top,
+    )
+
+
 def _listed() -> Any:
     """Only PUBLIC jobs are searchable. PRIVATE and INVITE_ONLY jobs are
     published but unlisted: reachable by id (a shared link, an invitation),
@@ -329,7 +351,7 @@ async def search_board(
         stmt = stmt.where(_has_skill(skill))
     if min_salary_minor is not None:
         # A range that reaches the asked-for figure, not one that starts at it.
-        stmt = stmt.where(Job.salary_max_minor >= min_salary_minor)
+        stmt = stmt.where(_monthly_salary_max() >= min_salary_minor)
     if eligible_only:
         if eligible_at_score is None:
             stmt = stmt.where(false())
@@ -453,7 +475,7 @@ async def search_pool(
     if work_mode:
         stmt = stmt.where(Job.work_mode == work_mode)
     if min_salary_minor is not None:
-        stmt = stmt.where(Job.salary_max_minor >= min_salary_minor)
+        stmt = stmt.where(_monthly_salary_max() >= min_salary_minor)
     if max_experience_months is not None:
         stmt = stmt.where(
             or_(

@@ -79,8 +79,9 @@ export function formatDateTime(value: string): string {
 
 export function formatSalary(job: JobListing): string {
   if (!job.salaryDisclosed || job.details?.compensation.disclosed === false) return "Not disclosed";
-  // Job board summaries omit the period; new employer postings default to monthly.
-  const period = job.details?.compensation.period || "MONTHLY";
+  // Lists carry `salaryPeriod`; the single-job response also has the details.
+  // An unstated period is monthly, which is what the composer defaults to.
+  const period = job.salaryPeriod || job.details?.compensation.period || "MONTHLY";
   return `₹${formatSalaryLpaFromPaise(job.salaryMinMinor, period)}–${formatSalaryLpaFromPaise(job.salaryMaxMinor, period)} LPA`;
 }
 

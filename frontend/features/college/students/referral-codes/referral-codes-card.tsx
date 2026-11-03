@@ -5,7 +5,7 @@ import { KeyRound, Ban, Copy, Check } from "lucide-react";
 
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Skeleton } from "@/components/common/loading";
-import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
+import { showErrorFeedback, showSuccessFeedback } from "@/lib/feedback/success-feedback";
 
 import type {
   ReferralCode,
@@ -74,7 +74,15 @@ export function ReferralCodesCard({
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const handleCopy = async (code: ReferralCode) => {
-    await navigator.clipboard.writeText(code.code);
+    // A browser can refuse clipboard access (permission denied, an insecure
+    // context, an embedded frame); that rejection used to escape as an
+    // uncaught error and the button did nothing visible.
+    try {
+      await navigator.clipboard.writeText(code.code);
+    } catch {
+      showErrorFeedback(`Could not copy automatically. The code is ${code.code}.`);
+      return;
+    }
     setCopiedId(code.id);
     showSuccessFeedback("Referral code copied successfully.");
     setTimeout(() => setCopiedId(null), 1500);

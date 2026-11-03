@@ -9,6 +9,29 @@ states. Newest entries first.
 
 ---
 
+## 2026-11-03 — End-to-end QA pass of every portal, and the fixes
+
+Branch `claude/admiring-turing-2peiff`. Full write-up, with what was and was
+not exercised and the test data left behind: [`qa-report-2026-11-03.md`](qa-report-2026-11-03.md).
+
+- **Board salaries carry their period** (`BoardJobSummary.salary_period`).
+  Lists on web and mobile assumed monthly and drew annual postings at 12×
+  (₹6 LPA as ₹72 LPA). `min_salary_minor` is now a monthly floor compared
+  with each posting's top figure converted to a month; the assistant divides
+  a year's figure down. Guide 05 §board.
+- **An abandoned business sign-up can be finished.** `authService.me()`
+  resolved every reload as the candidate pool, so a business account with no
+  organisation became a "student" and was sent to `/signup/student`. It now
+  reads the pool from the token; sign-in, reload and the portal guard all
+  lead back to the organisation step of the right sign-up.
+- An invitation names its job only while the job is PUBLISHED, as the schema
+  promised (`CandidateJobRef.on_board`).
+- Web only: sign-up shows every field error at once; upload codes have copy;
+  the onboarding city is checked on its own step; a withheld college figure
+  draws "—", not 0; college copy buttons survive a refused clipboard; the
+  fallback Cognito candidate pool names the live pool, not the expired
+  account's.
+
 ## 2026-10-26 — Unlimited uploads, one scoring per 15 days
 
 Asked for: a candidate may upload as many resumes as they like, but only

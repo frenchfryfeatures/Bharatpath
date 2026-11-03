@@ -97,6 +97,14 @@ export function EmployerSignup() {
           remember(identity);
           setEmail(identity.user.email || null);
           setStage({ name: "kyb" });
+        } else if (identity.needsOrganisation) {
+          // Verified the email, left before creating the organisation, came
+          // back (a refresh, or a later sign-in). Showing "Create your
+          // employer account" here offered a sign-up Cognito would refuse,
+          // with no way on to the organisation step.
+          remember(identity);
+          setEmail(identity.user.email || null);
+          setStage({ name: "organisation" });
         } else {
           setStage({ name: "account" });
         }

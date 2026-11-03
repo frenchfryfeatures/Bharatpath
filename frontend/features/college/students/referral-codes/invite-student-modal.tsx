@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Copy, Check, Link2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { showSuccessFeedback } from "@/lib/feedback/success-feedback";
+import { showErrorFeedback, showSuccessFeedback } from "@/lib/feedback/success-feedback";
 import type { ReferralCode } from "@/store/college/referral-codes";
 
 export interface InviteStudentModalProps {
@@ -74,7 +74,13 @@ export function InviteStudentModal({
 
   const handleCopy = async () => {
     if (!issuedCode) return;
-    await navigator.clipboard.writeText(issuedCode.code);
+    try {
+      await navigator.clipboard.writeText(issuedCode.code);
+    } catch {
+      // Permission denied or no clipboard: the code is on screen to copy by hand.
+      showErrorFeedback(`Could not copy automatically. The code is ${issuedCode.code}.`);
+      return;
+    }
     setCopied(true);
     showSuccessFeedback("Referral code copied successfully.");
     setTimeout(() => setCopied(false), 1500);

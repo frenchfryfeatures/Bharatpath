@@ -78,6 +78,20 @@ export function formatMonthlySalaryPaise(paise: number): string {
   return `₹${rupees}`;
 }
 
+/** What a job's salary figures are per; `''` when the posting never said. */
+export type SalaryPeriod = '' | 'HOURLY' | 'DAILY' | 'MONTHLY' | 'ANNUAL';
+
+/**
+ * The unit drawn after a salary range: `/mo` for monthly or unstated, `/day`,
+ * `/hr`, and nothing for annual, whose label already ends in "LPA".
+ */
+export function salaryPeriodSuffix(period?: SalaryPeriod | null): string {
+  if (period === 'ANNUAL') return '';
+  if (period === 'DAILY') return '/day';
+  if (period === 'HOURLY') return '/hr';
+  return '/mo';
+}
+
 /**
  * Format a salary range from paise into a single compact label.
  *
@@ -87,7 +101,19 @@ export function formatMonthlySalaryPaise(paise: number): string {
 export function formatSalaryRangePaise(
   minMinor: number,
   maxMinor: number,
+  period?: SalaryPeriod | null,
 ): string {
+  if (period === 'ANNUAL') {
+    // An annual figure drawn as thousands read as "₹600k–900k/mo": a ₹6 LPA
+    // job shown at twelve times its pay. Lakhs are how a year's pay is said.
+    const lakhs = (paise: number) =>
+      new Intl.NumberFormat('en-IN', { maximumFractionDigits: 1 }).format(
+        paise / 100 / 100_000,
+      );
+    const lo = lakhs(minMinor);
+    const hi = lakhs(maxMinor);
+    return lo === hi ? `₹${lo} LPA` : `₹${lo}–${hi} LPA`;
+  }
   const minLabel = formatMonthlySalaryPaise(minMinor);
   const maxLabel = formatMonthlySalaryPaise(maxMinor);
   if (minLabel === maxLabel) return minLabel;

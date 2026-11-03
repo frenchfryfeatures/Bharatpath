@@ -158,7 +158,8 @@ export function AnalyticsDashboard() {
               items={data.placementsByMonth.map((entry) => ({
                 label: entry.month,
                 value: entry.hires ?? 0,
-                display: entry.hires === null ? "0" : undefined,
+                // Withheld (under the cell floor): never shown as 0.
+                display: entry.hires === null ? "—" : undefined,
               }))}
             />
           )}
@@ -190,8 +191,8 @@ export function AnalyticsDashboard() {
 
 /**
  * Bars are drawn relative to the largest count in their own column; the
- * number itself is what is displayed. A withheld cell (`null`) is rendered
- * as zero with a zero-width bar.
+ * number itself is what is displayed. A withheld cell (`null`) has a
+ * zero-width bar and reads "—": a withheld figure is never 0.
  */
 function funnelProgress(rows: FunnelCount[]) {
   const max = Math.max(1, ...rows.map((row) => row.value ?? 0));
@@ -199,7 +200,7 @@ function funnelProgress(rows: FunnelCount[]) {
     id: row.id,
     label: row.label,
     value: row.value == null ? 0 : Math.round((row.value / max) * 100),
-    display: String(row.value ?? 0),
+    display: row.value == null ? "—" : String(row.value),
     tone: "info" as const,
   }));
 }

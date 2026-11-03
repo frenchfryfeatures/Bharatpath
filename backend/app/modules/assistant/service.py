@@ -49,6 +49,7 @@ from app.modules.assistant.domain import (
     decode_state,
     encode_state,
     excerpt,
+    monthly_salary_floor_minor,
     parse_plan,
     salary_words,
     trim_history,
@@ -141,9 +142,7 @@ async def _listing(
             terms=terms,
             locations=search.locations,
             work_mode=search.work_mode,
-            min_salary_minor=(
-                search.min_salary_rupees * 100 if search.min_salary_rupees is not None else None
-            ),
+            min_salary_minor=monthly_salary_floor_minor(search.min_salary_rupees),
             max_experience_months=months,
             eligible_only=search.eligible_only,
             offset=offset,

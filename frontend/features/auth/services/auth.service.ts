@@ -6,6 +6,7 @@ import {
   confirmSignUpCognito,
   confirmTotpCodeCognito,
   formatCognitoError,
+  poolOfToken,
   resendSignUpCodeCognito,
   signInWithCognito,
   signOutCognito,
@@ -337,19 +338,25 @@ export const authService = {
     }
   },
 
-  async me(): Promise<LoginResponse> {
+  async me(): Promise<SignupResponse> {
     const token = await getFreshToken();
     if (!token) {
       throw new ApiError("You are not signed in.", 401, "AUTH_ERROR");
     }
 
+    // The pool decides what a 403 `no_active_membership` means: a business
+    // account that has not created its organisation yet. Read as CANDIDATE
+    // (as it always was here), that account became a "student" on every
+    // reload and the student gate sent it to /signup/student, signed out of
+    // its own employer onboarding with no way back to it.
+    const poolOf = (value: string) => ({ pool: poolOfToken(value) ?? ("CANDIDATE" as const) });
     try {
-      return await resolveSession(token, "", { pool: "CANDIDATE" });
+      return await resolveSession(token, "", poolOf(token));
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         const renewed = await refreshSession(true);
         if (renewed.status === "OK") {
-          return resolveSession(renewed.token, "", { pool: "CANDIDATE" });
+          return resolveSession(renewed.token, "", poolOf(renewed.token));
         }
         if (renewed.status === "EXPIRED") handleSessionExpired();
       }

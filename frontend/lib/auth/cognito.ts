@@ -22,14 +22,22 @@ export interface CognitoConfig {
   businessClientId: string;
 }
 
+/*
+ * Fallbacks for when the NEXT_PUBLIC_COGNITO_* variables are unset (a fresh
+ * local checkout). They must name the live pools: the candidate pair still
+ * named the pool of the AWS account that expired on 2026-10-01, so a local
+ * build could sign in businesses but answered every candidate sign-in with
+ * Cognito's ResourceNotFoundException. The mobile app's eas.json holds the
+ * same candidate pair.
+ */
 export const COGNITO_CONFIG: CognitoConfig = {
   region: process.env.NEXT_PUBLIC_COGNITO_REGION ?? "ap-south-1",
   candidatePoolId:
     process.env.NEXT_PUBLIC_COGNITO_CANDIDATE_USER_POOL_ID ??
-    "ap-south-1_afBHHXfyH",
+    "ap-south-1_W3LPdPnh4",
   candidateClientId:
     process.env.NEXT_PUBLIC_COGNITO_CANDIDATE_CLIENT_ID ??
-    "2bpl99ukq9mjalvku2r9rha80u",
+    "7sm4qd9k4bitdseu05d1t9pt4u",
   businessPoolId:
     process.env.NEXT_PUBLIC_COGNITO_BUSINESS_USER_POOL_ID ??
     "ap-south-1_YlPonHUV6",
@@ -37,6 +45,27 @@ export const COGNITO_CONFIG: CognitoConfig = {
     process.env.NEXT_PUBLIC_COGNITO_BUSINESS_CLIENT_ID ??
     "2prgfuo6fmfr4un46gsonth75b",
 };
+
+/**
+ * Which pool minted an access token, from its `iss` claim; null when it is
+ * not a token from either pool (a local dev token, or garbage).
+ */
+export function poolOfToken(token: string | null | undefined): CognitoPoolType | null {
+  if (!token) return null;
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const claims = JSON.parse(atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, "=")));
+    const issuer: unknown = claims?.iss;
+    if (typeof issuer !== "string") return null;
+    if (issuer.endsWith(`/${COGNITO_CONFIG.candidatePoolId}`)) return "CANDIDATE";
+    if (issuer.endsWith(`/${COGNITO_CONFIG.businessPoolId}`)) return "BUSINESS";
+  } catch {
+    /* not a JWT */
+  }
+  return null;
+}
 
 let activeConfiguredPool: CognitoPoolType | null = null;
 

@@ -425,6 +425,7 @@ def _after(cursor: str | None) -> tuple[datetime, uuid.UUID] | None:
 def _summary(
     job: Any, *, employer_name: str | None, score: int | None, logos: dict[uuid.UUID, str]
 ) -> dict[str, Any]:
+    compensation = parse_stored(job.details).compensation
     return {
         "id": job.id,
         "title": job.title,
@@ -436,7 +437,8 @@ def _summary(
         "experience_min_months": job.experience_min_months,
         "salary_min_minor": job.salary_min_minor,
         "salary_max_minor": job.salary_max_minor,
-        "salary_disclosed": parse_stored(job.details).compensation.disclosed,
+        "salary_disclosed": compensation.disclosed,
+        "salary_period": compensation.period,
         "published_at": job.published_at,
         "eligibility": eligibility(min_score=job.min_score, score=score),
     }
@@ -538,6 +540,10 @@ class CandidateJobRef(NamedTuple):
     employer_name: str | None = None
     #: A presigned link that expires; null when the employer has no logo.
     employer_logo_url: str | None = None
+    #: Whether the job is PUBLISHED now, i.e. still opens at
+    #: `GET /candidate/jobs/{id}`. The board names a closed job it applied to;
+    #: an invitation must not offer a link to one.
+    on_board: bool = False
 
 
 async def jobs_for_candidate(
@@ -551,7 +557,12 @@ async def jobs_for_candidate(
     names = await employer_service.public_names(session, tenant_ids=tenant_ids)
     logos = await profile_images_service.logo_urls(session, tenant_ids=tenant_ids)
     return {
-        job.id: CandidateJobRef(job.title, names.get(job.tenant_id), logos.get(job.tenant_id))
+        job.id: CandidateJobRef(
+            job.title,
+            names.get(job.tenant_id),
+            logos.get(job.tenant_id),
+            on_board=job.status == "PUBLISHED",
+        )
         for job in jobs
     }
 

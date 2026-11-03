@@ -49,6 +49,7 @@ import { useJobs } from '@/hooks/useJobs';
 import { BoardJobSummary, EligibilityStatus, JobFilters } from '@/types/job';
 import {
   formatSalaryRangePaise,
+  salaryPeriodSuffix,
   formatExperienceMonths,
   workModeLabel,
   formatPostedAgo,
@@ -379,8 +380,8 @@ function JobCard({ job, onPress }: JobCardProps) {
 
       <View style={styles.metaRow}>
         <Text style={styles.salaryText}>
-          {formatSalaryRangePaise(job.salary_min_minor, job.salary_max_minor)}
-          <Text style={styles.salaryPerMo}>/mo</Text>
+          {formatSalaryRangePaise(job.salary_min_minor, job.salary_max_minor, job.salary_period)}
+          <Text style={styles.salaryPerMo}>{salaryPeriodSuffix(job.salary_period)}</Text>
         </Text>
         {job.location ? (
           <>

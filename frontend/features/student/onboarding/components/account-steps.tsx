@@ -107,6 +107,8 @@ export function AccountStep({
     email?: string;
     password?: string;
     city?: string;
+    phone?: string;
+    workStatus?: string;
   }>({});
   const passwordRequirements = [
     {
@@ -136,16 +138,30 @@ export function AccountStep({
   const submitDetails = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!existingAccount) {
-      const cityProblem = cityError(city, true);
-      setErrors((current) => ({ ...current, city: cityProblem }));
+      // Every field is checked in one pass. This used to return at the first
+      // of phone / city / work status, so a bad name, email or password was
+      // reported only after those were fixed -- one problem per press.
       const phoneValid = /^\+[1-9]\d{7,14}$/.test(phone);
-      if (!phoneValid || !workStatus || cityProblem) {
+      const next = {
+        fullName: nameError(fullName),
+        email: EMAIL_PATTERN.test(email.trim())
+          ? undefined
+          : "Enter a valid email address.",
+        password: passwordError(password, "CANDIDATE"),
+        city: cityError(city, true),
+        phone: phoneValid
+          ? undefined
+          : "Enter a valid mobile number for the selected country.",
+        workStatus: workStatus ? undefined : "Choose experienced or fresher.",
+      };
+      setErrors(next);
+      setConfirmTouched(true);
+      const problems = Object.values(next).filter(Boolean);
+      if (problems.length || !passwordsMatch) {
         setDetailsError(
-          !workStatus
-            ? "Choose experienced or fresher."
-            : !phoneValid
-              ? "Enter a valid mobile number for the selected country."
-              : undefined,
+          problems.length > 1
+            ? "Some details need attention. Check the highlighted fields."
+            : undefined,
         );
         return;
       }
@@ -174,17 +190,6 @@ export function AccountStep({
         );
       return;
     }
-
-    const next = {
-      fullName: nameError(fullName),
-      email: EMAIL_PATTERN.test(email.trim())
-        ? undefined
-        : "Enter a valid email address.",
-      password: passwordError(password, "CANDIDATE"),
-    };
-    setErrors(next);
-    setConfirmTouched(true);
-    if (next.fullName || next.email || next.password || !passwordsMatch) return;
 
     void flow.register(email.trim(), password);
   };
@@ -409,6 +414,7 @@ export function AccountStep({
             id="signup-mobile"
             label="Mobile number *"
             hint="Select your country code, then enter your mobile number."
+            error={errors.phone}
           >
             <PhoneNumberInput
               id="signup-mobile"
@@ -417,6 +423,7 @@ export function AccountStep({
               onChange={(next) => {
                 touched.current.add("phone");
                 setPhone(next);
+                setErrors((current) => ({ ...current, phone: undefined }));
               }}
               inputClassName={`${fieldClass} ${fieldBorder(false)}`}
             />
@@ -449,12 +456,13 @@ export function AccountStep({
               />
             </div>
           </Field>
-          <Field id="signup-work-status" label="Work status *">
+          <Field id="signup-work-status" label="Work status *" error={errors.workStatus}>
             <AppSelect
               value={workStatus}
               onChange={(value) => {
                 touched.current.add("workStatus");
                 setWorkStatus(value);
+                setErrors((current) => ({ ...current, workStatus: undefined }));
               }}
               ariaLabel="Work status"
               variant="student"

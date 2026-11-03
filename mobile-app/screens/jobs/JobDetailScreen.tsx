@@ -61,6 +61,7 @@ import { Colors } from '@/theme/tokens';
 import { BoardJobDetail, EligibilityStatus } from '@/types/job';
 import {
   formatSalaryRangePaise,
+  type SalaryPeriod,
   formatExperienceMonths,
   workModeLabel,
   getInitials,
@@ -403,6 +404,8 @@ export function JobDetailScreen({
                   ? formatSalaryRangePaise(
                       job.salary_min_minor,
                       job.salary_max_minor,
+                      (job.salary_period ||
+                        job.details?.compensation?.period) as SalaryPeriod | undefined,
                     )
                   : 'Not disclosed'}
               </Text>

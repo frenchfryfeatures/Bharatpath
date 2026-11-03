@@ -221,7 +221,16 @@ async def search_board(
     location: Annotated[str | None, Query(max_length=100)] = None,
     work_mode: WorkMode | None = None,
     skill: Annotated[str | None, Query(max_length=80)] = None,
-    min_salary_minor: Annotated[int | None, Query(ge=0, description="Paise")] = None,
+    min_salary_minor: Annotated[
+        int | None,
+        Query(
+            ge=0,
+            description=(
+                "A monthly floor, in paise. Compared with each posting's top figure "
+                "converted to a month, so annual and monthly postings filter alike."
+            ),
+        ),
+    ] = None,
     eligible_only: bool = False,
     cursor: Annotated[str | None, Query(max_length=512)] = None,
     limit: Annotated[int | None, Query(ge=1, le=MAX_PAGE_SIZE)] = None,

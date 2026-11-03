@@ -51,12 +51,17 @@ export interface BoardJobSummary {
   work_mode: WorkMode | null;
   /** Minimum experience required, in months. Show as years. */
   experience_min_months: number | null;
-  /** Minimum monthly salary, integer paise. Always present (NOT NULL in DB). */
+  /** Minimum salary per `salary_period`, integer paise. Always present (NOT NULL in DB). */
   salary_min_minor: number;
-  /** Maximum monthly salary, integer paise. Always present (NOT NULL in DB). */
+  /** Maximum salary per `salary_period`, integer paise. Always present (NOT NULL in DB). */
   salary_max_minor: number;
   /** False when the employer chose not to show the range (PRD 5.2). */
   salary_disclosed?: boolean;
+  /**
+   * What the two figures are per. `''` (or absent, from an older API) means
+   * the posting never said, which is read as monthly.
+   */
+  salary_period?: '' | 'HOURLY' | 'DAILY' | 'MONTHLY' | 'ANNUAL';
   /** When the job was published (ISO 8601). */
   published_at: string;
   /** Eligibility of the signed-in candidate for this job. */

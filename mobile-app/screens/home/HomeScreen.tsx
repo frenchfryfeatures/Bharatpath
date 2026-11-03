@@ -41,6 +41,7 @@ import { getInbox } from '@/services/api/notifications';
 import { BoardJobSummary } from '@/types/job';
 import {
   formatSalaryRangePaise,
+  salaryPeriodSuffix,
   getInitials,
   pickFromString,
 } from '@/utils/helpers';
@@ -597,8 +598,9 @@ export function HomeScreen({
                         {formatSalaryRangePaise(
                           job.salary_min_minor,
                           job.salary_max_minor,
+                          job.salary_period,
                         )}
-                        /mo
+                        {salaryPeriodSuffix(job.salary_period)}
                       </Text>
                     </View>
 

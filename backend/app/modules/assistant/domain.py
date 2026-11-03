@@ -182,6 +182,21 @@ def salary_words(
     return f"₹{minimum_minor // 100:,}-{maximum_minor // 100:,}{per}"
 
 
+#: A figure at or above this, in rupees, is read as a year's pay: nobody says
+#: "jobs over 1 lakh" meaning a month far more often than meaning a year.
+ANNUAL_SALARY_FROM_RUPEES: Final = 100_000
+
+
+def monthly_salary_floor_minor(rupees: int | None) -> int | None:
+    """The board's salary filter is a monthly floor in paise; the model passes
+    rupees "in the period they used" ("6 LPA" is 6,00,000; "25k a month" is
+    25,000). A year's figure is divided down to a month."""
+    if rupees is None:
+        return None
+    monthly = rupees // 12 if rupees >= ANNUAL_SALARY_FROM_RUPEES else rupees
+    return monthly * 100
+
+
 # ---------------------------------------------------------------------------
 # What the model returns
 # ---------------------------------------------------------------------------

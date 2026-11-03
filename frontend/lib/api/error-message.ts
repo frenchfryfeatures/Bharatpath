@@ -103,6 +103,22 @@ const CODE_MESSAGES: Record<string, string> = {
   discount_code_not_found: "That discount code could not be found.",
   referral_code_invalid: "This college referral code is invalid, expired, revoked, or has reached its usage limit.",
   consent_version_outdated: "The college consent terms changed. Review them and try again.",
+  // A resume upload refused by its bytes. Without these the sign-up form
+  // said only "Some of the details provided are not valid." beside a file
+  // picker, and nothing said the file was the problem.
+  upload_empty: "That file is empty. Choose your resume file again.",
+  upload_too_large: "That file is too large. Upload a resume under 10 MB.",
+  upload_unrecognised_type: "We can only read PDF and .docx files. This file is neither.",
+  upload_unsupported_type: "We can only read PDF and .docx files.",
+  upload_legacy_doc_unsupported:
+    "Old .doc files cannot be read. Save it as a PDF or .docx and try again.",
+  resume_document_encrypted:
+    "This file is password-protected. Save a copy without a password and upload that.",
+  resume_unreadable_document:
+    "We could not read any text in this file. If it is a photo or scan, upload a PDF with selectable text.",
+  resume_unsupported_document: "We can only read PDF and .docx files.",
+  resume_too_long:
+    "This document is longer than a resume (over 10 pages). Upload your resume only.",
   internal_error:
     "Something went wrong on our end. Please try again.",
 };

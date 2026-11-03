@@ -203,6 +203,15 @@ export function LoginForm() {
         }),
       );
 
+      // A business account that verified its email but never created its
+      // organisation has nothing to show in a portal: send it back to the
+      // sign-up it left, at the organisation step, for the kind of account it
+      // signed in as.
+      if (result.backendRole === "NO_ACTIVE_MEMBERSHIP" && pool === "BUSINESS") {
+        router.replace(accountType === "INSTITUTION" ? "/signup/college" : "/signup/employer");
+        return;
+      }
+
       // The student route verifies saved progress before showing the dashboard
       // or sending an unfinished candidate to onboarding.
       router.replace(result.path);

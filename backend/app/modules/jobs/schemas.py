@@ -25,7 +25,12 @@ from pydantic import Field, model_validator
 
 from app.core.schemas import ApiSchema
 from app.modules.applications.schemas import ApplicationStage
-from app.modules.jobs.details import CandidateJobDetails, JobDetails, check_against_columns
+from app.modules.jobs.details import (
+    CandidateJobDetails,
+    JobDetails,
+    SalaryPeriod,
+    check_against_columns,
+)
 
 WorkMode = Literal["ONSITE", "HYBRID", "REMOTE"]
 JobStatus = Literal["DRAFT", "PUBLISHED", "PAUSED", "CLOSED"]
@@ -179,6 +184,10 @@ class BoardJobSummary(_Base):
     #: still sent (the salary filter compares against them, and PRD 5.2 makes
     #: the range mandatory); a client draws "Not disclosed" instead.
     salary_disclosed: bool = True
+    #: What `salary_*_minor` is per: `ANNUAL`, `MONTHLY`, `DAILY` or `HOURLY`;
+    #: empty for a posting that never said, which clients read as monthly.
+    #: Without it a list had to guess, and drew an annual ₹6 LPA as ₹72 LPA.
+    salary_period: SalaryPeriod = ""
     published_at: datetime
     eligibility: EligibilityStatus
 

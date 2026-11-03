@@ -255,6 +255,35 @@ async def test_an_invitation_to_a_job_that_closed_cannot_be_accepted(
     assert accepted.json()["code"] == "shortlist_job_not_open"
 
 
+async def test_an_answered_invitation_names_no_job_once_it_has_closed(
+    client: Any, mint_token: Any
+) -> None:
+    """The schema promises `job_title` is null once the job leaves the board.
+    Accepting files an application, and the board policy lets a candidate
+    read a job they applied to whatever its status, so the title kept coming
+    back -- and the app's "View job details" opened "Job unavailable"."""
+    employer, candidate = await _opened(client, mint_token)
+    job = await _job(client, employer)
+    entry = (await _shortlist(client, employer, candidate, job)).json()
+    accepted = await client.post(
+        f"{INVITATIONS}/{entry['id']}/accept", headers=candidate["headers"]
+    )
+    assert accepted.status_code == 200, accepted.text
+
+    async def listed() -> dict[str, Any]:
+        mine = await client.get(INVITATIONS, headers=candidate["headers"])
+        [item] = [item for item in mine.json()["items"] if item["id"] == entry["id"]]
+        return item
+
+    assert (await listed())["job_title"] == job["title"]
+    await _move(client, employer, job, "close")
+    closed = await listed()
+    assert closed["job_title"] is None
+    # Still the candidate's application: the board names it, the invitation
+    # links to it.
+    assert closed["application_id"] is not None
+
+
 async def test_another_organisation_never_reaches_an_entry(client: Any, mint_token: Any) -> None:
     employer, candidate = await _opened(client, mint_token)
     job = await _job(client, employer)

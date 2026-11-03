@@ -68,6 +68,9 @@ export type CareerEditSection =
   | "headline"
   | (typeof sections)[number]["key"];
 
+/** Mirrors the backend's `normalise_city`: letters, marks, spaces and . ' - only. */
+const CITY_PATTERN = /^(?=.*\p{L})[\p{L}\p{M} .'-]+$/u;
+
 export function CareerForm({
   resumeVersionId,
   resumeFilename,
@@ -555,6 +558,15 @@ export function CareerForm({
           !/^\+[1-9]\d{7,14}$/.test(String(employmentDetails.phone))
         )
           nextErrors.phone = "Enter a valid mobile number for the selected country.";
+        // The server refuses a city with a digit or an `@` (every employer sees
+        // it on a masked card). Checked here, a street or PIN code is caught on
+        // the step it was typed in, not as a failed save three steps later.
+        if (
+          activeFields.some((field) => field.key === "current_city") &&
+          employmentDetails.current_city &&
+          !CITY_PATTERN.test(String(employmentDetails.current_city).trim())
+        )
+          nextErrors.current_city = "Enter only your city or town: letters, spaces and . ' - (no address or PIN code).";
         if (showIdentityFields && !fullName.trim())
           nextErrors.full_name = "Enter your full name.";
         if (

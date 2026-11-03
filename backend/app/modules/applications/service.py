@@ -1563,7 +1563,11 @@ async def _invitations(
             ShortlistInvitation(
                 id=row.id,
                 job_id=row.job_id,
-                job_title=job.title,
+                # The schema's contract: null once the job has left the board.
+                # The policy still lets the candidate read a job they were
+                # invited to after it closed, and a title here sent them to
+                # a "Job unavailable" page.
+                job_title=job.title if job.on_board else None,
                 employer_name=job.employer_name,
                 employer_logo_url=job.employer_logo_url,
                 status=row.status,

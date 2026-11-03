@@ -1,4 +1,4 @@
-import type { CandidateJobDetails } from "@/features/jobs/job-details";
+import type { CandidateJobDetails, SalaryPeriod } from "@/features/jobs/job-details";
 
 export type ScoreStatus = "READY" | "PENDING";
 
@@ -138,6 +138,8 @@ export interface JobListing {
   salaryMaxMinor: number;
   /** False when the employer hides the range; draw "Not disclosed". */
   salaryDisclosed: boolean;
+  /** What the salary figures are per; "" when the posting never said (monthly). */
+  salaryPeriod: SalaryPeriod;
   /**
    * True only when the backend sent this candidate the employer's own link or
    * email. It withholds both from anyone the apply button would refuse.
