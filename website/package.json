@@ -1,0 +1,29 @@
+{
+  "name": "bharatpath-website",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3100",
+    "fetch:gov": "node scripts/fetch-gov-jobs.mjs",
+    "prebuild": "node scripts/fetch-gov-jobs.mjs",
+    "build": "next build",
+    "start": "npx serve out -l 3100",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "lucide-react": "^1.43.0",
+    "next": "16.3.4",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.4",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

@@ -8,7 +8,7 @@ export default function LoginPage() {
     <AuthPageShell
       eyebrow="Welcome back"
       title="Sign in to BharatPath"
-      description="Enter your account email to continue. We'll take you to your candidate, employer, college, or admin portal."
+      description="Enter your account email to continue. We'll take you straight to your portal."
     >
       <Suspense>
         <LoginForm />
