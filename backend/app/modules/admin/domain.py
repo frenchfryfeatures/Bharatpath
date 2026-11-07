@@ -21,6 +21,7 @@ machine is small on purpose -- open, being looked at, closed one of two ways
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Final, Literal
 
@@ -268,6 +269,46 @@ def mask_email(email: str | None) -> str | None:
         return None
     local, _, domain = email.partition("@")
     return f"{local[:1]}***@{domain}"
+
+
+# ---------------------------------------------------------------------------
+# Searching for a person (2026-10-21)
+# ---------------------------------------------------------------------------
+def partial_contact_search(role: str) -> bool:
+    """Whether `role` may find someone by **part** of an email or phone.
+
+    Only the roles that already read a whole contact (`candidate_contact`).
+    Anyone else matches the whole address or number: on a list that masks
+    contacts, a partial match answers "does any address contain `a`, `ab`,
+    `abc`...?" and spells out the hidden contact one character at a time.
+    A name is shown on the row anyway, so part of a name is for everyone."""
+    return role in CONSOLE_ROLES["candidate_contact"]
+
+
+@dataclass(frozen=True)
+class PersonSearch:
+    """A list's one search box (`q`), matched against a person's name, email
+    and phone at once: a row matches if any of the three does.
+
+    The service hands over `name` (the text, trimmed), `email` (the text,
+    normalised) and `phone` (its digits, only when the text looks like a
+    phone number). Part of the name always matches; part of the email or
+    phone only when `partial_contact` -- otherwise the whole address or
+    number (`partial_contact_search`)."""
+
+    name: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    partial_contact: bool = False
+
+    @property
+    def given(self) -> bool:
+        return any(v is not None for v in (self.name, self.email, self.phone))
+
+    def audit(self) -> dict[str, bool]:
+        """What the audit row says about the search: that one was made, and
+        whether contacts matched in part. Never the text searched for."""
+        return {"searched": self.given, "partial_contact": self.partial_contact}
 
 
 # ---------------------------------------------------------------------------

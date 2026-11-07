@@ -104,6 +104,22 @@ def sessions(url: str) -> async_sessionmaker[AsyncSession]:
     return async_sessionmaker(create_async_engine(url), expire_on_commit=False)
 
 
+async def age_resume_confirmations(user_id: uuid.UUID | str, *, days: int = 400) -> None:
+    """Move every confirmation this candidate made `days` into the past, as
+    the migrator, so a test may confirm again without waiting out
+    `resume.scoring_interval`. Order among them is kept, so "current" (the
+    newest confirmation) is unchanged."""
+    async with sessions(_seed_url())() as session, session.begin():
+        await session.execute(
+            text(
+                "UPDATE resume_versions "
+                "SET confirmed_at = confirmed_at - make_interval(days => :d) "
+                "WHERE user_id = :u AND confirmed_at IS NOT NULL"
+            ),
+            {"u": str(user_id), "d": days},
+        )
+
+
 async def subscribe_tenant(tenant_id: uuid.UUID | str, *, lapsed: bool = False) -> uuid.UUID:
     """An employer subscription for `tenant_id`, seeded as the migrator.
 

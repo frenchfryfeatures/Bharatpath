@@ -418,6 +418,7 @@ EXPORT_SECTIONS: Final = (
     "account",
     "profile",
     "resumes",
+    "resume_files",
     "resume_builder",
     "scores",
     "applications",

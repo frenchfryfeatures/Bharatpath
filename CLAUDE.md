@@ -200,6 +200,14 @@ attached to it.
   latch (conditional UPDATE, `WHERE confirmed_at IS NULL`). An edit never
   inherits confirmation — that would be the gate reached through a side door.
 
+- **One confirmation per `resume.scoring_interval`** (default 15 days,
+  2026-10-26). Uploads, pastes, edits and builder pushes are unlimited;
+  the confirm, being the only door to scoring, is where the limit lives
+  (409 `resume_scoring_cooldown`, `GET /candidate/resume/scoring-window`).
+  Measured from the last `confirmed_at`, under a per-candidate advisory
+  lock, checked after the idempotent-retry branch. Add-on re-scores are
+  not confirmations. **A test that confirms twice for one candidate calls
+  `age_resume_confirmations`** (`tests/conftest.py`) in between.
 - **Review-screen sections are a view of `raw_text`, never stored**
   (`resume/sections.py`, 2026-09-23). A `sections` edit is assembled back into
   text. Do not "upgrade" it to the structured form: that drops the prose Layer 1
@@ -597,6 +605,14 @@ PDF download, and "push" to make it their resume. **No model is called.**
 - Completing the profile still creates the automatic MANUAL version. Both
   apps' current onboarding depends on it; remove it only when they have
   moved to the builder step.
+- **The draft is never synced into, and never syncs out except by push**
+  (2026-10-22). `synced_at` records when it last caught up (first save,
+  refill, push, `POST /draft/keep`, never autosave); a CV *read from text*
+  created after it makes `GET /draft` say `out_of_date`. Don't make an
+  upload rewrite the draft (it holds the candidate's edits), and don't make
+  builder edits write into an upload's chain (rendered fields replace the
+  prose Layer 1 reads). The review screen's "current" resume is
+  `current` on `/candidate/resume/versions`, never inferred.
 - **The follow-up list** (`GET /admin/leads`, `/admin/leads/summary`,
   capability `sales_leads`) carries **unmasked** phone and email. It is held
   equal to `candidate_contact` by a test, audited per page, and lists ACTIVE
@@ -986,6 +1002,27 @@ SUPPORT_AGENT).
   candidate and `platform_tenant_bound()`; `guard_dispute_write` lets only a
   PLATFORM-bound transaction change state. Resolving records words and **moves
   nothing else**. A candidate's hire dispute is filed by `admin.open_hire_dispute`.
+
+**Searching and sorting the lists** (2026-10-21, `app/core/listing.py`,
+`backend-guide/13` §0.6). Every list takes `sort` + `order` and **one
+search box, `q`** (2026-10-22): on a people list it is tried against name,
+email and phone at once, a match on any (`_person_where` ORs them). Text is
+tried as a phone only when it is shaped like one (`listing.phone_digits`):
+the digits of `ravi 2024` would match every number holding a 2024.
+
+- **A cursor carries its sort.** One from another sort or order is
+  `invalid_cursor`. A sort's keys end in the id; nullable keys sort last
+  either way. Each router `Literal` is held equal to its repository's
+  `*_SORTS` table by `tests/unit/test_admin_list_sorts.py`.
+- **Part of an email or phone only for `candidate_contact` roles**
+  (`domain.partial_contact_search`); others match the whole of it.
+  Otherwise a masked list spells out a contact one character at a time.
+  Never widen this without widening `candidate_contact`.
+- **Audit rows say that a list was searched, never what for**
+  (`PersonSearch.audit()`: `searched`, `partial_contact`). Never put the
+  text in metadata.
+- A candidate's phone is `_CANDIDATE_PHONE`: the account's, else the
+  onboarding one. Most candidates have only the second.
 
 **The console dashboard** (`GET /admin/dashboard`, 2026-09-23) is capability
 `dashboard`, held by every staff role. Each queue section inside is gated by

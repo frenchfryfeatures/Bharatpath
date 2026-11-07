@@ -1,5 +1,8 @@
 "use client";
 
+import { useAdminListFilters } from "@/features/admin/shared/list-filters";
+
+
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 
 import {
@@ -53,20 +56,24 @@ export function useDisputes() {
     selectAdminDisputes,
   );
 
-  const openPage = useCursorPagination([], 10);
-  const resolvedPage = useCursorPagination([], 10);
-  const rejectedPage = useCursorPagination([], 10);
+  const filters = useAdminListFilters("disputes");
+  const openPage = useCursorPagination([filters.key], 10);
+  const resolvedPage = useCursorPagination([filters.key], 10);
+  const rejectedPage = useCursorPagination([filters.key], 10);
   const openQuery = useGetAdminDisputesQuery({
+    ...filters.params,
     state_group: "ACTIVE",
     limit: openPage.pageSize,
     cursor: openPage.cursor,
   });
   const resolvedQuery = useGetAdminDisputesQuery({
+    ...filters.params,
     state: "RESOLVED",
     limit: resolvedPage.pageSize,
     cursor: resolvedPage.cursor,
   });
   const rejectedQuery = useGetAdminDisputesQuery({
+    ...filters.params,
     state: "REJECTED",
     limit: rejectedPage.pageSize,
     cursor: rejectedPage.cursor,
@@ -80,6 +87,8 @@ export function useDisputes() {
 
   return {
     state,
+    filterControls: filters.controls,
+    searching: filters.searching,
 
     openDisputes,
 

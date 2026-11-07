@@ -9,8 +9,10 @@ this is the layer the invariant property tests exercise directly.
 
 from __future__ import annotations
 
+import unicodedata
 import uuid
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import Any, Final
 
 #: Magic numbers, longest first so a prefix never shadows a longer match.
@@ -117,6 +119,50 @@ def upload_key(*, user_id: uuid.UUID, upload_id: uuid.UUID) -> str:
     authorisation. Deriving it from the authenticated user closes that.
     """
     return f"resumes/{user_id}/{upload_id}"
+
+
+#: A file's name as it is shown back to its owner in their history.
+MAX_FILENAME_CHARS: Final = 255
+#: An extension longer than this is not one, and is cut with the rest.
+_MAX_EXTENSION_CHARS: Final = 10
+#: Format characters that are kept: ZWNJ and ZWJ choose an Indic letter's
+#: form, so dropping them would misspell a Hindi or Bengali filename.
+_JOINERS: Final = frozenset({"‌", "‍"})
+
+
+def clean_filename(raw: str | None) -> str | None:
+    """The name the candidate's device gave a file, fit to show back to them.
+
+    **A label and nothing else.** The object's key is derived from ids we
+    issued (`upload_key`) and its type from its bytes (`sniff_mime`), so a
+    name is never used to find, type or trust a file. It is the candidate's
+    own text, shown only to them, on their list of uploaded resumes.
+
+    The last path segment only (a browser may send `C:\\fakepath\\cv.pdf`),
+    no control or format characters but the two joiners (NUL cannot be
+    stored at all, and a right-to-left override makes `cv<RLO>fdp.exe` read
+    as `cvexe.pdf`),
+    whitespace collapsed, and at most 255 characters with the extension kept.
+    """
+    if raw is None:
+        return None
+    # Whitespace first, so a tab or a line break becomes a space rather than
+    # vanishing and joining two words; then every other control goes.
+    segment = " ".join(raw.replace("\\", "/").rsplit("/", 1)[-1].split())
+    name = " ".join(
+        "".join(
+            c for c in segment if c in _JOINERS or unicodedata.category(c) not in ("Cc", "Cf")
+        ).split()
+    )
+    if name in ("", ".", ".."):
+        return None
+    if len(name) > MAX_FILENAME_CHARS:
+        stem, dot, extension = name.rpartition(".")
+        if dot and stem and len(extension) <= _MAX_EXTENSION_CHARS:
+            name = f"{stem[: MAX_FILENAME_CHARS - len(extension) - 1].rstrip()}.{extension}"
+        else:
+            name = name[:MAX_FILENAME_CHARS].rstrip()
+    return name
 
 
 #: Characters removed before anything else. C0 controls and DEL, minus the
@@ -227,6 +273,68 @@ def refuse_version_change(*, is_superseded: bool) -> VersionRefusal | None:
             "This version has been replaced by a newer one. Edit the newest version instead.",
         )
     return None
+
+
+# ---------------------------------------------------------------------------
+# How often a resume may go to scoring (2026-10-26)
+# ---------------------------------------------------------------------------
+#: Uploads, pastes, corrections and builder pushes are unlimited; a
+#: *confirmation* is what sends a resume to scoring, and a candidate gets one
+#: per interval. Ours, not the client's.
+DEFAULT_SCORING_INTERVAL_DAYS: Final = 15
+#: 0 switches the limit off. The ceiling is a year: anything longer is a
+#: typo that would lock a candidate out of correcting their score.
+MAX_SCORING_INTERVAL_DAYS: Final = 365
+
+
+class ScoringIntervalError(ValueError):
+    """The configured scoring interval cannot be applied."""
+
+
+@dataclass(frozen=True, slots=True)
+class ScoringInterval:
+    days: int
+    version: str
+
+    @property
+    def period(self) -> timedelta:
+        return timedelta(days=self.days)
+
+
+DEFAULT_SCORING_INTERVAL: Final = ScoringInterval(
+    days=DEFAULT_SCORING_INTERVAL_DAYS, version="code-v1"
+)
+
+
+def scoring_interval_from_config(value: object, *, version: str) -> ScoringInterval:
+    """Parse `{"days": n}`, 0 to 365. Strict: anything doubtful raises.
+
+    A bad row must not quietly become the default, nor a number nobody meant.
+    """
+    if not isinstance(value, dict) or set(value) != {"days"}:
+        raise ScoringIntervalError('expected {"days": <int>}')
+    days = value["days"]
+    if isinstance(days, bool) or not isinstance(days, int):
+        raise ScoringIntervalError("days must be an integer")
+    if not 0 <= days <= MAX_SCORING_INTERVAL_DAYS:
+        raise ScoringIntervalError(f"days must be between 0 and {MAX_SCORING_INTERVAL_DAYS}")
+    return ScoringInterval(days=days, version=version)
+
+
+def next_scoring_at(
+    *, last_confirmed_at: datetime | None, interval: ScoringInterval, now: datetime
+) -> datetime | None:
+    """When this candidate may next confirm a resume, or None if they may now.
+
+    **Measured from the last confirmation, not the last score.** Confirming is
+    the act that spends the turn: a score that is still being computed, or
+    one whose extraction failed and is being retried, has already been asked
+    for. The first confirmation is always allowed.
+    """
+    if last_confirmed_at is None or interval.days == 0:
+        return None
+    at = last_confirmed_at + interval.period
+    return at if now < at else None
 
 
 def edit_provenance(previous_extractor: dict[str, Any] | None) -> dict[str, Any]:

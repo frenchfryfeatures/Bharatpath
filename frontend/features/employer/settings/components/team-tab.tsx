@@ -240,7 +240,9 @@ export function TeamTab() {
             ) : filteredMembers.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={4} className="py-5 text-xs text-[#718096]">
-                  No team members match the selected filters.
+                  {search.trim()
+                    ? "No results found. Try a different search or clear your search."
+                    : "No team members match the selected filters."}
                 </TableCell>
               </TableRow>
             ) : pagedMembers.map((member) => (

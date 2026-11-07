@@ -6,9 +6,9 @@ const templateKeys: BuilderTemplateKey[] = ["classic", "modern", "sidebar", "min
 export default async function StudentResumeBuilderEditPage({
   searchParams,
 }: {
-  searchParams: Promise<{ template?: string }>;
+  searchParams: Promise<{ template?: string; section?: string; from?: string }>;
 }) {
-  const { template } = await searchParams;
+  const { template, section, from } = await searchParams;
   const templateKey = templateKeys.find((key) => key === template);
-  return <ResumeBuilderEditor templateKey={templateKey} />;
+  return <ResumeBuilderEditor templateKey={templateKey} section={section} returnTo={from === "resume-details" ? "resume-details" : "profile"} />;
 }

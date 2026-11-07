@@ -123,7 +123,16 @@ never write into another candidate's storage prefix even if it tried.
 
 Requires: `CANDIDATE` role.
 
-**No request body** — just the `upload_id` from step 1, in the path.
+**Optional request body** (`UploadCompleteRequest`, since 2026-10-22):
+```json
+{ "filename": "Priya Sharma CV.pdf" }
+```
+Send the name the file had on the device. It labels the file in the
+candidate's history (§6b) and nothing else reads it: the key and the type
+are still the server's. It is cut to a display name (last path segment, no
+control characters, at most 255 characters). Sending no body is still
+accepted, and the file is listed with `filename: null`. A retry does not
+rename the file.
 
 **Response** — `202 Accepted` (`UploadCompleteResponse`):
 ```json
@@ -164,7 +173,8 @@ parsing settles.
   "parse_error_code": null,
   "terminal": true,
   "uploaded_at": "2026-09-17T10:00:00Z",
-  "resume_version_id": "3a1c..."
+  "resume_version_id": "3a1c...",
+  "filename": "Priya Sharma CV.pdf"
 }
 ```
 | Field | Meaning |
@@ -280,13 +290,59 @@ created, **newest first, no content** — just enough for a history screen
   {
     "resume_version_id": "3a1c...", "source": "EDIT", "confirmed": true,
     "confirmed_at": "2026-09-17T11:00:00Z", "supersedes_id": "9f2e...",
-    "superseded": false, "created_at": "2026-09-17T10:55:00Z"
+    "superseded": false, "created_at": "2026-09-17T10:55:00Z",
+    "resume_file_id": "9f2e...", "filename": "Priya Sharma CV.pdf",
+    "current": true
   }
 ]
 ```
 `superseded: true` means a *newer* version has replaced this one — a
 superseded version can no longer be edited or confirmed (it's frozen
 history at that point).
+
+**`current` is the version being scored:** the newest confirmed one,
+whichever chain it is in. At most one is `true`, and none before anything
+is confirmed. **Use it to pick the resume to show. Don't infer it from
+`confirmed && !superseded`.** A builder push starts a chain of its own,
+so after one is confirmed, two versions are confirmed and unsuperseded at once.
+
+`resume_file_id` is the document the version was read from or drawn as.
+Corrections carry it forward, so versions sharing one are the same resume.
+`filename` is that document's name (§2), or `null`.
+
+---
+
+## 6b. `GET /candidate/resume/files` — the uploaded-resumes history
+
+Requires: `CANDIDATE` role. Added 2026-10-22. **One row per document,
+newest first.** That covers each upload and each PDF the resume builder drew
+when the candidate pushed. An upload and its corrections are one row. An
+upload that failed or was blocked is listed too, with no version, so the
+history shows that it did not work. At most 50.
+
+**Response** — `200 OK`, array of `ResumeFileSummary`:
+```json
+[
+  {
+    "resume_file_id": "9f2e...", "filename": "Priya Sharma CV.pdf",
+    "origin": "UPLOAD", "mime": "application/pdf", "size_bytes": 84211,
+    "uploaded_at": "2026-10-20T09:12:00Z", "scan_status": "CLEAN",
+    "parse_status": "DONE", "parse_error_code": null, "terminal": true,
+    "latest_version_id": "3a1c...", "confirmed": true, "current": true
+  }
+]
+```
+| Field | Meaning |
+|---|---|
+| `origin` | `UPLOAD` (a file the candidate sent) or `BUILDER` (the builder's PDF). Filter on it for an "uploaded files only" list. |
+| `latest_version_id` | The newest version made from this file: the upload, or the latest correction of it. Open it with §7 and its file with §7b. `null` when the file was never read. |
+| `confirmed` | That newest version is confirmed. |
+| `current` | This file holds the version being scored now. At most one row. |
+| `filename` | As sent in §2. `null` for uploads from before 2026-10-22. |
+
+There is no "restore an older resume" action. Making an older CV the
+scored one again would be a new version and a re-score, which is a product
+decision that hasn't been taken. Today the candidate uploads it again.
 
 ---
 
@@ -424,12 +480,56 @@ Requires: `CANDIDATE` role. **This is SRS 1.4.4, the mandatory confirm gate.**
    `confirmed_at` timestamp, never a new one. When a candidate approved
    their content is a fact about them, not about how many times their phone
    lost signal mid-request.
-4. Otherwise: the confirmation is written (a one-way latch — `confirmed_at`
+4. Has this candidate confirmed **any** version in the last
+   `resume.scoring_interval` days (default **15**)? If so, `409
+   resume_scoring_cooldown` with `params.next_scoring_at` (ISO timestamp)
+   and `params.interval_days`. Nothing is confirmed, nothing is scored, and
+   the last confirmed version stays the one scored. The first confirmation
+   is always allowed.
+5. Otherwise: the confirmation is written (a one-way latch — `confirmed_at`
    can only move from `NULL` to a value, never back), and **only now** the
    `resume.version_confirmed` event fires.
 
 That event is what a background worker picks up to actually run scoring —
 see §0 above for why it's this specific event and not "version created."
+
+**Uploading is never limited; scoring is** (2026-10-26). A candidate may
+upload, paste, correct and push from the builder as often as they like. Only
+the confirm, which is what sends a resume to scoring, is held to one per
+interval. The interval is measured from the last *confirmation*, not the last
+score, so a score that's still computing has already used the turn. A retry
+of a confirmation already made still answers `200 already_confirmed` (check 3
+runs first). The interval is `config_values` key `resume.scoring_interval`,
+`{"days": n}`, 0 (off) to 365; change it by inserting a new version of the
+row. A malformed row is a `500`, never the default. Add-on re-scores (a
+course or interview completed) are not confirmations and are not limited.
+
+---
+
+## 9b. `GET /candidate/resume/scoring-window` — when the next confirm is allowed
+
+Requires: `CANDIDATE` role. **Not paywalled** — it only says when; the
+confirm itself still needs a subscription.
+
+**Response** — `200 OK` (`ResumeScoringWindowResponse`):
+```json
+{
+  "interval_days": 15,
+  "last_confirmed_at": "2026-10-20T09:00:00Z",
+  "next_scoring_at": "2026-11-04T09:00:00Z",
+  "can_confirm_now": false
+}
+```
+| Field | Meaning |
+|---|---|
+| `interval_days` | One confirmation per this many days. `0` means no limit. |
+| `last_confirmed_at` | The candidate's last confirmation, or `null` if none. |
+| `next_scoring_at` | When a confirmation is next allowed; `null` means now. |
+| `can_confirm_now` | `next_scoring_at == null`. |
+
+Read it before showing the review screen's confirm button, so the app can say
+"Your next scoring is available on 4 Nov" instead of letting the tap fail.
+The `409` from §9 carries the same date.
 
 ---
 

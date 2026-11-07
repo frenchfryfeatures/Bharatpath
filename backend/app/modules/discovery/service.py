@@ -44,6 +44,7 @@ from app.core.errors import (
     RateLimitedError,
     ValidationError,
 )
+from app.core.listing import SortOrder, ordering
 from app.core.logging import get_logger
 from app.core.outbox import emit
 from app.core.pagination import Page, clamp_limit, decode_cursor, encode_cursor
@@ -1010,27 +1011,22 @@ async def list_filter_options(
     include_inactive: bool,
     cursor: str | None,
     limit: int | None,
+    featured: bool | None = None,
+    sort: str = "key",
+    order: SortOrder | None = None,
 ) -> tuple[list[SearchFilterOption], str | None]:
-    after: tuple[str, str] | None = None
-    if cursor is not None:
-        payload = decode_cursor(cursor)
-        try:
-            after = (str(payload["k"]), str(payload["n"]))
-        except KeyError as exc:
-            raise ValidationError(code="invalid_cursor") from exc
     size = clamp_limit(limit)
+    sorting = ordering(repository.FILTER_OPTION_SORTS, sort=sort, order=order, cursor=cursor)
     rows = await repository.list_filter_options(
         session,
         kind=kind,
         query=option_key(query) if query and query.strip() else None,
         include_inactive=include_inactive,
-        after=after,
+        featured=featured,
+        ordering=sorting,
         limit=size,
     )
-    next_cursor = (
-        encode_cursor({"k": rows[-1].kind, "n": rows[-1].key}) if len(rows) == size else None
-    )
-    return rows, next_cursor
+    return rows, sorting.next_cursor(rows, size)
 
 
 async def seed_filter_catalogue(session: AsyncSession) -> tuple[int, int]:

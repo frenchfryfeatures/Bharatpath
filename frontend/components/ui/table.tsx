@@ -428,6 +428,8 @@ export interface DataTableProps<T> {
   onPreviousPage?: () => void;
   emptyTitle?: string;
   emptySubtitle?: string;
+  /** Show a search-specific empty state when an active query has no matches. */
+  searching?: boolean;
   isLoading?: boolean;
   /** Number of skeleton rows shown while loading. Defaults to pageSize. */
   skeletonRows?: number;
@@ -451,6 +453,7 @@ export function DataTable<T>({
   onPreviousPage,
   emptyTitle,
   emptySubtitle,
+  searching = false,
   isLoading = false,
   skeletonRows,
   itemLabel = "items",
@@ -529,8 +532,8 @@ export function DataTable<T>({
     bodyContent = (
       <TableEmpty
         colSpan={columns.length}
-        title={emptyTitle}
-        subtitle={emptySubtitle}
+        title={searching ? "No results found" : emptyTitle}
+        subtitle={searching ? "Try a different search or clear your search." : emptySubtitle}
         loading={isLoading}
       />
     );

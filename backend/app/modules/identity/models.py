@@ -103,6 +103,14 @@ class User(Base, UUIDPrimaryKey, Timestamps):
         ),
         # The console's candidate list (`GET /admin/candidates`), newest first.
         Index("ix_users_pool_created", "pool", "created_at", "id"),
+        # Part of an email, in the console's lists (2026-10-21). Trigram, so
+        # "sharma@" is an index scan; pg_trgm is created with the database.
+        Index(
+            "ix_users_email_trgm",
+            "email",
+            postgresql_using="gin",
+            postgresql_ops={"email": "gin_trgm_ops"},
+        ),
     )
 
 

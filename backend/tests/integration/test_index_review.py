@@ -44,6 +44,7 @@ GROWING = frozenset(
         "device_checks", "interview_checkout_notices", "dsr_requests", "disputes",
         "streak_point_events", "questionnaire_responses", "course_completions", "entitlements",
         "referral_codes", "roster_imports", "streak_activity_days", "employer_shortlists",
+        "candidate_profiles",
     }
 )  # fmt: skip
 
@@ -119,6 +120,8 @@ HOT_PATHS: tuple[tuple[str, str], ...] = (
     ("inbox", "SELECT * FROM notifications WHERE user_id = :u AND channel = 'IN_APP' ORDER BY created_at DESC LIMIT 20"),
     ("pending messages", "SELECT * FROM notifications WHERE state = 'PENDING' ORDER BY created_at LIMIT 100"),
     ("admin candidate list", "SELECT * FROM users WHERE pool = 'CANDIDATE' AND (created_at, id) < (now(), :u) ORDER BY created_at DESC, id DESC LIMIT 51"),
+    ("admin search by part of an email", "SELECT id FROM users WHERE email LIKE '%sharma@%'"),
+    ("admin search by part of a name", "SELECT user_id FROM candidate_profiles WHERE full_name ILIKE '%priya%'"),
     ("integrity queue","SELECT * FROM integrity_signals WHERE state = 'OPEN' AND severity = 'HIGH' ORDER BY created_at LIMIT 50"),
     ("my consents", "SELECT * FROM student_consents WHERE candidate_id = :u"),
     ("college roster consents", "SELECT * FROM student_consents WHERE tenant_id = :u"),

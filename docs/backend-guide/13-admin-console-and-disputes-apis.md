@@ -124,13 +124,76 @@ cleared an item should see it gone.
 
 ---
 
+## 0.6 Searching and sorting every list (2026-10-21)
+
+Every list in this doc takes **`sort`** (one of its own fields) and
+**`order`** (`asc` | `desc`) beside its filters. Leave `order` out and each
+sort runs its natural way: dates newest first, names A–Z, the two queues
+(integrity, disputes) oldest first. An unknown `sort` is `422`.
+
+**A cursor belongs to the filters, `sort` and `order` it was issued
+under.** Change any of them and start again without one: a cursor from
+another sort or order is `422 invalid_cursor`, never a page that skips or
+repeats rows. **Empty values sort last whichever the order**: a nameless
+account under `sort=full_name`, a never-submitted draft under
+`submitted_at`, a code that never expires under `valid_until`.
+
+**Every list has one search box, `q`** (2026-10-22; until then the
+people lists took separate `name`, `email` and `phone`, which are gone). On
+a list of people, `q` is tried against the name, the email **and** the
+phone at once, and a row matching **any** of them is in. Other filters
+narrow it (AND).
+
+| `q` is tried as | Matches |
+|---|---|
+| a name | Part of the name, case-insensitive, for every role that can read the list |
+| an email | Part of the address **for Admin and Support Agent** (the roles that read whole contacts, `candidate_contact`); **the whole address for anyone else**. Case and surrounding spaces ignored |
+| a phone | **Only when `q` looks like a phone number** (digits, with spaces, `+`, `-`, `.` or brackets and nothing else). Its digits are matched: part of the number for Admin and Support Agent, the whole E.164 number for anyone else. A candidate's phone is the account's, else the one given at onboarding. `ravi 2024` is never read as a phone |
+
+**Why the whole contact for other roles:** the Integrity Reviewer lists
+candidates with contacts masked. If part of an address matched for them,
+searching `a`, `ab`, `abc`… would spell the hidden address out one letter
+at a time (`domain.partial_contact_search`). `%` and `_` are always
+characters, never wildcards.
+
+**Dates are IST days, both ends inclusive.** A range that ends before it
+starts is `422 invalid_date_range`.
+
+| List | Search | Filters (new in **bold**) | `sort` (default first) |
+|---|---|---|---|
+| List | `q` matches | Filters (new in **bold**) | `sort` (default first) |
+|---|---|---|---|
+| `GET /admin/candidates` | Name, email or phone | **`city`** (part), `status`, **`created_from`/`created_to`** | `created_at`, `full_name` |
+| `GET /admin/leads` | Name, email or phone | `stage`, **`signed_up_from`/`signed_up_to`** | `created_at`, `full_name`, `last_downloaded_at` |
+| `GET /admin/kyb/submissions` | Part of the organisation's name | `state`, **`created_from`/`created_to`** | `created_at`, `submitted_at`, `organisation` |
+| `GET /admin/integrity/signals` | The candidate's name, email or phone | `state`, `severity`, **`rule_id`, `created_from`/`created_to`** | `created_at`, `severity` (HIGH first, each severity oldest first) |
+| `GET /admin/tenants` | Part of the organisation's name, or an active member's email or phone | `type`, `status`, **`created_from`/`created_to`** | `name`, `created_at` |
+| `GET /admin/disputes` | The raiser's name (candidates have one), email or phone | `state`, `kind`, `party`, **`assigned_to`, `created_from`/`created_to`** | `created_at`, `resolved_at` |
+| `GET /admin/audit-events` | — (no `q`) | as before | `order` only (`desc` default) |
+| `GET /admin/discount-codes` | Part of the code or label | `audience`, **`status`** (repeatable; as worked out now), **`created_from`/`created_to`** | `created_at`, `code`, `valid_until` |
+| `GET /admin/discount-codes/{id}/redemptions` | The paying account's email or phone | **`subscriber_type`, `redeemed_from`/`redeemed_to`** | `redeemed_at`, `amount_minor` |
+| `GET /admin/search-filters` | In the key or an alias | `kind`, `include_inactive`, **`featured`** | `key` (kind, then key), `label`, `created_at` |
+
+**Audited lists say how they were searched, never what for.** The
+candidate list, the leads and the integrity queue add `searched`,
+`partial_contact`, `sort` and `order` to their audit row's metadata. What
+was typed into `q` is never written.
+`GET /admin/tenants` and the dispute queue stay unaudited: their rows name
+organisations and ids, not people.
+
+**Cursors issued before 2026-10-21 are refused** (`invalid_cursor`): they
+carry no sort. A client that kept one starts the list again.
+
+---
+
 ## 1. KYB review — `GET/POST /admin/kyb/*`
 
 **Auth:** `kyb` capability (Admin or KYB Reviewer).
 
 ### `GET /admin/kyb/submissions` — every submission, newest first
 
-**Request:** `?state=`, `cursor`, `limit` (max 100), all optional.
+**Request:** `?state=`, `cursor`, `limit` (max 100), all optional, plus
+`q` (part of the organisation's name), dates and sort in [§0.6](#06-searching-and-sorting-every-list-2026-10-21).
 
 **Response** — `200 OK` (`KybSubmissionsPage`):
 ```json
@@ -243,7 +306,10 @@ half of invariant 8, the machine half being the database trigger on
 ### `GET /admin/integrity/signals` — the review queue, oldest first
 
 **Request:** `?state=OPEN` (default; also `CLEARED`/`CONFIRMED`),
-`?severity=HIGH` (optional filter), `cursor`, `limit`.
+`?severity=HIGH` (optional filter), `cursor`, `limit`, plus the candidate
+search `q`, `rule_id`, dates and sort in [§0.6](#06-searching-and-sorting-every-list-2026-10-21).
+The Integrity Reviewer finds a candidate by their whole email or phone,
+never part of one.
 
 **Response** — `200 OK` (`IntegritySignalsPage`):
 ```json
@@ -322,7 +388,10 @@ decision here is final — there's no re-open.
 ### `GET /admin/tenants` — employers and colleges by name
 
 **Auth:** `tenants` capability. **Request:** `?type=EMPLOYER|COLLEGE`,
-`?status=ACTIVE|SUSPENDED|CLOSED`, `?q=` (name search), `cursor`, `limit`.
+`?status=ACTIVE|SUSPENDED|CLOSED`, `?q=` (name search), `cursor`, `limit`,
+dates and sort in [§0.6](#06-searching-and-sorting-every-list-2026-10-21). `q` also matches an
+active member's email or phone; a KYB Reviewer matches a member's whole
+address only.
 
 **Response** — `200 OK` (`TenantsPage`):
 ```json
@@ -466,13 +535,16 @@ may find one (Admin, Support Agent, Integrity Reviewer; a KYB Reviewer gets
 | Param | Meaning |
 |---|---|
 | `status` | `ACTIVE` \| `SUSPENDED` \| `DELETED` (an erased account: its row stays, emptied, so its name and contacts come back `null`) |
-| `q` | Part of the full name, case-insensitive, max 100 chars. `%` and `_` are matched literally, not as wildcards |
-| `email` | The **exact** address, case and surrounding spaces ignored — for "someone wrote to support from this address". Not a partial match, so it cannot enumerate a domain |
+| `q` | One search box (§0.6): part of the full name, or the email, or the phone (when `q` looks like a phone number). Part of an email or phone for Admin and Support Agent; **the whole address or number** for the Integrity Reviewer, who sees contacts masked. Case-insensitive; `%` and `_` are matched literally, not as wildcards. The phone is the account's, else the one given at onboarding |
+| `city` | Part of the city |
+| `created_from`, `created_to` | Signed up between these IST days, both inclusive |
+| `sort`, `order` | `created_at` (default, newest first) or `full_name` (A–Z; unnamed accounts last) — §0.6 |
 | `cursor`, `limit` | Keyset paging, `limit` 1–100 (default as elsewhere) |
 
-Newest account first. **Only candidate accounts**: a business account
-(employer, college or staff) never appears, even searched for by its exact
-email.
+Newest account first by default. **Only candidate accounts**: a business
+account (employer, college or staff) never appears, even searched for by
+its exact email. `phone_masked` is the account's number, else the
+onboarding one, masked the same way.
 
 **Response** — `200 OK` (`CandidatesPage`):
 ```json
@@ -494,12 +566,15 @@ someone, not for reading them.
 
 **Audited on every page**: one `admin_bypass_session_opened` row, target
 type `candidates`, metadata `{"view": "candidates", "status": ..., "by_name":
-true|false, "by_email": true|false}`. **The search terms themselves are not
-recorded** — a name or an email address is personal data, and the audit log
-holds ids. The row says *that* this person searched, not *for whom*.
+true|false, "partial_contact": true|false, "by_city": true|false, "sort": ...,
+"order": ...}` (`by_name` is `searched` since 2026-10-22: whether `q` was
+given). **What was typed is not recorded** — a name or an email address is
+personal data, and the audit log holds ids. The row says *that* this person
+searched, and how, not *for whom*.
 
-`422 invalid_cursor` for a mangled cursor; `422` (FastAPI's shape) for a
-bad `status`.
+`422 invalid_cursor` for a mangled cursor or one from another sort;
+`422` (FastAPI's
+shape) for a bad `status` or `sort`.
 
 ### The sales follow-up list — `/admin/leads` (2026-10-13)
 

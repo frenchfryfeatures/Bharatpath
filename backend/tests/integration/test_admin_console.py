@@ -602,7 +602,7 @@ async def test_staff_find_a_candidate_by_name_or_email_and_the_search_is_audited
     assert row["phone_masked"] != phone and row["phone_masked"].endswith(phone[-4:])
     assert not [k for k in row if "raw" in k or "cognito" in k or "score" in k]
 
-    by_email = await client.get(url, params={"email": f"  {email.upper()} "}, headers=headers)
+    by_email = await client.get(url, params={"q": f"  {email.upper()} "}, headers=headers)
     assert [r["id"] for r in by_email.json()["items"]] == [str(candidate["id"])]
 
     wildcard = await client.get(url, params={"q": f"{token}%"}, headers=headers)
@@ -610,7 +610,7 @@ async def test_staff_find_a_candidate_by_name_or_email_and_the_search_is_audited
     suspended = await client.get(url, params={"q": token, "status": "SUSPENDED"}, headers=headers)
     assert suspended.json()["items"] == []
     staff_email = await _scalar("SELECT email FROM users WHERE id = :u", u=agent["user_id"])
-    business = await client.get(url, params={"email": staff_email}, headers=headers)
+    business = await client.get(url, params={"q": staff_email}, headers=headers)
     assert business.json()["items"] == [], "a business account is never a candidate"
 
     searches = int(

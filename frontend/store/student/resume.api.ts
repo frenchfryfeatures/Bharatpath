@@ -58,9 +58,27 @@ export interface ResumeVersionCreated {
 }
 
 export interface ResumeVersionSummary extends ResumeVersionCreated {
+  filename: string | null;
   confirmedAt: string | null;
   supersedesId: string | null;
   superseded: boolean;
+  /** The server's answer to "which version is mine now"; never infer it. */
+  current: boolean;
+}
+
+/** One row per uploaded file, for the resume history. */
+export interface ResumeFileRow {
+  resumeFileId: string | null;
+  name: string;
+  status: string;
+  current: boolean;
+  latestVersionId: string | null;
+  uploadedAt: string | null;
+}
+
+export interface ResumeUploadCompleteArgs {
+  uploadId: string;
+  filename: string;
 }
 
 export interface ResumeSectionItem {
@@ -120,6 +138,14 @@ export interface ResumeConfirmed {
   alreadyConfirmed: boolean;
 }
 
+/** The candidate's eligibility to confirm a resume for scoring. */
+export interface ResumeScoringWindow {
+  intervalDays: number;
+  lastConfirmedAt: string | null;
+  nextScoringAt: string | null;
+  canConfirmNow: boolean;
+}
+
 export type ResumeEdit =
   | { sections: Array<Pick<ResumeSection, "kind" | "heading" | "body">> }
   | { structured: ManualResume }
@@ -135,9 +161,11 @@ interface VersionCreatedResponse {
 }
 
 interface VersionSummaryResponse extends VersionCreatedResponse {
+  filename?: string | null;
   confirmed_at: string | null;
   supersedes_id: string | null;
   superseded: boolean;
+  current: boolean;
 }
 
 interface VersionDetailResponse extends VersionSummaryResponse {
@@ -156,10 +184,23 @@ const mapCreated = (response: VersionCreatedResponse): ResumeVersionCreated => (
 
 const mapSummary = (response: VersionSummaryResponse): ResumeVersionSummary => ({
   ...mapCreated(response),
+  filename: response.filename ?? null,
   confirmedAt: response.confirmed_at,
   supersedesId: response.supersedes_id,
   superseded: response.superseded,
+  current: response.current === true,
 });
+
+interface ResumeFileRowResponse {
+  resume_file_id?: string | null;
+  name?: string | null;
+  filename?: string | null;
+  status?: string | null;
+  current?: boolean;
+  latest_version_id?: string | null;
+  uploaded_at?: string | null;
+  created_at?: string | null;
+}
 
 export const studentResumeApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
@@ -213,11 +254,16 @@ export const studentResumeApi = baseApi.injectEndpoints({
       },
     }),
 
-    completeResumeUpload: builder.mutation<ResumeUploadAccepted, string>({
-      query: (uploadId) => ({
+    completeResumeUpload: builder.mutation<ResumeUploadAccepted, ResumeUploadCompleteArgs>({
+      query: ({ uploadId, filename }) => ({
         url: `/candidate/resume/uploads/${uploadId}/complete`,
         method: "POST",
+        body: { filename },
       }),
+      invalidatesTags: [
+        { type: "Student", id: "RESUME_FILES" },
+        { type: "Student", id: "BUILDER_DRAFT" },
+      ],
       transformResponse: (response: {
         resume_file_id: string;
         scan_status: string;
@@ -258,7 +304,7 @@ export const studentResumeApi = baseApi.injectEndpoints({
         body: { text },
       }),
       transformResponse: mapCreated,
-      invalidatesTags: [{ type: "Student", id: "RESUME_VERSIONS" }],
+      invalidatesTags: [{ type: "Student", id: "RESUME_VERSIONS" }, { type: "Student", id: "RESUME_FILES" }, { type: "Student", id: "BUILDER_DRAFT" }],
     }),
 
     submitManualResume: builder.mutation<ResumeVersionCreated, ManualResume>({
@@ -278,6 +324,20 @@ export const studentResumeApi = baseApi.injectEndpoints({
       providesTags: [{ type: "Student", id: "RESUME_VERSIONS" }],
     }),
 
+    getResumeFiles: builder.query<ResumeFileRow[], void>({
+      query: () => "/candidate/resume/files",
+      transformResponse: (response: ResumeFileRowResponse[]) =>
+        response.map((row) => ({
+          resumeFileId: row.resume_file_id ?? null,
+          name: row.name ?? row.filename ?? "Resume",
+          status: row.status ?? "",
+          current: row.current === true,
+          latestVersionId: row.latest_version_id ?? null,
+          uploadedAt: row.uploaded_at ?? row.created_at ?? null,
+        })),
+      providesTags: [{ type: "Student", id: "RESUME_FILES" }],
+    }),
+
     getResumeVersion: builder.query<ResumeVersionDetail, string>({
       query: (resumeVersionId) =>
         `/candidate/resume/versions/${resumeVersionId}`,
@@ -291,6 +351,22 @@ export const studentResumeApi = baseApi.injectEndpoints({
       providesTags: (_result, _error, id) => [
         { type: "Student", id: `RESUME_VERSION_${id}` },
       ],
+    }),
+
+    getResumeScoringWindow: builder.query<ResumeScoringWindow, void>({
+      query: () => "/candidate/resume/scoring-window",
+      transformResponse: (response: {
+        interval_days: number;
+        last_confirmed_at: string | null;
+        next_scoring_at: string | null;
+        can_confirm_now: boolean;
+      }) => ({
+        intervalDays: response.interval_days,
+        lastConfirmedAt: response.last_confirmed_at,
+        nextScoringAt: response.next_scoring_at,
+        canConfirmNow: response.can_confirm_now,
+      }),
+      providesTags: [{ type: "Student", id: "RESUME_SCORING_WINDOW" }],
     }),
 
     editResumeVersion: builder.mutation<
@@ -307,7 +383,7 @@ export const studentResumeApi = baseApi.injectEndpoints({
         body: edit,
       }),
       transformResponse: mapCreated,
-      invalidatesTags: [{ type: "Student", id: "RESUME_VERSIONS" }],
+      invalidatesTags: [{ type: "Student", id: "RESUME_VERSIONS" }, { type: "Student", id: "RESUME_FILES" }, { type: "Student", id: "BUILDER_DRAFT" }],
     }),
 
     confirmResumeVersion: builder.mutation<ResumeConfirmed, string>({
@@ -326,8 +402,11 @@ export const studentResumeApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: (_result, _error, id) => [
         { type: "Student", id: "RESUME_VERSIONS" },
+        { type: "Student", id: "RESUME_FILES" },
+        { type: "Student", id: "BUILDER_DRAFT" },
         { type: "Student", id: `RESUME_VERSION_${id}` },
         { type: "Student", id: "SCORE" },
+        { type: "Student", id: "RESUME_SCORING_WINDOW" },
       ],
     }),
   }),
@@ -343,7 +422,9 @@ export const {
   useSubmitManualResumeMutation,
   useGetResumeVersionsQuery,
   useLazyGetResumeVersionsQuery,
+  useGetResumeFilesQuery,
   useGetResumeVersionQuery,
+  useGetResumeScoringWindowQuery,
   useEditResumeVersionMutation,
   useConfirmResumeVersionMutation,
 } = studentResumeApi;

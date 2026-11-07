@@ -319,7 +319,7 @@ export function StudentSignup() {
     setStage({ name: "parsing", fileName, fileSize, phase: "checking" });
 
     try {
-      const accepted = await completeUpload(uploadId).unwrap();
+      const accepted = await completeUpload({ uploadId, filename: fileName }).unwrap();
       setStage({
         name: "parsing",
         fileName,

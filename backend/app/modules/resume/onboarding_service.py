@@ -15,7 +15,7 @@ from app.core.openai_responses import OpenAIOutputInvalidError, OpenAIUnavailabl
 from app.core.outbox import emit
 from app.modules.candidate.extraction import extract_career
 from app.modules.resume import repository
-from app.modules.resume.domain import sniff_mime, upload_key, validate_upload
+from app.modules.resume.domain import clean_filename, sniff_mime, upload_key, validate_upload
 from app.modules.resume.models import ResumeVersion
 from app.modules.resume.parser import ExtractedDocument, LocalResumeParser
 from app.modules.resume.scanner import get_document_scanner, may_process
@@ -65,7 +65,13 @@ async def preview(content: bytes) -> dict[str, Any]:
     return {"full_name": full_name, "email": email, "details": values}
 
 
-async def intake(session: AsyncSession, *, user_id: uuid.UUID, content: bytes) -> ResumeVersion:
+async def intake(
+    session: AsyncSession,
+    *,
+    user_id: uuid.UUID,
+    content: bytes,
+    filename: str | None = None,
+) -> ResumeVersion:
     mime, extracted = await read_document(content)
     settings = get_settings()
     file_id = uuid.uuid4()
@@ -94,6 +100,7 @@ async def intake(session: AsyncSession, *, user_id: uuid.UUID, content: bytes) -
         mime=mime,
         size_bytes=len(content),
         scan_status=scan_status,
+        original_filename=clean_filename(filename),
     )
     row = await repository.create_version(
         session,

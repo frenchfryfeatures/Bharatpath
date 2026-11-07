@@ -3,7 +3,7 @@
 import { FormSkeleton } from "@/components/common/loading";
 import { StructuredResumeReview } from "./structured-resume-review";
 import { getApiErrorMessage } from "@/lib/api/error-message";
-import { useGetResumeVersionQuery } from "@/store/student";
+import { useGetResumeScoringWindowQuery, useGetResumeVersionQuery } from "@/store/student";
 
 import { ErrorNote, PillButton, StepHeader } from "./ui";
 
@@ -15,6 +15,7 @@ interface ReviewStepProps {
   subtitle?: string;
   confirmLabel?: string;
   startOverLabel?: string;
+  restoreFromHistory?: boolean;
 }
 
 /* -------------------------------------------------------------------------
@@ -28,8 +29,12 @@ export function ReviewStep({
   subtitle = "Nothing is scored until you confirm. Tap anything that looks wrong.",
   confirmLabel = "Confirm",
   startOverLabel = "Use a different resume",
+  restoreFromHistory = false,
 }: Readonly<ReviewStepProps>) {
   const version = useGetResumeVersionQuery(resumeVersionId);
+  // This deliberately lives in the review screen only. Uploading, pasting,
+  // editing, and using the builder remain available during a scoring cooldown.
+  const scoringWindow = useGetResumeScoringWindowQuery();
 
   if (version.isLoading) {
     return (
@@ -88,6 +93,11 @@ export function ReviewStep({
       subtitle={subtitle}
       confirmLabel={confirmLabel}
       startOverLabel={startOverLabel}
+      restoreFromHistory={restoreFromHistory}
+      scoringWindow={scoringWindow.data}
+      scoringWindowKnown={Boolean(scoringWindow.data)}
+      scoringWindowError={scoringWindow.isError}
+      onRefreshScoringWindow={() => { void scoringWindow.refetch(); }}
     />
   );
 }

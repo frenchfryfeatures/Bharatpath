@@ -9,11 +9,13 @@ no other module may import it (import-linter contract `module-privacy`).
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Any
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.models import ConfigValue
 from app.modules.resume.models import ResumeFile, ResumeVersion
 
 
@@ -26,6 +28,7 @@ async def create_resume_file(
     mime: str,
     size_bytes: int,
     scan_status: str,
+    original_filename: str | None = None,
 ) -> ResumeFile:
     """Insert the row for an upload that has already been validated.
 
@@ -40,6 +43,7 @@ async def create_resume_file(
         mime=mime,
         size_bytes=size_bytes,
         scan_status=scan_status,
+        original_filename=original_filename,
     )
     session.add(row)
     await session.flush()
@@ -60,6 +64,48 @@ async def get_resume_file(
         select(ResumeFile).where(ResumeFile.id == resume_file_id, ResumeFile.user_id == user_id)
     )
     return result.scalar_one_or_none()
+
+
+async def list_files(session: AsyncSession, *, user_id: uuid.UUID, limit: int) -> list[ResumeFile]:
+    """The candidate's files, newest first: uploads, and the PDFs the builder
+    drew. Failed and blocked uploads too -- they have no version, and the
+    history is the only place a candidate sees that one did not work."""
+    result = await session.execute(
+        select(ResumeFile)
+        .where(ResumeFile.user_id == user_id)
+        .order_by(ResumeFile.uploaded_at.desc(), ResumeFile.id.desc())
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
+async def files_by_id(
+    session: AsyncSession, *, user_id: uuid.UUID, resume_file_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, ResumeFile]:
+    if not resume_file_ids:
+        return {}
+    result = await session.execute(
+        select(ResumeFile).where(ResumeFile.user_id == user_id, ResumeFile.id.in_(resume_file_ids))
+    )
+    return {row.id: row for row in result.scalars().all()}
+
+
+async def versions_of_files(
+    session: AsyncSession, *, user_id: uuid.UUID, resume_file_ids: list[uuid.UUID]
+) -> list[ResumeVersion]:
+    """Every version made from these files, newest first. An edit carries
+    its file forward, so a file's versions are its upload and its corrections."""
+    if not resume_file_ids:
+        return []
+    result = await session.execute(
+        select(ResumeVersion)
+        .where(
+            ResumeVersion.user_id == user_id,
+            ResumeVersion.resume_file_id.in_(resume_file_ids),
+        )
+        .order_by(ResumeVersion.created_at.desc(), ResumeVersion.id.desc())
+    )
+    return list(result.scalars().all())
 
 
 async def set_scan_status(session: AsyncSession, *, resume_file_id: uuid.UUID, status: str) -> None:
@@ -166,6 +212,27 @@ async def list_versions(
     return list(result.scalars().all())
 
 
+async def newest_text_version(
+    session: AsyncSession, *, user_id: uuid.UUID
+) -> tuple[uuid.UUID, datetime] | None:
+    """`(id, created_at)` of the newest CV read from text -- an upload, a
+    paste, or a correction of one -- confirmed or not. Never a version the
+    resume builder drew, nor a form-built one: those hold nothing the
+    builder's draft did not already start from. Ids only, no content."""
+    result = await session.execute(
+        select(ResumeVersion.id, ResumeVersion.created_at)
+        .where(
+            ResumeVersion.user_id == user_id,
+            ResumeVersion.source != "BUILDER",
+            ResumeVersion.parsed.has_key("raw_text"),
+        )
+        .order_by(ResumeVersion.created_at.desc(), ResumeVersion.id.desc())
+        .limit(1)
+    )
+    row = result.one_or_none()
+    return None if row is None else (row.id, row.created_at)
+
+
 async def successor_of(
     session: AsyncSession, *, resume_version_id: uuid.UUID
 ) -> ResumeVersion | None:
@@ -225,6 +292,36 @@ async def confirm_version(
         )
         .values(confirmed_at=func.now())
         .returning(ResumeVersion)
+    )
+    return result.scalar_one_or_none()
+
+
+async def lock_confirmations(session: AsyncSession, *, user_id: uuid.UUID) -> None:
+    """Serialise one candidate's confirmations, so two confirms of different
+    versions (an upload and a builder push) cannot both read "allowed" and
+    both send a resume to scoring inside one interval."""
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+        {"key": f"resume-confirm:{user_id}"},
+    )
+
+
+async def last_confirmed_at(session: AsyncSession, *, user_id: uuid.UUID) -> datetime | None:
+    """When this candidate last confirmed any version, or None. A timestamp,
+    never a row: `latest_confirmed_version` stays the one query that returns
+    a version for scoring."""
+    return await session.scalar(
+        select(func.max(ResumeVersion.confirmed_at)).where(ResumeVersion.user_id == user_id)
+    )
+
+
+async def current_config(session: AsyncSession, *, key: str, now: datetime) -> ConfigValue | None:
+    """The highest version of a config key in effect at `now`."""
+    result = await session.execute(
+        select(ConfigValue)
+        .where(ConfigValue.key == key, ConfigValue.effective_from <= now)
+        .order_by(ConfigValue.version.desc())
+        .limit(1)
     )
     return result.scalar_one_or_none()
 

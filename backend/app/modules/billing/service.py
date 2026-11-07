@@ -63,9 +63,10 @@ from app.core.errors import (
     UnauthenticatedError,
 )
 from app.core.errors import ValidationError as AppValidationError
+from app.core.listing import SortOrder, ordering
 from app.core.logging import get_logger
 from app.core.outbox import emit
-from app.core.pagination import clamp_limit, decode_cursor, encode_cursor
+from app.core.pagination import clamp_limit
 from app.core.ratelimit import enforce
 from app.core.tenant import TenantContext
 from app.modules.billing import events, repository
@@ -1040,55 +1041,74 @@ async def list_discount_codes(
     audience: str | None,
     cursor: str | None,
     limit: int | None,
+    statuses: tuple[DiscountStatus, ...] | None = None,
+    query: str | None = None,
+    created_from: datetime | None = None,
+    created_before: datetime | None = None,
+    sort: str = "created_at",
+    order: SortOrder | None = None,
     now: datetime | None = None,
 ) -> tuple[list[DiscountCodeView], str | None]:
-    """Newest first."""
+    """Newest first unless sorted. `statuses` filters on the status as worked
+    out now (`domain.discount_status`, mirrored in SQL); `query` is part of
+    the code or its label."""
     now = _now(now)
     size = clamp_limit(limit)
+    sorting = ordering(repository.DISCOUNT_CODE_SORTS, sort=sort, order=order, cursor=cursor)
     rows = await repository.list_discount_codes(
-        session, audience=audience, after=_keyset(cursor), limit=size
+        session,
+        audience=audience,
+        statuses=statuses,
+        query=query,
+        created_from=created_from,
+        created_before=created_before,
+        now=now,
+        ordering=sorting,
+        limit=size,
     )
     counts = await repository.redemption_counts(session, code_ids=[r.id for r in rows])
     views = [
         DiscountCodeView(r, counts.get(r.id, 0), _status_of(r, used=counts.get(r.id, 0), now=now))
         for r in rows
     ]
-    next_cursor = (
-        encode_cursor({"t": rows[-1].created_at.isoformat(), "i": str(rows[-1].id)})
-        if len(rows) == size
-        else None
-    )
-    return views, next_cursor
+    return views, sorting.next_cursor(rows, size)
 
 
 async def list_redemptions(
-    session: AsyncSession, *, code_id: uuid.UUID, cursor: str | None, limit: int | None
+    session: AsyncSession,
+    *,
+    code_id: uuid.UUID,
+    cursor: str | None,
+    limit: int | None,
+    subscriber_type: str | None = None,
+    payer_email: str | None = None,
+    payer_phone: str | None = None,
+    partial_contact: bool = False,
+    redeemed_from: datetime | None = None,
+    redeemed_before: datetime | None = None,
+    sort: str = "redeemed_at",
+    order: SortOrder | None = None,
 ) -> tuple[list[DiscountRedemption], str | None]:
-    """Who used a code, newest first -- the usage log."""
+    """Who used a code, newest first unless sorted -- the usage log."""
     if await repository.get_discount_code(session, code_id=code_id) is None:
         raise DiscountCodeNotFoundError()
     size = clamp_limit(limit)
+    sorting = ordering(repository.REDEMPTION_SORTS, sort=sort, order=order, cursor=cursor)
     rows = await repository.list_redemptions(
-        session, code_id=code_id, after=_keyset(cursor), limit=size
+        session,
+        code_id=code_id,
+        subscriber_type=subscriber_type,
+        payer_email=payer_email,
+        payer_phone=payer_phone,
+        partial_contact=partial_contact,
+        redeemed_from=redeemed_from,
+        redeemed_before=redeemed_before,
+        ordering=sorting,
+        limit=size,
     )
-    next_cursor = (
-        encode_cursor({"t": rows[-1].redeemed_at.isoformat(), "i": str(rows[-1].id)})
-        if len(rows) == size
-        else None
-    )
-    return rows, next_cursor
+    return rows, sorting.next_cursor(rows, size)
 
 
 async def _view(session: AsyncSession, row: DiscountCode, now: datetime) -> DiscountCodeView:
     used = (await repository.redemption_counts(session, code_ids=[row.id])).get(row.id, 0)
     return DiscountCodeView(row, used, _status_of(row, used=used, now=now))
-
-
-def _keyset(cursor: str | None) -> tuple[datetime, uuid.UUID] | None:
-    if cursor is None:
-        return None
-    payload = decode_cursor(cursor)
-    try:
-        return datetime.fromisoformat(str(payload["t"])), uuid.UUID(str(payload["i"]))
-    except (KeyError, ValueError, TypeError) as exc:
-        raise AppValidationError(code="invalid_cursor") from exc

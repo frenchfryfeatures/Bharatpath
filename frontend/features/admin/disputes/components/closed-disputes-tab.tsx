@@ -14,6 +14,7 @@ interface ClosedDisputesTabProps {
   disputes: Dispute[];
   onOpen: (id: string) => void;
   isLoading?: boolean;
+  searching?: boolean;
   pagination: CursorTablePagination;
   emptyTitle: string;
 }
@@ -22,6 +23,7 @@ export function ClosedDisputesTab({
   disputes,
   onOpen,
   isLoading,
+  searching,
   pagination,
   emptyTitle,
 }: ClosedDisputesTabProps) {
@@ -94,6 +96,7 @@ export function ClosedDisputesTab({
       onPreviousPage={pagination.onPreviousPage}
       itemLabel="disputes"
       emptyTitle={emptyTitle}
+      searching={searching}
       emptySubtitle=""
       isLoading={isLoading}
     />

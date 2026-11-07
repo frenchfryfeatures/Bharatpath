@@ -54,7 +54,7 @@ export function ApplicationFilter({
           onSearchChange={onSearchChange}
           isSearching={isSearching}
           loadingMessage={search.length > 0 ? "Searching..." : "Loading jobs..."}
-          noOptionsMessage="No jobs found"
+          noOptionsMessage={search.trim() ? "No jobs match your search" : "No jobs found"}
           onOpenChange={onJobMenuOpenChange}
           hasMoreOptions={jobOptionsHaveMore}
           onLoadMoreOptions={onLoadMoreJobOptions}

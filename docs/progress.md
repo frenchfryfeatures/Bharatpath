@@ -9,6 +9,161 @@ states. Newest entries first.
 
 ---
 
+## 2026-10-26 — Unlimited uploads, one scoring per 15 days
+
+Asked for: a candidate may upload as many resumes as they like, but only
+one may be scored every 15 days. Branch `feat/resume-scoring-interval`, no migration.
+Guide 04 §9 and §9b.
+
+- **The limit sits on the confirm, not on upload or on the score task.**
+  `resume.version_confirmed` is the only event that reaches scoring, so
+  `resume.service.confirm_version` refuses a second confirmation inside
+  the interval with 409 `resume_scoring_cooldown` (`params.next_scoring_at`,
+  `params.interval_days`). Nothing is latched, nothing emitted, and the last
+  confirmed version stays the one scored. Uploads, pastes, edits and builder
+  pushes are untouched.
+- **Measured from the last `confirmed_at`**, not the last score: a score
+  still computing (or retrying a failed extraction) has already been asked
+  for. The first confirmation is always allowed. A retry of a confirmation
+  already made still answers `already_confirmed` (that check runs first).
+- **Per-candidate advisory lock** (`repository.lock_confirmations`), taken
+  before anything is read, so two confirms of different versions cannot both
+  pass, and a concurrent confirm of the same version still reads as a retry.
+- **Config, not code:** `resume.scoring_interval`, `{"days": n}`, 0 (off)
+  to 365, strict reader (`domain.scoring_interval_from_config`), seeded at
+  15 by `seed_config.py`, so the next deploy writes the row. The 15 is the
+  backend lead's number; change it by inserting version 2.
+- **`GET /candidate/resume/scoring-window`**, not paywalled: `interval_days`,
+  `last_confirmed_at`, `next_scoring_at`, `can_confirm_now`, so the app can
+  show the date before the tap fails.
+- Add-on re-scores (course, interview) are not confirmations and are not
+  limited.
+- Tests: `tests/unit/test_resume_scoring_interval.py`,
+  `tests/integration/test_resume_scoring_interval.py`. Four existing tests
+  confirmed twice for one candidate; they now call
+  `age_resume_confirmations` (conftest) in between, which moves earlier
+  confirmations a year back as the migrator.
+- **For the app teams:** the review screen needs to read the window and
+  handle the new 409. Not done here (backend only).
+
+---
+
+## 2026-10-22 — One search box (`q`) for every admin list
+
+The user asked for one `q` instead of the separate `name`, `email` and
+`phone` added the day before (deployed 2026-10-22 as `15a23af`). Branch
+`feat/admin-single-q`.
+
+- **`q` is tried against the name, the email and the phone at once**; a row
+  matching any is in (`admin.repository._person_where` now ORs them, and so
+  do the tenant and redemption searches). `name`, `email`, `phone` and
+  KYB's `organisation` are gone from every route. The frontend already sent
+  one `q` from its search box, so its box now also finds by contact.
+- **Text is a phone only when it is shaped like one** (digits with spaces,
+  `+`, `-`, `.` or brackets). `listing.phone_digits` returns None for
+  anything else instead of refusing it: in one box, the digits of
+  `ravi 2024` would match every number holding a 2024.
+  `phone_search_invalid` no longer exists.
+- **The contact rule is unchanged**: part of an email or phone only for
+  `candidate_contact` roles. For the Integrity Reviewer, `q` still finds by
+  part of a name (shown on the row) and by a whole address or number only.
+- Audit metadata: `by_name` / `by_email` / `by_phone` became one `searched`
+  beside `partial_contact`.
+- `tests/invariants/test_admin_console.py` calls `list_candidates` with
+  `query=None` instead of `name_contains=None, email=None`: the keyword
+  changed, the assertion did not.
+
+---
+
+## 2026-10-22 — Resume sync: the builder says when it is behind; a file history
+
+The frontend team reported two screens disagreeing: the builder
+(`/student/profile/resume/edit`) showed one name and headline, the review
+screen (`/student/profile/resume`) another. They also asked for "versioning"
+of uploaded resumes. Branch `feat/resume-sync`, migration
+`0021_resume_sync`. Guide 04 §2, §6, §6b and guide 18 §3b.
+
+- **Cause: two stores, joined only at refill and push.** The draft
+  (`resume_builder_drafts`) is filled in from the CV once, at first open,
+  and after that nothing that happens to versions reaches it. The review
+  screen reads versions. An unpushed draft (`pushed_is_current: false`) and
+  a CV uploaded after the draft were both invisible from the other screen.
+- **Decided: say so rather than sync silently.** `GET /draft` reports
+  `out_of_date` (+ `newer_resume_version_id`, `newer_resume_at`) when a CV
+  read from text is newer than `synced_at`. Moved by first save, refill,
+  push and the new `POST /draft/keep`; never by autosave. Overwriting the
+  draft would destroy the candidate's own edits. Writing builder edits into
+  the upload's chain would replace the CV's prose with rendered fields and
+  lower scores (CLAUDE.md, review-screen sections).
+- **Only text-read versions count**, which is what a refill reads.
+  Built versions are the draft itself. Form-built ones (profile completion)
+  hold only the answers. Known false prompt, accepted: a completed-profile
+  save that appends reviewed facts to an uploaded CV is a text EDIT, so it
+  offers a refill that would pull those same facts.
+- **`current` on `/versions`**: the newest confirmed version, the scoring
+  rule's answer. The web app guessed with `confirmed && !superseded`, which
+  holds for two versions once a builder push (a new chain) is confirmed.
+- **`GET /candidate/resume/files`**: one row per document (uploads and
+  builder PDFs, `origin`), with its newest version, `current`, and
+  failed/blocked uploads listed with their parse state.
+- **`resume_files.original_filename`**: optional `{"filename"}` body on
+  `…/uploads/{id}/complete`, `file.filename` on `/intake`, the builder's
+  `Name-Resume.pdf` on push. A label only (`domain.clean_filename`); NULL
+  for older uploads. Added to the export as section `resume_files`.
+- **Not built, deliberately:** "restore an older resume". It would be a new
+  version and a re-score: a product decision. Today the candidate
+  re-uploads.
+- Frontend handoff (not done here, backend-only): send `filename` on
+  complete; pick the shown version by `current`; banner on `out_of_date`
+  with Refill / Keep; a history screen from `/files`.
+
+---
+
+## 2026-10-21 — Searching and sorting every admin list
+
+Asked for in a backend session: "all admin APIs add filtering, sorting;
+searching name, email, phone". Branch `feat/admin-list-search`. Guide 13
+§0.6 has the table of every list's new parameters.
+
+- **`app/core/listing.py`, a keyset that follows the sort.** A cursor now
+  carries the sort, the order and the last row's value of every key; one
+  from another sort or order is 422 `invalid_cursor`. Nullable keys sort
+  last whichever the order (a NULL flag, then the value coalesced). One
+  direction compiles to a row comparison an index serves; mixed directions
+  expand to the OR form. The SQL is constants plus bound values.
+- **Ten lists** take `sort` + `order`; the people lists take `name`, `email`
+  and `phone` as separate parameters (the user's choice over one box), plus
+  IST date ranges and a few filters each. `/courses` and the per-person
+  drill-down sub-lists were left alone: short lists with nothing to page.
+- **Part of an email or phone only for the roles that read whole contacts**
+  (`admin.domain.partial_contact_search` = `candidate_contact`: admin and
+  support). Anyone else matches the whole address or number. The Integrity
+  Reviewer lists candidates masked, and a partial match would let them spell
+  out a hidden address one character at a time. Decided with the user.
+- **The candidate list's phone is now the account's, else the onboarding
+  one** -- the same expression the leads already used. Sign-up is by email,
+  so for most candidates `users.phone` is empty; searching only it would
+  find almost nobody. `phone_masked` follows.
+- **Audited lists record how they were searched, never what for**
+  (`PersonSearch.audit()`: `by_name`, `by_email`, `by_phone`,
+  `partial_contact`, plus `sort`/`order`).
+- **Discount status is filterable**: `billing.repository.DISCOUNT_STATUS_SQL`
+  is `domain.discount_status` in SQL, held equal by an integration test at
+  three instants that move codes between statuses.
+- **Migration `0020_admin_list_search`**: trigram GIN indexes on
+  `users.email` and `candidate_profiles.full_name`, idempotent (also in the
+  models, so the baseline builds them). `test_index_review.py` plans both,
+  and `candidate_profiles` joined its `GROWING` set so the name index is
+  really held. Phone search reads a `COALESCE` across two tables and no
+  index serves it; it scans the candidates the other filters left.
+- **Breaking for anyone holding an old cursor**: every list's cursor shape
+  changed, so a cursor issued before this deploy is `invalid_cursor`. The
+  console only keeps cursors while paging, so a reload is the whole cost.
+- `GET /admin/candidates?q=` still works (deprecated alias of `name`); the
+  frontend sends it.
+
+---
+
 ## 2026-10-16 — Interview questions read aloud by the server
 
 Until now the backend sent questions as text only, and anything spoken was

@@ -8,6 +8,7 @@ export interface SelectOption {
 }
 
 export interface SelectDropdownProps {
+  id?: string;
   options: SelectOption[];
   value: string;
   onChange: (value: string) => void;
@@ -24,6 +25,7 @@ export interface SelectDropdownProps {
  * so every dropdown looks and behaves the same.
  */
 export function SelectDropdown({
+  id,
   options,
   value,
   onChange,
@@ -35,6 +37,7 @@ export function SelectDropdown({
 }: SelectDropdownProps) {
   return (
     <Dropdown
+      id={id}
       value={value}
       options={options}
       onChange={onChange}

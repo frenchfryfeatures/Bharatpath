@@ -66,6 +66,7 @@ def _tunables() -> tuple[Tunable, ...]:
     from app.modules.engagement import domain as engagement
     from app.modules.integrity import domain as integrity
     from app.modules.notifications import domain as notifications
+    from app.modules.resume import domain as resume
     from app.modules.subscriptions import domain as subscriptions
 
     def _asdict(obj: DataclassInstance, *, drop: frozenset[str] = frozenset()) -> dict[str, Any]:
@@ -131,6 +132,14 @@ def _tunables() -> tuple[Tunable, ...]:
             verify=lambda d: engagement.rules_from_config(d, version="seed"),
             note="Daily streak points (2026-09-13). A SEPARATE balance: these "
             "points never reach the 700-990 score. Eight decisions S1-S8 open.",
+        ),
+        Tunable(
+            key="resume.scoring_interval",
+            document=lambda: {"days": resume.DEFAULT_SCORING_INTERVAL.days},
+            verify=lambda d: resume.scoring_interval_from_config(d, version="seed"),
+            note="Days between confirmations, i.e. between a candidate's "
+            "resumes reaching scoring (2026-10-26). Uploads are unlimited. "
+            "0 switches it off.",
         ),
         Tunable(
             key="kyb.require_approval",

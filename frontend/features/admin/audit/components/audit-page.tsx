@@ -8,13 +8,14 @@ import { useAuditTrail } from "../hooks/use-audit-trail";
 export function AuditPage() {
   usePageHeader(
     "Audit trail",
-    "Every operator action on the platform, newest first",
+    "Every operator action on the platform",
   );
 
   const audit = useAuditTrail();
 
   return (
     <div className="min-w-0">
+      {audit.filterControls}
       <AuditTrail
         variant="page"
         items={audit.items}

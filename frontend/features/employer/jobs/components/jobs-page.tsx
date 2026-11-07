@@ -224,6 +224,8 @@ export function JobsPage() {
                         pageSize={pagination.pageSize}
                         hasNextPage={Boolean(nextCursor)}
                         isLoading={isLoading || isFetching}
+                        searching={Boolean(debouncedSearch.trim())}
+                        filteredByStatus={statusFilter !== "all"}
                         onNextPage={() => pagination.goToNextPage(nextCursor)}
                         onPreviousPage={pagination.goToPreviousPage}
                         onPageSizeChange={pagination.setPageSize}

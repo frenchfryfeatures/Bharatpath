@@ -28,7 +28,7 @@ from app.modules.scoring.extractor import (
     ExtractionUnavailableError,
     prompt_hash,
 )
-from tests.conftest import _seed_url, sessions
+from tests.conftest import _seed_url, age_resume_confirmations, sessions
 
 pytestmark = pytest.mark.integration
 
@@ -324,6 +324,7 @@ async def test_a_different_cv_gets_its_own_extraction(
         newer = await resume_service.create_pasted_version(
             session, user_id=candidate, text=cv + "\nAlso: Terraform, dbt, Snowflake"
         )
+    await age_resume_confirmations(candidate)  # past `resume.scoring_interval`
     async with factory() as session, session.begin():
         await resume_service.confirm_version(session, user_id=candidate, resume_version_id=newer.id)
     await _score(candidate)

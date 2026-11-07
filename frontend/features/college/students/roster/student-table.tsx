@@ -20,6 +20,7 @@ export interface StudentTableProps {
   onNextPage: () => void;
   onPreviousPage: () => void;
   isLoading?: boolean;
+  searching?: boolean;
   onView?: (student: CollegeStudent) => void;
 }
 
@@ -130,6 +131,7 @@ export function StudentTable({
   onNextPage,
   onPreviousPage,
   isLoading = false,
+  searching = false,
   onView,
 }: Readonly<StudentTableProps>) {
   const columns = useMemo<ColumnDef<CollegeStudent>[]>(
@@ -150,6 +152,7 @@ export function StudentTable({
       keyExtractor={(student) => student.id}
       itemLabel="students"
       isLoading={isLoading}
+      searching={searching}
       skeletonRows={10}
       emptyTitle="No individually-visible students yet"
       emptySubtitle="Students appear here only after they grant your college individual visibility."

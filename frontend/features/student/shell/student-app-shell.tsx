@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { useAppDispatch } from "@/store/hooks";
@@ -30,6 +30,7 @@ import { StudentSidebarContent } from "./student-sidebar";
 
 export function StudentAppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const contentRef = useRef<HTMLElement>(null);
   const router = useRouter();
   const dispatch = useAppDispatch();
 
@@ -40,6 +41,18 @@ export function StudentAppShell({ children }: { children: ReactNode }) {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useScrollLock(mobileOpen);
+  useLayoutEffect(() => {
+    const isReportsPage = [
+      "/student/profile/resume",
+      "/student/courses",
+      "/student/college",
+      "/student/attribute",
+      "/student/interview",
+    ].some((route) => pathname === route || pathname.startsWith(`${route}/`));
+    if ((pathname === "/student/profile" || isReportsPage) && contentRef.current) {
+      contentRef.current.scrollTop = 0;
+    }
+  }, [pathname]);
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -112,7 +125,7 @@ export function StudentAppShell({ children }: { children: ReactNode }) {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <StudentHeader onOpenDrawer={() => setMobileDrawerPath(pathname)} />
 
-        <main className="bp-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
+        <main ref={contentRef} className="bp-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
           {children}
         </main>
       </div>

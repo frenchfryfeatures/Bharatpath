@@ -433,6 +433,99 @@ async def test_a_built_resume_is_edited_in_the_builder_and_confirmed_after_payin
     assert paid.status_code == 200, paid.text
     assert (await _parsed(version_id))[2] is not None
 
+    files = (await client.get(f"{API}/candidate/resume/files", headers=me["headers"])).json()
+    [built] = files
+    assert built["origin"] == "BUILDER"
+    assert built["filename"] == "Priya-Sharma-Resume.pdf"
+    assert built["latest_version_id"] == version_id
+    assert built["confirmed"] is True and built["current"] is True
+    [listed] = (await client.get(VERSIONS, headers=me["headers"])).json()
+    assert listed["current"] is True and listed["filename"] == "Priya-Sharma-Resume.pdf"
+
+
+# ---------------------------------------------------------------------------
+# Keeping the draft and the resume in step (2026-10-22)
+# ---------------------------------------------------------------------------
+async def _draft(client: Any, me: dict[str, Any]) -> dict[str, Any]:
+    response = await client.get(DRAFT, headers=me["headers"])
+    assert response.status_code == 200, response.text
+    body: dict[str, Any] = response.json()
+    return body
+
+
+async def test_a_cv_read_after_the_draft_makes_it_out_of_date_until_refilled_or_kept(
+    client: Any, mint_token: Any
+) -> None:
+    """The screens the frontend reported: the builder kept showing a draft
+    while the review screen showed a newer CV. The draft is never overwritten
+    -- it holds the candidate's own edits -- but it says a newer CV exists."""
+    me = await _onboarded(client, mint_token)
+    assert (await _draft(client, me))["out_of_date"] is False  # unsaved: nothing to compare
+    await _fill(client, me, summary="My own words.")
+    assert (await _draft(client, me))["out_of_date"] is False
+
+    newer = await _read_version(me["id"], document={"projects": [{"name": "Newer CV project"}]})
+    stale = await _draft(client, me)
+    assert stale["out_of_date"] is True
+    assert stale["newer_resume_version_id"] == newer
+    assert stale["newer_resume_at"] is not None
+    assert stale["content"]["summary"] == "My own words."  # never overwritten
+
+    # Typing is not catching up.
+    await _fill(client, me, summary="Still my own words.")
+    assert (await _draft(client, me))["out_of_date"] is True
+
+    kept = await client.post(f"{DRAFT}/keep", headers=me["headers"])
+    assert kept.status_code == 200, kept.text
+    assert kept.json()["out_of_date"] is False
+    assert kept.json()["content"]["summary"] == "Still my own words."
+    assert (await _draft(client, me))["out_of_date"] is False
+
+    # The next CV is reported again, and a refill catches up with it.
+    await _read_version(me["id"], document={"projects": [{"name": "Newest CV project"}]})
+    assert (await _draft(client, me))["out_of_date"] is True
+    refilled = await client.post(f"{DRAFT}/reset", headers=me["headers"])
+    assert refilled.status_code == 200, refilled.text
+    assert refilled.json()["out_of_date"] is False
+    assert refilled.json()["content"]["projects"][0]["name"] == "Newest CV project"
+    assert (await _draft(client, me))["out_of_date"] is False
+
+
+async def test_a_push_and_a_form_version_do_not_make_the_draft_out_of_date(
+    client: Any, mint_token: Any, s3: FakeImageS3
+) -> None:
+    """Only a CV read from text counts: the builder's own version is the
+    draft, and a form-built one holds only the answers it started from."""
+    me = await _onboarded(client, mint_token)
+    await _fill(client, me)
+    pushed = await client.post(f"{BUILDER}/push", headers=me["headers"])
+    assert pushed.status_code == 200, pushed.text
+    assert (await _draft(client, me))["out_of_date"] is False
+
+    form = await client.post(
+        f"{API}/candidate/resume/manual",
+        json={"full_name": "Priya Sharma", "skills": ["SQL"]},
+        headers=me["headers"],
+    )
+    assert form.status_code == 201, form.text
+    assert (await _draft(client, me))["out_of_date"] is False
+
+
+async def test_a_push_catches_the_draft_up(client: Any, mint_token: Any, s3: FakeImageS3) -> None:
+    me = await _onboarded(client, mint_token)
+    await _fill(client, me)
+    await _read_version(me["id"], document=None)
+    assert (await _draft(client, me))["out_of_date"] is True
+    assert (await client.post(f"{BUILDER}/push", headers=me["headers"])).status_code == 200
+    assert (await _draft(client, me))["out_of_date"] is False
+
+
+async def test_keeping_needs_a_saved_draft(client: Any, mint_token: Any) -> None:
+    me = await _onboarded(client, mint_token)
+    response = await client.post(f"{DRAFT}/keep", headers=me["headers"])
+    assert response.status_code == 404, response.text
+    assert response.json()["code"] == "resume_builder_draft_missing"
+
 
 # ---------------------------------------------------------------------------
 # The console's follow-up list

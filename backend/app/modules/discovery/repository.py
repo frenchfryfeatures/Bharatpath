@@ -31,6 +31,7 @@ from typing import Any
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.listing import Key, Ordering, SortField
 from app.core.models import ConfigValue
 from app.modules.discovery.models import SearchFilterOption
 
@@ -747,31 +748,58 @@ async def get_filter_option(
     return await session.get(SearchFilterOption, option_id)
 
 
+#: How the console may sort the options (2026-10-21). By kind then key is
+#: the default; the admin router's `Literal` offers these keys.
+FILTER_OPTION_SORTS: dict[str, SortField] = {
+    "key": SortField(
+        keys=(
+            Key("search_filter_options.kind", "text", "kind"),
+            Key("search_filter_options.key", "text", "key"),
+            Key("search_filter_options.id", "uuid", "id"),
+        ),
+        default_order="asc",
+    ),
+    "label": SortField(
+        keys=(
+            Key("search_filter_options.label", "text", "label"),
+            Key("search_filter_options.id", "uuid", "id"),
+        ),
+        default_order="asc",
+    ),
+    "created_at": SortField(
+        keys=(
+            Key("search_filter_options.created_at", "timestamptz", "created_at"),
+            Key("search_filter_options.id", "uuid", "id"),
+        ),
+        default_order="desc",
+    ),
+}
+
+
 async def list_filter_options(
     session: AsyncSession,
     *,
     kind: str | None,
     query: str | None,
     include_inactive: bool,
-    after: tuple[str, str] | None,
+    featured: bool | None,
+    ordering: Ordering,
     limit: int,
 ) -> list[SearchFilterOption]:
-    """The console's list, by kind then key: a stable keyset."""
+    """The console's list, by kind then key unless sorted otherwise."""
     statement = select(SearchFilterOption)
     if kind is not None:
         statement = statement.where(SearchFilterOption.kind == kind)
     if not include_inactive:
         statement = statement.where(SearchFilterOption.active)
+    if featured is not None:
+        statement = statement.where(SearchFilterOption.featured == featured)
     if query:
         statement = statement.where(text(_OPTION_CONTAINS).bindparams(contains=_contains(query)))
-    if after is not None:
-        statement = statement.where(
-            (SearchFilterOption.kind > after[0])
-            | ((SearchFilterOption.kind == after[0]) & (SearchFilterOption.key > after[1]))
-        )
-    result = await session.execute(
-        statement.order_by(SearchFilterOption.kind, SearchFilterOption.key).limit(limit)
-    )
+    after, params = ordering.where()
+    if params:
+        statement = statement.where(text(after).bindparams(**params))
+    result = await session.execute(statement.order_by(text(ordering.order_by())).limit(limit))
     return list(result.scalars())
 
 

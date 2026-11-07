@@ -369,10 +369,18 @@ _EXPORT_QUERIES: dict[str, str] = {
           FROM resume_versions v WHERE v.user_id = :user_id
          ORDER BY v.created_at
     """,
+    # The documents themselves, as listed back to them (2026-10-22): the
+    # name their device gave each file is theirs. Not the storage key.
+    "resume_files": """
+        SELECT id, original_filename, mime, size_bytes, parse_status, uploaded_at
+          FROM resume_files WHERE user_id = :user_id
+         ORDER BY uploaded_at
+    """,
     # The resume they were building (2026-10-13), and what they did with it.
     "resume_builder": """
         SELECT template_key, content, created_at, updated_at, first_downloaded_at,
-               last_downloaded_at, download_count, pushed_version_id, pushed_at
+               last_downloaded_at, download_count, pushed_version_id, pushed_at,
+               synced_at
           FROM resume_builder_drafts WHERE user_id = :user_id
     """,
     # The value, and nothing that explains it. `breakdown`,

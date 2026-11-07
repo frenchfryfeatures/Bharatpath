@@ -1,13 +1,15 @@
 "use client";
 
+import { useAdminListFilters } from "@/features/admin/shared/list-filters";
+
+
 import { useState } from "react";
 import { Plus } from "lucide-react";
 
 import { usePageHeader } from "@/components/layout/header-context";
-import { ErrorState, SelectDropdown } from "@/components/ui";
+import { ErrorState } from "@/components/ui";
 import { DataTable, type ColumnDef } from "@/components/ui/table";
 import {
-  type DiscountAudience,
   type DiscountCode,
   useGetAdminDiscountCodesQuery,
   useGetAdminIdentityQuery,
@@ -16,13 +18,6 @@ import {
 import { CodeDrawer } from "./code-drawer";
 import { CreateCodeDrawer } from "./create-code-drawer";
 import { AUDIENCE_LABEL, formatDate, valueLabel } from "./format";
-
-const AUDIENCE_FILTER = [
-  { value: "", label: "All audiences" },
-  { value: "CANDIDATE", label: "Candidates" },
-  { value: "EMPLOYER", label: "Employers" },
-  { value: "COLLEGE", label: "Colleges" },
-];
 
 const STATUS_STYLE: Record<DiscountCode["status"], string> = {
   ACTIVE: "bg-[#eef7f1] text-[#2f7b4b]",
@@ -35,18 +30,23 @@ const STATUS_STYLE: Record<DiscountCode["status"], string> = {
 export function DiscountCodesPage() {
   usePageHeader("Discount codes", "Create promotions and investigate successful redemptions");
 
-  const [audience, setAudience] = useState<DiscountAudience | "">("");
+  const filters = useAdminListFilters("discounts");
   const [pageSize, setPageSize] = useState(10);
   // cursors[n] is the cursor that loads page n + 1; page 1 has none.
   const [cursors, setCursors] = useState<Array<string | undefined>>([undefined]);
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  const [seenFilters, setSeenFilters] = useState(filters.key);
+  if (seenFilters !== filters.key) {
+    setSeenFilters(filters.key);
+    setCursors([undefined]);
+  }
   const page = cursors.length;
   const { data: identity } = useGetAdminIdentityQuery();
   const canWrite = identity?.role === "PLATFORM_ADMIN";
   const { data, isLoading, isFetching, error } = useGetAdminDiscountCodesQuery({
-    audience: audience || undefined,
+    ...filters.params,
     limit: pageSize,
     cursor: cursors[page - 1],
   });
@@ -133,19 +133,9 @@ export function DiscountCodesPage() {
 
   return (
     <div className="min-w-0 space-y-0">
-      <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="w-full sm:w-[220px]">
-          <SelectDropdown
-            value={audience}
-            onChange={(value) => {
-              setAudience(value as DiscountAudience | "");
-              resetPaging();
-            }}
-            options={AUDIENCE_FILTER}
-            ariaLabel="Filter by audience"
-            className="h-[38px] rounded-lg text-[12px]"
-          />
-        </div>
+      {filters.controls}
+      <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-end">
+
 
         {canWrite ? (
           <button
@@ -176,6 +166,7 @@ export function DiscountCodesPage() {
           resetPaging();
         }}
         itemLabel="codes"
+        searching={filters.searching}
         emptyTitle="No discount codes found"
         emptySubtitle=""
         isLoading={isLoading || isFetching}

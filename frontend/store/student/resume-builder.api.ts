@@ -24,6 +24,8 @@ export interface BuilderDraft {
   pushed_version_id: string | null;
   pushed_at: string | null;
   pushed_is_current: boolean;
+  /** A newer upload exists than the one this draft was filled from. */
+  out_of_date?: boolean;
 }
 
 export interface BuilderPreview {
@@ -56,14 +58,23 @@ export const studentResumeBuilderApi = baseApi.injectEndpoints({
     getBuilderDraft: builder.query<BuilderDraft, void>({
       query: () => `${BASE}/draft`,
       keepUnusedDataFor: 0,
+      providesTags: [{ type: "Student", id: "BUILDER_DRAFT" }],
     }),
 
     saveBuilderDraft: builder.mutation<BuilderDraft, BuilderDraftBody>({
       query: (body) => ({ url: `${BASE}/draft`, method: "PUT", body }),
+      invalidatesTags: [{ type: "Student", id: "BUILDER_DRAFT" }],
     }),
 
     resetBuilderDraft: builder.mutation<BuilderDraft, void>({
       query: () => ({ url: `${BASE}/draft/reset`, method: "POST" }),
+      invalidatesTags: [{ type: "Student", id: "BUILDER_DRAFT" }],
+    }),
+
+    /** "Keep my draft": stop offering the newer upload. The draft is untouched. */
+    keepBuilderDraft: builder.mutation<unknown, void>({
+      query: () => ({ url: `${BASE}/draft/keep`, method: "POST" }),
+      invalidatesTags: [{ type: "Student", id: "BUILDER_DRAFT" }],
     }),
 
     previewBuilder: builder.mutation<BuilderPreview, BuilderDraftBody>({
@@ -87,7 +98,7 @@ export const studentResumeBuilderApi = baseApi.injectEndpoints({
 
     pushBuilder: builder.mutation<BuilderPush, void>({
       query: () => ({ url: `${BASE}/push`, method: "POST" }),
-      invalidatesTags: [{ type: "Student", id: "RESUME_VERSIONS" }],
+      invalidatesTags: [{ type: "Student", id: "RESUME_VERSIONS" }, { type: "Student", id: "RESUME_FILES" }, { type: "Student", id: "BUILDER_DRAFT" }],
     }),
   }),
   overrideExisting: false,
@@ -98,6 +109,7 @@ export const {
   useGetBuilderDraftQuery,
   useSaveBuilderDraftMutation,
   useResetBuilderDraftMutation,
+  useKeepBuilderDraftMutation,
   usePreviewBuilderMutation,
   useDownloadBuilderMutation,
   usePushBuilderMutation,

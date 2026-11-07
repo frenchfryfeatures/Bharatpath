@@ -63,6 +63,10 @@ class ResumeFile(Base, UUIDPrimaryKey):
     #: The parser's error code when `parse_status` is FAILED. A code, not a
     #: sentence: the client renders it in the candidate's own language.
     parse_error_code: Mapped[str | None] = mapped_column(String(64))
+    #: The name the candidate's device gave the file, for their own list of
+    #: uploaded resumes (2026-10-22, `domain.clean_filename`). A label only:
+    #: the key and the type never come from it. NULL for uploads before then.
+    original_filename: Mapped[str | None] = mapped_column(String(255))
 
     uploaded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
