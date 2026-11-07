@@ -36,6 +36,8 @@ import { signUpWithEmail } from '@/services/api/auth';
 import { ApiError } from '@/services/api/client';
 import { useAuthContext } from '@/context/AuthContext';
 import { PhoneNumberInput } from '@/components/inputs/PhoneNumberInput';
+import { keepPendingResume } from '@/services/storage/pendingResume';
+import { resumeFileError } from '@/services/profile/resumeFile';
 
 export interface SignUpFormData {
   referralCode?: string;
@@ -299,7 +301,11 @@ export function SignUpScreen({
       }
       console.error('[SignUp Error]:', err);
       if (err instanceof ApiError) {
-        if (err.code === 'account_contact_in_use') {
+        if (
+          err.code === 'account_contact_in_use' ||
+          err.code === 'UsernameExistsException' ||
+          err.status === 409
+        ) {
           setErrorMsg(
             'An account with this email already exists. Please sign in instead.',
           );
@@ -383,30 +389,16 @@ export function SignUpScreen({
               <OnboardingProgress step={0} />
               <Text style={styles.title}>Basic details</Text>
               <Text style={styles.subtitle}>
-                Create an account to evaluate your resume, discover matching
+                Create an account to evaluate your resume/CV, discover matching
                 jobs, and get recruited.
               </Text>
             </View>
 
             {onResumeSelected && (
-              <View style={{ marginBottom: 24, gap: 10 }}>
-                <Text
-                  style={{
-                    fontFamily: 'GeneralSans-Semibold',
-                    fontSize: 16,
-                    color: '#0A1931',
-                  }}
-                >
-                  Start with your resume
-                </Text>
+              <View style={styles.resumeSection}>
+                <Text style={styles.inputLabel}>Start with your resume/CV</Text>
                 <Pressable
-                  style={{
-                    borderRadius: 16,
-                    borderWidth: 1,
-                    borderColor: '#DDD6C7',
-                    padding: 16,
-                    backgroundColor: '#fff',
-                  }}
+                  style={styles.resumeCard}
                   disabled={readingResume || isLoading}
                   onPress={async () => {
                     try {
@@ -419,12 +411,12 @@ export function SignUpScreen({
                       });
                       if (result.canceled) return;
                       const asset = result.assets[0];
-                      if (asset.size && asset.size > 10 * 1024 * 1024) {
-                        setErrorMsg('Choose a PDF or DOCX up to 10 MB.');
+                      const fileError = resumeFileError(asset);
+                      if (fileError) {
+                        setErrorMsg(fileError);
                         return;
                       }
-                      setResumeName(asset.name);
-                      onResumeSelected?.({
+                      const pending = await keepPendingResume({
                         fileName: asset.name,
                         fileUri: asset.uri,
                         fileSizeBytes: asset.size,
@@ -433,15 +425,12 @@ export function SignUpScreen({
                           : '',
                         mimeType: asset.mimeType,
                       });
+                      setResumeName(asset.name);
+                      onResumeSelected?.(pending.file);
                       setErrorMsg(null);
                       setReadingResume(true);
                       try {
-                        const facts = await previewSignupResume({
-                          fileName: asset.name,
-                          fileUri: asset.uri,
-                          mimeType: asset.mimeType,
-                          fileSize: '',
-                        });
+                        const facts = await previewSignupResume(pending.file);
                         setResumeDetails(facts.details);
                         if (facts.full_name?.trim())
                           setFullName((current) => current || facts.full_name.trim());
@@ -460,31 +449,26 @@ export function SignUpScreen({
                       }
                     } catch (pickerErr) {
                       console.warn('Document picker error:', pickerErr);
+                      setErrorMsg('Could not save this resume on your device. Please choose it again.');
                     }
                   }}
                 >
                   <Text
-                    style={{
-                      fontFamily: 'GeneralSans-Medium',
-                      color: '#5F4DB2',
-                    }}
+                    style={
+                      resumeName
+                        ? styles.resumeCardText
+                        : styles.resumeCardTextEmpty
+                    }
                   >
                     {resumeName
                       ? `📄 ${resumeName} (Tap to change)`
                       : 'Choose PDF or DOCX'}
                   </Text>
                 </Pressable>
-                <Text
-                  style={{
-                    fontFamily: 'GeneralSans-Regular',
-                    color: '#5F6B80',
-                    fontSize: 13,
-                    lineHeight: 20,
-                  }}
-                >
+                <Text style={styles.inputHint}>
                   {readingResume
-                    ? 'Reading your resume and filling your details…'
-                    : 'Your resume fills your details now. Scoring starts after payment.'}
+                    ? 'Reading your resume/CV and filling your details…'
+                    : 'Your resume/CV fills your details now. Scoring starts after payment.'}
                 </Text>
               </View>
             )}
@@ -629,12 +613,13 @@ export function SignUpScreen({
                 </Text>
               </View>
 
+              {/* Mobile Number */}
               <View
-                style={{ marginBottom: 24, gap: 12 }}
+                style={styles.inputGroup}
                 onLayout={(e) => onFieldLayout('phone', e)}
               >
                 <PhoneNumberInput
-                  label="Mobile number *"
+                  label="Mobile number"
                   value={phone}
                   onChange={setPhone}
                   onFocus={() => {
@@ -648,8 +633,15 @@ export function SignUpScreen({
                   }}
                   hint="Select your country code, then enter your mobile number."
                 />
-                <Text style={styles.inputLabel}>Work status *</Text>
-                <View style={{ flexDirection: 'row', gap: 12 }}>
+              </View>
+
+              {/* Work Status */}
+              <View
+                style={styles.inputGroup}
+                onLayout={(e) => onFieldLayout('workStatus', e)}
+              >
+                <Text style={styles.inputLabel}>Work status</Text>
+                <View style={styles.workStatusRow}>
                   {[
                     { value: 'EXPERIENCED', label: "I'm experienced" },
                     { value: 'FRESHER', label: "I'm a fresher" },
@@ -657,22 +649,16 @@ export function SignUpScreen({
                     <Pressable
                       key={item.value}
                       onPress={() => setWorkStatus(item.value)}
-                      style={{
-                        flex: 1,
-                        padding: 16,
-                        borderRadius: 16,
-                        borderWidth: 1,
-                        borderColor:
-                          workStatus === item.value ? '#5F4DB2' : '#E7E0D4',
-                        backgroundColor:
-                          workStatus === item.value ? '#F1EAF7' : '#fff',
-                      }}
+                      style={[
+                        styles.workStatusCard,
+                        workStatus === item.value && styles.workStatusCardSelected,
+                      ]}
                     >
                       <Text
-                        style={{
-                          fontFamily: 'GeneralSans-Medium',
-                          color: '#0A1931',
-                        }}
+                        style={[
+                          styles.workStatusText,
+                          workStatus === item.value && styles.workStatusTextSelected,
+                        ]}
                       >
                         {item.label}
                       </Text>
@@ -833,38 +819,40 @@ export function SignUpScreen({
                   </View>
                 )}
               </View>
+
+              {/* College Referral Code (Optional) */}
+              <View
+                style={styles.inputGroup}
+                onLayout={(e) => onFieldLayout('referralCode', e)}
+              >
+                <Text style={styles.inputLabel}>College referral code (optional)</Text>
+                <View style={styles.inputWrapper}>
+                  <TextInput
+                    style={styles.textInput}
+                    accessibilityLabel="College referral code"
+                    value={referralCode}
+                    onChangeText={setReferralCode}
+                    maxLength={32}
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                    placeholder="Enter your college code"
+                    editable={!isLoading}
+                    onFocus={() => {
+                      setFocusedField('referralCode');
+                      scrollToField('referralCode', true);
+                    }}
+                    onBlur={() => {
+                      setFocusedField(null);
+                      if (activeFieldKey.current === 'referralCode')
+                        activeFieldKey.current = null;
+                    }}
+                  />
+                </View>
+                <Text style={styles.inputHint}>This is separate from a payment discount code. You choose whether to link after verifying your email.</Text>
+              </View>
             </View>
 
             {/* Submit Button */}
-            <View
-              style={[styles.inputGroup, { marginBottom: 24 }]}
-              onLayout={(e) => onFieldLayout('referralCode', e)}
-            >
-              <Text style={styles.inputLabel}>College referral code (optional)</Text>
-              <View style={styles.inputWrapper}>
-                <TextInput
-                  style={styles.textInput}
-                  accessibilityLabel="College referral code"
-                  value={referralCode}
-                  onChangeText={setReferralCode}
-                  maxLength={32}
-                  autoCapitalize="characters"
-                  autoCorrect={false}
-                  placeholder="Enter your college code"
-                  editable={!isLoading}
-                  onFocus={() => {
-                    setFocusedField('referralCode');
-                    scrollToField('referralCode', false);
-                  }}
-                  onBlur={() => {
-                    setFocusedField(null);
-                    if (activeFieldKey.current === 'referralCode')
-                      activeFieldKey.current = null;
-                  }}
-                />
-              </View>
-              <Text style={styles.inputHint}>This is separate from a payment discount code. You choose whether to link after verifying your email.</Text>
-            </View>
             <Pressable
               style={({ pressed }) => [
                 styles.primaryButton,
@@ -1013,7 +1001,30 @@ const styles = StyleSheet.create({
     color: Colors.red.fg,
   },
   form: {
-    gap: Spacing.base,
+    gap: Spacing.lg,
+  },
+  resumeSection: {
+    gap: Spacing.opt6,
+  },
+  resumeCard: {
+    borderRadius: Radii.input,
+    borderWidth: 1.5,
+    borderColor: Colors.surface.border,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: 14,
+    backgroundColor: Colors.surface.card,
+    minHeight: 52,
+    justifyContent: 'center',
+  },
+  resumeCardText: {
+    fontFamily: 'GeneralSans-Medium',
+    fontSize: 15,
+    color: Colors.brandAccent,
+  },
+  resumeCardTextEmpty: {
+    fontFamily: 'GeneralSans-Regular',
+    fontSize: 15,
+    color: Colors.text.muted,
   },
   inputGroup: {
     gap: Spacing.opt6,
@@ -1022,6 +1033,34 @@ const styles = StyleSheet.create({
     fontFamily: 'GeneralSans-Medium',
     fontSize: 14,
     color: Colors.navy,
+  },
+  workStatusRow: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+  },
+  workStatusCard: {
+    flex: 1,
+    height: 52,
+    borderRadius: Radii.input,
+    borderWidth: 1.5,
+    borderColor: Colors.surface.border,
+    backgroundColor: Colors.surface.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.base,
+  },
+  workStatusCardSelected: {
+    borderColor: Colors.brandAccent,
+    backgroundColor: '#F1EAF7',
+  },
+  workStatusText: {
+    fontFamily: 'GeneralSans-Regular',
+    fontSize: 15,
+    color: Colors.navy,
+  },
+  workStatusTextSelected: {
+    fontFamily: 'GeneralSans-Medium',
+    color: Colors.brandAccent,
   },
   inputWrapper: {
     flexDirection: 'row',
@@ -1060,7 +1099,6 @@ const styles = StyleSheet.create({
     borderRadius: Radii.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: Spacing.xs,
     shadowColor: Colors.brandAccent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
@@ -1082,7 +1120,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.xs,
-    marginTop: Spacing.xs,
   },
   switchText: {
     fontFamily: 'GeneralSans-Regular',
@@ -1095,7 +1132,6 @@ const styles = StyleSheet.create({
     color: Colors.brandAccent,
   },
   legalSection: {
-    marginTop: Spacing.base,
     paddingTop: Spacing.base,
     borderTopWidth: 1,
     borderTopColor: Colors.surface.hairline,

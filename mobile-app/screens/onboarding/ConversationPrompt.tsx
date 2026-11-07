@@ -30,7 +30,7 @@ export function ConversationPrompt({
   closing?: string;
   stepTitles?: readonly string[];
   thinking: boolean;
-  progress: string;
+  progress?: string;
   history: ConversationAnswer[];
   onEdit: (answer: ConversationAnswer) => void;
   disabled: boolean;
@@ -38,8 +38,9 @@ export function ConversationPrompt({
   retryMessage?: string;
   attempts?: { answer: string; message: string }[];
 }) {
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  const spokenRef = useRef<string | null>(null);
 
   // Auto-scroll to bottom on new messages / question change / thinking
   useEffect(() => {
@@ -56,7 +57,8 @@ export function ConversationPrompt({
       return;
     }
     const textToSpeak = closing || question;
-    if (textToSpeak) {
+    if (textToSpeak && spokenRef.current !== textToSpeak) {
+      spokenRef.current = textToSpeak;
       Speech.stop();
       Speech.speak(textToSpeak, {
         language: 'en-IN',
@@ -74,6 +76,7 @@ export function ConversationPrompt({
     setVoiceEnabled(next);
     if (!next) {
       Speech.stop();
+      spokenRef.current = null;
     }
   };
 
@@ -104,13 +107,6 @@ export function ConversationPrompt({
             {voiceEnabled ? 'Voice ON' : 'Voice'}
           </Text>
         </Pressable>
-      </View>
-
-      {/* Progress pill */}
-      <View style={styles.progressRow}>
-        <View style={styles.progressBadge}>
-          <Text style={styles.progressText}>{progress}</Text>
-        </View>
       </View>
 
       {/* Conversation Thread */}
@@ -283,26 +279,6 @@ const styles = StyleSheet.create({
   },
   voiceTextActive: {
     color: '#5F4DB2',
-  },
-  progressRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 4,
-  },
-  progressBadge: {
-    backgroundColor: '#EDE8F8',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 12,
-  },
-  progressText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#5F4DB2',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
   historyScroll: {
     maxHeight: 280,

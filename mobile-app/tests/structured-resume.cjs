@@ -96,6 +96,31 @@ assert.equal(career.currently_employed, 'YES');
 assert.equal(career.company_name, 'Example');
 assert.equal(career.job_title, 'Engineer');
 assert.equal(career.current_city, 'Pune');
+assert.equal(
+  structuredResumeCareerDetails({
+    ...structured,
+    location: 'Delhi, India',
+    experience: [{ ...structured.experience[0], location: 'Mumbai' }],
+  }, {}).current_city,
+  'Delhi',
+);
+assert.equal(
+  structuredResumeCareerDetails({
+    ...structured,
+    location: '',
+    experience: [{ ...structured.experience[0], is_current: false, location: 'Mumbai' }],
+    education: [{ ...structured.education[0], location: 'Pune' }],
+  }, {}).current_city ?? '',
+  '',
+);
+assert.equal(
+  structuredResumeCareerDetails({
+    ...structured,
+    location: '',
+    experience: [{ ...structured.experience[0], location: 'Mumbai' }],
+  }, {}).current_city,
+  'Mumbai',
+);
 assert.equal(career.highest_qualification, 'BTech');
 assert.equal(career.specialization_name, 'Computer Science');
 assert.deepEqual(career.key_skills, ['TypeScript']);

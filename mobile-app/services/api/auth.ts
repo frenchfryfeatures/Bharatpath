@@ -517,39 +517,17 @@ export async function signUpWithEmail(params: SignUpParams): Promise<SignUpResul
   }
 
   // AWS Cognito SignUp Flow
-  let isUnconfirmed = false;
-  try {
-    await cognitoRequest<any>('SignUp', {
-      ClientId: COGNITO_CLIENT_ID,
-      Username: normalizedEmail,
-      Password: params.password,
-      UserAttributes: [
-        { Name: 'email', Value: normalizedEmail },
-        { Name: 'name', Value: params.fullName.trim() },
-      ],
-    });
-  } catch (signUpErr: any) {
-    if (
-      signUpErr instanceof ApiError &&
-      (signUpErr.code === 'account_contact_in_use' ||
-        signUpErr.code === 'UsernameExistsException')
-    ) {
-      // The user already exists in Cognito. Check if they are UNCONFIRMED (registered but never submitted OTP).
-      // Calling ResendConfirmationCode sends a fresh OTP to the unconfirmed user's email and succeeds.
-      // If the user was already confirmed, Cognito throws InvalidParameterException (User is already confirmed).
-      try {
-        await resendConfirmationCode(normalizedEmail);
-        isUnconfirmed = true;
-      } catch (resendErr) {
-        // User was already confirmed, rethrow the original conflict error
-        throw signUpErr;
-      }
-    } else {
-      throw signUpErr;
-    }
-  }
+  const signUpRes = await cognitoRequest<any>('SignUp', {
+    ClientId: COGNITO_CLIENT_ID,
+    Username: normalizedEmail,
+    Password: params.password,
+    UserAttributes: [
+      { Name: 'email', Value: normalizedEmail },
+      { Name: 'name', Value: params.fullName.trim() },
+    ],
+  });
 
-  if (isUnconfirmed) {
+  if (!signUpRes?.UserConfirmed) {
     return { unconfirmed: true, email: normalizedEmail };
   }
 

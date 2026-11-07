@@ -38,6 +38,7 @@ import {
   ResumeVersionDetailResponse,
 } from '@/services/api/resume';
 import { ApiError } from '@/services/api/client';
+import { updatePendingResume } from '@/services/storage/pendingResume';
 import {
   readyStructuredResume,
   structuredResumeCareerDetails,
@@ -47,10 +48,11 @@ interface ParsingScreenProps {
   fileMeta?: UploadedFileMeta;
   payload?: ResumeIntakePayload;
   initialDetails?: CareerDetails;
+  existingVersionId?: string;
   onReviewFound?: (
     versionId: string,
     versionDetails: ResumeVersionDetailResponse,
-  ) => void;
+  ) => void | Promise<void>;
   onBack?: () => void;
 }
 
@@ -72,6 +74,7 @@ export function ParsingScreen({
   fileMeta,
   payload,
   initialDetails,
+  existingVersionId,
   onReviewFound,
   onBack,
 }: ParsingScreenProps) {
@@ -103,6 +106,7 @@ export function ParsingScreen({
   const [progressPercent, setProgressPercent] = useState(20);
   const [isCompleted, setIsCompleted] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isContinuing, setIsContinuing] = useState(false);
   const [versionId, setVersionId] = useState<string | null>(null);
   const [versionDetails, setVersionDetails] =
     useState<ResumeVersionDetailResponse | null>(null);
@@ -111,7 +115,7 @@ export function ParsingScreen({
   const inProgressRef = useRef(false);
   // A retry after intake succeeds must reuse that version. Submitting again
   // creates another resume and can supersede the one the user was editing.
-  const createdVersionRef = useRef<string | null>(null);
+  const createdVersionRef = useRef<string | null>(existingVersionId ?? null);
 
   const executeParsing = async () => {
     if (inProgressRef.current) return;
@@ -191,6 +195,7 @@ export function ParsingScreen({
           createdVersionId = created.resume_version_id;
           if (!createdVersionId) throw new Error('The server did not return a resume version. Please try again.');
           createdVersionRef.current = createdVersionId;
+          await updatePendingResume({ versionId: createdVersionId });
           if (initialDetails) {
             try {
               await saveCareerProfile(
@@ -252,6 +257,7 @@ export function ParsingScreen({
                 '[ParsingScreen] Fallback career profile save failed:',
                 fallbackErr,
               );
+              throw fallbackErr;
             }
           }
         } else if (!structuredStatus) {
@@ -275,6 +281,7 @@ export function ParsingScreen({
               '[ParsingScreen] Terminal status profile save failed:',
               fallbackErr,
             );
+            throw fallbackErr;
           }
         }
         setVersionDetails(details);
@@ -321,10 +328,18 @@ export function ParsingScreen({
     return () => sub.remove();
   }, [onBack]);
 
-  const handleReviewPress = () => {
-    if (isCancelledRef.current) return;
+  const handleReviewPress = async () => {
+    if (isCancelledRef.current || isContinuing) return;
     if (onReviewFound && versionId && versionDetails) {
-      onReviewFound(versionId, versionDetails);
+      setIsContinuing(true);
+      setErrorMsg(null);
+      try {
+        await onReviewFound(versionId, versionDetails);
+      } catch (error) {
+        setErrorMsg(error instanceof Error ? error.message : 'Could not continue. Please try again.');
+      } finally {
+        setIsContinuing(false);
+      }
     }
   };
 
@@ -492,10 +507,10 @@ export function ParsingScreen({
               !isCompleted && styles.reviewButtonDisabled,
               pressed && isCompleted && styles.buttonPressed,
             ]}
-            onPress={handleReviewPress}
-            disabled={!isCompleted}
+            onPress={() => void handleReviewPress()}
+            disabled={!isCompleted || isContinuing}
           >
-            {isCompleted ? (
+            {isCompleted && !isContinuing ? (
               <Text style={styles.reviewButtonText}>Review what we found</Text>
             ) : (
               <View style={styles.buttonLoadingRow}>

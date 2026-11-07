@@ -175,7 +175,7 @@ export function LoginScreen({
               </View>
               <Text style={styles.title}>Sign in to your account</Text>
               <Text style={styles.subtitle}>
-                Access your resume evaluation, verified score, and employer opportunities.
+                Access your resume/CV evaluation, verified score, and employer opportunities.
               </Text>
             </View>
 
@@ -434,7 +434,7 @@ const styles = StyleSheet.create({
     color: Colors.red.fg,
   },
   form: {
-    gap: Spacing.base,
+    gap: Spacing.lg,
   },
   inputGroup: {
     gap: Spacing.opt6,
@@ -484,7 +484,6 @@ const styles = StyleSheet.create({
     borderRadius: Radii.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: Spacing.xs,
     shadowColor: Colors.brandAccent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
@@ -506,7 +505,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.xs,
-    marginTop: Spacing.xs,
   },
   switchText: {
     fontFamily: 'GeneralSans-Regular',

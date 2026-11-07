@@ -39,7 +39,7 @@ export default function HomeRoute() {
           const score = await getMyScore();
           if (!score || score.status !== 'READY' || score.value == null) {
             if (isMounted) {
-              router.replace('/?step=intake');
+              router.replace('/?step=review');
             }
             return;
           }
@@ -49,7 +49,7 @@ export default function HomeRoute() {
           }
         } catch {
           if (isMounted) {
-            router.replace('/?step=intake');
+            router.replace('/?step=review');
           }
         }
       }

@@ -2,9 +2,10 @@
  * BharatPath - Foundation Preview & Authentication Flow
  * Seamlessly connects Candidate Auth (Cognito-aligned) with the Onboarding & Core App.
  */
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { ActivityIndicator, View } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
 
 import { SplashScreen } from '@/screens/splash/SplashScreen';
 import { IntroScreen } from '@/screens/onboarding/IntroScreen';
@@ -18,19 +19,14 @@ import {
 import { SubscribeScreen } from '@/screens/subscription/SubscribeScreen';
 import { LanguageSelectScreen } from '@/screens/onboarding/LanguageSelectScreen';
 import { HowItWorksScreen } from '@/screens/onboarding/HowItWorksScreen';
-import {
-  ResumeIntakeScreen,
+import type {
   UploadedFileMeta,
   ResumeIntakePayload,
 } from '@/screens/onboarding/ResumeIntakeScreen';
 import { ParsingScreen } from '@/screens/onboarding/ParsingScreen';
 import { CareerDetailsScreen } from '@/screens/profile/CareerDetailsScreen';
-import { ResumeDecisionScreen } from '@/screens/onboarding/ResumeDecisionScreen';
-import { ResumeBuilderScreen } from '@/screens/onboarding/ResumeBuilderScreen';
-import {
-  membershipResumeVersion,
-  onboardingDestination,
-} from '@/services/profile/onboarding';
+import { ResumeUploadRequiredScreen } from '@/screens/onboarding/ResumeUploadRequiredScreen';
+import { nextAfterProfile } from '@/services/profile/onboarding';
 import {
   getCareerProfile,
   saveCareerProfile,
@@ -60,6 +56,8 @@ import { HomeScreen } from '@/screens/home/HomeScreen';
 import { useAuthContext } from '@/context/AuthContext';
 import { useScoreChange } from '@/hooks/useScoreChange';
 import { getCandidateSubscription } from '@/services/api/subscription';
+import { clearPendingResume, getPendingResume, keepPendingResume, updatePendingResume } from '@/services/storage/pendingResume';
+import { resumeFileError } from '@/services/profile/resumeFile';
 import {
   confirmSignUpWithCode,
   signInWithEmail,
@@ -83,8 +81,7 @@ type AppStep =
   | 'intake'
   | 'parsing'
   | 'review'
-  | 'resume-decision'
-  | 'resume-builder'
+  | 'resume-required'
   | 'scoring'
   | 'score'
   | 'breakdown'
@@ -96,7 +93,7 @@ type AppStep =
 
 export default function FoundationPreview() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ step?: AppStep }>();
+  const params = useLocalSearchParams<{ step?: string }>();
   const {
     session,
     candidateFullName,
@@ -105,9 +102,21 @@ export default function FoundationPreview() {
     updateCandidateScore,
     refreshScore,
     rememberCandidate,
+    isLoading: authLoading,
   } = useAuthContext();
-  const [step, setStep] = useState<AppStep>(params.step || 'splash');
+  const [step, setStep] = useState<AppStep>(
+    params.step &&
+      params.step !== 'review' &&
+      params.step !== 'intake' &&
+      params.step !== 'splash' &&
+      params.step !== 'resume-builder' &&
+      params.step !== 'resume-decision'
+      ? params.step as AppStep
+      : 'splash',
+  );
   const [fileMeta, setFileMeta] = useState<UploadedFileMeta | undefined>();
+  const [parsingOrigin, setParsingOrigin] = useState<'signup' | 'resume-required'>('signup');
+  const [reviewFromParsing, setReviewFromParsing] = useState(false);
   const [intakePayload, setIntakePayload] = useState<
     ResumeIntakePayload | undefined
   >();
@@ -119,9 +128,6 @@ export default function FoundationPreview() {
     null,
   );
   const [onboardingSection, setOnboardingSection] = useState(0);
-  const [activeTab, setActiveTab] = useState<
-    'preview' | 'home' | 'jobs' | 'board' | 'you'
-  >('home');
 
   const [resumeVersionId, setResumeVersionId] = useState<string | undefined>();
   const [resumeVersionDetails, setResumeVersionDetails] =
@@ -132,6 +138,9 @@ export default function FoundationPreview() {
     string | null
   >(null);
   const [subscriptionGateReady, setSubscriptionGateReady] = useState(false);
+  const [splashDone, setSplashDone] = useState(false);
+  const splashRestoreStarted = useRef(false);
+  const appliedStepParam = useRef<string | null>(null);
 
   // Synchronize score with AuthContext
   const candidateScore = authCandidateScore || localCandidateScore;
@@ -145,8 +154,18 @@ export default function FoundationPreview() {
   );
 
   useEffect(() => {
-    if (params.step) {
-      setStep(params.step);
+    if (params.step && !authLoading && appliedStepParam.current !== params.step) {
+      appliedStepParam.current = params.step;
+      if (params.step === 'review' || params.step === 'intake' ||
+          params.step === 'resume-required' || params.step === 'resume-builder' ||
+          params.step === 'resume-decision') {
+        if (!session) {
+          setStep('intro');
+          return;
+        }
+      }
+      setStep(params.step === 'resume-builder' || params.step === 'resume-decision'
+        ? 'resume-required' : params.step as AppStep);
       if (params.step === 'intro' || params.step === 'login' || params.step === 'intake') {
         if (params.step === 'intro' || params.step === 'login') {
           setUserEmail('');
@@ -161,19 +180,34 @@ export default function FoundationPreview() {
         setOnboardingDraft(null);
       }
     }
-  }, [params.step]);
+  }, [params.step, session, authLoading]);
 
-  // Membership screen is shown directly after signup so candidate can pay before parsing, matching the web flow.
+  // Membership requires a completed profile with an owned uploaded resume.
   useEffect(() => {
     if (step !== 'subscribe') {
       setSubscriptionGateReady(false);
       return;
     }
-    if (!session) {
-      setStep('login');
-      return;
-    }
-    setSubscriptionGateReady(true);
+    let cancelled = false;
+    setSubscriptionGateReady(false);
+    (async () => {
+      const active = session || await getCurrentSession();
+      if (cancelled) return;
+      if (!active) { setStep('login'); return; }
+      const profile = await getCareerProfile();
+      if (cancelled) return;
+      const destination = nextAfterProfile(profile, false);
+      if (destination === 'review') { setOnboardingSection(1); setStep('review'); return; }
+      if (destination === 'resume-required') { setStep('resume-required'); return; }
+      setResumeVersionId(profile.resume_version_id ?? undefined);
+      setSubscriptionGateReady(true);
+    })().catch((error) => {
+      if (cancelled) return;
+      console.warn('Membership gate failed:', error);
+      AppAlert.alert('Could not check your profile', 'Please check your connection and try again.');
+      setStep('review');
+    });
+    return () => { cancelled = true; };
   }, [session, step]);
 
   useEffect(() => {
@@ -187,83 +221,167 @@ export default function FoundationPreview() {
     );
   }, [resumeVersionDetails, userName, candidateFullName]);
 
-  const handleTabPress = (tab: string, href: string) => {
-    setActiveTab(tab as typeof activeTab);
-    if (tab !== 'home' && tab !== 'preview') {
-      router.push(href as any);
+  const continueAfterProfile = async (profile: Awaited<ReturnType<typeof getCareerProfile>>) => {
+    const beforePayment = nextAfterProfile(profile, false);
+    if (beforePayment === 'review') {
+      setOnboardingSection(1);
+      setStep('review');
+      return;
     }
-  };
-
-  const restoreOnboarding = async () => {
+    if (beforePayment === 'resume-required') {
+      setStep('resume-required');
+      return;
+    }
+    setResumeVersionId(profile.resume_version_id ?? undefined);
     try {
-      // Check if candidate has already completed scoring
-      const score = await getMyScore().catch(() => null);
-      if (!score || score.status !== 'READY' || score.value == null) {
-        // User closed app before completing scoring: require uploading resume again
-        setOnboardingSection(0);
-        setOnboardingDraft(null);
-        setIntakePayload(undefined);
-        setFileMeta(undefined);
-        setStep('intake');
+      const subscription = await getCandidateSubscription();
+      if (nextAfterProfile(profile, Boolean(subscription?.has_access)) === 'paid-scoring') {
+        setStep('paid-scoring');
         return;
       }
+    } catch (error) {
+      console.warn('Could not check membership; showing payment page:', error);
+    }
+    setStep(collegeReferralCode ? 'referral' : 'subscribe');
+  };
 
-      const [versions] = await Promise.all([listResumeVersions()]);
+  const restoreOnboarding = async (email?: string) => {
+    try {
+      const [score, versions, profile, pending] = await Promise.all([
+        getMyScore().catch(() => null),
+        listResumeVersions(),
+        getCareerProfile(),
+        getPendingResume(),
+      ]);
       const latest = versions.find((version) => !version.superseded);
+      const matchingPending = pending && (!pending.email || pending.email === email?.toLowerCase()) ? pending : null;
+      const currentVersionId = profile.resume_version_id || latest?.resume_version_id;
+      if (matchingPending) {
+        const pendingOrigin = matchingPending.origin === 'signup' || !matchingPending.origin
+          ? 'signup' : 'resume-required';
+        setParsingOrigin(pendingOrigin);
+        setFileMeta(matchingPending.file);
+        setIntakePayload({ source: 'upload', fileMeta: matchingPending.file });
+        setResumeVersionId(matchingPending.versionId);
+        if (matchingPending.fullName) setUserName(matchingPending.fullName);
+        if (matchingPending.details) setOnboardingDraft(matchingPending.details);
+        if (matchingPending.referralCode) setCollegeReferralCode(matchingPending.referralCode);
+        if (!matchingPending.versionId) {
+          if (matchingPending.details) {
+            try {
+              await saveCareerProfile(matchingPending.details, null, false, matchingPending.file.fileName);
+            } catch (error) {
+              console.warn('Could not sync saved signup draft before parsing:', error);
+            }
+          }
+          setStep('parsing');
+          return;
+        }
+        const details = await getResumeVersionDetails(matchingPending.versionId);
+        setResumeVersionDetails(details);
+        if (details.confirmed_at) {
+          setConfirmedAtTimestamp(details.confirmed_at);
+          const scoredAt = score?.computed_at ? Date.parse(score.computed_at) : 0;
+          if (score?.status === 'READY' && scoredAt >= Date.parse(details.confirmed_at)) {
+            await clearPendingResume();
+            router.replace('/home');
+          } else setStep('scoring');
+        } else {
+          if (pendingOrigin === 'resume-required') {
+            const saved = await saveCareerProfile(
+              profile.details, matchingPending.versionId, true, matchingPending.file.fileName,
+            );
+            await continueAfterProfile(saved);
+            return;
+          }
+          setOnboardingSection(1);
+          setReviewFromParsing(true);
+          setStep('review');
+        }
+        return;
+      }
+      if (!profile.completed) {
+        setResumeVersionId(currentVersionId);
+        setOnboardingSection(1);
+        setStep('review');
+        return;
+      }
+      if (!profile.resume_file_id) {
+        setStep('resume-required');
+        return;
+      }
+      if (!score || score.status !== 'READY' || score.value == null) {
+        setResumeVersionId(currentVersionId);
+        setOnboardingSection(1);
+        if (profile.completed && currentVersionId) {
+          const details = await getResumeVersionDetails(currentVersionId);
+          setResumeVersionDetails(details);
+          if (details.confirmed_at) {
+            setConfirmedAtTimestamp(details.confirmed_at);
+            setStep('scoring');
+          } else {
+            const subscription = await getCandidateSubscription().catch(() => null);
+            setStep(subscription?.has_access ? 'paid-scoring' : 'subscribe');
+          }
+        } else setStep('review');
+        return;
+      }
       setOnboardingSection(0);
       setOnboardingDraft(null);
       setIntakePayload(undefined);
       setFileMeta(undefined);
-      setResumeVersionId(latest?.resume_version_id);
+      setResumeVersionId(currentVersionId);
       
       refreshScore().catch(() => undefined);
       router.replace('/home');
 
-      if (latest) {
-        getResumeVersionDetails(latest.resume_version_id)
+      if (currentVersionId) {
+        getResumeVersionDetails(currentVersionId)
           .then(setResumeVersionDetails)
           .catch(() => setResumeVersionDetails(null));
       } else {
         setResumeVersionDetails(null);
       }
     } catch {
-      setOnboardingSection(0);
+      setOnboardingSection(1);
       setOnboardingDraft(null);
-      setIntakePayload(undefined);
-      setFileMeta(undefined);
-      setStep('intake');
+      setStep('review');
     }
   };
 
+  useEffect(() => {
+    if (!splashDone || authLoading || step !== 'splash') return;
+    if (splashRestoreStarted.current) return;
+    splashRestoreStarted.current = true;
+    let cancelled = false;
+    (async () => {
+      const activeSession = session || (await getCurrentSession());
+      if (cancelled) return;
+      if (activeSession) {
+        await restoreOnboarding(activeSession.email);
+        return;
+      }
+      const pending = await getPendingResume();
+      if (cancelled) return;
+      if (pending) {
+        setParsingOrigin(pending.origin && pending.origin !== 'signup' ? 'resume-required' : 'signup');
+        setFileMeta(pending.file);
+        setIntakePayload({ source: 'upload', fileMeta: pending.file });
+        if (pending.email) setUserEmail(pending.email);
+        if (pending.fullName) setUserName(pending.fullName);
+        if (pending.details) setOnboardingDraft(pending.details);
+        if (pending.referralCode) setCollegeReferralCode(pending.referralCode);
+      }
+      setStep(pending?.email ? 'login' : 'intro');
+    })().catch((error) => {
+      console.warn('Could not restore onboarding:', error);
+      if (!cancelled) setStep(session ? 'review' : 'intro');
+    });
+    return () => { cancelled = true; };
+  }, [splashDone, authLoading, session, step]);
+
   if (step === 'splash') {
-    return (
-      <SplashScreen
-        onFinish={async () => {
-          const activeSession = session || (await getCurrentSession());
-          if (activeSession) {
-            try {
-              const score = await getMyScore();
-              if (score?.status === 'READY' && score?.value != null) {
-                refreshScore().catch(() => undefined);
-                router.replace('/home');
-                restoreOnboarding().catch(() => undefined);
-                return;
-              }
-            } catch {
-              // No completed score (e.g. 402 or pending)
-            }
-            // User closed the app before completing scoring.
-            // Require uploading resume again to go for the score.
-            setFileMeta(undefined);
-            setIntakePayload(undefined);
-            setOnboardingDraft(null);
-            setStep('intake');
-            return;
-          }
-          setStep('intro');
-        }}
-      />
-    );
+    return <SplashScreen onFinish={() => setSplashDone(true)} />;
   }
 
   // 1. Initial Intro Screen with "Get started free" & "I already have an account"
@@ -288,12 +406,20 @@ export default function FoundationPreview() {
         initialFileMeta={fileMeta}
         initialCareerDetails={onboardingDraft ?? undefined}
         onResumeSelected={(meta) => {
+          setParsingOrigin('signup');
           setFileMeta(meta);
           setIntakePayload({ source: 'upload', fileMeta: meta });
+          setResumeVersionId(undefined);
         }}
         onBack={() => setStep('intro')}
         onNavigateToLogin={() => setStep('login')}
         onSubmit={async (data, isUnconfirmed) => {
+          await updatePendingResume({
+            email: data.email.toLowerCase(),
+            fullName: data.fullName,
+            details: data.details,
+            referralCode: data.referralCode,
+          });
           setCollegeReferralCode(data.referralCode ?? '');
           setOnboardingDraft(data.details);
           setOnboardingSection(1);
@@ -317,9 +443,11 @@ export default function FoundationPreview() {
               console.warn('Initial profile draft save error:', err);
             }
             if (fileMeta || intakePayload) {
+              setParsingOrigin('signup');
               setStep('parsing');
             } else {
-              setStep('intake');
+              setOnboardingSection(1);
+              setStep('review');
             }
           }
         }}
@@ -355,10 +483,10 @@ export default function FoundationPreview() {
             setUserName(name);
           }
           // Recover the pending resume draft after verification required a manual login.
-          if (onboardingDraft && data.session.email.toLowerCase() === userEmail.toLowerCase()) {
+          if (onboardingDraft && !fileMeta && data.session.email.toLowerCase() === userEmail.toLowerCase()) {
             if (userName) await updateCandidateName(userName);
             try {
-              await saveCareerProfile(onboardingDraft, null, false, fileMeta?.fileName);
+              await saveCareerProfile(onboardingDraft, null, false);
             } catch (err) {
               console.warn('Draft save error:', err);
             }
@@ -366,12 +494,13 @@ export default function FoundationPreview() {
             if (fileMeta || intakePayload) {
               setStep('parsing');
             } else {
-              setStep('intake');
+              setOnboardingSection(1);
+              setStep('review');
             }
             return;
           }
           try {
-            await restoreOnboarding();
+            await restoreOnboarding(data.session.email);
           } catch (e) {
             console.warn('Could not check existing resume versions:', e);
             setOnboardingSection(0);
@@ -451,9 +580,11 @@ export default function FoundationPreview() {
             }
           }
           if (fileMeta || intakePayload) {
+            setParsingOrigin('signup');
             setStep('parsing');
           } else {
-            setStep('intake');
+            setOnboardingSection(1);
+            setStep('review');
           }
         }}
         onResendCode={async () => {
@@ -486,7 +617,10 @@ export default function FoundationPreview() {
     return (
       <HowItWorksScreen
         onBack={() => setStep('language')}
-        onGotIt={() => setStep('intake')}
+        onGotIt={() => {
+          setOnboardingSection(1);
+          setStep('review');
+        }}
       />
     );
   }
@@ -506,20 +640,21 @@ export default function FoundationPreview() {
       <SubscribeScreen
         candidateName={userName}
         onSubscribed={async () => {
-          // After payment is successful: Proceed to Paid Scoring confirmation!
           try {
             const saved = await getCareerProfile();
-            if (saved.resume_version_id) {
-              setResumeVersionId(saved.resume_version_id);
+            if (!saved.completed || !saved.resume_file_id || !saved.resume_version_id) {
+              setStep(saved.completed ? 'resume-required' : 'review');
+              return;
             }
-          } catch {}
-          setStep('paid-scoring');
-        }}
-        onSkip={() => {
+            setResumeVersionId(saved.resume_version_id);
+          } catch {
+            AppAlert.alert('Could not continue', 'Your profile could not be checked. Please try again.');
+            return;
+          }
           setStep('paid-scoring');
         }}
         onBack={() => {
-          setOnboardingSection(3);
+          setOnboardingSection(1);
           setStep('review');
         }}
       />
@@ -545,28 +680,19 @@ export default function FoundationPreview() {
           setConfirmedAtTimestamp(confirmedAt);
           setStep('scoring');
         }}
-        onBack={() => setStep('subscribe')}
+        onBack={() => {
+          setOnboardingSection(1);
+          setStep('review');
+        }}
       />
     );
   }
 
-  // 8. Onboarding: Resume Intake (Upload or Structured Input)
+  // 8. Onboarding: Resume Intake (Upload or Structured Input) - redirect to review mode selection
   if (step === 'intake') {
-    return (
-      <ResumeIntakeScreen
-        userName={userName}
-        onBack={() => setStep('signup')}
-        onSelectOption={(_option, meta, payload) => {
-          if (meta) {
-            setFileMeta(meta);
-          }
-          if (payload) {
-            setIntakePayload(payload);
-          }
-          setStep('parsing');
-        }}
-      />
-    );
+    setOnboardingSection(1);
+    setStep('review');
+    return null;
   }
 
   // 9. Onboarding: Resume Parsing
@@ -576,19 +702,28 @@ export default function FoundationPreview() {
         fileMeta={fileMeta}
         payload={intakePayload}
         initialDetails={fileMeta ? onboardingDraft ?? undefined : undefined}
+        existingVersionId={resumeVersionId}
         onBack={() => {
-          setFileMeta(undefined);
-          setIntakePayload(undefined);
-          setOnboardingDraft(null);
-          setStep('intake');
+          setStep(parsingOrigin);
         }}
         onReviewFound={async (verId, details) => {
           setResumeVersionId(verId);
           setResumeVersionDetails(details);
+          if (parsingOrigin === 'resume-required') {
+            const current = await getCareerProfile();
+            const saved = await saveCareerProfile(
+              current.details, verId, true, fileMeta?.fileName,
+            );
+            if (!saved.resume_file_id) throw new Error('The uploaded resume was not linked to your profile. Try again.');
+            await continueAfterProfile(saved);
+            return;
+          }
           const extracted = extractCandidateResumeInfo(details);
           if (extracted.name && !userName) {
             setUserName(extracted.name);
           }
+          setOnboardingSection(1);
+          setReviewFromParsing(true);
           setStep('review');
         }}
       />
@@ -604,72 +739,60 @@ export default function FoundationPreview() {
         resumeFilename={fileMeta?.fileName}
         versionId={resumeVersionId}
         onBack={() => {
-          if (fileMeta || intakePayload) {
-            setStep('intake');
-          } else {
-            router.replace('/you');
-          }
+          setStep(reviewFromParsing ? 'parsing' : 'signup');
         }}
         onDone={async (profile) => {
           const verId = profile.resume_version_id ?? resumeVersionId;
           if (verId) setResumeVersionId(verId);
-          setOnboardingSection(3);
+          setOnboardingSection(1);
           setOnboardingDraft(null);
-
-          // Step 1, 2, 3, 4 completed!
-          // Per platform enhancements §3: Users who have not uploaded a resume are given
-          // the option to generate one via the Resume Builder or upload a CV.
-          if (!verId || !fileMeta?.fileName) {
-            setStep('resume-decision');
-            return;
-          }
-
-          // Check if candidate already has an active subscription
-          try {
-            const sub = await getCandidateSubscription();
-            if (sub?.has_access) {
-              setStep('paid-scoring');
-              return;
-            }
-          } catch {}
-
-          // If not subscribed: proceed to Payment!
-          setStep(collegeReferralCode ? 'referral' : 'subscribe');
+          await continueAfterProfile(profile);
         }}
       />
     );
   }
 
-  // 10b. Resume Decision (Build my resume vs Upload existing CV)
-  if (step === 'resume-decision') {
+  // A completed profile needs a real uploaded resume before membership.
+  if (step === 'resume-required') {
     return (
-      <ResumeDecisionScreen
-        onBuildResume={() => setStep('resume-builder')}
-        onUploadCv={() => setStep('intake')}
+      <ResumeUploadRequiredScreen
         onBack={() => {
-          setOnboardingSection(3);
+          setOnboardingSection(1);
           setStep('review');
         }}
-      />
-    );
-  }
-
-  // 10c. Resume Builder & Customizer (Templates, Projects, Preview, PDF Download, Push)
-  if (step === 'resume-builder') {
-    return (
-      <ResumeBuilderScreen
-        onBack={() => setStep('resume-decision')}
-        onUploadCv={() => setStep('intake')}
-        onDone={async (verId) => {
-          setResumeVersionId(verId);
+        onUpload={async () => {
           try {
-            const sub = await getCandidateSubscription();
-            if (sub?.has_access) {
-              setStep('paid-scoring');
+            const result = await DocumentPicker.getDocumentAsync({
+              type: [
+                'application/pdf',
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+              ],
+              copyToCacheDirectory: true,
+            });
+            if (result.canceled || !result.assets?.length) return;
+            const asset = result.assets[0];
+            const fileError = resumeFileError(asset);
+            if (fileError) {
+              AppAlert.alert('Cannot use this file', fileError);
               return;
             }
-          } catch {}
-          setStep(collegeReferralCode ? 'referral' : 'subscribe');
+            const pending = await keepPendingResume({
+              fileName: asset.name,
+              fileUri: asset.uri,
+              fileSizeBytes: asset.size,
+              fileSize: asset.size ? `${Math.round(asset.size / 1024)} KB` : '',
+              mimeType: asset.mimeType,
+            });
+            await updatePendingResume({ email: session?.email.toLowerCase(), origin: 'resume-required' });
+            setParsingOrigin('resume-required');
+            setFileMeta(pending.file);
+            setIntakePayload({ source: 'upload', fileMeta: pending.file });
+            setResumeVersionId(undefined);
+            setStep('parsing');
+          } catch (error) {
+            console.warn('Could not select resume:', error);
+            AppAlert.alert('File selection failed', 'Please choose your resume again.');
+          }
         }}
       />
     );
@@ -683,6 +806,14 @@ export default function FoundationPreview() {
       <ScoringScreen
         minComputedAt={confirmedAtTimestamp}
         onReady={(score) => {
+          void getPendingResume()
+            .then((pending) => {
+              if (pending && pending.versionId === resumeVersionId &&
+                  (!pending.email || pending.email === session?.email.toLowerCase())) {
+                return clearPendingResume();
+              }
+            })
+            .catch((error) => console.warn('Could not clear completed resume copy:', error));
           setLocalCandidateScore(score);
           setAuthCandidateScore(score);
           if (score.value != null) {

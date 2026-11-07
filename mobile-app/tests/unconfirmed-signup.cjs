@@ -63,38 +63,15 @@ function mockCognitoConfirmSignUp(email, code) {
 
 // Logic implemented in signUpWithEmail
 async function simulateSignUpWithEmail({ email, password, fullName }) {
-  let isUnconfirmed = false;
-  try {
-    mockCognitoSignUp(email, password, fullName);
-    // In Cognito, if email verification is enabled, signing in right after signup throws user_not_confirmed
-    isUnconfirmed = true;
-  } catch (signUpErr) {
-    if (
-      signUpErr instanceof ApiError &&
-      (signUpErr.code === 'account_contact_in_use' ||
-        signUpErr.code === 'UsernameExistsException')
-    ) {
-      try {
-        mockCognitoResendConfirmationCode(email);
-        isUnconfirmed = true;
-      } catch (resendErr) {
-        throw signUpErr;
-      }
-    } else {
-      throw signUpErr;
-    }
-  }
-
-  if (isUnconfirmed) {
-    return { unconfirmed: true, email };
-  }
-  return { session: { email } };
+  mockCognitoSignUp(email, password, fullName);
+  // Brand new registration returns unconfirmed: true to proceed to OTP verification
+  return { unconfirmed: true, email };
 }
 
 (async function runTests() {
   const email = 'candidate@bharatpath.test';
 
-  // Step 1: Initial signup attempt with resume
+  // Step 1: Initial signup attempt
   const initialResult = await simulateSignUpWithEmail({
     email,
     password: 'Password123!',
@@ -104,24 +81,8 @@ async function simulateSignUpWithEmail({ email, password, fullName }) {
   assert.strictEqual(cognitoUsers.get(email).confirmed, false, 'User should be unconfirmed in Cognito');
   assert.strictEqual(cognitoUsers.get(email).lastCodeSent, '123456');
 
-  // Step 2: User DOES NOT submit OTP, but comes back and repeats registration with resume
-  // Previously: this failed with "account_contact_in_use" (UsernameExistsException)
-  // With fix: detects unconfirmed user, dispatches fresh OTP, and allows resuming flow!
-  const repeatResult = await simulateSignUpWithEmail({
-    email,
-    password: 'Password123!',
-    fullName: 'Test Candidate',
-  });
-  assert.strictEqual(repeatResult.unconfirmed, true, 'Repeat signup for unconfirmed user should return unconfirmed: true');
-  assert.strictEqual(cognitoUsers.get(email).lastCodeSent, '654321', 'Fresh OTP code should have been dispatched');
-
-  // Step 3: User submits the fresh OTP
-  const confirmed = mockCognitoConfirmSignUp(email, '654321');
-  assert.strictEqual(confirmed, true, 'OTP verification should succeed');
-  assert.strictEqual(cognitoUsers.get(email).confirmed, true, 'User is now confirmed');
-
-  // Step 4: Now that the user IS confirmed, if someone tries to sign up again with that email:
-  // It should throw account_contact_in_use
+  // Step 2: User is already registered. If someone tries to sign up again with that email:
+  // Must NOT dispatch fresh OTP, must NOT return unconfirmed: true, must throw account_contact_in_use
   let errorCaught = null;
   try {
     await simulateSignUpWithEmail({
@@ -132,8 +93,28 @@ async function simulateSignUpWithEmail({ email, password, fullName }) {
   } catch (err) {
     errorCaught = err;
   }
-  assert(errorCaught instanceof ApiError, 'Confirmed user signup attempt must fail');
-  assert.strictEqual(errorCaught.code, 'account_contact_in_use');
+  assert(errorCaught instanceof ApiError, 'Already registered signup attempt must throw ApiError');
+  assert.strictEqual(errorCaught.code, 'account_contact_in_use', 'Must throw account_contact_in_use');
+  assert.strictEqual(cognitoUsers.get(email).lastCodeSent, '123456', 'No fresh OTP should be triggered for existing user');
+
+  // Step 3: User submits the OTP from their original registration
+  const confirmed = mockCognitoConfirmSignUp(email, '123456');
+  assert.strictEqual(confirmed, true, 'OTP verification should succeed');
+  assert.strictEqual(cognitoUsers.get(email).confirmed, true, 'User is now confirmed');
+
+  // Step 4: After confirmation, signup attempt must also fail with account_contact_in_use
+  let confirmedError = null;
+  try {
+    await simulateSignUpWithEmail({
+      email,
+      password: 'YetAnotherPassword1!',
+      fullName: 'Third Candidate',
+    });
+  } catch (err) {
+    confirmedError = err;
+  }
+  assert(confirmedError instanceof ApiError, 'Confirmed user signup attempt must fail');
+  assert.strictEqual(confirmedError.code, 'account_contact_in_use');
 
   console.log('All unconfirmed signup resilience tests passed successfully!');
 })();

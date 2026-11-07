@@ -274,8 +274,11 @@ export function structuredResumeCareerDetails(
       resume.contacts?.phone && /^\+[1-9]\d{7,14}$/.test(resume.contacts.phone)
         ? resume.contacts.phone
         : '',
+    // The resume header describes the candidate's location. A past job or
+    // school may be in a different city, so only use a role marked current as
+    // a fallback when the header has no location.
     current_city: sanitizeCity(
-      latestRole?.location || education?.location || resume.location || '',
+      resume.location || (latestRole?.is_current ? latestRole.location : '') || '',
     ),
     headline: resume.headline || resume.summary || '',
     key_skills: resume.skills ?? [],

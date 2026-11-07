@@ -17,7 +17,34 @@ const {
   onboardingDestination,
   membershipResumeVersion,
   profileResumeVersion,
+  nextAfterProfile,
+  conversationStartStep,
+  conversationFieldsForSection,
 } = loaded.exports;
+
+const basicAndEmployment = [
+  { key: 'phone', section: 'basic', required: true },
+  { key: 'current_city', section: 'basic', required: true },
+  { key: 'work_status', section: 'employment', required: true },
+  { key: 'industry', section: 'employment', required: false },
+];
+assert.equal(conversationStartStep(1, ['current_city']), 1);
+assert.equal(conversationStartStep(3, ['current_city']), 1);
+assert.equal(conversationStartStep(3, []), 3);
+assert.deepEqual(
+  conversationFieldsForSection(
+    basicAndEmployment,
+    'employment',
+    1,
+    (field) => field.required,
+  ).map((field) => field.key),
+  ['phone', 'current_city', 'work_status'],
+);
+
+assert.equal(nextAfterProfile({ completed: false, resume_file_id: null, resume_version_id: null }, false), 'review');
+assert.equal(nextAfterProfile({ completed: true, resume_file_id: null, resume_version_id: 'manual-version' }, false), 'resume-required');
+assert.equal(nextAfterProfile({ completed: true, resume_file_id: 'file-1', resume_version_id: 'version-1' }, false), 'subscribe');
+assert.equal(nextAfterProfile({ completed: true, resume_file_id: 'file-1', resume_version_id: 'version-1' }, true), 'paid-scoring');
 
 const careerFilename = path.resolve(__dirname, '../services/api/career.ts');
 const careerSource = fs
@@ -116,6 +143,38 @@ assert.equal(
     currently_employed: 'NO',
   }),
   false,
+);
+assert.equal(
+  fieldVisible(
+    { key: 'industry', required: false, section: 'employment' },
+    { work_status: 'EXPERIENCED', currently_employed: 'NO' },
+  ),
+  false,
+  'industry must be hidden when currently_employed is NO',
+);
+assert.equal(
+  fieldVisible(
+    { key: 'department', required: false, section: 'employment' },
+    { work_status: 'EXPERIENCED', currently_employed: 'NO' },
+  ),
+  false,
+  'department must be hidden when currently_employed is NO',
+);
+assert.equal(
+  fieldVisible(
+    { key: 'industry', required: false, section: 'employment' },
+    { work_status: 'FRESHER', currently_employed: 'NO' },
+  ),
+  false,
+  'industry must be hidden for freshers',
+);
+assert.equal(
+  fieldVisible(
+    { key: 'currently_employed', required: false, section: 'employment' },
+    { work_status: 'FRESHER' },
+  ),
+  true,
+  'currently_employed question is always asked',
 );
 assert.deepEqual(
   careerDetailsForSave({
