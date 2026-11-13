@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "fetch:gov": "node scripts/fetch-gov-jobs.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
