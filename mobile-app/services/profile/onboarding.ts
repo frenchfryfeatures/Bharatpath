@@ -1,4 +1,24 @@
-import type { CareerProfile } from '../api/career';
+import type { CareerField, CareerProfile } from '../api/career';
+
+/** Keep required contact corrections in conversational Step 2. */
+export function conversationStartStep(target: number, missing: string[]): number {
+  return target > 1 && missing.some((key) => key === 'phone' || key === 'current_city')
+    ? 1
+    : target;
+}
+
+export function conversationFieldsForSection(
+  fields: CareerField[],
+  sectionKey: string | undefined,
+  stepIndex: number,
+  visible: (field: CareerField) => boolean,
+): CareerField[] {
+  return fields.filter((field) =>
+    (field.section === sectionKey ||
+      (stepIndex === 1 && (field.key === 'phone' || field.key === 'current_city'))) &&
+    visible(field),
+  );
+}
 
 export const passwordRequirements = (password: string) => [
   { label: 'At least 8 characters', met: password.length >= 8 },
@@ -23,6 +43,15 @@ export function membershipResumeVersion(
   return profile.completed
     ? profile.resume_version_id ?? undefined
     : undefined;
+}
+
+export function nextAfterProfile(
+  profile: Pick<CareerProfile, 'completed' | 'resume_file_id' | 'resume_version_id'>,
+  hasAccess: boolean,
+): 'review' | 'resume-required' | 'subscribe' | 'paid-scoring' {
+  if (!profile.completed) return 'review';
+  if (!profile.resume_file_id || !profile.resume_version_id) return 'resume-required';
+  return hasAccess ? 'paid-scoring' : 'subscribe';
 }
 
 /**

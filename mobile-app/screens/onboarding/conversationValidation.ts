@@ -46,6 +46,9 @@ export function applyCareerAnswer(
       employment_end: '',
       annual_salary: null,
       notice_period: '',
+      industry: '',
+      department: '',
+      role_category: '',
       job_role: '',
     });
   }
@@ -279,6 +282,22 @@ export function parseConversationAnswer(
               : null
             : '',
     };
+  }
+
+  if (field.key === 'current_city') {
+    const city = text.replace(/\s+/g, ' ');
+    if (city.length > 100 || !/\p{L}/u.test(city) ||
+        !/^[\p{L}\p{M} .'-]+$/u.test(city)) {
+      return { error: 'Enter your city name using letters, spaces, dots, apostrophes, or hyphens.' };
+    }
+    return { value: city };
+  }
+  if (field.key === 'phone') {
+    const phone = text.replace(/[\s-]/g, '');
+    if (!/^\+[1-9]\d{7,14}$/.test(phone)) {
+      return { error: 'Enter a valid mobile number with country code.' };
+    }
+    return { value: phone };
   }
 
   if (field.type === 'select') {

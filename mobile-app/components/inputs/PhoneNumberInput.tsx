@@ -232,7 +232,7 @@ export function PhoneNumberInput({
           ]}
         >
           <Text style={styles.dialCodeText}>+{dialCode}</Text>
-          <CaretDown size={14} color="#5F4DB2" weight="bold" />
+          <CaretDown size={14} color="#5F6B80" weight="regular" />
         </Pressable>
 
         {/* Divider Line */}
@@ -393,9 +393,9 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontFamily: 'GeneralSans-Semibold',
-    color: '#0B132B',
-    marginBottom: 8,
+    fontFamily: 'GeneralSans-Medium',
+    color: '#0A1931',
+    marginBottom: 6,
   },
   requiredStar: {
     color: '#5F4DB2',
@@ -407,6 +407,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: '#E7E0D4',
     borderRadius: 16,
+    height: 52,
     minHeight: 52,
     overflow: 'hidden',
   },
@@ -445,9 +446,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
   },
   dialCodeText: {
-    fontSize: 16,
-    fontFamily: 'GeneralSans-Bold',
-    color: '#0B132B',
+    fontSize: 15,
+    fontFamily: 'GeneralSans-Regular',
+    fontWeight: '400',
+    color: '#0A1931',
   },
   divider: {
     width: 1,
@@ -456,25 +458,26 @@ const styles = StyleSheet.create({
   },
   textInput: {
     flex: 1,
-    fontSize: 16,
-    fontFamily: 'GeneralSans-Medium',
-    color: '#0B132B',
+    fontSize: 15,
+    fontFamily: 'GeneralSans-Regular',
+    fontWeight: '400',
+    color: '#0A1931',
     paddingHorizontal: 16,
     paddingVertical: 12,
     minHeight: 50,
   },
   hintText: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: 'GeneralSans-Regular',
-    color: '#64748B',
-    marginTop: 6,
-    lineHeight: 18,
+    color: '#5F6B80',
+    marginTop: 4,
+    lineHeight: 16,
   },
   errorText: {
     fontSize: 12,
     fontFamily: 'GeneralSans-Medium',
     color: '#B42318',
-    marginTop: 6,
+    marginTop: 4,
     lineHeight: 16,
   },
   modalOverlay: {
@@ -580,7 +583,7 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   countryDialCodeSelected: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Medium',
     color: '#5F4DB2',
   },
   checkIcon: {

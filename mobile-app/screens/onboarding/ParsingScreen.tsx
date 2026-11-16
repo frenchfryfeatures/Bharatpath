@@ -16,6 +16,7 @@ import {
   Pressable,
   ScrollView,
   ActivityIndicator,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -26,6 +27,7 @@ import {
   NotePencil,
   WarningCircle,
   ArrowClockwise,
+  ArrowLeft,
 } from 'phosphor-react-native';
 import { Colors, Radii, Spacing } from '@/theme/tokens';
 import { UploadedFileMeta, ResumeIntakePayload } from './ResumeIntakeScreen';
@@ -36,6 +38,7 @@ import {
   ResumeVersionDetailResponse,
 } from '@/services/api/resume';
 import { ApiError } from '@/services/api/client';
+import { updatePendingResume } from '@/services/storage/pendingResume';
 import {
   readyStructuredResume,
   structuredResumeCareerDetails,
@@ -45,10 +48,11 @@ interface ParsingScreenProps {
   fileMeta?: UploadedFileMeta;
   payload?: ResumeIntakePayload;
   initialDetails?: CareerDetails;
+  existingVersionId?: string;
   onReviewFound?: (
     versionId: string,
     versionDetails: ResumeVersionDetailResponse,
-  ) => void;
+  ) => void | Promise<void>;
   onBack?: () => void;
 }
 
@@ -70,6 +74,7 @@ export function ParsingScreen({
   fileMeta,
   payload,
   initialDetails,
+  existingVersionId,
   onReviewFound,
   onBack,
 }: ParsingScreenProps) {
@@ -101,6 +106,7 @@ export function ParsingScreen({
   const [progressPercent, setProgressPercent] = useState(20);
   const [isCompleted, setIsCompleted] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isContinuing, setIsContinuing] = useState(false);
   const [versionId, setVersionId] = useState<string | null>(null);
   const [versionDetails, setVersionDetails] =
     useState<ResumeVersionDetailResponse | null>(null);
@@ -109,7 +115,7 @@ export function ParsingScreen({
   const inProgressRef = useRef(false);
   // A retry after intake succeeds must reuse that version. Submitting again
   // creates another resume and can supersede the one the user was editing.
-  const createdVersionRef = useRef<string | null>(null);
+  const createdVersionRef = useRef<string | null>(existingVersionId ?? null);
 
   const executeParsing = async () => {
     if (inProgressRef.current) return;
@@ -189,6 +195,7 @@ export function ParsingScreen({
           createdVersionId = created.resume_version_id;
           if (!createdVersionId) throw new Error('The server did not return a resume version. Please try again.');
           createdVersionRef.current = createdVersionId;
+          await updatePendingResume({ versionId: createdVersionId });
           if (initialDetails) {
             try {
               await saveCareerProfile(
@@ -250,6 +257,7 @@ export function ParsingScreen({
                 '[ParsingScreen] Fallback career profile save failed:',
                 fallbackErr,
               );
+              throw fallbackErr;
             }
           }
         } else if (!structuredStatus) {
@@ -273,13 +281,16 @@ export function ParsingScreen({
               '[ParsingScreen] Terminal status profile save failed:',
               fallbackErr,
             );
+            throw fallbackErr;
           }
         }
         setVersionDetails(details);
       }
 
+      if (isCancelledRef.current) return;
       setIsCompleted(true);
     } catch (err: any) {
+      if (isCancelledRef.current) return;
       console.error('[Parsing Error]:', err);
       if (err instanceof ApiError) {
         setErrorMsg(
@@ -303,9 +314,32 @@ export function ParsingScreen({
     }
   }, []);
 
-  const handleReviewPress = () => {
+  const isCancelledRef = useRef(false);
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (onBack) {
+        isCancelledRef.current = true;
+        onBack();
+        return true;
+      }
+      return false;
+    });
+    return () => sub.remove();
+  }, [onBack]);
+
+  const handleReviewPress = async () => {
+    if (isCancelledRef.current || isContinuing) return;
     if (onReviewFound && versionId && versionDetails) {
-      onReviewFound(versionId, versionDetails);
+      setIsContinuing(true);
+      setErrorMsg(null);
+      try {
+        await onReviewFound(versionId, versionDetails);
+      } catch (error) {
+        setErrorMsg(error instanceof Error ? error.message : 'Could not continue. Please try again.');
+      } finally {
+        setIsContinuing(false);
+      }
     }
   };
 
@@ -317,6 +351,26 @@ export function ParsingScreen({
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* Top navigation back button */}
+          {onBack && (
+            <View style={styles.topHeaderRow}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.backButton,
+                  pressed && styles.pressed,
+                ]}
+                onPress={() => {
+                  isCancelledRef.current = true;
+                  onBack();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Go back"
+              >
+                <ArrowLeft size={18} color="#0A1931" weight="bold" />
+              </Pressable>
+            </View>
+          )}
+
           {/* Header Title & Subtitle */}
           <View style={styles.titleSection}>
             <Text style={styles.title}>{screenTitle}</Text>
@@ -453,10 +507,10 @@ export function ParsingScreen({
               !isCompleted && styles.reviewButtonDisabled,
               pressed && isCompleted && styles.buttonPressed,
             ]}
-            onPress={handleReviewPress}
-            disabled={!isCompleted}
+            onPress={() => void handleReviewPress()}
+            disabled={!isCompleted || isContinuing}
           >
-            {isCompleted ? (
+            {isCompleted && !isContinuing ? (
               <Text style={styles.reviewButtonText}>Review what we found</Text>
             ) : (
               <View style={styles.buttonLoadingRow}>
@@ -485,9 +539,24 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   scrollContent: {
-    paddingTop: 24,
+    paddingTop: 12,
     paddingBottom: 20,
     gap: 18,
+  },
+  topHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingBottom: 4,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E7E0D4',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   titleSection: {
     gap: 2,

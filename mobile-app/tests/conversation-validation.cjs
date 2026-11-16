@@ -26,6 +26,14 @@ const {
   formatSalaryDisplay,
 } = loaded.exports;
 
+const cityField = { key: 'current_city', type: 'text', label: 'Current city' };
+assert.equal(parseConversationAnswer(cityField, 'New Delhi', true, {}).value, 'New Delhi');
+assert.ok(parseConversationAnswer(cityField, 'Delhi, India', true, {}).error);
+assert.ok(parseConversationAnswer(cityField, '12345', true, {}).error);
+const phoneField = { key: 'phone', type: 'tel', label: 'Mobile number' };
+assert.equal(parseConversationAnswer(phoneField, '+919793273692', true, {}).value, '+919793273692');
+assert.ok(parseConversationAnswer(phoneField, '123', true, {}).error);
+
 // ─── 1. SALARY PARSING TESTS ──────────────────────────────────
 console.log('1. Testing Salary Parsing (LPA, Cr, K, Per Month, Raw)...');
 

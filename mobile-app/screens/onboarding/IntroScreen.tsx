@@ -31,7 +31,7 @@ export function IntroScreen({ onGetStarted, onAlreadyHaveAccount }: IntroScreenP
               Build your career profile
             </Text>
             <Text style={styles.subtitle}>
-              Start with your resume, review your details, and discover opportunities. Resume scoring starts after membership payment.
+              Start with your resume/CV, review your details, and discover opportunities. Resume/CV scoring starts after membership payment.
             </Text>
           </View>
         </View>

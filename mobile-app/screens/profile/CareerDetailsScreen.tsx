@@ -34,11 +34,16 @@ import { AppAlert } from '@/components/feedback/AppAlert';
 import { ChatCircleDots, ListBullets } from 'phosphor-react-native';
 import { useAuthContext } from '@/context/AuthContext';
 import { updateCandidateName } from '@/services/api/auth';
+import { ApiError } from '@/services/api/client';
 import { getResumeVersionDetails } from '@/services/api/resume';
 import {
   readyStructuredResume,
   structuredResumeCareerDetails,
 } from '@/services/profile/structuredResume';
+import {
+  conversationFieldsForSection,
+  conversationStartStep,
+} from '@/services/profile/onboarding';
 import {
   getCareerFields,
   getCareerProfile,
@@ -49,7 +54,8 @@ import {
   saveCareerProfile,
   getResumePreview,
   careerDetailsForSave,
-  fieldRequired,
+  missingRequiredCareerFields,
+  fieldRequired as baseFieldRequired,
   fieldVisible,
   type CareerField,
   type CareerDetails,
@@ -91,6 +97,9 @@ export function CareerDetailsScreen({
   const router = useRouter();
   const { candidateFullName, session, rememberCandidate } = useAuthContext();
   const [fullName, setFullName] = useState(candidateFullName ?? '');
+  useEffect(() => {
+    if (candidateFullName) setFullName((current) => current || candidateFullName);
+  }, [candidateFullName]);
   const [fields, setFields] = useState<CareerField[]>([]);
   const [profile, setProfile] = useState<CareerProfile | null>(null);
   const [activeVersionId, setActiveVersionId] = useState<string | null>(
@@ -118,6 +127,7 @@ export function CareerDetailsScreen({
   const [conversationInput, setConversationInput] = useState<string>('');
   const [conversationError, setConversationError] = useState('');
   const [attempts, setAttempts] = useState<{ answer: string; message: string }[]>([]);
+  const [serverRequiresSkills, setServerRequiresSkills] = useState(false);
 
   const activeFieldKey = useRef<string | null>(null);
 
@@ -192,25 +202,244 @@ export function CareerDetailsScreen({
         setConversationError('');
         return;
       }
-      setStep(0);
       setOnboardingMode(null);
       return;
     }
-    if (editing && step > 0) setStep(step - 1);
-    else if (onboarding || !editing) onBack();
-    else setEditing(false);
+    if (editing && step > 0) {
+      if (onboarding && step === 1 && onboardingMode === 'manual') {
+        setOnboardingMode(null);
+        return;
+      }
+      setStep(step - 1);
+    } else if (onboarding || !editing) {
+      onBack();
+    } else {
+      setEditing(false);
+    }
   };
 
-  // Conversational questions for current step (evaluates visible branching)
-  const currentStepFields = fields.filter(
-    (field) =>
-      field.section === groups[step].key && fieldVisible(field, draft),
+  const fieldRequired = (field: CareerField, details: CareerDetails) =>
+    baseFieldRequired(field, details) ||
+    (serverRequiresSkills && field.key === 'key_skills') ||
+    (onboardingMode === 'conversation' &&
+      details.work_status === 'EXPERIENCED' &&
+      (field.key === 'experience_years' || field.key === 'experience_months'));
+
+  const conversationalFieldVisible = (
+    field: CareerField,
+    details: CareerDetails,
+  ): boolean => {
+    if (!fieldVisible(field, details) && !(serverRequiresSkills && field.key === 'key_skills')) return false;
+    // In conversational mode, only required fields are asked in non-preferences sections
+    // (e.g. employment, education) to keep conversational onboarding concise, relevant,
+    // and matching the website flow, skipping optional fields like industry and department.
+    return field.section === 'preferences' ||
+      baseFieldRequired(field, details) ||
+      (serverRequiresSkills && field.key === 'key_skills') ||
+      (details.work_status === 'EXPERIENCED' &&
+        (field.key === 'experience_years' || field.key === 'experience_months'));
+  };
+
+  // Basic contact details belong to the first form section, but the API still
+  // requires them. Ask any missing ones inside conversational Step 2 so mode
+  // selection never sends the candidate back to the Basic details screen.
+  const conversationFieldsForStep = (
+    stepIndex: number,
+    details: CareerDetails,
+  ): CareerField[] => conversationFieldsForSection(
+    fields,
+    groups[stepIndex]?.key,
+    stepIndex,
+    (field) => conversationalFieldVisible(field, details),
   );
+
+  // Conversational questions for current step (evaluates visible branching)
+  const currentStepFields = onboardingMode === 'conversation'
+    ? conversationFieldsForStep(step, draft)
+    : fields.filter(
+        (field) =>
+          field.section === groups[step]?.key && fieldVisible(field, draft),
+      );
   const currentQuestionIdx = Math.min(
     questionIndex,
     Math.max(0, currentStepFields.length - 1),
   );
   const currentField = currentStepFields[currentQuestionIdx];
+
+  const formatFieldAnswer = (
+    field: CareerField,
+    value: unknown,
+    details: CareerDetails,
+    history: ConversationAnswer[],
+  ): string => {
+    const skipped = history.find(
+      (item) => item.key === field.key && item.answer === 'Skipped for now',
+    );
+    if (skipped && !fieldRequired(field, details)) {
+      return skipped.answer;
+    }
+    if (field.key === 'annual_salary' || field.key === 'preferred_salary') {
+      return formatSalaryDisplay(typeof value === 'number' ? value : null);
+    }
+    if (field.options && field.options.length > 0) {
+      const match = field.options.find(
+        (opt) =>
+          opt.value === value ||
+          String(opt.value).toLowerCase() === String(value ?? '').toLowerCase(),
+      );
+      if (match) return match.label;
+    }
+    if (Array.isArray(value)) {
+      return value.join(', ');
+    }
+    return String(value ?? '');
+  };
+
+  const isFieldUnanswered = (
+    field: CareerField,
+    details: CareerDetails,
+    history: ConversationAnswer[],
+  ): boolean => {
+    if (
+      onboardingMode === 'conversation' &&
+      field.section !== 'preferences' &&
+      !fieldRequired(field, details)
+    ) {
+      return false;
+    }
+    const value = details[field.key];
+    const skipped = history.some(
+      (item) => item.key === field.key && item.answer === 'Skipped for now',
+    );
+    if (skipped && !fieldRequired(field, details)) return false;
+    if (
+      value === null ||
+      value === undefined ||
+      value === '' ||
+      (Array.isArray(value) && !value.length)
+    ) {
+      return true;
+    }
+    const answer =
+      field.key === 'annual_salary' || field.key === 'preferred_salary'
+        ? typeof value === 'number'
+          ? formatSalaryDisplay(value)
+          : String(value)
+        : Array.isArray(value)
+          ? value.join(', ')
+          : String(value);
+
+    return Boolean(
+      parseConversationAnswer(
+        field,
+        answer,
+        fieldRequired(field, details),
+        details,
+      ).error,
+    );
+  };
+
+  /** Open the first unanswered question, carrying prefills through completed sections. */
+  const startConversationStep = (
+    target: number,
+    base: ConversationAnswer[],
+    details: CareerDetails = draft,
+  ): { step: number; questionIndex: number; readyToFinish: boolean } | null => {
+    if (!fields || fields.length === 0) return null;
+    target = conversationStartStep(target, missingRequiredCareerFields(details));
+    let history = [...base];
+
+    // Seed any prior completed steps (>= 1) that are not yet in history
+    for (let priorStep = 1; priorStep < target; priorStep++) {
+      const priorAsked = conversationFieldsForStep(priorStep, details).filter(
+        (field) => !isFieldUnanswered(field, details, history),
+      );
+      const priorSeeded: ConversationAnswer[] = priorAsked.map((field, pos) => {
+        const val = details[field.key];
+        return {
+          key: field.key,
+          step: priorStep,
+          questionIndex: pos,
+          question: conversationQuestion(field),
+          answer: formatFieldAnswer(field, val, details, history) || 'Provided',
+        };
+      });
+      history = [
+        ...history.filter(
+          (item) => !priorSeeded.some((answer) => answer.key === item.key),
+        ),
+        ...priorSeeded,
+      ];
+    }
+
+    for (let nextStep = target; nextStep < groups.length; nextStep++) {
+      const asked = conversationFieldsForStep(nextStep, details);
+      if (asked.length === 0) {
+        if (nextStep === groups.length - 1) {
+          setConversationHistory(history);
+          setStep(nextStep);
+          setStepDone(true);
+          return { step: nextStep, questionIndex: 0, readyToFinish: true };
+        }
+        continue;
+      }
+
+      const firstOpen = asked.findIndex((field) =>
+        !history.some((item) => item.key === field.key &&
+          (item.answer !== 'Skipped for now' || !fieldRequired(field, details))) &&
+        isFieldUnanswered(field, details, history),
+      );
+
+      const lastStep = nextStep === groups.length - 1;
+      const shown =
+        firstOpen < 0 && lastStep
+          ? Math.max(0, asked.length - 1)
+          : firstOpen < 0
+            ? asked.length
+            : firstOpen;
+
+      const seeded: ConversationAnswer[] = asked
+        .slice(0, shown)
+        .map((field, position) => {
+          const value = details[field.key];
+          return {
+            key: field.key,
+            step: nextStep,
+            questionIndex: position,
+            question: conversationQuestion(field),
+            answer:
+              formatFieldAnswer(field, value, details, history) || 'Provided',
+          };
+        });
+
+      history = [
+        ...history.filter(
+          (item) => !seeded.some((answer) => answer.key === item.key),
+        ),
+        ...seeded,
+      ].sort(
+        (left, right) =>
+          left.step - right.step || left.questionIndex - right.questionIndex,
+      );
+
+      if (firstOpen >= 0 || lastStep) {
+        const index = firstOpen < 0 ? Math.max(0, asked.length - 1) : firstOpen;
+        setConversationHistory(history);
+        setStep(nextStep);
+        setQuestionIndex(index);
+        setConversationInput('');
+        setAttempts([]);
+        setConversationError('');
+        setStepDone(firstOpen < 0 && lastStep);
+        return {
+          step: nextStep,
+          questionIndex: index,
+          readyToFinish: lastStep && firstOpen < 0,
+        };
+      }
+    }
+    return null;
+  };
 
   const handleSendConversationAnswer = async (
     answerVal?: string,
@@ -227,28 +456,23 @@ export function CareerDetailsScreen({
         question: conversationQuestion(currentField),
         answer: 'Skipped for now',
       };
-      setConversationHistory((prev) => [
-        ...prev.filter((i) => i.key !== currentField.key),
+      const nextHistory = [
+        ...conversationHistory.filter((i) => i.key !== currentField.key),
         updatedHistory,
-      ]);
+      ].sort(
+        (left, right) =>
+          left.step - right.step || left.questionIndex - right.questionIndex,
+      );
+      setConversationHistory(nextHistory);
       setConversationInput('');
       setConversationError('');
       setAttempts([]);
 
-      const nextIdx = currentQuestionIdx + 1;
-      if (nextIdx >= currentStepFields.length) {
-        setThinking(true);
-        setTimeout(() => {
-          setStepDone(true);
-          setThinking(false);
-        }, 500);
-      } else {
-        setThinking(true);
-        setTimeout(() => {
-          setQuestionIndex(nextIdx);
-          setThinking(false);
-        }, 500);
-      }
+      setThinking(true);
+      setTimeout(() => {
+        startConversationStep(step, nextHistory, draft);
+        setThinking(false);
+      }, 500);
       return;
     }
 
@@ -291,41 +515,29 @@ export function CareerDetailsScreen({
       question: conversationQuestion(currentField),
       answer: displayAnswer || 'Provided',
     };
-    setConversationHistory((prev) => [
-      ...prev.filter((i) => i.key !== currentField.key),
+    const nextHistory = [
+      ...conversationHistory.filter((i) => i.key !== currentField.key),
       updatedHistory,
-    ]);
+    ].sort(
+      (left, right) =>
+        left.step - right.step || left.questionIndex - right.questionIndex,
+    );
+    setConversationHistory(nextHistory);
     setConversationInput('');
     setConversationError('');
     setAttempts([]);
 
-    // Check branching on next fields using the updated draft
-    const nextFields = fields.filter(
-      (f) => f.section === groups[step].key && fieldVisible(f, updatedDraft),
-    );
-    const nextIdx =
-      nextFields.findIndex((f) => f.key === currentField.key) + 1;
-    if (nextIdx >= nextFields.length) {
-      setThinking(true);
-      setTimeout(() => {
-        setStepDone(true);
-        setThinking(false);
-      }, 500);
-    } else {
-      setThinking(true);
-      setTimeout(() => {
-        setQuestionIndex(nextIdx);
-        setThinking(false);
-      }, 500);
-    }
+    setThinking(true);
+    setTimeout(() => {
+      startConversationStep(step, nextHistory, updatedDraft);
+      setThinking(false);
+    }, 500);
   };
 
   const handleEditConversationAnswer = (answer: ConversationAnswer) => {
     setStep(answer.step);
     setStepDone(false);
-    const stepFields = fields.filter(
-      (f) => f.section === groups[answer.step].key && fieldVisible(f, draft),
-    );
+    const stepFields = conversationFieldsForStep(answer.step, draft);
     const targetIdx = Math.max(
       0,
       stepFields.findIndex((f) => f.key === answer.key),
@@ -340,11 +552,78 @@ export function CareerDetailsScreen({
     setConversationInput('');
   };
 
+  const focusMissingFields = (missing: string[]): boolean => {
+    if (!missing.length) return false;
+    if (missing.includes('key_skills')) setServerRequiresSkills(true);
+
+    const first = missing.find(
+      (key) =>
+        key === 'full_name' ||
+        fields.some((field) => field.key === key &&
+          (fieldVisible(field, draft) || key === 'key_skills')),
+    );
+    if (!first) return false;
+
+    const sectionKey =
+      first === 'full_name'
+        ? 'basic'
+        : fields.find((f) => f.key === first)?.section;
+    const sectionStep = groups.findIndex((g) => g.key === sectionKey);
+    const targetStep = onboardingMode === 'conversation' && sectionStep === 0 &&
+      (first === 'phone' || first === 'current_city') ? 1 : sectionStep;
+
+    setErrors(
+      Object.fromEntries(
+        missing.map((key) => [key, 'This field is required.']),
+      ),
+    );
+    const fieldObj = fields.find((f) => f.key === first);
+    const fieldName =
+      fieldObj?.label ||
+      (first === 'full_name' ? 'Full name' : first.replace(/_/g, ' '));
+    setError(`Please complete the required field: ${fieldName}.`);
+
+    if (targetStep >= 0 && targetStep !== step) {
+      setStep(targetStep);
+    }
+    setStepDone(false);
+    if (onboardingMode === 'conversation' && targetStep >= 0) {
+      const asked = conversationFieldsForStep(targetStep, draft);
+      const index = asked.findIndex((field) => field.key === first);
+      setQuestionIndex(Math.max(0, index));
+      setConversationHistory((previous) => previous.filter((item) => item.key !== first));
+      setConversationInput('');
+      setAttempts([]);
+      setConversationError('Please correct this answer before finishing your profile.');
+    }
+    return true;
+  };
+
+  const handleIncompleteError = (err: unknown): boolean => {
+    if (!(err instanceof ApiError)) return false;
+    const params = err.problem?.params || (err as any).params;
+    return focusMissingFields(Array.isArray(params?.fields) ? params.fields : []);
+  };
+
   const handleContinueConversationStep = async () => {
+    const isLastStep = step === groups.length - 1;
+    if (isLastStep) {
+      const missing = missingRequiredCareerFields(careerDetailsForSave(draft));
+      if (!fullName.trim()) missing.push('full_name');
+      if (focusMissingFields(missing)) return;
+    }
     setBusy(true);
     setError('');
     try {
-      const isLastStep = step === groups.length - 1;
+      if (fullName.trim()) {
+        try {
+          const identity = await updateCandidateName(fullName.trim());
+          if (session) rememberCandidate(session, identity, fullName.trim());
+        } catch (nameErr) {
+          console.warn('[Profile Save] Could not update candidate name:', nameErr);
+          if (isLastStep) throw nameErr;
+        }
+      }
       const saved = await saveCareerProfile(
         careerDetailsForSave(draft),
         activeVersionId,
@@ -360,14 +639,16 @@ export function CareerDetailsScreen({
         }
         await onDone(saved);
       } else {
-        setStep(step + 1);
-        setQuestionIndex(0);
+        const nextStep = step + 1;
+        setStep(nextStep);
         setStepDone(false);
         setAttempts([]);
         setConversationError('');
         setConversationInput('');
+        startConversationStep(nextStep, conversationHistory, draft);
       }
     } catch (failure) {
+      if (handleIncompleteError(failure)) return;
       setError(
         failure instanceof Error
           ? failure.message
@@ -528,8 +809,10 @@ export function CareerDetailsScreen({
           notice_period: '',
           job_role: '',
         });
-      if (key === 'currently_employed' && value === 'YES')
+      if (key === 'currently_employed' && value === 'YES') {
         next.employment_end = '';
+        if (next.work_status !== 'EXPERIENCED') next.work_status = 'EXPERIENCED';
+      }
       if (key === 'currently_employed' && value === 'NO')
         Object.assign(next, {
           company_name: '',
@@ -538,6 +821,9 @@ export function CareerDetailsScreen({
           employment_end: '',
           annual_salary: null,
           notice_period: '',
+          industry: '',
+          department: '',
+          role_category: '',
           job_role: '',
         });
       return next;
@@ -558,10 +844,18 @@ export function CareerDetailsScreen({
       )
         nextErrors[field.key] = 'This field is required.';
     }
+    let phoneVal =
+      typeof draft.phone === 'string'
+        ? draft.phone.trim().replace(/[\s-]/g, '')
+        : '';
+    if (!phoneVal.startsWith('+') && /^\d{10}$/.test(phoneVal)) {
+      phoneVal = `+91${phoneVal}`;
+      setDraft((prev) => ({ ...prev, phone: phoneVal }));
+    }
     if (
       groups[step].key === 'basic' &&
-      draft.phone &&
-      !/^\+[1-9]\d{7,14}$/.test(String(draft.phone))
+      phoneVal &&
+      !/^\+[1-9]\d{7,14}$/.test(phoneVal)
     )
       nextErrors.phone = 'Use international format, for example +919876543210.';
     if (groups[step].key === 'basic' && !fullName.trim())
@@ -574,14 +868,37 @@ export function CareerDetailsScreen({
     )
       nextErrors.experience_years =
         'Enter at least one month of experience, or choose fresher.';
+    if (
+      groups[step].key === 'education' &&
+      draft.starting_year &&
+      draft.passing_year &&
+      Number(draft.passing_year) < Number(draft.starting_year)
+    ) {
+      nextErrors.passing_year =
+        'Passing year cannot be earlier than starting year.';
+    }
+    if (
+      groups[step].key === 'employment' &&
+      draft.currently_employed === 'NO' &&
+      draft.employment_start &&
+      draft.employment_end &&
+      String(draft.employment_end) < String(draft.employment_start)
+    ) {
+      nextErrors.employment_end =
+        'Employment end date cannot precede start date.';
+    }
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
     setBusy(true);
     setError('');
     try {
-      if (step === 0) {
-        const identity = await updateCandidateName(fullName.trim());
-        if (session) rememberCandidate(session, identity, fullName.trim());
+      if (fullName.trim()) {
+        try {
+          const identity = await updateCandidateName(fullName.trim());
+          if (session) rememberCandidate(session, identity, fullName.trim());
+        } catch (nameErr) {
+          console.warn('[Profile Save] Could not update candidate name:', nameErr);
+        }
       }
       const isLastStep = step === groups.length - 1;
       const shouldFinish = finishNow || isLastStep;
@@ -604,6 +921,7 @@ export function CareerDetailsScreen({
         scrollRef.current?.scrollTo({ y: 0, animated: true });
       }
     } catch (failure) {
+      if (handleIncompleteError(failure)) return;
       setError(
         failure instanceof Error
           ? failure.message
@@ -661,7 +979,9 @@ export function CareerDetailsScreen({
           <Pressable
             accessibilityLabel="Back"
             disabled={busy}
-            onPress={() => setStep(0)}
+            onPress={() => {
+              setStep(0);
+            }}
             style={styles.back}
           >
             <ArrowLeft size={22} color="#0A1931" />
@@ -684,8 +1004,7 @@ export function CareerDetailsScreen({
             <Pressable
               onPress={() => {
                 setOnboardingMode('conversation');
-                setQuestionIndex(0);
-                setStepDone(false);
+                startConversationStep(step > 0 ? step : 1, conversationHistory, draft);
               }}
               style={({ pressed }) => [
                 styles.modeOptionCard,
@@ -837,6 +1156,9 @@ export function CareerDetailsScreen({
                     disabled={busy}
                     onPress={() => {
                       setStep(idx);
+                      if (onboardingMode === 'conversation') {
+                        startConversationStep(idx, conversationHistory, draft);
+                      }
                       scrollRef.current?.scrollTo({ y: 0, animated: true });
                     }}
                     style={[
@@ -882,8 +1204,7 @@ export function CareerDetailsScreen({
                 <Pressable
                   onPress={() => {
                     setOnboardingMode('conversation');
-                    setQuestionIndex(0);
-                    setStepDone(false);
+                    startConversationStep(step > 0 ? step : 1, conversationHistory, draft);
                   }}
                   style={[
                     styles.modeToggleTab,
@@ -911,14 +1232,13 @@ export function CareerDetailsScreen({
               </View>
             )}
 
-            {onboarding && step > 0 && onboardingMode === 'conversation' ? (
+            {onboarding && onboardingMode === 'conversation' ? (
               <ConversationPrompt
                 thinking={thinking || busy}
-                question={conversationQuestion(currentField)}
-                progress={`Step ${step + 1} of 4`}
+                question={currentField ? conversationQuestion(currentField) : ''}
                 closing={
                   stepDone
-                    ? `Thanks! That covers ${groups[step].title.toLowerCase()}. Ready for the next step?`
+                    ? `Thanks! That covers your profile details. Ready to save and continue?`
                     : undefined
                 }
                 history={conversationHistory}
@@ -949,7 +1269,7 @@ export function CareerDetailsScreen({
                         <ActivityIndicator size="small" color="#FFFFFF" />
                       ) : (
                         <Text style={styles.convContinueText}>
-                          {step === groups.length - 1
+                          {step === groups.length - 1 || stepDone
                             ? 'Save & Continue'
                             : 'Continue to Next Step'}
                         </Text>
@@ -1094,7 +1414,7 @@ export function CareerDetailsScreen({
                   <>
                     {onboarding && (
                       <View style={styles.field}>
-                        <Text style={styles.label}>Start with your resume</Text>
+                        <Text style={styles.label}>Start with your resume/CV</Text>
                         <Pressable
                           disabled={busy}
                           onPress={() =>
@@ -1114,7 +1434,7 @@ export function CareerDetailsScreen({
                           </Text>
                         </Pressable>
                         <Text style={styles.help}>
-                          We fill your details from your resume. Review them below. Scoring starts after payment.
+                          We fill your details from your resume/CV. Review them below. Scoring starts after payment.
                         </Text>
                       </View>
                     )}

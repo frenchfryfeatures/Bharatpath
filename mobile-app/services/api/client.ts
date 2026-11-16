@@ -208,7 +208,10 @@ export async function apiRequest<T>(
   }
 
   if (!response.ok) {
-    console.warn(`[API Error ${response.status}] ${options.method || 'GET'} ${cleanEndpoint}`);
+    console.warn(
+      `[API Error ${response.status}] ${options.method || 'GET'} ${cleanEndpoint}`,
+      isJson && data ? JSON.stringify(data) : data,
+    );
     if (isJson && data && typeof data === 'object') {
       const detailMsg = Array.isArray(data.detail)
         ? data.detail.map((d: any) => `${d.loc ? d.loc.filter((p: any) => p !== 'body').join('.') : 'field'}: ${d.msg}`).join(', ')
