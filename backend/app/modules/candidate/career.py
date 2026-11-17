@@ -62,6 +62,10 @@ class CareerDetails(ApiSchema):
         Literal["industry", "department", "role_category", "job_role"],
         Annotated[str, Field(max_length=160)],
     ] = Field(default_factory=dict)
+    highest_qualification_id: uuid.UUID | None = None
+    course_id: uuid.UUID | None = None
+    specialization_id: uuid.UUID | None = None
+    education_others: dict[Literal["highest_qualification", "course", "specialization"], Annotated[str, Field(max_length=160)]] = Field(default_factory=dict)
     highest_qualification: Text = ""
     course: Text = ""
     course_type: Literal["", "FULL_TIME", "PART_TIME", "DISTANCE", "ONLINE"] = ""

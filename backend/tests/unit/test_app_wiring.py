@@ -16,7 +16,7 @@ def test_all_modules_registered() -> None:
     candidate's job-search chat, 2026-10-13), `resume_builder` (2026-10-13),
     and the moderated `taxonomy` (2026-11-17).
     """
-    assert len(ALL_MODULES) == 25
+    assert len(ALL_MODULES) == 26
     for module in ALL_MODULES:
         assert isinstance(module.name, str) and module.name
         assert module.prefix.startswith("/")

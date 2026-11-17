@@ -15,6 +15,7 @@ from . import (
     courses,
     discovery,
     employer,
+    education_taxonomy,
     engagement,
     identity,
     integrity,
@@ -58,4 +59,5 @@ ALL_MODULES: tuple[ModuleType, ...] = (
     assistant,
     resume_builder,
     taxonomy,
+    education_taxonomy,
 )

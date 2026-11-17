@@ -87,7 +87,12 @@ async def save_details(
     from app.modules.taxonomy.service import validate_profile
 
     await validate_profile(session, payload.details, old.details, ctx.user_id)
+    from app.modules.education_taxonomy.domain import missing_custom_fields
+    from app.modules.education_taxonomy.service import validate_profile as validate_education
+    await validate_education(session, payload.details, old.details, ctx.user_id)
     missing = missing_required(payload.details) if payload.complete else []
+    if payload.complete:
+        missing = list(dict.fromkeys([*missing, *missing_custom_fields(payload.details)]))
     profile = await repository.get_profile(session, user_id=ctx.user_id)
     if payload.complete and not (profile and profile.full_name):
         missing.append("full_name")

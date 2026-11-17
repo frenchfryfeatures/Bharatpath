@@ -135,7 +135,7 @@ def test_authentication_secrets_are_never_profile_fields():
 def test_both_clients_receive_all_fields_once():
     fields = form_fields()
     answer_keys = CareerDetails.model_fields.keys() - {
-        "industry_id", "department_id", "role_category_id", "job_role_id", "taxonomy_others",
+        "industry_id", "department_id", "role_category_id", "job_role_id", "taxonomy_others", "highest_qualification_id", "course_id", "specialization_id", "education_others",
     }
     assert {field["key"] for field in fields} == answer_keys
     assert len(fields) == len(answer_keys)
@@ -176,6 +176,7 @@ async def test_incomplete_completion_is_rejected_before_writing(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_unemployed_experienced_candidate_completes_without_job_dates(monkeypatch):
+    monkeypatch.setattr("app.modules.education_taxonomy.service.validate_profile", AsyncMock(side_effect=lambda session, details, previous, user_id: details))
     ctx = context()
     row = SimpleNamespace(
         career={}, full_name="Kavya Iyer", city=None, updated_at=datetime.now(UTC)
@@ -226,6 +227,7 @@ async def test_unemployed_experienced_candidate_completes_without_job_dates(monk
 
 @pytest.mark.asyncio
 async def test_owner_scoped_resume_and_revision_without_scoring(monkeypatch):
+    monkeypatch.setattr("app.modules.education_taxonomy.service.validate_profile", AsyncMock(side_effect=lambda session, details, previous, user_id: details))
     ctx = context()
     version_id = uuid.uuid4()
     revised_id = uuid.uuid4()
