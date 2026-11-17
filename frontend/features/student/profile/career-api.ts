@@ -1,6 +1,6 @@
 import { baseApi } from "@/store/api/base-api";
 
-export type CareerDetails = Record<string, string | number | string[] | null>;
+export type CareerDetails = Record<string, string | number | string[] | Record<string, string> | null>;
 export interface CareerField {
   key: string;
   label: string;

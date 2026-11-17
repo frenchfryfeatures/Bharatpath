@@ -17,6 +17,7 @@ function displayValue(field: CareerField, details: CareerDetails): string | numb
   const value = details[field.key];
   if (value === null || value === undefined || value === "") return null;
   if (Array.isArray(value)) return value.join(", ") || null;
+  if (typeof value === "object") return null;
   if (field.key === "experience_years" || field.key === "experience_months") {
     return details.work_status ? value : null;
   }

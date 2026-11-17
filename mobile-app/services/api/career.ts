@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 import { File as ExpoFile } from 'expo-file-system';
 import type { UploadedFileMeta } from '@/screens/onboarding/ResumeIntakeScreen';
 
-export type CareerDetails = Record<string, string | number | string[] | null>;
+export type CareerDetails = Record<string, string | number | string[] | Record<string, string> | null>;
 export interface ResumeDraft {
   full_name: string;
   email: string;
@@ -278,6 +278,14 @@ export function cleanCareerDetailsForApi(raw: CareerDetails): CareerDetails {
     }
   }
 
+  for (const key of ['industry', 'department', 'role_category', 'job_role']) {
+    cleaned[key + '_id'] = typeof details[key + '_id'] === 'string' ? details[key + '_id'] : null;
+  }
+  cleaned.taxonomy_others = details.taxonomy_others && typeof details.taxonomy_others === 'object' && !Array.isArray(details.taxonomy_others) ? { ...details.taxonomy_others } : {};
+  if (cleaned.work_status === 'FRESHER') {
+    cleaned.job_role_id = null;
+    delete cleaned.taxonomy_others.job_role;
+  }
   return cleaned as CareerDetails;
 }
 

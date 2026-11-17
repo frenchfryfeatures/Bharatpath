@@ -23,6 +23,12 @@ const GENERIC_MESSAGE =
 
 /** Known backend `code`s that benefit from specific copy. */
 const CODE_MESSAGES: Record<string, string> = {
+  taxonomy_invalid: "Please check your industry, department, role category and job role. Enter a short answer wherever you chose Others.",
+  taxonomy_duplicate: "That option already exists under this parent. Choose the existing option or use another name.",
+  taxonomy_use_existing: "Your answer already exists in the dropdown. Please select that option instead of Others.",
+  taxonomy_changed: "Another administrator changed this entry. Refresh the list before trying again.",
+  taxonomy_in_use: "This option is used by saved profiles. Hide or archive it instead.",
+  taxonomy_submission_limit: "You have suggested several options today. Please try again tomorrow.",
   shortlist_not_found:
     "This invitation is no longer available. Check your latest invitations.",
   shortlist_not_pending:

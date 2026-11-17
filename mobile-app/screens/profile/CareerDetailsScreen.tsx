@@ -1,3 +1,5 @@
+import { TaxonomyField } from "@/components/inputs/TaxonomyField";
+import { isTaxonomyKey, taxonomyErrors } from "@/services/api/taxonomyState";
 import React, { useEffect, useRef, useState } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
 import {
@@ -446,6 +448,9 @@ export function CareerDetailsScreen({
     skip = false,
   ) => {
     if (!currentField || thinking) return;
+    if (isTaxonomyKey(currentField.key) && taxonomyErrors(draft)[currentField.key]) {
+      setConversationError(taxonomyErrors(draft)[currentField.key]); return;
+    }
     const rawAnswer = answerVal !== undefined ? answerVal : conversationInput;
 
     if (skip) {
@@ -832,7 +837,7 @@ export function CareerDetailsScreen({
   };
 
   const save = async (finishNow: boolean = false) => {
-    const nextErrors: Record<string, string> = {};
+    const nextErrors: Record<string, string> = taxonomyErrors(draft);
     for (const field of fields.filter(
       (f) => f.section === groups[step].key && fieldVisible(f, draft),
     )) {
@@ -1310,7 +1315,10 @@ export function CareerDetailsScreen({
                     )}
 
                     {/* Text Input */}
-                    {currentField.type === 'tel' ? (
+                    {isTaxonomyKey(currentField.key) ? (
+                      <TaxonomyField fieldKey={currentField.key} label={currentField.label} details={draft} invalid={!!conversationError}
+                        onChange={(next) => {setDraft(next); setConversationInput(String(next[currentField.key] || '')); setConversationError('');}} />
+                    ) : currentField.type === 'tel' ? (
                       <PhoneNumberInput
                         value={conversationInput}
                         onChange={(next) => {
@@ -1480,7 +1488,10 @@ export function CareerDetailsScreen({
                           {field.label}
                           {fieldRequired(field, draft) ? ' *' : ' (optional)'}
                         </Text>
-                        {field.type === 'select' ? (
+                        {isTaxonomyKey(field.key) ? (
+                          <TaxonomyField fieldKey={field.key} label={field.label} details={draft} invalid={!!errors[field.key]}
+                            onChange={(next) => {setDraft(next); setErrors((current) => ({...current, [field.key]: ''}));}} />
+                        ) : field.type === 'select' ? (
                           <View style={styles.options}>
                             {field.options.map((option) => (
                               <Pressable

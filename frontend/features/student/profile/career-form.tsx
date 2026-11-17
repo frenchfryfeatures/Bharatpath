@@ -7,6 +7,8 @@ import { ConversationPrompt } from "./conversation-prompt";
 import { conversationQuestion, type ConversationAnswer } from "./conversation-questions";
 import { applyCareerAnswer, parseConversationAnswer } from "./conversation-validation";
 import { clearOnboardingDraft, readOnboardingDraft, writeOnboardingDraft, type OnboardingDraft } from "./onboarding-draft";
+import { TaxonomyField } from "./taxonomy-field";
+import { isTaxonomyKey, taxonomyErrors } from "./taxonomy-state";
 import { AppSelect } from "@/components/ui/app-select";
 import { MonthYearSelect } from "@/components/ui/month-year-select";
 import { formatSalaryLpaFromRupees, isProfileSalary, parseSalaryLpa, profileFieldLabel, salaryInputFromRupees } from "../salary";
@@ -49,7 +51,7 @@ const sections = [
 ] as const;
 
 function incompleteCareerFields(error: unknown): string[] {
-  if (getApiErrorCode(error) !== "career_profile_incomplete") return [];
+  if (!["career_profile_incomplete", "taxonomy_invalid", "taxonomy_use_existing"].includes(getApiErrorCode(error) || "")) return [];
   if (typeof error !== "object" || error === null || !("data" in error))
     return [];
   const data = error.data;
@@ -540,7 +542,7 @@ export function CareerForm({
           }
           employmentDetails = applyCareerAnswer(draft, currentField.key, parsed.value!);
         }
-        const nextErrors: Record<string, string> = {};
+        const nextErrors: Record<string, string> = Object.fromEntries(Object.entries(taxonomyErrors(employmentDetails)).filter(([key]) => activeFields.some((field) => field.key === key)));
         for (const field of activeFields)
           if (
             fieldRequired(field, employmentDetails) &&
@@ -771,7 +773,10 @@ export function CareerForm({
               >{option.label}</button>)}
             </div>}
             <label htmlFor="conversation-answer" className="sr-only">{profileFieldLabel(currentField.key, currentField.label)}</label>
-            {currentField.type === "month" ? (
+            {isTaxonomyKey(currentField.key) ? (
+              <TaxonomyField fieldKey={currentField.key} id="conversation-answer" label={currentField.label} details={draft} invalid={Boolean(conversationError)}
+                onChange={(next) => {setDraft(next); setConversationInput(String(next[currentField.key] || "")); setConversationError("");}} />
+            ) : currentField.type === "month" ? (
               <MonthYearSelect
                 key={currentField.key}
                 id="conversation-answer"
@@ -957,7 +962,10 @@ export function CareerForm({
                     : undefined
               }
             >
-              {field.type === "select" ? (
+              {isTaxonomyKey(field.key) ? (
+                <TaxonomyField fieldKey={field.key} id={id} label={field.label} details={draft} invalid={Boolean(errors[field.key])}
+                  onChange={(next) => {setDraft(next); setErrors((current) => ({...current, [field.key]: ""}));}} />
+              ) : field.type === "select" ? (
                 <AppSelect
                   id={id}
                   value={String(value || (field.key === "currently_employed" ? "NO" : ""))}
