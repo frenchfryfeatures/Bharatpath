@@ -278,9 +278,10 @@ export function cleanCareerDetailsForApi(raw: CareerDetails): CareerDetails {
     }
   }
 
-  for (const key of ['industry', 'department', 'role_category', 'job_role']) {
+  for (const key of ['industry', 'department', 'role_category', 'job_role', 'highest_qualification', 'course', 'specialization']) {
     cleaned[key + '_id'] = typeof details[key + '_id'] === 'string' ? details[key + '_id'] : null;
   }
+  cleaned.education_others = details.education_others && typeof details.education_others === "object" && !Array.isArray(details.education_others) ? {...details.education_others} : {};
   cleaned.taxonomy_others = details.taxonomy_others && typeof details.taxonomy_others === 'object' && !Array.isArray(details.taxonomy_others) ? { ...details.taxonomy_others } : {};
   if (cleaned.work_status === 'FRESHER') {
     cleaned.job_role_id = null;

@@ -7,6 +7,8 @@ import { ConversationPrompt } from "./conversation-prompt";
 import { conversationQuestion, type ConversationAnswer } from "./conversation-questions";
 import { applyCareerAnswer, parseConversationAnswer } from "./conversation-validation";
 import { clearOnboardingDraft, readOnboardingDraft, writeOnboardingDraft, type OnboardingDraft } from "./onboarding-draft";
+import { EducationField, useEducationAutoNA } from "./education-field";
+import { isEducationKey, educationErrors } from "./education-state";
 import { TaxonomyField } from "./taxonomy-field";
 import { isTaxonomyKey, taxonomyErrors } from "./taxonomy-state";
 import { AppSelect } from "@/components/ui/app-select";
@@ -51,7 +53,7 @@ const sections = [
 ] as const;
 
 function incompleteCareerFields(error: unknown): string[] {
-  if (!["career_profile_incomplete", "taxonomy_invalid", "taxonomy_use_existing"].includes(getApiErrorCode(error) || "")) return [];
+  if (!["career_profile_incomplete", "taxonomy_invalid", "taxonomy_use_existing", "education_taxonomy_invalid"].includes(getApiErrorCode(error) || "")) return [];
   if (typeof error !== "object" || error === null || !("data" in error))
     return [];
   const data = error.data;
@@ -116,6 +118,7 @@ export function CareerForm({
   const [selectedFilename, setSelectedFilename] = useState<string>();
   const [editedDraft, setDraft] = useState<CareerDetails | null>(null);
   const draft = editedDraft ?? saved.data?.details ?? null;
+  const hideEducationSpecialization = useEducationAutoNA(draft, setDraft);
   const [step, setStep] = useState(initialSection);
   const [error, setError] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -266,7 +269,7 @@ export function CareerForm({
   const modalFieldClass = editing ? "!rounded-lg !border !px-3 !py-2.5 !text-[13px] !leading-5" : "";
   const maxPassingYear = draft.starting_year ? Math.min(2100, Number(draft.starting_year) + 5) : 2100;
   const sectionFields = fields.data.filter(
-    (field) =>
+    (field) => !(field.key === "specialization" && hideEducationSpecialization) &&
       (editingAll ||
         (editing && editSection === "headline"
           ? field.key === "headline"
@@ -542,7 +545,7 @@ export function CareerForm({
           }
           employmentDetails = applyCareerAnswer(draft, currentField.key, parsed.value!);
         }
-        const nextErrors: Record<string, string> = Object.fromEntries(Object.entries(taxonomyErrors(employmentDetails)).filter(([key]) => activeFields.some((field) => field.key === key)));
+        const nextErrors: Record<string, string> = Object.fromEntries(Object.entries({...taxonomyErrors(employmentDetails), ...educationErrors(employmentDetails)}).filter(([key]) => activeFields.some((field) => field.key === key)));
         for (const field of activeFields)
           if (
             fieldRequired(field, employmentDetails) &&
@@ -773,7 +776,9 @@ export function CareerForm({
               >{option.label}</button>)}
             </div>}
             <label htmlFor="conversation-answer" className="sr-only">{profileFieldLabel(currentField.key, currentField.label)}</label>
-            {isTaxonomyKey(currentField.key) ? (
+            {isEducationKey(currentField.key) ? (
+              <EducationField fieldKey={currentField.key} id="conversation-answer" label={currentField.label} details={draft} invalid={Boolean(conversationError)} onChange={(next) => {setDraft(next); setConversationInput(String(next[currentField.key] || "")); setConversationError("");}} />
+            ) : isTaxonomyKey(currentField.key) ? (
               <TaxonomyField fieldKey={currentField.key} id="conversation-answer" label={currentField.label} details={draft} invalid={Boolean(conversationError)}
                 onChange={(next) => {setDraft(next); setConversationInput(String(next[currentField.key] || "")); setConversationError("");}} />
             ) : currentField.type === "month" ? (
@@ -962,7 +967,9 @@ export function CareerForm({
                     : undefined
               }
             >
-              {isTaxonomyKey(field.key) ? (
+              {isEducationKey(field.key) ? (
+                <EducationField compact={editing} fieldKey={field.key} id={id} label={field.label} details={draft} invalid={Boolean(errors[field.key])} onChange={(next) => {setDraft(next); setErrors((current) => ({...current, [field.key]: ""}));}} />
+              ) : isTaxonomyKey(field.key) ? (
                 <TaxonomyField fieldKey={field.key} id={id} label={field.label} details={draft} invalid={Boolean(errors[field.key])}
                   onChange={(next) => {setDraft(next); setErrors((current) => ({...current, [field.key]: ""}));}} />
               ) : field.type === "select" ? (

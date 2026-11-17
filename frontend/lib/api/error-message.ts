@@ -23,6 +23,7 @@ const GENERIC_MESSAGE =
 
 /** Known backend `code`s that benefit from specific copy. */
 const CODE_MESSAGES: Record<string, string> = {
+  education_taxonomy_invalid: "Please check your qualification, course and specialization. Enter a short answer wherever you chose Others.",
   taxonomy_invalid: "Please check your industry, department, role category and job role. Enter a short answer wherever you chose Others.",
   taxonomy_duplicate: "That option already exists under this parent. Choose the existing option or use another name.",
   taxonomy_use_existing: "Your answer already exists in the dropdown. Please select that option instead of Others.",

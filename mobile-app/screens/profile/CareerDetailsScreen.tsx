@@ -1,3 +1,5 @@
+import { EducationField, useEducationAutoNA } from "@/components/inputs/EducationField";
+import { isEducationKey, educationErrors } from "@/services/api/educationState";
 import { TaxonomyField } from "@/components/inputs/TaxonomyField";
 import { isTaxonomyKey, taxonomyErrors } from "@/services/api/taxonomyState";
 import React, { useEffect, useRef, useState } from 'react';
@@ -108,6 +110,7 @@ export function CareerDetailsScreen({
     versionId ?? null,
   );
   const [draft, setDraft] = useState<CareerDetails>({});
+  const hideEducationSpecialization = useEducationAutoNA(draft, setDraft);
   const [editing, setEditing] = useState(onboarding);
   const [step, setStep] = useState(initialSection);
   const [busy, setBusy] = useState(true);
@@ -231,11 +234,12 @@ export function CareerDetailsScreen({
     field: CareerField,
     details: CareerDetails,
   ): boolean => {
+    if (field.key === 'specialization' && hideEducationSpecialization) return false;
     if (!fieldVisible(field, details) && !(serverRequiresSkills && field.key === 'key_skills')) return false;
     // In conversational mode, only required fields are asked in non-preferences sections
     // (e.g. employment, education) to keep conversational onboarding concise, relevant,
     // and matching the website flow, skipping optional fields like industry and department.
-    return field.section === 'preferences' ||
+    return isEducationKey(field.key) || field.section === 'preferences' ||
       baseFieldRequired(field, details) ||
       (serverRequiresSkills && field.key === 'key_skills') ||
       (details.work_status === 'EXPERIENCED' &&
@@ -260,7 +264,7 @@ export function CareerDetailsScreen({
     ? conversationFieldsForStep(step, draft)
     : fields.filter(
         (field) =>
-          field.section === groups[step]?.key && fieldVisible(field, draft),
+          field.section === groups[step]?.key && fieldVisible(field, draft) && !(field.key === "specialization" && hideEducationSpecialization),
       );
   const currentQuestionIdx = Math.min(
     questionIndex,
@@ -451,6 +455,7 @@ export function CareerDetailsScreen({
     if (isTaxonomyKey(currentField.key) && taxonomyErrors(draft)[currentField.key]) {
       setConversationError(taxonomyErrors(draft)[currentField.key]); return;
     }
+    if (isEducationKey(currentField.key) && educationErrors(draft)[currentField.key]) {setConversationError(educationErrors(draft)[currentField.key]); return;}
     const rawAnswer = answerVal !== undefined ? answerVal : conversationInput;
 
     if (skip) {
@@ -837,9 +842,9 @@ export function CareerDetailsScreen({
   };
 
   const save = async (finishNow: boolean = false) => {
-    const nextErrors: Record<string, string> = taxonomyErrors(draft);
+    const nextErrors: Record<string, string> = {...taxonomyErrors(draft), ...educationErrors(draft)};
     for (const field of fields.filter(
-      (f) => f.section === groups[step].key && fieldVisible(f, draft),
+      (f) => f.section === groups[step].key && fieldVisible(f, draft) && !(f.key === "specialization" && hideEducationSpecialization),
     )) {
       if (
         fieldRequired(field, draft) &&
@@ -1314,8 +1319,10 @@ export function CareerDetailsScreen({
                       </View>
                     )}
 
-                    {/* Text Input */}
-                    {isTaxonomyKey(currentField.key) ? (
+                    {/* Input for conversation mode */}
+                    {isEducationKey(currentField.key) ? (
+                      <EducationField fieldKey={currentField.key} label={currentField.label} details={draft} invalid={!!conversationError} onChange={(next) => {setDraft(next); setConversationInput(String(next[currentField.key] || '')); setConversationError('');}} />
+                    ) : isTaxonomyKey(currentField.key) ? (
                       <TaxonomyField fieldKey={currentField.key} label={currentField.label} details={draft} invalid={!!conversationError}
                         onChange={(next) => {setDraft(next); setConversationInput(String(next[currentField.key] || '')); setConversationError('');}} />
                     ) : currentField.type === 'tel' ? (
@@ -1474,7 +1481,7 @@ export function CareerDetailsScreen({
                   .filter(
                     (field) =>
                       field.section === groups[step].key &&
-                      fieldVisible(field, draft),
+                      fieldVisible(field, draft) && !(field.key === "specialization" && hideEducationSpecialization),
                   )
                   .map((field) => {
                     const value = draft[field.key];
@@ -1488,7 +1495,9 @@ export function CareerDetailsScreen({
                           {field.label}
                           {fieldRequired(field, draft) ? ' *' : ' (optional)'}
                         </Text>
-                        {isTaxonomyKey(field.key) ? (
+                        {isEducationKey(field.key) ? (
+                          <EducationField fieldKey={field.key} label={field.label} details={draft} invalid={!!errors[field.key]} onChange={(next) => {setDraft(next); setErrors((current) => ({...current, [field.key]: ''}));}} />
+                        ) : isTaxonomyKey(field.key) ? (
                           <TaxonomyField fieldKey={field.key} label={field.label} details={draft} invalid={!!errors[field.key]}
                             onChange={(next) => {setDraft(next); setErrors((current) => ({...current, [field.key]: ''}));}} />
                         ) : field.type === 'select' ? (
@@ -1659,7 +1668,7 @@ export function CareerDetailsScreen({
               {fields
                 .filter(
                   (field) =>
-                    field.section === group.key && fieldVisible(field, draft),
+                    field.section === group.key && fieldVisible(field, draft) && !(field.key === "specialization" && hideEducationSpecialization),
                 )
                 .map((field) => {
                   const value = draft[field.key];
