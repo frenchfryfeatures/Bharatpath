@@ -5,6 +5,7 @@ export type ProtectedPortal = "admin" | "employer" | "college" | "student";
 const ADMIN_ROLES = ["PLATFORM_ADMIN", "KYB_REVIEWER", "INTEGRITY_REVIEWER", "SUPPORT_AGENT"];
 
 const ADMIN_SECTIONS: Record<string, readonly string[]> = {
+  "job-taxonomy": ["PLATFORM_ADMIN"],
   dashboard: ADMIN_ROLES,
   queue: ["PLATFORM_ADMIN", "KYB_REVIEWER", "INTEGRITY_REVIEWER"],
   users: ["PLATFORM_ADMIN"],
