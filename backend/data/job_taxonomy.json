@@ -1,0 +1,1668 @@
+{
+  "source": "India Job Taxonomy Explorer.html",
+  "source_sha256": "dafaebe760a4b75c687d80692eccf7b399d862e35575b8912e89a182d0d30fbc",
+  "departments": [
+    {
+      "code": "SW",
+      "name": "Engineering - Software & QA",
+      "type": "Tech",
+      "categories": [
+        {
+          "name": "Software Development",
+          "roles": [
+            "Full Stack Developer",
+            "Backend Developer",
+            "Frontend Developer",
+            "Java Developer",
+            "Python Developer",
+            ".NET Developer",
+            "PHP Developer",
+            "Node.js Developer",
+            "Golang Developer",
+            "React Developer",
+            "Angular Developer",
+            "Software Engineer",
+            "Technical Lead",
+            "Engineering Manager",
+            "Embedded Software Engineer"
+          ]
+        },
+        {
+          "name": "Mobile Development",
+          "roles": [
+            "Android Developer",
+            "iOS Developer",
+            "Flutter Developer",
+            "React Native Developer",
+            "Mobile Architect"
+          ]
+        },
+        {
+          "name": "QA & Testing",
+          "roles": [
+            "Manual Tester",
+            "Automation Test Engineer",
+            "SDET",
+            "Performance Test Engineer",
+            "Test Lead",
+            "QA Manager"
+          ]
+        },
+        {
+          "name": "DevOps & Cloud",
+          "roles": [
+            "DevOps Engineer",
+            "Site Reliability Engineer",
+            "Cloud Engineer",
+            "Platform Engineer",
+            "Release Manager",
+            "Kubernetes Engineer"
+          ]
+        },
+        {
+          "name": "Enterprise Applications",
+          "roles": [
+            "SAP ABAP Consultant",
+            "SAP FICO Consultant",
+            "SAP Basis Consultant",
+            "Salesforce Developer",
+            "ServiceNow Developer",
+            "Oracle Apps Consultant",
+            "Workday Consultant",
+            "Dynamics 365 Consultant"
+          ]
+        },
+        {
+          "name": "DBA & Data Warehousing",
+          "roles": [
+            "Database Administrator",
+            "ETL Developer",
+            "Data Warehouse Architect",
+            "Oracle DBA"
+          ]
+        },
+        {
+          "name": "Blockchain & Gaming",
+          "roles": [
+            "Blockchain Developer",
+            "Game Developer",
+            "Unity Developer",
+            "AR/VR Developer"
+          ]
+        },
+        {
+          "name": "Software Architecture",
+          "roles": [
+            "Solution Architect",
+            "Software Architect",
+            "Enterprise Architect"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "DS",
+      "name": "Data Science & Analytics",
+      "type": "Tech",
+      "categories": [
+        {
+          "name": "Data Science & ML",
+          "roles": [
+            "Data Scientist",
+            "Machine Learning Engineer",
+            "AI Engineer",
+            "NLP Engineer",
+            "Computer Vision Engineer",
+            "Generative AI Engineer",
+            "MLOps Engineer",
+            "Applied Scientist"
+          ]
+        },
+        {
+          "name": "Data Engineering",
+          "roles": [
+            "Data Engineer",
+            "Big Data Engineer",
+            "Spark Developer",
+            "Analytics Engineer",
+            "Data Architect",
+            "Snowflake Developer"
+          ]
+        },
+        {
+          "name": "Business Intelligence & Analytics",
+          "roles": [
+            "Data Analyst",
+            "BI Analyst",
+            "Power BI Developer",
+            "Tableau Developer",
+            "Business Analyst",
+            "Product Analyst",
+            "Marketing Analyst",
+            "Risk Analyst"
+          ]
+        },
+        {
+          "name": "Research & Statistics",
+          "roles": [
+            "Quantitative Analyst",
+            "Research Scientist",
+            "Statistician",
+            "Biostatistician"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "IT",
+      "name": "IT & Information Security",
+      "type": "Tech",
+      "categories": [
+        {
+          "name": "Information Security",
+          "roles": [
+            "Security Analyst",
+            "SOC Analyst",
+            "Penetration Tester",
+            "Cybersecurity Engineer",
+            "GRC Analyst",
+            "IAM Engineer",
+            "CISO"
+          ]
+        },
+        {
+          "name": "IT Infrastructure",
+          "roles": [
+            "System Administrator",
+            "Cloud Architect",
+            "Network Administrator",
+            "IT Support Engineer",
+            "Desktop Support Engineer",
+            "Linux Administrator",
+            "Windows Administrator"
+          ]
+        },
+        {
+          "name": "IT Management",
+          "roles": [
+            "IT Manager",
+            "CIO",
+            "IT Project Manager",
+            "Program Manager",
+            "Scrum Master",
+            "Delivery Manager"
+          ]
+        },
+        {
+          "name": "IT Consulting",
+          "roles": [
+            "Technical Consultant",
+            "Pre-sales Engineer",
+            "Technical Account Manager",
+            "ERP Consultant"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "HW",
+      "name": "Engineering - Hardware & Networks",
+      "type": "Tech",
+      "categories": [
+        {
+          "name": "Embedded & Firmware",
+          "roles": [
+            "Embedded Engineer",
+            "Firmware Engineer",
+            "RTOS Developer",
+            "Device Driver Engineer"
+          ]
+        },
+        {
+          "name": "VLSI & Semiconductor",
+          "roles": [
+            "VLSI Design Engineer",
+            "Verification Engineer",
+            "Physical Design Engineer",
+            "Analog Design Engineer",
+            "FPGA Engineer"
+          ]
+        },
+        {
+          "name": "Network Engineering",
+          "roles": [
+            "Network Engineer",
+            "Network Security Engineer",
+            "Wireless Engineer",
+            "CCNA/CCNP Engineer"
+          ]
+        },
+        {
+          "name": "Telecom",
+          "roles": [
+            "RF Engineer",
+            "5G Engineer",
+            "Telecom Engineer",
+            "OSS/BSS Consultant"
+          ]
+        },
+        {
+          "name": "IoT & Robotics",
+          "roles": [
+            "IoT Engineer",
+            "Robotics Engineer",
+            "Automation Engineer",
+            "PLC/SCADA Engineer"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "UX",
+      "name": "UX, Design & Architecture",
+      "type": "Tech",
+      "categories": [
+        {
+          "name": "UI/UX Design",
+          "roles": [
+            "UX Designer",
+            "UI Designer",
+            "Product Designer",
+            "UX Researcher",
+            "Interaction Designer",
+            "Design Lead"
+          ]
+        },
+        {
+          "name": "Graphic & Visual Design",
+          "roles": [
+            "Graphic Designer",
+            "Motion Designer",
+            "Visual Designer",
+            "Illustrator",
+            "Brand Designer",
+            "3D Artist"
+          ]
+        },
+        {
+          "name": "Technical Writing",
+          "roles": [
+            "Technical Writer",
+            "Documentation Specialist",
+            "Content Designer"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "PM",
+      "name": "Product Management",
+      "type": "Tech",
+      "categories": [
+        {
+          "name": "Product Management",
+          "roles": [
+            "Product Manager",
+            "Associate Product Manager",
+            "Technical Product Manager",
+            "Product Owner",
+            "Growth Product Manager",
+            "Head of Product"
+          ]
+        },
+        {
+          "name": "Program & Delivery",
+          "roles": [
+            "Program Manager",
+            "Project Manager",
+            "Delivery Head",
+            "PMO Lead"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "SA",
+      "name": "Sales & Business Development",
+      "type": "Non-tech",
+      "categories": [
+        {
+          "name": "Enterprise & B2B Sales",
+          "roles": [
+            "Enterprise Sales Manager",
+            "Key Account Manager",
+            "Account Executive",
+            "Regional Sales Manager",
+            "Solution Sales Specialist"
+          ]
+        },
+        {
+          "name": "Inside Sales",
+          "roles": [
+            "Inside Sales Executive",
+            "Business Development Representative",
+            "Telesales Executive",
+            "SDR"
+          ]
+        },
+        {
+          "name": "Field & Channel Sales",
+          "roles": [
+            "Area Sales Manager",
+            "Territory Sales Executive",
+            "Channel Partner Manager",
+            "Distributor Manager"
+          ]
+        },
+        {
+          "name": "Business Development",
+          "roles": [
+            "Business Development Manager",
+            "Strategic Alliances Manager",
+            "Partnerships Manager"
+          ]
+        },
+        {
+          "name": "Sales Operations",
+          "roles": [
+            "Sales Operations Analyst",
+            "CRM Manager",
+            "Sales Enablement Manager"
+          ]
+        },
+        {
+          "name": "Retail & Direct Sales",
+          "roles": [
+            "Relationship Manager",
+            "Branch Sales Manager",
+            "Showroom Sales Executive"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "MK",
+      "name": "Marketing & Communication",
+      "type": "Non-tech",
+      "categories": [
+        {
+          "name": "Digital Marketing",
+          "roles": [
+            "Digital Marketing Manager",
+            "SEO Specialist",
+            "SEM Specialist",
+            "Social Media Manager",
+            "Email Marketing Specialist",
+            "Growth Marketer",
+            "Performance Marketer"
+          ]
+        },
+        {
+          "name": "Content & Editorial",
+          "roles": [
+            "Content Writer",
+            "Copywriter",
+            "Content Strategist",
+            "Editor",
+            "Scriptwriter"
+          ]
+        },
+        {
+          "name": "Brand & PR",
+          "roles": [
+            "Brand Manager",
+            "PR Manager",
+            "Corporate Communications Manager",
+            "Event Manager"
+          ]
+        },
+        {
+          "name": "Market Research",
+          "roles": [
+            "Market Research Analyst",
+            "Consumer Insights Manager",
+            "CRM Marketing Manager"
+          ]
+        },
+        {
+          "name": "Product Marketing",
+          "roles": [
+            "Product Marketing Manager",
+            "Marketing Manager",
+            "CMO"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "HR",
+      "name": "Human Resources",
+      "type": "Non-tech",
+      "categories": [
+        {
+          "name": "Recruitment & Staffing",
+          "roles": [
+            "Recruiter",
+            "Talent Acquisition Specialist",
+            "Technical Recruiter",
+            "Recruitment Consultant",
+            "Campus Hiring Manager"
+          ]
+        },
+        {
+          "name": "HR Operations",
+          "roles": [
+            "HR Executive",
+            "HR Generalist",
+            "Payroll Specialist",
+            "HR Operations Manager",
+            "HRIS Analyst"
+          ]
+        },
+        {
+          "name": "HR Business Partner",
+          "roles": [
+            "HRBP",
+            "Employee Relations Manager",
+            "Head of HR",
+            "CHRO"
+          ]
+        },
+        {
+          "name": "Learning & Development",
+          "roles": [
+            "L&D Manager",
+            "Training Specialist",
+            "Organizational Development Manager"
+          ]
+        },
+        {
+          "name": "Compensation & Benefits",
+          "roles": [
+            "C&B Analyst",
+            "Rewards Manager",
+            "Compliance Specialist"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "FA",
+      "name": "Finance & Accounting",
+      "type": "Non-tech",
+      "categories": [
+        {
+          "name": "Accounting",
+          "roles": [
+            "Accountant",
+            "Accounts Payable Executive",
+            "Accounts Receivable Executive",
+            "General Ledger Accountant",
+            "Finance Controller"
+          ]
+        },
+        {
+          "name": "Taxation",
+          "roles": [
+            "Tax Analyst",
+            "GST Specialist",
+            "Direct Tax Manager",
+            "Transfer Pricing Analyst"
+          ]
+        },
+        {
+          "name": "Audit & Assurance",
+          "roles": [
+            "Internal Auditor",
+            "Statutory Auditor",
+            "Chartered Accountant",
+            "Concurrent Auditor"
+          ]
+        },
+        {
+          "name": "FP&A & Treasury",
+          "roles": [
+            "Financial Analyst",
+            "FP&A Manager",
+            "Treasury Manager",
+            "Cost Accountant",
+            "CFO"
+          ]
+        },
+        {
+          "name": "Finance Shared Services",
+          "roles": [
+            "Order-to-Cash Analyst",
+            "Procure-to-Pay Analyst",
+            "Record-to-Report Analyst"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "BF",
+      "name": "BFSI, Investments & Trading",
+      "type": "Non-tech",
+      "categories": [
+        {
+          "name": "Banking Operations",
+          "roles": [
+            "Bank Operations Officer",
+            "Branch Manager",
+            "Probationary Officer",
+            "Credit Officer",
+            "Relationship Manager"
+          ]
+        },
+        {
+          "name": "Investment Banking",
+          "roles": [
+            "Investment Banking Analyst",
+            "Equity Research Analyst",
+            "Portfolio Manager",
+            "Fund Manager",
+            "M&A Associate"
+          ]
+        },
+        {
+          "name": "Insurance",
+          "roles": [
+            "Insurance Advisor",
+            "Underwriter",
+            "Claims Executive",
+            "Actuary",
+            "Agency Manager"
+          ]
+        },
+        {
+          "name": "Lending & Risk",
+          "roles": [
+            "Loan Officer",
+            "Credit Risk Analyst",
+            "Collections Manager",
+            "Fraud Analyst",
+            "Risk Manager"
+          ]
+        },
+        {
+          "name": "Wealth & Trading",
+          "roles": [
+            "Wealth Manager",
+            "Dealer",
+            "Forex Trader",
+            "Financial Planner"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "CS",
+      "name": "Customer Success, Service & Operations",
+      "type": "Non-tech",
+      "categories": [
+        {
+          "name": "Customer Support",
+          "roles": [
+            "Customer Service Executive",
+            "Customer Care Associate",
+            "Chat Support Executive",
+            "Email Support Specialist",
+            "Customer Support Team Lead"
+          ]
+        },
+        {
+          "name": "Technical Support",
+          "roles": [
+            "Technical Support Engineer",
+            "L1/L2 Support Engineer",
+            "Application Support Engineer",
+            "Helpdesk Executive"
+          ]
+        },
+        {
+          "name": "BPO/KPO Operations",
+          "roles": [
+            "Process Associate",
+            "Voice Process Executive",
+            "Non-Voice Process Executive",
+            "Team Leader",
+            "Operations Manager"
+          ]
+        },
+        {
+          "name": "Customer Success",
+          "roles": [
+            "Customer Success Manager",
+            "Onboarding Specialist",
+            "Account Manager",
+            "Implementation Consultant"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "PR",
+      "name": "Production, Manufacturing & Engineering",
+      "type": "Non-tech",
+      "categories": [
+        {
+          "name": "Mechanical Engineering",
+          "roles": [
+            "Mechanical Engineer",
+            "Design Engineer",
+            "CAD Engineer",
+            "Tool Design Engineer",
+            "HVAC Engineer"
+          ]
+        },
+        {
+          "name": "Production & Manufacturing",
+          "roles": [
+            "Production Engineer",
+            "Production Supervisor",
+            "Plant Manager",
+            "Shift Incharge",
+            "Machine Operator"
+          ]
+        },
+        {
+          "name": "Electrical & Maintenance",
+          "roles": [
+            "Electrical Engineer",
+            "Maintenance Engineer",
+            "Instrumentation Engineer",
+            "Service Engineer",
+            "Electrician"
+          ]
+        },
+        {
+          "name": "Industrial Engineering",
+          "roles": [
+            "Industrial Engineer",
+            "Process Engineer",
+            "Lean Manufacturing Specialist",
+            "Manufacturing Engineer"
+          ]
+        },
+        {
+          "name": "Automotive Engineering",
+          "roles": [
+            "Automotive Engineer",
+            "Powertrain Engineer",
+            "Vehicle Dynamics Engineer",
+            "EV Battery Engineer"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "CE",
+      "name": "Construction & Site Engineering",
+      "type": "Non-tech",
+      "categories": [
+        {
+          "name": "Civil Engineering",
+          "roles": [
+            "Civil Engineer",
+            "Structural Engineer",
+            "Site Engineer",
+            "Quantity Surveyor",
+            "Billing Engineer"
+          ]
+        },
+        {
+          "name": "Project Management",
+          "roles": [
+            "Construction Project Manager",
+            "Planning Engineer",
+            "Contracts Manager"
+          ]
+        },
+        {
+          "name": "Architecture & Interior",
+          "roles": [
+            "Architect",
+            "Interior Designer",
+            "Urban Planner",
+            "Landscape Architect"
+          ]
+        },
+        {
+          "name": "Real Estate",
+          "roles": [
+            "Real Estate Sales Manager",
+            "Property Consultant",
+            "Facility Manager",
+            "Leasing Manager"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "SC",
+      "name": "Procurement & Supply Chain",
+      "type": "Non-tech",
+      "categories": [
+        {
+          "name": "Procurement",
+          "roles": [
+            "Procurement Manager",
+            "Purchase Executive",
+            "Sourcing Specialist",
+            "Vendor Manager",
+            "Category Manager"
+          ]
+        },
+        {
+          "name": "Logistics & Transport",
+          "roles": [
+            "Logistics Manager",
+            "Fleet Manager",
+            "Transport Coordinator",
+            "Last-Mile Delivery Manager"
+          ]
+        },
+        {
+          "name": "Warehouse & Inventory",
+          "roles": [
+            "Warehouse Manager",
+            "Inventory Controller",
+            "Stores Executive",
+            "Material Handler"
+          ]
+        },
+        {
+          "name": "Supply Chain Planning",
+          "roles": [
+            "Supply Chain Analyst",
+            "Demand Planner",
+            "Supply Planner",
+            "S&OP Manager"
+          ]
+        },
+        {
+          "name": "Import & Export",
+          "roles": [
+            "Export Executive",
+            "Import Coordinator",
+            "Customs Compliance Executive",
+            "Freight Forwarder"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "HC",
+      "name": "Healthcare & Life Sciences",
+      "type": "Non-tech",
+      "categories": [
+        {
+          "name": "Doctors & Specialists",
+          "roles": [
+            "General Physician",
+            "Surgeon",
+            "Dentist",
+            "Radiologist",
+            "Pediatrician"
+          ]
+        },
+        {
+          "name": "Nursing & Allied Health",
+          "roles": [
+            "Staff Nurse",
+            "Physiotherapist",
+            "Pharmacist",
+            "Dietitian",
+            "Medical Technologist"
+          ]
+        },
+        {
+          "name": "Pharma & Biotech",
+          "roles": [
+            "Medical Representative",
+            "Regulatory Affairs Specialist",
+            "Pharmacovigilance Associate",
+            "Formulation Scientist",
+            "QA Pharma Officer"
+          ]
+        },
+        {
+          "name": "Clinical Research",
+          "roles": [
+            "Clinical Research Associate",
+            "Clinical Data Manager",
+            "Medical Writer",
+            "Drug Safety Associate"
+          ]
+        },
+        {
+          "name": "Hospital Administration",
+          "roles": [
+            "Hospital Administrator",
+            "Medical Coder",
+            "Patient Care Coordinator",
+            "Medical Transcriptionist"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "TE",
+      "name": "Teaching & Training",
+      "type": "Non-tech",
+      "categories": [
+        {
+          "name": "School Teaching",
+          "roles": [
+            "Primary Teacher",
+            "PGT Teacher",
+            "TGT Teacher",
+            "Kindergarten Teacher",
+            "School Principal"
+          ]
+        },
+        {
+          "name": "Higher Education",
+          "roles": [
+            "Assistant Professor",
+            "Lecturer",
+            "Research Associate",
+            "Academic Dean"
+          ]
+        },
+        {
+          "name": "EdTech & Online",
+          "roles": [
+            "Subject Matter Expert",
+            "Online Tutor",
+            "Curriculum Designer",
+            "Instructional Designer",
+            "Academic Counsellor"
+          ]
+        },
+        {
+          "name": "Corporate Training",
+          "roles": [
+            "Corporate Trainer",
+            "Soft Skills Trainer",
+            "Technical Trainer",
+            "Language Trainer"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "LG",
+      "name": "Legal & Regulatory",
+      "type": "Non-tech",
+      "categories": [
+        {
+          "name": "Corporate Legal",
+          "roles": [
+            "Corporate Counsel",
+            "Legal Manager",
+            "Contract Specialist",
+            "General Counsel"
+          ]
+        },
+        {
+          "name": "Litigation & Advocacy",
+          "roles": [
+            "Advocate",
+            "Litigation Associate",
+            "Legal Associate",
+            "IP Attorney"
+          ]
+        },
+        {
+          "name": "Compliance",
+          "roles": [
+            "Compliance Officer",
+            "Regulatory Compliance Manager",
+            "AML Analyst",
+            "Company Secretary"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "AD",
+      "name": "Administration & Facilities",
+      "type": "Non-tech",
+      "categories": [
+        {
+          "name": "Administration",
+          "roles": [
+            "Administrative Executive",
+            "Office Manager",
+            "Front Office Executive",
+            "Receptionist",
+            "Admin Manager"
+          ]
+        },
+        {
+          "name": "Executive Support",
+          "roles": [
+            "Executive Assistant",
+            "Personal Assistant",
+            "Secretary",
+            "Data Entry Operator"
+          ]
+        },
+        {
+          "name": "Facilities & Security",
+          "roles": [
+            "Facilities Manager",
+            "Security Supervisor",
+            "Housekeeping Manager",
+            "Transport Coordinator"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "CO",
+      "name": "Consulting & Strategy",
+      "type": "Non-tech",
+      "categories": [
+        {
+          "name": "Management Consulting",
+          "roles": [
+            "Management Consultant",
+            "Associate Consultant",
+            "Engagement Manager",
+            "Principal Consultant"
+          ]
+        },
+        {
+          "name": "Strategy & Planning",
+          "roles": [
+            "Strategy Manager",
+            "Corporate Development Manager",
+            "Business Planning Manager",
+            "Chief of Staff"
+          ]
+        },
+        {
+          "name": "Business Excellence",
+          "roles": [
+            "Six Sigma Black Belt",
+            "Process Excellence Manager",
+            "Transformation Lead"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "RT",
+      "name": "Merchandising, Retail & eCommerce",
+      "type": "Non-tech",
+      "categories": [
+        {
+          "name": "Merchandising & Category",
+          "roles": [
+            "Merchandiser",
+            "Category Manager",
+            "Visual Merchandiser",
+            "Buyer"
+          ]
+        },
+        {
+          "name": "Store Operations",
+          "roles": [
+            "Store Manager",
+            "Retail Operations Manager",
+            "Cashier",
+            "Sales Associate"
+          ]
+        },
+        {
+          "name": "eCommerce Operations",
+          "roles": [
+            "eCommerce Manager",
+            "Catalogue Executive",
+            "Marketplace Manager",
+            "Seller Account Manager"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "FH",
+      "name": "Food, Hospitality & Travel",
+      "type": "Non-tech",
+      "categories": [
+        {
+          "name": "Kitchen & Culinary",
+          "roles": [
+            "Executive Chef",
+            "Sous Chef",
+            "Commis",
+            "Pastry Chef",
+            "Baker"
+          ]
+        },
+        {
+          "name": "Hotel Operations",
+          "roles": [
+            "Hotel Manager",
+            "Front Office Manager",
+            "F&B Manager",
+            "Guest Relations Executive",
+            "Housekeeping Supervisor"
+          ]
+        },
+        {
+          "name": "Travel & Tourism",
+          "roles": [
+            "Travel Consultant",
+            "Tour Manager",
+            "Ticketing Executive",
+            "Visa Executive"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "ME",
+      "name": "Media, Entertainment & Publishing",
+      "type": "Non-tech",
+      "categories": [
+        {
+          "name": "Journalism & Editorial",
+          "roles": [
+            "Journalist",
+            "News Anchor",
+            "Sub Editor",
+            "Correspondent"
+          ]
+        },
+        {
+          "name": "Video & Film Production",
+          "roles": [
+            "Video Editor",
+            "Cinematographer",
+            "Producer",
+            "Sound Engineer",
+            "Assistant Director"
+          ]
+        },
+        {
+          "name": "Animation & VFX",
+          "roles": [
+            "2D Animator",
+            "3D Animator",
+            "VFX Artist",
+            "Compositor"
+          ]
+        },
+        {
+          "name": "Creator & Influencer",
+          "roles": [
+            "Content Creator",
+            "Social Media Influencer Manager",
+            "Podcast Producer"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "QA",
+      "name": "Quality Assurance & Compliance",
+      "type": "Non-tech",
+      "categories": [
+        {
+          "name": "Quality Control",
+          "roles": [
+            "QC Inspector",
+            "QC Engineer",
+            "Quality Analyst",
+            "Lab Analyst"
+          ]
+        },
+        {
+          "name": "Quality Assurance",
+          "roles": [
+            "QA Manager",
+            "Quality Engineer",
+            "Supplier Quality Engineer",
+            "Six Sigma Green Belt"
+          ]
+        },
+        {
+          "name": "EHS",
+          "roles": [
+            "EHS Officer",
+            "Safety Engineer",
+            "Fire Safety Officer",
+            "Environmental Engineer"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "EN",
+      "name": "Energy, Mining & Environment",
+      "type": "Non-tech",
+      "categories": [
+        {
+          "name": "Power & Renewables",
+          "roles": [
+            "Solar Engineer",
+            "Wind Energy Engineer",
+            "Power Plant Engineer",
+            "Transmission Engineer"
+          ]
+        },
+        {
+          "name": "Oil & Gas",
+          "roles": [
+            "Drilling Engineer",
+            "Petroleum Engineer",
+            "Refinery Process Engineer",
+            "Geologist"
+          ]
+        },
+        {
+          "name": "Mining & Metals",
+          "roles": [
+            "Mining Engineer",
+            "Metallurgist",
+            "Mine Surveyor"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "AV",
+      "name": "Aviation & Marine",
+      "type": "Non-tech",
+      "categories": [
+        {
+          "name": "Aviation",
+          "roles": [
+            "Commercial Pilot",
+            "Cabin Crew",
+            "Aircraft Maintenance Engineer",
+            "Airport Ground Staff",
+            "Air Traffic Controller"
+          ]
+        },
+        {
+          "name": "Marine & Shipping",
+          "roles": [
+            "Marine Engineer",
+            "Deck Officer",
+            "Port Operations Manager",
+            "Ship Broker"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "AG",
+      "name": "Agriculture & Food Processing",
+      "type": "Non-tech",
+      "categories": [
+        {
+          "name": "Agriculture",
+          "roles": [
+            "Agronomist",
+            "Farm Manager",
+            "Agri Sales Officer",
+            "Soil Scientist"
+          ]
+        },
+        {
+          "name": "Food Processing",
+          "roles": [
+            "Food Technologist",
+            "Food Safety Officer",
+            "Production Chemist",
+            "Dairy Technologist"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "TM",
+      "name": "Top Management",
+      "type": "Non-tech",
+      "categories": [
+        {
+          "name": "Executive Leadership",
+          "roles": [
+            "CEO",
+            "COO",
+            "Managing Director",
+            "Business Unit Head",
+            "General Manager",
+            "Country Head",
+            "Vice President",
+            "Director"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "RD",
+      "name": "Research & Development",
+      "type": "Tech",
+      "categories": [
+        {
+          "name": "Research & Development",
+          "roles": [
+            "R&D Engineer",
+            "Research Scientist",
+            "Materials Scientist",
+            "Product Development Scientist",
+            "Lab Researcher",
+            "Innovation Manager"
+          ]
+        }
+      ]
+    }
+  ],
+  "industries": [
+    {
+      "name": "IT Services & Consulting",
+      "priorities": [
+        "SW",
+        "DS",
+        "IT",
+        "PM",
+        "UX",
+        "HW",
+        "CS",
+        "HR",
+        "FA",
+        "SA",
+        "MK",
+        "CO"
+      ]
+    },
+    {
+      "name": "Software Product & SaaS",
+      "priorities": [
+        "SW",
+        "DS",
+        "PM",
+        "UX",
+        "IT",
+        "SA",
+        "MK",
+        "CS",
+        "HR",
+        "FA"
+      ]
+    },
+    {
+      "name": "Internet, eCommerce & Startups",
+      "priorities": [
+        "PM",
+        "SW",
+        "DS",
+        "UX",
+        "MK",
+        "RT",
+        "SA",
+        "CS",
+        "SC",
+        "FA",
+        "HR"
+      ]
+    },
+    {
+      "name": "BPO / KPO / ITES",
+      "priorities": [
+        "CS",
+        "HR",
+        "FA",
+        "SA",
+        "IT",
+        "QA",
+        "AD",
+        "DS"
+      ]
+    },
+    {
+      "name": "Banking",
+      "priorities": [
+        "BF",
+        "FA",
+        "IT",
+        "SW",
+        "DS",
+        "SA",
+        "LG",
+        "HR",
+        "CS"
+      ]
+    },
+    {
+      "name": "Insurance",
+      "priorities": [
+        "BF",
+        "SA",
+        "FA",
+        "DS",
+        "IT",
+        "LG",
+        "CS",
+        "HR"
+      ]
+    },
+    {
+      "name": "NBFC, Fintech & Payments",
+      "priorities": [
+        "BF",
+        "SW",
+        "DS",
+        "PM",
+        "FA",
+        "SA",
+        "LG",
+        "CS",
+        "IT"
+      ]
+    },
+    {
+      "name": "Telecom & ISP",
+      "priorities": [
+        "HW",
+        "IT",
+        "SW",
+        "SA",
+        "CS",
+        "DS",
+        "PM",
+        "HR"
+      ]
+    },
+    {
+      "name": "Electronics & Semiconductor",
+      "priorities": [
+        "HW",
+        "PR",
+        "SW",
+        "RD",
+        "QA",
+        "SC",
+        "SA",
+        "IT"
+      ]
+    },
+    {
+      "name": "Hardware & Networking",
+      "priorities": [
+        "HW",
+        "IT",
+        "SA",
+        "PR",
+        "SC",
+        "CS"
+      ]
+    },
+    {
+      "name": "Education & EdTech",
+      "priorities": [
+        "TE",
+        "SW",
+        "PM",
+        "UX",
+        "MK",
+        "SA",
+        "CS",
+        "HR",
+        "AD"
+      ]
+    },
+    {
+      "name": "Hospitals & Healthcare Services",
+      "priorities": [
+        "HC",
+        "AD",
+        "HR",
+        "FA",
+        "IT",
+        "CS",
+        "SC"
+      ]
+    },
+    {
+      "name": "Pharma, Biotech & Clinical Research",
+      "priorities": [
+        "HC",
+        "RD",
+        "QA",
+        "SC",
+        "SA",
+        "PR",
+        "LG",
+        "FA"
+      ]
+    },
+    {
+      "name": "Automobile & Auto Components",
+      "priorities": [
+        "PR",
+        "QA",
+        "SC",
+        "RD",
+        "SA",
+        "HW",
+        "SW",
+        "FA",
+        "HR"
+      ]
+    },
+    {
+      "name": "Industrial Machinery & Manufacturing",
+      "priorities": [
+        "PR",
+        "QA",
+        "SC",
+        "EN",
+        "SA",
+        "FA",
+        "HR",
+        "CE"
+      ]
+    },
+    {
+      "name": "Engineering & Construction",
+      "priorities": [
+        "CE",
+        "PR",
+        "SC",
+        "QA",
+        "FA",
+        "HR",
+        "LG",
+        "AD"
+      ]
+    },
+    {
+      "name": "Real Estate",
+      "priorities": [
+        "CE",
+        "SA",
+        "MK",
+        "FA",
+        "LG",
+        "AD",
+        "HR"
+      ]
+    },
+    {
+      "name": "FMCG & Consumer Durables",
+      "priorities": [
+        "SA",
+        "MK",
+        "SC",
+        "RT",
+        "PR",
+        "QA",
+        "FA",
+        "HR",
+        "DS"
+      ]
+    },
+    {
+      "name": "Retail & Wholesale",
+      "priorities": [
+        "RT",
+        "SA",
+        "SC",
+        "MK",
+        "CS",
+        "FA",
+        "HR",
+        "AD"
+      ]
+    },
+    {
+      "name": "Logistics, Transport & Supply Chain",
+      "priorities": [
+        "SC",
+        "AV",
+        "CS",
+        "IT",
+        "FA",
+        "SA",
+        "HR"
+      ]
+    },
+    {
+      "name": "Travel, Hospitality & Tourism",
+      "priorities": [
+        "FH",
+        "SA",
+        "MK",
+        "CS",
+        "HR",
+        "FA",
+        "AD"
+      ]
+    },
+    {
+      "name": "Media, Advertising & Entertainment",
+      "priorities": [
+        "ME",
+        "MK",
+        "UX",
+        "SA",
+        "PM",
+        "FA",
+        "HR"
+      ]
+    },
+    {
+      "name": "Gaming & AR/VR",
+      "priorities": [
+        "SW",
+        "UX",
+        "PM",
+        "DS",
+        "ME",
+        "MK",
+        "CS"
+      ]
+    },
+    {
+      "name": "Energy, Power & Oil & Gas",
+      "priorities": [
+        "EN",
+        "PR",
+        "CE",
+        "QA",
+        "SC",
+        "FA",
+        "HR"
+      ]
+    },
+    {
+      "name": "Aviation & Aerospace",
+      "priorities": [
+        "AV",
+        "PR",
+        "QA",
+        "RD",
+        "SC",
+        "FA",
+        "HR"
+      ]
+    },
+    {
+      "name": "Agriculture & Food Processing",
+      "priorities": [
+        "AG",
+        "PR",
+        "QA",
+        "SC",
+        "SA",
+        "RD",
+        "FA"
+      ]
+    },
+    {
+      "name": "Textile, Apparel & Fashion",
+      "priorities": [
+        "PR",
+        "RT",
+        "SC",
+        "UX",
+        "QA",
+        "SA",
+        "MK"
+      ]
+    },
+    {
+      "name": "Legal & Professional Services",
+      "priorities": [
+        "LG",
+        "CO",
+        "FA",
+        "HR",
+        "AD",
+        "MK"
+      ]
+    },
+    {
+      "name": "Government, PSU & Public Sector",
+      "priorities": [
+        "AD",
+        "TM",
+        "FA",
+        "LG",
+        "CE",
+        "TE",
+        "HC",
+        "EN"
+      ]
+    },
+    {
+      "name": "NGO, Social Services & CSR",
+      "priorities": [
+        "AD",
+        "HR",
+        "MK",
+        "FA",
+        "TE",
+        "HC",
+        "AG"
+      ]
+    },
+    {
+      "name": "E-learning & Training Services",
+      "priorities": [
+        "TE",
+        "HR",
+        "CS",
+        "UX",
+        "MK",
+        "SW"
+      ]
+    }
+  ]
+}

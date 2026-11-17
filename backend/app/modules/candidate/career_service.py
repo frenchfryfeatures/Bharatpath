@@ -84,6 +84,9 @@ async def save_details(
 ) -> CareerResponse:
     _candidate(ctx)
     old = await get_details(session, ctx=ctx)
+    from app.modules.taxonomy.service import validate_profile
+
+    await validate_profile(session, payload.details, old.details, ctx.user_id)
     missing = missing_required(payload.details) if payload.complete else []
     profile = await repository.get_profile(session, user_id=ctx.user_id)
     if payload.complete and not (profile and profile.full_name):

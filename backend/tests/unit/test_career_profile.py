@@ -134,8 +134,11 @@ def test_authentication_secrets_are_never_profile_fields():
 
 def test_both_clients_receive_all_fields_once():
     fields = form_fields()
-    assert {field["key"] for field in fields} == CareerDetails.model_fields.keys()
-    assert len(fields) == len(CareerDetails.model_fields)
+    answer_keys = CareerDetails.model_fields.keys() - {
+        "industry_id", "department_id", "role_category_id", "job_role_id", "taxonomy_others",
+    }
+    assert {field["key"] for field in fields} == answer_keys
+    assert len(fields) == len(answer_keys)
     assert not next(field for field in fields if field["key"] == "gender")["required"]
     assert not next(field for field in fields if field["key"] == "key_skills")["required"]
 

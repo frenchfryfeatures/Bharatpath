@@ -54,6 +54,14 @@ class CareerDetails(ApiSchema):
     department: Text = ""
     role_category: Text = ""
     job_role: Text = ""
+    industry_id: uuid.UUID | None = None
+    department_id: uuid.UUID | None = None
+    role_category_id: uuid.UUID | None = None
+    job_role_id: uuid.UUID | None = None
+    taxonomy_others: dict[
+        Literal["industry", "department", "role_category", "job_role"],
+        Annotated[str, Field(max_length=160)],
+    ] = Field(default_factory=dict)
     highest_qualification: Text = ""
     course: Text = ""
     course_type: Literal["", "FULL_TIME", "PART_TIME", "DISTANCE", "ONLINE"] = ""
@@ -82,6 +90,9 @@ class CareerDetails(ApiSchema):
 
     @model_validator(mode="after")
     def validate_details(self) -> CareerDetails:
+        if self.work_status == "FRESHER":
+            self.job_role_id = None
+            self.taxonomy_others.pop("job_role", None)
         if self.current_city:
             self.current_city = normalise_city(self.current_city) or ""
         if self.phone and not re.fullmatch(r"\+[1-9]\d{7,14}", self.phone):

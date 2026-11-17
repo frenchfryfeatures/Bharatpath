@@ -29,6 +29,7 @@ from . import (
     resume_builder,
     scoring,
     subscriptions,
+    taxonomy,
 )
 
 ALL_MODULES: tuple[ModuleType, ...] = (
@@ -56,4 +57,5 @@ ALL_MODULES: tuple[ModuleType, ...] = (
     profile_images,
     assistant,
     resume_builder,
+    taxonomy,
 )

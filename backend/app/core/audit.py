@@ -42,6 +42,7 @@ class AuditAction(StrEnum):
     """
 
     # Candidate PII reveals - invariant 7'
+    TAXONOMY_CHANGED = "taxonomy_changed"
     CANDIDATE_PROFILE_VIEWED = "candidate_profile_viewed"
     CANDIDATE_CONTACT_REVEALED = "candidate_contact_revealed"
     CANDIDATE_SEARCH_PERFORMED = "candidate_search_performed"
