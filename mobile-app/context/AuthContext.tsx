@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import {
   AuthSession,
@@ -280,6 +281,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await unregisterCurrentPushDevice().catch((error) =>
       console.warn('[Notifications] could not unregister on sign out', error));
     await apiSignOut();
+    await AsyncStorage.getAllKeys().then(keys=>AsyncStorage.multiRemove(keys.filter(key=>key.startsWith('profile-insights:')))).catch(()=>{});
     setSession(null);
     setProfile(null);
     setCandidateFullName(null);
