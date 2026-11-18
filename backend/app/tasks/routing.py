@@ -149,6 +149,7 @@ TASK_MODULES: Final = (
     "app.tasks.privacy_requests",
     "app.tasks.process_payment_callback",
     "app.tasks.profile_nudges",
+    "app.tasks.profile_insights",
     "app.tasks.rescore_addons",
     "app.tasks.score_resume",
     "app.tasks.streak_activity_retention",

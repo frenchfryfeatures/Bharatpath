@@ -319,8 +319,11 @@ async def search_candidates(
         limit=page_size + 1,
     )
     page, more = rows[:page_size], len(rows) > page_size
+    from app.modules.profile_insights import service as insight_service
+    terms={row.user_id:[*(skills or []),*city_values,*[skill for skill in row.skills if query and query.strip().casefold() in skill.casefold()]] for row in page}
+    receipts=await insight_service.search_receipts(session,ctx,[row.user_id for row in page],terms)
     return Page[MaskedCandidate](
-        items=[_card(row) for row in page],
+        items=[_card(row).model_copy(update={"impression_receipt":receipts.get(row.user_id)}) for row in page],
         next_cursor=_cursor_of(page[-1]) if more and page else None,
     )
 
@@ -428,6 +431,8 @@ async def open_candidate(
             "resume_version_id": str(revealed.resume_version_id),
         },
     )
+    from app.modules.profile_insights import service as insight_service
+    await insight_service.record(session,ctx=ctx,candidate_id=candidate_id,metric="PROFILE_VIEW")
     for kind in anomalies(limits, counts):
         await _flag_anomaly(
             session, ctx=ctx, tenant_id=tenant_id, kind=kind, limits=limits, request_id=request_id
@@ -1066,3 +1071,8 @@ async def seed_filter_catalogue(session: AsyncSession) -> tuple[int, int]:
         await repository.insert_filter_options(session, fresh)
         written += len(fresh)
     return written, skipped
+
+
+async def insight_visible(session,*,ctx,candidate_id):
+    await _verified_employer(session,ctx)
+    return await repository.is_candidate_visible(session,candidate_id=candidate_id)

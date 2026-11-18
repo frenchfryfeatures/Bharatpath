@@ -34,6 +34,7 @@ INTEGRITY_REVIEWER: Final = "INTEGRITY_REVIEWER"
 SUPPORT_AGENT: Final = "SUPPORT_AGENT"
 
 Capability = Literal[
+    "insights_config",
     "kyb",
     "kyb_policy",
     "integrity",
@@ -65,6 +66,7 @@ Capability = Literal[
 #: other people can do, and the third is where every other role's actions are
 #: recorded.
 CONSOLE_ROLES: Final[dict[Capability, frozenset[str]]] = {
+    "insights_config": frozenset({PLATFORM_ADMIN}),
     "kyb": frozenset({PLATFORM_ADMIN, KYB_REVIEWER}),
     # 2026-10-09. Whether employers are reviewed at all is the admin's alone:
     # switching to automatic approves every employer from then on, unread,

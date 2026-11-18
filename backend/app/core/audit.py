@@ -41,6 +41,9 @@ class AuditAction(StrEnum):
     closed set to filter on.
     """
 
+    INSIGHTS_CONFIG_CHANGED = "insights_config_changed"
+    PROFILE_INSIGHTS_READ = "profile_insights_read"
+
     # Candidate PII reveals - invariant 7'
     TAXONOMY_CHANGED = "taxonomy_changed"
     CANDIDATE_PROFILE_VIEWED = "candidate_profile_viewed"

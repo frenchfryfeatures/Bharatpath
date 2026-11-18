@@ -277,6 +277,9 @@ async def _change_stage(
     if actor_type == "EMPLOYER":
         changes["employer_active_at"] = now
     row = await repository.save(session, application=row, stage=stage, **changes)
+    if stage=="SHORTLISTED" and actor_type=="EMPLOYER" and actor_id:
+        from app.modules.profile_insights import service as insight_service
+        await insight_service.record_shortlist(session,candidate_id=row.candidate_id,actor_id=actor_id,tenant_id=row.tenant_id,application_id=row.id)
     await repository.record_event(
         session,
         application_id=row.id,
@@ -796,7 +799,13 @@ async def open_application(
                 event_type=APPLICATION_STAGE_CHANGED,
                 now=now or datetime.now(UTC),
             )
-    return await _detail(session, row, ctx, request_id)
+    detail = await _detail(session, row, ctx, request_id)
+    if detail.candidate is not None:
+        from app.modules.profile_insights import service as insight_service
+        await insight_service.record(session,ctx=ctx,candidate_id=row.candidate_id,metric="PROFILE_VIEW")
+        await insight_service.record(session,ctx=ctx,candidate_id=row.candidate_id,metric="APPLICATION_VIEW",event_id=f"{row.id}:{ctx.user_id}",application_id=row.id)
+    return detail
+
 
 
 async def move_stage(
@@ -1257,6 +1266,8 @@ async def send_message(
             "has_time": scheduled_at is not None,
         },
     )
+    from app.modules.profile_insights import service as insight_service
+    await insight_service.record(session,ctx=ctx,candidate_id=row.candidate_id,metric="MESSAGE_SENT",event_id=message.id,application_id=row.id)
     logger.info("application_message_sent", application_id=str(row.id), kind=kind)
     return message
 
@@ -1446,6 +1457,8 @@ async def shortlist_candidate(
                 "candidate_id": str(candidate_id),
             },
         )
+    from app.modules.profile_insights import service as insight_service
+    await insight_service.record(session,ctx=ctx,candidate_id=candidate_id,metric="SAVED" if job_id is None else "INVITED",event_id=f"{row.id}:{row.updated_at}")
     logger.info("candidate_shortlisted", shortlist_id=str(row.id), status=row.status)
     return _shortlist_entry(row, job_title=title), True
 
@@ -1710,3 +1723,12 @@ async def decline_invitation(
     )
     await _answered(session, ctx, row, answer="DECLINED")
     return (await _invitations(session, ctx, [row]))[0]
+
+
+async def insight_action_candidate(session,*,ctx,application_id):
+    if ctx.role not in CONTACT_ROLES:raise PermissionDeniedError()
+    row=await _theirs(session,ctx,application_id,for_update=False)
+    # _detail's disclosure uses existing integrity/visibility guards. Require that same card.
+    card=await discovery_service.open_applicant(session,ctx=ctx,application_id=row.id,candidate_id=row.candidate_id)
+    if card is None:raise ApplicationNotFoundError()
+    return row.candidate_id

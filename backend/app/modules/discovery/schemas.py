@@ -60,6 +60,7 @@ class MaskedCandidate(_Base):
     """
 
     candidate_id: uuid.UUID
+    impression_receipt: uuid.UUID | None = None
     full_name: Annotated[str | None, Field(default=None, max_length=200)] = None
     band: ScoreBand
     experience_years: Annotated[int, Field(ge=0, le=MAX_EXPERIENCE_YEARS)]
