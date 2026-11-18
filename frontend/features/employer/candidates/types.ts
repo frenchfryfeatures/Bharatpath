@@ -3,6 +3,7 @@ export type CandidateBadge = "COURSE_COMPLETED" | "MOCK_INTERVIEW_COMPLETED";
 
 export interface Candidate {
   candidateId: string;
+  impressionReceipt?: string | null;
   band: CandidateBand;
   location: string;
   experienceYears: number;

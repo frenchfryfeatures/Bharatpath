@@ -78,6 +78,7 @@ export const collegeNavigation = [
 ] as const;
 
 export const adminNavigation = [
+  {key:"insights",label:"Insights Config",href:"/admin/insights",icon:BarChart3},
   {key: "education-taxonomy", label: "Education Taxonomy", href: "/admin/education-taxonomy", icon: Tags},
   { key: "job-taxonomy", label: "Job Taxonomy", href: "/admin/job-taxonomy", icon: Tags },
   {

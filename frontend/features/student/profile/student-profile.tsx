@@ -1,4 +1,5 @@
 "use client";
+import {ProfileInsightsCard} from "@/features/student/insights/page";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -85,6 +86,7 @@ export function StudentProfile() {
   return (
     <StudentPage>
       <div className="flex flex-col gap-6">
+        <ProfileInsightsCard/>
         <CareerOverview
           fullName={profile.data?.fullName ?? "Student"}
           email={accountEmail}

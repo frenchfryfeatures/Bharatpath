@@ -3,6 +3,7 @@ import type { Candidate, CandidateBadge, CandidateBand } from "@/features/employ
 
 interface MaskedCandidateResponse {
   candidate_id: string;
+  impression_receipt?: string | null;
   full_name?: string | null;
   band: CandidateBand;
   experience_years: number;
@@ -103,6 +104,7 @@ export interface EmployerCandidatesQuery {
 function mapCandidate(candidate: MaskedCandidateResponse): Candidate {
   return {
     candidateId: candidate.candidate_id,
+    impressionReceipt: candidate.impression_receipt,
     fullName: candidate.full_name,
     band: candidate.band,
     experienceYears: candidate.experience_years,

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { EmployerErrorState } from "@/features/employer/components/employer-error-state";
+import {useInsightTracking} from "@/features/employer/components/use-insight-tracking";
 import { ResumeShowcase } from "@/features/employer/components/resume-showcase";
 import { AppSelect } from "@/components/ui/app-select";
 import { useDebouncedSearch } from "@/lib/hooks/use-debounced-value";
@@ -267,6 +268,7 @@ export function CandidateDetailsDialog({
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   <ContactItem
                     icon={Mail}
+                    candidateId={candidate.candidate_id}
                     label="Email"
                     value={candidate.email}
                     href={
@@ -275,6 +277,7 @@ export function CandidateDetailsDialog({
                   />
                   <ContactItem
                     icon={Phone}
+                    candidateId={candidate.candidate_id}
                     label="Phone"
                     value={candidate.phone}
                     href={
@@ -308,6 +311,7 @@ export function CandidateDetailsDialog({
               <section>
                 <SectionHeading icon={FileText} title="Resume" />
                 <ResumeShowcase
+                  candidateId={candidate.candidate_id}
                   resume={candidate.resume}
                   currentTime={currentTime}
                   onRefresh={onRetry}
@@ -430,12 +434,15 @@ function ContactItem({
   label,
   value,
   href,
+  candidateId,
 }: {
   icon: typeof Mail;
   label: string;
   value: string | null;
   href?: string;
+  candidateId?: string;
 }) {
+  const track=useInsightTracking();
   const content = (
     <>
       <Icon className="h-4 w-4 shrink-0 text-[#66758b]" />
@@ -454,7 +461,7 @@ function ContactItem({
     "flex min-w-0 items-center gap-3 rounded-lg border border-[#e5e8ee] bg-white px-3 py-3";
 
   return href ? (
-    <a href={href} className={`${className} hover:border-[#bccbe0]`}>
+    <a href={href} onClick={()=>{if(candidateId)track(candidateId,label==='Email'?'EMAIL_OPENED':'CALL_OPENED');}} className={`${className} hover:border-[#bccbe0]`}>
       {content}
     </a>
   ) : (

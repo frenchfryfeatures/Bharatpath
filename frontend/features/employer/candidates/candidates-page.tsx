@@ -27,6 +27,7 @@ import {
   type RevealedCandidateResponse,
 } from "@/store/employer/candidates";
 
+import {useRecordSearchImpressionsMutation} from "@/features/student/insights/api";
 import { CandidateCard } from "./candidate-card";
 import { CandidateDetailsDialog } from "./candidate-details-dialog";
 import { CandidateFilters } from "./candidate-filters";
@@ -42,6 +43,9 @@ export function CandidatesPage() {
     "Search candidates by score, skills and location"
   );
 
+  const impressionRoot=useRef<HTMLDivElement>(null);
+  const seenReceipts=useRef(new Set<string>());
+  const [recordImpressions]=useRecordSearchImpressionsMutation();
   const dispatch = useAppDispatch();
   const filters = useAppSelector(selectEmployerCandidateFilters);
   const page = useAppSelector(selectEmployerCandidatePage);
@@ -108,6 +112,24 @@ export function CandidatesPage() {
 
   const { data, error, isLoading, isFetching } = useSearchEmployerCandidatesQuery(query);
   const candidates = data?.items ?? EMPTY_CANDIDATES;
+  useEffect(()=>{
+    const seen=seenReceipts.current;
+    const root=impressionRoot.current;if(!root||typeof IntersectionObserver==='undefined')return;
+    const timers=new Map<Element,ReturnType<typeof setTimeout>>();const pending=new Set<string>();let batch:ReturnType<typeof setTimeout>|undefined;
+    const queue=(receipt:string)=>{pending.add(receipt);if(batch)return;batch=setTimeout(()=>{const receipts=Array.from(pending);pending.clear();batch=undefined;if(receipts.length)void recordImpressions({receipts}).unwrap().catch(()=>{receipts.forEach(item=>seen.delete(item));});},150);};
+    const observer=new IntersectionObserver(entries=>entries.forEach(entry=>{
+      const receipt=(entry.target as HTMLElement).dataset.insightReceipt;
+      if(!receipt||seen.has(receipt))return;
+      if(!entry.isIntersecting||entry.intersectionRatio<0.5){const timer=timers.get(entry.target);if(timer)clearTimeout(timer);timers.delete(entry.target);return;}
+      if(timers.has(entry.target))return;
+      timers.set(entry.target,setTimeout(()=>{timers.delete(entry.target);if(entry.target.isConnected&&document.visibilityState==='visible'&&!seen.has(receipt)){seen.add(receipt);queue(receipt);}},500));
+    }),{threshold:0.5});
+    const observe=()=>root.querySelectorAll('[data-insight-receipt]').forEach(node=>observer.observe(node));
+    const visibilityChanged=()=>{timers.forEach(clearTimeout);timers.clear();observer.disconnect();if(document.visibilityState==='visible')observe();};
+    observe();document.addEventListener('visibilitychange',visibilityChanged);
+    return()=>{observer.disconnect();document.removeEventListener('visibilitychange',visibilityChanged);timers.forEach(clearTimeout);if(batch)clearTimeout(batch);const receipts=Array.from(pending);if(receipts.length)void recordImpressions({receipts}).unwrap().catch(()=>{receipts.forEach(item=>seen.delete(item));});};
+  },[candidates,recordImpressions]);
+
   const nextCursor = data?.nextCursor ?? null;
   const isCandidateListLoading = isLoading || isFetching;
   const [revealCandidate, revealState] = useLazyRevealEmployerCandidateQuery();
@@ -196,20 +218,19 @@ export function CandidatesPage() {
 
           {/* min-h-full, not h-full: a fixed-height column would let the cards
               overflow it and scroll past the bottom padding. */}
-          <div className="flex min-h-full flex-col gap-3">
+          <div ref={impressionRoot} className="flex min-h-full flex-col gap-3">
 
             {isCandidateListLoading && (
               <CandidateListSkeleton count={Math.min(pageSize, 10)} />
             )}
 
             {!isCandidateListLoading && candidates.map((candidate) => (
-              <CandidateCard
-                key={candidate.candidateId}
+              <div key={candidate.candidateId} data-insight-receipt={candidate.impressionReceipt||undefined}><CandidateCard
                 candidate={{ ...candidate, fullName: openedCandidates[candidate.candidateId]?.full_name ?? candidate.fullName }}
                 onReveal={() =>
                   void openCandidateProfile(candidate.candidateId)
                 }
-              />
+              /></div>
             ))}
 
             {!isCandidateListLoading && error && (

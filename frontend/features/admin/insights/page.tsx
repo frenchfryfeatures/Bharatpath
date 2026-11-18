@@ -1,0 +1,25 @@
+"use client";
+import {useState} from 'react';
+import {usePageHeader} from '@/components/layout/header-context';
+import {Button,Table,TableHeader,TableHead,TableBody,TableRow,TableCell,TableContainer} from '@/components/ui';
+import {getApiErrorMessage} from '@/lib/api/error-message';
+import {useInsightConfigQuery,useSaveInsightConfigMutation,useInsightVolumesQuery,type InsightsConfig} from '@/features/student/insights/api';
+const input='w-full rounded-lg border border-[#E7E0D4] bg-white px-3 py-2 text-sm';
+function ConfigEditor({config}:{config:InsightsConfig}){
+ const [draft,setDraft]=useState(config);const [save,saving]=useSaveInsightConfigMutation();const [notice,setNotice]=useState('');
+ return <form className="space-y-5 rounded-xl border border-[#E7E0D4] bg-white p-5" onSubmit={async event=>{event.preventDefault();setNotice('');try{await save(draft).unwrap();setNotice('Insights configuration saved.');}catch(failure){setNotice(getApiErrorMessage(failure,'Configuration could not be saved. Reload and retry.'));}}}>
+ <h2 className="font-semibold">Metric visibility and rollout</h2><p className="text-sm text-[#5F6B80]">Switch metrics on gradually. Existing activity remains tracked under the retention policy; disabled metrics are not shown to candidates.</p>
+ <div className="flex flex-wrap gap-4">{Object.entries(draft.metrics).map(([key,enabled])=><label key={key} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={enabled} onChange={event=>setDraft({...draft,metrics:{...draft.metrics,[key]:event.target.checked}})}/>{key}</label>)}</div>
+ <label className="block max-w-xs text-sm">Candidates included in rollout (%)<input type="number" min={0} max={100} required value={draft.rollout_percent} onChange={event=>setDraft({...draft,rollout_percent:Number(event.target.value)})} className={input}/></label>
+ <h2 className="font-semibold">Profile-strength rules</h2><p className="text-sm text-[#5F6B80]">Use only supported profile fields. Employment is excluded for freshers. Benefits should describe usefulness, without promising unmeasured results.</p>
+ {draft.rules.map((rule,index)=><fieldset key={rule.key} className="grid gap-3 rounded-xl border border-[#E7E0D4] p-4 sm:grid-cols-2"><legend className="px-1 text-sm font-semibold">{rule.key}</legend>{([{key:'label',label:'Next step',type:'text',max:100},{key:'benefit',label:'Benefit',type:'text',max:300},{key:'weight',label:'Weight',type:'number',max:100},{key:'order',label:'Order',type:'number',max:100}] as const).map(field=><label key={field.key} className="text-sm">{field.label}<input type={field.type} required min={field.key==='weight'?1:0} max={field.type==='number'?field.max:undefined} maxLength={field.type==='text'?field.max:undefined} value={rule[field.key]} onChange={event=>setDraft({...draft,rules:draft.rules.map((item,i)=>i===index?{...item,[field.key]:field.type==='number'?Number(event.target.value):event.target.value}:item)})} className={input}/></label>)}<label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={rule.enabled} onChange={event=>setDraft({...draft,rules:draft.rules.map((item,i)=>i===index?{...item,enabled:event.target.checked}:item)})}/>Enabled</label></fieldset>)}
+ <Button type="submit" disabled={saving.isLoading}>Save configuration</Button>{notice&&<p role="status" className="text-sm">{notice}</p>}
+ </form>;
+}
+export function InsightsConfigPage(){
+ usePageHeader('Insights Config','Manage profile completeness rules and metric rollout');
+ const config=useInsightConfigQuery();const volumes=useInsightVolumesQuery(undefined,{pollingInterval:60000});
+ return <div className="space-y-5 p-5">{config.isLoading&&<p role="status">Loading configuration…</p>}{config.isError&&<div role="alert">Configuration could not be loaded. <button onClick={()=>void config.refetch()}>Retry</button></div>}{config.data&&<ConfigEditor key={config.data.version} config={config.data}/>}
+ <section className="rounded-xl border border-[#E7E0D4] bg-white p-5"><h2 className="font-semibold">Tracked event volumes</h2><p className="my-2 text-sm text-[#5F6B80]">Counts are retained raw events, with unprocessed events shown separately. Recruiter identities are not displayed.</p>{volumes.isError?<button onClick={()=>void volumes.refetch()}>Retry volume loading</button>:<TableContainer><Table><TableHeader><TableRow><TableHead>Metric</TableHead><TableHead>Retained</TableHead><TableHead>Pending summary</TableHead></TableRow></TableHeader><TableBody>{volumes.data?.events.map(event=><TableRow key={event.metric}><TableCell>{event.metric}</TableCell><TableCell>{event.retained}</TableCell><TableCell>{event.pending}</TableCell></TableRow>)}</TableBody></Table></TableContainer>}{!volumes.data?.events.length&&!volumes.isFetching&&<p className="text-sm">No tracked events yet.</p>}<p className="mt-3 text-xs text-[#5F6B80]">Last summary: {volumes.data?.aggregated_at?new Date(volumes.data.aggregated_at).toLocaleString('en-IN'):'Not run yet'}. Detailed activity is retained for 365 days; only anonymous totals remain after expiry.</p></section>
+ </div>;
+}
