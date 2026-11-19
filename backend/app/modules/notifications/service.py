@@ -40,6 +40,7 @@ from app.core.i18n import DEFAULT_LOCALE, load_bundle
 from app.core.logging import get_logger
 from app.core.pagination import clamp_limit, decode_cursor, encode_cursor
 from app.core.tenant import TenantContext
+from app.modules.access import service as access_service
 from app.modules.applications import service as applications_service
 from app.modules.college import service as college_service
 from app.modules.identity import service as identity_service
@@ -47,7 +48,7 @@ from app.modules.kyb import service as kyb_service
 from app.modules.notifications import repository, unsubscribe
 from app.modules.notifications.domain import (
     DEFAULT_NUDGE_RULES,
-    KYB_REVIEWER_ROLES,
+    KYB_REVIEWER_PERMISSION,
     NUDGE_TEMPLATES,
     NudgeRules,
     NudgeRulesError,
@@ -244,7 +245,7 @@ async def _addressees(
             )
         )
     elif audience == "KYB_REVIEWERS":
-        ids = list(await identity_service.staff_ids(session, roles=KYB_REVIEWER_ROLES))
+        ids = list(await access_service.staff_holding(session, permission=KYB_REVIEWER_PERMISSION))
     elif audience == "SUBSCRIBER":
         subscriber = _uuid(payload.get("subscriber_id"))
         if payload.get("subscriber_type") == "USER":

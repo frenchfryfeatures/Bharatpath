@@ -15,17 +15,10 @@ from typing import Any
 
 import pytest
 
+from app.core.staff_permissions import SYSTEM_ROLES
 from app.modules.admin import repository as admin_repository
 from app.modules.admin import router
-from app.modules.admin.domain import (
-    CONSOLE_ROLES,
-    INTEGRITY_REVIEWER,
-    KYB_REVIEWER,
-    PLATFORM_ADMIN,
-    SUPPORT_AGENT,
-    PersonSearch,
-    partial_contact_search,
-)
+from app.modules.admin.domain import PersonSearch, partial_contact_search
 from app.modules.billing import repository as billing_repository
 from app.modules.discovery import repository as discovery_repository
 from app.modules.identity import repository as identity_repository
@@ -77,14 +70,13 @@ def test_the_audit_trail_sorts_by_time_only() -> None:
 def test_part_of_a_contact_is_for_the_roles_that_read_whole_contacts() -> None:
     """On a list that masks contacts, matching part of an address spells it
     out one character at a time: `a`, then `ab`, then `abc`."""
-    assert {r for r in (PLATFORM_ADMIN, SUPPORT_AGENT) if partial_contact_search(r)} == {
-        PLATFORM_ADMIN,
-        SUPPORT_AGENT,
+    readers = {
+        key
+        for key, role in SYSTEM_ROLES.items()
+        if partial_contact_search("candidate_contact.view" in role.permissions)
     }
-    assert not partial_contact_search(INTEGRITY_REVIEWER)
-    assert not partial_contact_search(KYB_REVIEWER)
-    for role in CONSOLE_ROLES["candidate_drilldown"]:
-        assert partial_contact_search(role) == (role in CONSOLE_ROLES["candidate_contact"])
+    assert readers == {"SUPER_ADMIN", "OPERATIONS_ADMIN", "SUPPORT_AGENT"}
+    assert not partial_contact_search(False)
 
 
 def test_a_search_is_audited_by_how_it_was_made_never_by_its_terms() -> None:

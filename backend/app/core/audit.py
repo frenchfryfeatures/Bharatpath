@@ -168,6 +168,22 @@ class AuditAction(StrEnum):
     DSR_EXPORT_DOWNLOADED = "dsr_export_downloaded"
     DSR_COMPLETED = "dsr_completed"
 
+    # Access management (2026-11-19). Metadata carries the before and after
+    # (role keys, permission keys, scope ids), the reason, and the actor's IP
+    # address and user agent: these rows are the record of who could see what.
+    STAFF_INVITED = "staff_invited"
+    STAFF_ROLE_ASSIGNED = "staff_role_assigned"
+    STAFF_ROLE_REVOKED = "staff_role_revoked"
+    STAFF_SUSPENDED = "staff_suspended"
+    STAFF_REINSTATED = "staff_reinstated"
+    STAFF_ROLE_CREATED = "staff_role_created"
+    STAFF_ROLE_UPDATED = "staff_role_updated"
+    STAFF_ROLE_ARCHIVED = "staff_role_archived"
+    #: A HIGH or CRITICAL permission used, with the reason given for it.
+    STAFF_SENSITIVE_ACCESS = "staff_sensitive_access"
+    #: The access-management history was read.
+    STAFF_ACCESS_HISTORY_READ = "staff_access_history_read"
+
 
 async def audit_event(
     session: AsyncSession,

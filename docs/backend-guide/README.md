@@ -33,6 +33,7 @@ Read in order. Each doc assumes the ones before it.
 | [16-profile-images-apis.md](16-profile-images-apis.md) | Profile photos for every account, and employer and college logos: the three-call upload, what the server keeps (re-encoded, no metadata), and who may see a student's photo (the student and staff only). |
 | [17-assistant-apis.md](17-assistant-apis.md) | The candidate's job-search chat: one endpoint, the model picks an action and the server runs it through the board's own rules; applying is a Confirm button on the ordinary apply endpoint; nothing stored, never the score. |
 | [18-resume-builder-apis.md](18-resume-builder-apis.md) | Build a resume from the onboarding answers before paying: four templates, live preview, counted PDF download, push as an unconfirmed `BUILDER` version; no AI. Also the console's sales follow-up list (`/admin/leads`). |
+| [19-access-management-apis.md](19-access-management-apis.md) | Staff roles and permissions for the admin console: the permission catalogue, nine system roles and custom ones, multiple roles per person, organisation scope and expiry, the MFA/reason/recent-sign-in step-up, the last-super-admin rule, and the Access Management routes (`/admin/access`). Replaces the hardcoded `CONSOLE_ROLES`. |
 
 ## Modules
 
@@ -66,6 +67,7 @@ it). Written as each is covered — not all exist yet.
 | — | `profile_images` | — | not yet written (APIs: [16](16-profile-images-apis.md)) |
 | — | `assistant` | — | not yet written (APIs: [17](17-assistant-apis.md)) |
 | — | `resume_builder` | — | not yet written (APIs: [18](18-resume-builder-apis.md)) |
+| — | `access` | — | not yet written (APIs: [19](19-access-management-apis.md)) |
 
 ## Cross-cutting
 

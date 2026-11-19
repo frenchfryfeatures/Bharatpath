@@ -106,6 +106,10 @@ data "aws_iam_policy_document" "app" {
   #   signing in again with the same address was refused forever rather than
   #   starting fresh.
   #
+  #   AdminUserGlobalSignOut (2026-11-19) -- suspending a member of staff ends
+  #   every session they hold. AdminGetUser, already granted, is also how the
+  #   staff step-up reads whether an authenticator app is enrolled.
+  #
   # Nothing here can set or read a password, or confirm a user.
   statement {
     sid    = "CognitoAccounts"
@@ -116,6 +120,7 @@ data "aws_iam_policy_document" "app" {
       "cognito-idp:ListUsers",
       "cognito-idp:AdminCreateUser",
       "cognito-idp:AdminDeleteUser",
+      "cognito-idp:AdminUserGlobalSignOut",
     ]
     resources = [
       aws_cognito_user_pool.candidates.arn,

@@ -42,7 +42,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import ratelimit, storage
 from app.core.audit import AuditAction, audit_event
 from app.core.db import set_transaction_tenant, set_transaction_user
-from app.core.deps import CANDIDATE, COLLEGE_ADMIN, PLATFORM_ADMIN
+from app.core.deps import CANDIDATE, COLLEGE_ADMIN, PLATFORM_STAFF
 from app.core.errors import ConflictError, NotFoundError, PermissionDeniedError
 from app.core.errors import ValidationError as AppValidationError
 from app.core.forms import staff_fillable_sections, validate_answers, validate_staff_answers
@@ -119,8 +119,10 @@ COLLEGE_OPTIONS: Final[dict[str, frozenset[str]]] = {
     "reference.INDIAN_STATES": frozenset(r.code for r in INDIAN_STATES),
 }
 
-#: Who may set a college's seat allowance: our staff, or a system job.
-SEAT_ALLOCATORS: Final = frozenset({PLATFORM_ADMIN, "SYSTEM"})
+#: Who may set a college's seat allowance: our staff, or a system job. Which
+#: member of staff is the console route's `institutes.manage_seats` (2026-11-19);
+#: this keeps everyone else -- a college admin above all -- out of the service.
+SEAT_ALLOCATORS: Final = frozenset({PLATFORM_STAFF, "SYSTEM"})
 
 
 # ---------------------------------------------------------------------------

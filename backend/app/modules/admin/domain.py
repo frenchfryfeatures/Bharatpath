@@ -6,11 +6,10 @@ No I/O. No database, no HTTP, no clock, no randomness that is not passed in.
 mypy runs in strict mode here and import-linter forbids I/O imports, because
 this is the layer the invariant property tests exercise directly.
 
-**Who may do what in the console** is one table, `CONSOLE_ROLES`, so the
-question "can a support agent suspend an employer?" has a single answer that
-the router reads and a test pins. The staff roles exist only in the PLATFORM
-tenant (`identity.domain.ROLE_TENANT_TYPE`), so a role guard here is also a
-tenant guard.
+**Who may do what in the console** is no longer here (2026-11-19). It was
+the `CONSOLE_ROLES` map, four hardcoded roles; it is now the permission
+catalogue in `app/core/staff_permissions.py` and the role assignments in the
+`access` module, and every route names its permission.
 
 **Disputes** are raised by all three external groups and closed by us. The
 machine is small on purpose -- open, being looked at, closed one of two ways
@@ -24,106 +23,6 @@ import re
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Final, Literal
-
-# ---------------------------------------------------------------------------
-# The console's permission table
-# ---------------------------------------------------------------------------
-PLATFORM_ADMIN: Final = "PLATFORM_ADMIN"
-KYB_REVIEWER: Final = "KYB_REVIEWER"
-INTEGRITY_REVIEWER: Final = "INTEGRITY_REVIEWER"
-SUPPORT_AGENT: Final = "SUPPORT_AGENT"
-
-Capability = Literal[
-    "kyb",
-    "kyb_policy",
-    "integrity",
-    "tenants",
-    "suspend",
-    "seats",
-    "candidate_drilldown",
-    "employer_drilldown",
-    "college_drilldown",
-    "disputes",
-    "suppress_notifications",
-    "audit_search",
-    "accounts",
-    "resend_invitation",
-    "discounts",
-    "discounts_read",
-    "dashboard",
-    "search_filters",
-    "courses",
-    "candidate_resume",
-    "candidate_contact",
-    "candidate_recordings",
-    "sales_leads",
-]
-
-#: `capability -> the staff roles that hold it`. PLATFORM_ADMIN holds all of
-#: them. Stopping an organisation, changing what a college paid for and
-#: reading the audit trail are the admin's alone: the first two change what
-#: other people can do, and the third is where every other role's actions are
-#: recorded.
-CONSOLE_ROLES: Final[dict[Capability, frozenset[str]]] = {
-    "kyb": frozenset({PLATFORM_ADMIN, KYB_REVIEWER}),
-    # 2026-10-09. Whether employers are reviewed at all is the admin's alone:
-    # switching to automatic approves every employer from then on, unread,
-    # and a reviewer must not be able to switch their own queue off.
-    "kyb_policy": frozenset({PLATFORM_ADMIN}),
-    "integrity": frozenset({PLATFORM_ADMIN, INTEGRITY_REVIEWER}),
-    "tenants": frozenset({PLATFORM_ADMIN, KYB_REVIEWER, SUPPORT_AGENT}),
-    "suspend": frozenset({PLATFORM_ADMIN}),
-    "seats": frozenset({PLATFORM_ADMIN}),
-    # The integrity reviewer follows a signal to the person; the KYB reviewer
-    # follows a submission to the organisation. Neither needs the other.
-    "candidate_drilldown": frozenset({PLATFORM_ADMIN, SUPPORT_AGENT, INTEGRITY_REVIEWER}),
-    "employer_drilldown": frozenset({PLATFORM_ADMIN, SUPPORT_AGENT, KYB_REVIEWER}),
-    "college_drilldown": frozenset({PLATFORM_ADMIN, SUPPORT_AGENT}),
-    "disputes": frozenset({PLATFORM_ADMIN, SUPPORT_AGENT}),
-    # A bounce, a complaint, or someone who asked support to stop messaging
-    # them. Not their own opt-out, which is theirs to set.
-    "suppress_notifications": frozenset({PLATFORM_ADMIN, SUPPORT_AGENT}),
-    "audit_search": frozenset({PLATFORM_ADMIN}),
-    # 2026-09-18. Making an account or an organisation on someone's behalf,
-    # and adding a member to one, is the admin's alone: it decides who gets
-    # into an organisation that holds candidate data. Resending an invitation
-    # is support's too -- it adds nobody, it only re-sends what was decided.
-    "accounts": frozenset({PLATFORM_ADMIN}),
-    "resend_invitation": frozenset({PLATFORM_ADMIN, SUPPORT_AGENT}),
-    # A code is money off the product: made and switched off by the admin,
-    # read by support, who answer "my code did not work".
-    "discounts": frozenset({PLATFORM_ADMIN}),
-    "discounts_read": frozenset({PLATFORM_ADMIN, SUPPORT_AGENT}),
-    # 2026-09-23. The landing page, for every member of staff. It shows each
-    # of them the queues their other capabilities already open, and platform
-    # totals, which are counts and name nobody.
-    "dashboard": frozenset({PLATFORM_ADMIN, KYB_REVIEWER, INTEGRITY_REVIEWER, SUPPORT_AGENT}),
-    # 2026-09-24. The skills and cities employers filter by. Support edits
-    # them too (client, 2026-09-24): an option is a suggestion that names
-    # nobody and prices nothing, and every change is audited.
-    "search_filters": frozenset({PLATFORM_ADMIN, SUPPORT_AGENT}),
-    # 2026-09-29. What the course teaches, and when it goes on sale. A lesson
-    # counts toward a score once watched, so building the course is the
-    # admin's alone, as the price of anything is.
-    "courses": frozenset({PLATFORM_ADMIN}),
-    # 2026-09-29, the full candidate page the client asked for. The CV is
-    # what anyone who can open a candidate is already looking into, the
-    # integrity reviewer above all. A recording is a person's own voice, and
-    # nothing about reviewing a CV needs it, so the integrity reviewer does
-    # not hear them.
-    "candidate_resume": frozenset({PLATFORM_ADMIN, SUPPORT_AGENT, INTEGRITY_REVIEWER}),
-    # The onboarding page carries the whole phone number and email: support
-    # contacts people; reviewing a CV does not need to.
-    "candidate_contact": frozenset({PLATFORM_ADMIN, SUPPORT_AGENT}),
-    "candidate_recordings": frozenset({PLATFORM_ADMIN, SUPPORT_AGENT}),
-    # 2026-10-13. The sales follow-up list: candidates who signed up, or
-    # downloaded a resume, and did not pay -- with their whole phone number
-    # and email, because its purpose is a call. Held by exactly the roles that
-    # already read a whole contact (`candidate_contact`); a test keeps the two
-    # equal, so the list never becomes a wider door to the same numbers.
-    "sales_leads": frozenset({PLATFORM_ADMIN, SUPPORT_AGENT}),
-}
-
 
 # ---------------------------------------------------------------------------
 # The sales follow-up list (2026-10-13)
@@ -274,15 +173,16 @@ def mask_email(email: str | None) -> str | None:
 # ---------------------------------------------------------------------------
 # Searching for a person (2026-10-21)
 # ---------------------------------------------------------------------------
-def partial_contact_search(role: str) -> bool:
-    """Whether `role` may find someone by **part** of an email or phone.
+def partial_contact_search(reads_whole_contacts: bool) -> bool:
+    """Whether a caller may find someone by **part** of an email or phone.
 
-    Only the roles that already read a whole contact (`candidate_contact`).
+    Only one that already reads a whole contact (`candidate_contact.view`,
+    held for every organisation).
     Anyone else matches the whole address or number: on a list that masks
     contacts, a partial match answers "does any address contain `a`, `ab`,
     `abc`...?" and spells out the hidden contact one character at a time.
     A name is shown on the row anyway, so part of a name is for everyone."""
-    return role in CONSOLE_ROLES["candidate_contact"]
+    return reads_whole_contacts
 
 
 @dataclass(frozen=True)
@@ -314,9 +214,9 @@ class PersonSearch:
 # ---------------------------------------------------------------------------
 # The dashboard
 # ---------------------------------------------------------------------------
-#: The dashboard sections that are a queue, each shown only to a role holding
-#: the capability that opens that queue. A KYB reviewer's landing page does
-#: not count integrity signals they could not open.
+#: The dashboard sections that are a queue, each shown only to someone
+#: holding the permission that opens that queue. A KYB reviewer's landing page
+#: does not count integrity signals they could not open.
 DashboardSection = Literal["kyb", "integrity", "disputes", "tenants"]
 DASHBOARD_SECTIONS: Final[tuple[DashboardSection, ...]] = (
     "kyb",
@@ -334,9 +234,19 @@ THROUGHPUT_DAYS: Final = 14
 OLDEST_ITEMS: Final = 5
 
 
-def dashboard_sections(role: str) -> frozenset[DashboardSection]:
-    """The queue sections `role` sees, straight from `CONSOLE_ROLES`."""
-    return frozenset(s for s in DASHBOARD_SECTIONS if role in CONSOLE_ROLES[s])
+#: The permission that opens each queue section's queue.
+SECTION_PERMISSION: Final[dict[DashboardSection, str]] = {
+    "kyb": "kyb.view",
+    "integrity": "integrity.view",
+    "disputes": "disputes.view",
+    "tenants": "organisations.view",
+}
+
+
+def dashboard_sections(permissions: frozenset[str]) -> frozenset[DashboardSection]:
+    """The queue sections someone holding `permissions` (for every
+    organisation) sees: each queue's own permission, never a list by hand."""
+    return frozenset(s for s in DASHBOARD_SECTIONS if SECTION_PERMISSION[s] in permissions)
 
 
 def throughput_start(now: datetime) -> datetime:

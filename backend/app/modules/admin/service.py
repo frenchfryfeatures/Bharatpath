@@ -285,12 +285,12 @@ def _person(ctx: TenantContext, query: str | None) -> PersonSearch:
     search."""
     text = search_text(query)
     if text is None:
-        return PersonSearch(partial_contact=partial_contact_search(ctx.role))
+        return PersonSearch(partial_contact=partial_contact_search(_reads_whole_contacts(ctx)))
     return PersonSearch(
         name=text,
         email=identity_service.normalise_email(text),
         phone=phone_digits(text),
-        partial_contact=partial_contact_search(ctx.role),
+        partial_contact=partial_contact_search(_reads_whole_contacts(ctx)),
     )
 
 
@@ -783,6 +783,12 @@ async def allocate_seats(
     return SeatAllocationResponse(
         allocated=result.allocated, used=result.used, filled=result.filled
     )
+
+
+def _reads_whole_contacts(ctx: TenantContext) -> bool:
+    """`candidate_contact.view` for every organisation: the one permission
+    whose holders may match part of an email or phone."""
+    return ctx.can("candidate_contact.view")
 
 
 # ---------------------------------------------------------------------------
@@ -2027,7 +2033,9 @@ async def dashboard(
     item gone.
     """
     now = _now(now)
-    sections = dashboard_sections(ctx.role)
+    sections = dashboard_sections(
+        ctx.staff.unscoped_permissions if ctx.staff is not None else frozenset()
+    )
     review_required = (
         await kyb_service.require_approval(session, now=now) if "kyb" in sections else False
     )

@@ -67,13 +67,14 @@ Audience = Literal[
     "ROSTER_CONTACT",
     #: `payload.raised_by`
     "DISPUTE_RAISER",
-    #: our staff who review KYB: `KYB_REVIEWER_ROLES` in the platform tenant
+    #: our staff who decide KYB: active staff holding `KYB_REVIEWER_PERMISSION`
+    #: for every organisation (2026-11-19, was two hardcoded roles)
     "KYB_REVIEWERS",
 ]
 
 #: The staff a submission waiting for review is announced to. The roles
 #: holding the console's `kyb` capability; a test holds the two equal.
-KYB_REVIEWER_ROLES: Final = frozenset({"PLATFORM_ADMIN", "KYB_REVIEWER"})
+KYB_REVIEWER_PERMISSION: Final = "employers.approve_kyb"
 
 #: Variables the service resolves from identifiers in the payload.
 #: `message`, `when` and `link` belong to an employer's message to an applicant

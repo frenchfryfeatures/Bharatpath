@@ -34,6 +34,7 @@ from app.modules.identity.schemas import (
     MeResponse,
     OtpStartRequest,
     OtpStartResponse,
+    StaffAccessSummary,
 )
 from app.modules.profile_images import service as profile_images_service
 from app.settings import get_settings
@@ -106,11 +107,21 @@ async def me(user: CurrentUser, session: DbSession) -> MeResponse:
     else:
         full_name = None
         photo_url = await profile_images_service.own_photo_url(session, ctx=user)
+    staff = None
+    if user.staff is not None:
+        every = user.staff.unscoped_permissions
+        staff = StaffAccessSummary(
+            roles=list(user.staff.role_keys),
+            permissions=sorted(every),
+            scoped_permissions=sorted(user.staff.permissions - every),
+            is_super_admin=user.staff.is_super_admin,
+        )
     return MeResponse(
         user_id=user.user_id,
-        role=user.role,
+        role=user.staff.legacy_role if user.staff is not None else user.role,
         pool=user.pool,
         tenant_id=user.tenant_id,
+        staff=staff,
         email=await service.email_of(session, user_id=user.user_id),
         full_name=full_name,
         photo_url=photo_url,

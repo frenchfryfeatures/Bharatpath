@@ -84,7 +84,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_origins=settings.cors_allowed_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-Request-ID"],
+        # X-Access-Reason: why a member of staff is using a HIGH or CRITICAL
+        # console permission (`app.core.deps.require_permission`, 2026-11-19).
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "Idempotency-Key",
+            "X-Request-ID",
+            "X-Access-Reason",
+        ],
         # Without this the browser hides these from JavaScript, so clients
         # cannot read the correlation id to quote in a bug report.
         expose_headers=["X-Request-ID"],

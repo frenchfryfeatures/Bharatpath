@@ -258,7 +258,18 @@ def _create_from_metadata(*table_names: str) -> None:
 
 
 def _create_identity_tables() -> None:
-    _create_from_metadata("users", "tenants", "memberships", "tenant_suspensions")
+    _create_from_metadata(
+        "users",
+        "tenants",
+        "memberships",
+        "tenant_suspensions",
+        # 2026-11-19: staff roles and their assignments. Created by 0022 on a
+        # database built before it, which also writes the system roles and the
+        # guards on every database.
+        "staff_roles",
+        "staff_role_permissions",
+        "staff_role_assignments",
+    )
 
 
 def _create_candidate_tables() -> None:

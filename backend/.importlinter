@@ -196,6 +196,7 @@ source_modules =
     app.modules.college
     app.modules.analytics
     app.modules.admin
+    app.modules.access
     app.modules.notifications
     app.modules.privacy
     app.modules.engagement
@@ -205,6 +206,45 @@ source_modules =
 forbidden_modules =
     app.modules.identity.repository
     app.modules.identity.models
+
+; ---------------------------------------------------------------------------
+; Staff access (2026-11-19). Who holds which console role is written only by
+; `access.service`, which holds the rules (no self-change, the last super
+; admin, the audit row with before and after). Another module reaching its
+; repository or models would be a way to grant access that skips them.
+; ---------------------------------------------------------------------------
+[importlinter:contract:access-internals-are-private]
+name = Staff access is changed only through the access service
+type = forbidden
+allow_indirect_imports = True
+source_modules =
+    app.modules.identity
+    app.modules.candidate
+    app.modules.resume
+    app.modules.scoring
+    app.modules.integrity
+    app.modules.questionnaire
+    app.modules.interview
+    app.modules.courses
+    app.modules.employer
+    app.modules.kyb
+    app.modules.jobs
+    app.modules.applications
+    app.modules.discovery
+    app.modules.billing
+    app.modules.subscriptions
+    app.modules.college
+    app.modules.analytics
+    app.modules.admin
+    app.modules.notifications
+    app.modules.privacy
+    app.modules.engagement
+    app.modules.profile_images
+    app.modules.assistant
+    app.modules.resume_builder
+forbidden_modules =
+    app.modules.access.repository
+    app.modules.access.models
 
 ; ---------------------------------------------------------------------------
 ; SRS 1.4.4 — the confirm gate has exactly one door.
@@ -250,6 +290,7 @@ source_modules =
     app.modules.college
     app.modules.analytics
     app.modules.admin
+    app.modules.access
     app.modules.notifications
     app.modules.privacy
     app.modules.engagement

@@ -281,9 +281,16 @@ def mint_token(local_provider):
     is itself part of what is under test.
     """
 
-    def _mint(pool="CANDIDATE", subject=None, phone=None, email=None, ttl_seconds=None):
+    def _mint(
+        pool="CANDIDATE", subject=None, phone=None, email=None, ttl_seconds=None, auth_time=None
+    ):
         token, sub = local_provider.issue(
-            subject=subject, pool=pool, phone=phone, email=email, ttl_seconds=ttl_seconds
+            subject=subject,
+            pool=pool,
+            phone=phone,
+            email=email,
+            ttl_seconds=ttl_seconds,
+            auth_time=auth_time,
         )
         return {"Authorization": f"Bearer {token}"}, sub
 

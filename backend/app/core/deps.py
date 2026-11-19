@@ -6,6 +6,8 @@ differently and return different error codes:
 
   1. `current_user`               - a verified JWT from the correct pool
   2. `require_role(...)`          - role read from OUR memberships table
+     `require_permission(...)`    - for our staff: a permission their role
+                                    assignments grant (2026-11-19)
   3. `require_active_subscription`- pay-first, all three audiences (R13)
   4. `require_active_access_window` - the employer's paid period (R14)
 
@@ -27,16 +29,21 @@ one beside those, not here.
 
 from __future__ import annotations
 
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Annotated
+from urllib.parse import unquote
 from uuid import UUID
 
-from fastapi import Depends, Header, Request
+from fastapi import Depends, Header, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import ratelimit
+from app.core.audit import AuditAction, audit_event
 from app.core.auth import membership as membership_lookup
+from app.core.auth import staff_access
+from app.core.auth.directory import DirectoryError, get_account_directory
 from app.core.auth.provider import get_identity_provider
 from app.core.auth.tokens import VerifiedToken
 from app.core.auth.users import AuthenticatedUser, resolve_or_create_user
@@ -44,9 +51,17 @@ from app.core.db import get_db
 from app.core.entitlements import has_active_college_seat, has_active_subscription
 from app.core.errors import (
     AccessWindowExpiredError,
+    AppError,
     PermissionDeniedError,
     SubscriptionRequiredError,
     UnauthenticatedError,
+)
+from app.core.staff_permissions import (
+    BY_KEY,
+    PLATFORM_STAFF,
+    REASON_HEADER,
+    REASON_MAX_LENGTH,
+    REASON_MIN_LENGTH,
 )
 from app.core.tenant import Membership, TenantContext
 from app.settings import get_settings
@@ -58,10 +73,9 @@ EMPLOYER_RECRUITER = "EMPLOYER_RECRUITER"
 EMPLOYER_VIEWER = "EMPLOYER_VIEWER"
 COLLEGE_ADMIN = "COLLEGE_ADMIN"
 COLLEGE_STAFF = "COLLEGE_STAFF"
-PLATFORM_ADMIN = "PLATFORM_ADMIN"
-KYB_REVIEWER = "KYB_REVIEWER"
-INTEGRITY_REVIEWER = "INTEGRITY_REVIEWER"
-SUPPORT_AGENT = "SUPPORT_AGENT"
+# Every member of our staff holds PLATFORM_STAFF (2026-11-19, imported above
+# from `staff_permissions`). What they may do is their role assignments,
+# checked by `require_permission`, never the membership role.
 
 ALL_ROLES: frozenset[str] = frozenset(
     {
@@ -71,10 +85,7 @@ ALL_ROLES: frozenset[str] = frozenset(
         EMPLOYER_VIEWER,
         COLLEGE_ADMIN,
         COLLEGE_STAFF,
-        PLATFORM_ADMIN,
-        KYB_REVIEWER,
-        INTEGRITY_REVIEWER,
-        SUPPORT_AGENT,
+        PLATFORM_STAFF,
     }
 )
 
@@ -162,11 +173,18 @@ async def current_user(
     if membership.role == CANDIDATE:
         raise PermissionDeniedError(code="pool_role_mismatch")
 
+    # Our staff: what they may do is their role assignments, read from the
+    # database on the same terms as the membership (`auth/staff_access.py`).
+    staff = (
+        await staff_access.resolve(session, user.id) if membership.role == PLATFORM_STAFF else None
+    )
     ctx = TenantContext(
         user_id=user.id,
         tenant_id=membership.tenant_id,
         role=membership.role,
         pool=token.pool,
+        staff=staff,
+        auth_time=token.auth_time,
     )
     await _global_limits(ctx)
     return ctx
@@ -272,6 +290,145 @@ def require_role(*roles: str) -> Callable[[TenantContext], Awaitable[TenantConte
     return _dep
 
 
+class StaffCheckUnavailableError(AppError):
+    """Cognito could not say whether an authenticator is enrolled. Refused,
+    not waved through: the step-up fails closed."""
+
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    code = "staff_mfa_check_unavailable"
+    title = "The sign-in check is unavailable"
+
+
+_RISK_ORDER = {"LOW": 0, "HIGH": 1, "CRITICAL": 2}
+
+
+def require_permission(
+    permission: str, *, also: tuple[str, ...] = (), tenant_param: str | None = None
+) -> Callable[..., Awaitable[TenantContext]]:
+    """A console route's guard: the caller is staff and holds `permission`
+    (and every one of `also`). See `app/core/staff_permissions.py`.
+
+    `tenant_param` names the path parameter holding the organisation the
+    route acts on. Only then can an organisation-scoped grant count, and only
+    for that organisation; without it a scoped grant grants nothing.
+
+    **HIGH and CRITICAL permissions pass the step-up** before the handler runs:
+
+    1. a reason in `X-Access-Reason` (percent-encoded; 5 to 500 characters),
+       or 403 `access_reason_required`;
+    2. CRITICAL only: a sign-in within `staff_recent_auth_seconds`, or 401
+       `reauthentication_required` -- the client signs in again;
+    3. an authenticator app enrolled on the Cognito user, or 403
+       `mfa_required` (`staff_mfa_required`, off only on a laptop);
+
+    and then writes a `staff_sensitive_access` audit row -- the permissions,
+    the reason, the route, the caller's IP address and user agent -- in the
+    request's own transaction, so the action cannot commit without it.
+    """
+    needed = (permission, *also)
+    unknown = [key for key in needed if key not in BY_KEY]
+    if unknown:
+        raise ValueError(f"unknown permission(s) in require_permission: {unknown}")
+    risk = max((BY_KEY[key].risk for key in needed), key=_RISK_ORDER.__getitem__)
+
+    async def _dep(request: Request, user: CurrentUser, session: DbSession) -> TenantContext:
+        if user.staff is None:
+            raise PermissionDeniedError()
+        tenant_id = _path_tenant(request, tenant_param)
+        if not all(user.can(key, tenant_id=tenant_id) for key in needed):
+            raise PermissionDeniedError()
+        if risk != "LOW":
+            reason = await _step_up(request, session, user, critical=risk == "CRITICAL")
+            await audit_event(
+                session,
+                action=AuditAction.STAFF_SENSITIVE_ACCESS,
+                actor_id=user.user_id,
+                actor_role=user.role,
+                target_type="console_route",
+                target_id=None,
+                request_id=get_request_id(request),
+                metadata={
+                    "permissions": list(needed),
+                    "risk": risk,
+                    "reason": reason,
+                    "method": request.method,
+                    "route": _route_template(request),
+                    "path": request.url.path,
+                    "path_params": {k: str(v) for k, v in request.path_params.items()},
+                    "ip": client_ip(request),
+                    "user_agent": (request.headers.get("User-Agent") or "")[:200],
+                },
+            )
+        return user
+
+    # Read by the console's invariant test, which holds every route to the
+    # permission table it is written against.
+    _dep.permissions = needed  # type: ignore[attr-defined]
+    _dep.tenant_param = tenant_param  # type: ignore[attr-defined]
+    return _dep
+
+
+def _path_tenant(request: Request, tenant_param: str | None) -> UUID | None:
+    if tenant_param is None:
+        return None
+    try:
+        return UUID(str(request.path_params[tenant_param]))
+    except (KeyError, ValueError):
+        # Not an id: no organisation-scoped grant can match it, and an
+        # unscoped one lets the route answer its own 404 or 422.
+        return None
+
+
+def _route_template(request: Request) -> str:
+    route = request.scope.get("route")
+    return str(getattr(route, "path", request.url.path))
+
+
+def access_reason(request: Request) -> str | None:
+    """The reason header, decoded and trimmed, or None if absent or unusable.
+
+    Percent-encoded, because a header is Latin-1 and a reason may be typed in
+    any of nine languages; plain ASCII passes through `unquote` unchanged."""
+    raw = request.headers.get(REASON_HEADER)
+    if raw is None:
+        return None
+    reason = unquote(raw).strip()
+    if not REASON_MIN_LENGTH <= len(reason) <= REASON_MAX_LENGTH:
+        return None
+    return reason
+
+
+async def _step_up(
+    request: Request, session: AsyncSession, user: TenantContext, *, critical: bool
+) -> str:
+    reason = access_reason(request)
+    if reason is None:
+        raise PermissionDeniedError(code="access_reason_required")
+    settings = get_settings()
+    if critical:
+        signed_in = user.auth_time
+        if signed_in is None or time.time() - signed_in > settings.staff_recent_auth_seconds:
+            raise UnauthenticatedError(code="reauthentication_required")
+    if settings.staff_mfa_required and not await _mfa_enrolled(session, user.user_id):
+        raise PermissionDeniedError(code="mfa_required")
+    return reason
+
+
+async def _mfa_enrolled(session: AsyncSession, user_id: UUID) -> bool:
+    cached = await staff_access.cached_mfa(user_id)
+    if cached is not None:
+        return cached
+    subject = await staff_access.cognito_subject(session, user_id)
+    if subject is None:
+        return False
+    try:
+        enabled = await get_account_directory().mfa_enabled(pool="BUSINESS", subject=subject)
+    except DirectoryError as exc:
+        raise StaffCheckUnavailableError() from exc
+    await staff_access.remember_mfa(user_id, enabled)
+    return enabled
+
+
 def require_tenant() -> Callable[[TenantContext], Awaitable[TenantContext]]:
     async def _dep(user: CurrentUser) -> TenantContext:
         if user.tenant_id is None:
@@ -375,15 +532,13 @@ __all__ = [
     "EMPLOYER_OWNER",
     "EMPLOYER_RECRUITER",
     "EMPLOYER_VIEWER",
-    "INTEGRITY_REVIEWER",
-    "KYB_REVIEWER",
-    "PLATFORM_ADMIN",
-    "SUPPORT_AGENT",
+    "PLATFORM_STAFF",
     "CurrentUser",
     "DbSession",
     "current_user",
     "require_active_access_window",
     "require_active_subscription",
+    "require_permission",
     "require_role",
     "require_tenant",
 ]

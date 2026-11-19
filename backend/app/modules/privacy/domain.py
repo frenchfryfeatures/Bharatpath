@@ -269,6 +269,13 @@ ERASURE_PLAN: Final[Mapping[str, TablePlan]] = {
     "notifications": _erase("user_id", "Messages addressed to them, with what was rendered."),
     "push_deliveries": _erase("notification_id", "Attempts to alert their registered phones."),
     "push_devices": _erase("user_id", "Their phone push tokens and installation records."),
+    # 2026-11-19: access management. A candidate never holds a staff role.
+    "staff_roles": _not_personal("A named set of console permissions."),
+    "staff_role_permissions": _not_personal("Which permissions a custom role grants."),
+    "staff_role_assignments": _retain(
+        "Who on our staff could see and do what, when, and who granted it: the security "
+        "record behind every audited console action. Never a candidate's."
+    ),
     "application_messages": _erase(
         "application_id",
         "An employer's messages to them about an application (2026-09-29): invitations "

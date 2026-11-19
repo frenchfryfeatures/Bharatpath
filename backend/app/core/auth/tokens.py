@@ -54,6 +54,12 @@ class VerifiedToken:
     not carry contact attributes, so on first sign-in these are None and the
     identity service asks the provider for them instead of guessing."""
 
+    auth_time: int | None = None
+    """When the person last proved who they are (epoch seconds). Cognito sets
+    it at sign-in and keeps it through every refresh, so a token minted from a
+    refresh an hour later still says the hour-old sign-in. The CRITICAL staff
+    step-up reads it (`staff_recent_auth_seconds`)."""
+
 
 @dataclass(frozen=True, slots=True)
 class ProviderProfile:

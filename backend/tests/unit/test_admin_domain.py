@@ -1,18 +1,18 @@
-"""The console's permission table, the dispute machine, staff tenancy."""
+"""The dispute machine, staff tenancy, the dashboard. The console's permissions
+are `tests/unit/test_staff_permissions.py` since 2026-11-19."""
 
 from __future__ import annotations
 
 import pytest
 
 from app.core.deps import ALL_ROLES, CANDIDATE
+from app.core.staff_permissions import SYSTEM_ROLES
 from app.modules.admin.domain import (
-    CONSOLE_ROLES,
     DISPUTE_KINDS,
     DISPUTE_PARTIES,
     DISPUTE_RAISER_ROLES,
     DISPUTE_STATES,
     DISPUTE_TRANSITIONS,
-    PLATFORM_ADMIN,
     dispute_refusal,
     dispute_transition_refusal,
     mask_email,
@@ -27,22 +27,13 @@ from app.modules.identity.domain import (
 )
 
 
-def test_the_console_is_staff_only_and_the_admin_holds_every_capability() -> None:
-    for capability, roles in CONSOLE_ROLES.items():
-        assert roles <= PLATFORM_ROLES, capability
-        assert PLATFORM_ADMIN in roles, capability
-
-
-def test_stopping_an_organisation_seats_and_the_audit_trail_are_the_admins_alone() -> None:
-    for capability in ("suspend", "seats", "audit_search"):
-        assert CONSOLE_ROLES[capability] == frozenset({PLATFORM_ADMIN})
-
-
 def test_every_role_but_the_candidate_has_exactly_one_kind_of_tenant() -> None:
     assert set(ROLE_TENANT_TYPE) == ALL_ROLES - {CANDIDATE}
     assert {role for role, kind in ROLE_TENANT_TYPE.items() if kind == "PLATFORM"} == PLATFORM_ROLES
     assert role_fits_tenant("EMPLOYER_OWNER", "EMPLOYER")
-    assert not role_fits_tenant("PLATFORM_ADMIN", "EMPLOYER")
+    assert {"PLATFORM_STAFF"} == PLATFORM_ROLES
+    assert not role_fits_tenant("PLATFORM_STAFF", "EMPLOYER")
+    assert not role_fits_tenant("PLATFORM_ADMIN", "PLATFORM")  # gone since 0022
     assert not role_fits_tenant("COLLEGE_ADMIN", "PLATFORM")
 
 
@@ -97,21 +88,23 @@ def test_a_drilldown_shows_the_last_four_digits_and_the_domain() -> None:
 
 
 # --- the dashboard -----------------------------------------------------------------------
-def test_every_member_of_staff_has_a_dashboard_and_nobody_else_does() -> None:
-    from app.modules.admin.domain import CONSOLE_ROLES as ROLES
-    from app.modules.identity.domain import PLATFORM_ROLES as STAFF
-
-    assert ROLES["dashboard"] == frozenset(STAFF)
+def test_every_system_role_has_a_dashboard() -> None:
+    for role in SYSTEM_ROLES.values():
+        assert "dashboard.view" in role.permissions, role.key
 
 
 def test_a_role_sees_exactly_the_queues_it_can_open() -> None:
     from app.modules.admin.domain import dashboard_sections
 
-    assert dashboard_sections("PLATFORM_ADMIN") == {"kyb", "integrity", "disputes", "tenants"}
-    assert dashboard_sections("KYB_REVIEWER") == {"kyb", "tenants"}
-    assert dashboard_sections("INTEGRITY_REVIEWER") == {"integrity"}
-    assert dashboard_sections("SUPPORT_AGENT") == {"disputes", "tenants"}
-    assert dashboard_sections("EMPLOYER_OWNER") == frozenset()
+    def shown(key: str) -> frozenset[str]:
+        return dashboard_sections(SYSTEM_ROLES[key].permissions)
+
+    assert shown("SUPER_ADMIN") == {"kyb", "integrity", "disputes", "tenants"}
+    assert shown("KYB_REVIEWER") == {"kyb", "tenants"}
+    assert shown("INTEGRITY_REVIEWER") == {"integrity"}
+    assert shown("SUPPORT_AGENT") == {"disputes", "tenants"}
+    assert shown("CONTENT_MANAGER") == frozenset()
+    assert dashboard_sections(frozenset()) == frozenset()
 
 
 def test_the_throughput_chart_is_fourteen_indian_days_ending_today() -> None:

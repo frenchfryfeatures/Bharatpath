@@ -48,10 +48,9 @@ ROLES = (
     "EMPLOYER_VIEWER",
     "COLLEGE_ADMIN",
     "COLLEGE_STAFF",
-    "PLATFORM_ADMIN",
-    "KYB_REVIEWER",
-    "INTEGRITY_REVIEWER",
-    "SUPPORT_AGENT",
+    # Our staff (2026-11-19): one membership role; what they may do is their
+    # role assignments in `staff_role_assignments`.
+    "PLATFORM_STAFF",
 )
 
 
