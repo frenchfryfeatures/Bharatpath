@@ -11,3 +11,4 @@ crash.log
 # saved plans can contain resolved secret values
 tfplan
 *.tfplan
+*.plan

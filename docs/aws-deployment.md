@@ -36,6 +36,7 @@ host that cannot be rebuilt.
 
 | | |
 |---|---|
+| **Two environments** (2026-11-19) | **This one is production** (tag `Environment=prod`); its resource names still end `-dev`, which cannot change. **UAT** is a full mirror — see [0.5](#05-production-and-uat) |
 | Account | `335345888157`, `ap-south-1`. **AWS Free plan** (see 0.3) |
 | API | `https://bharatpath-api.duckdns.org/api/v1` (DuckDNS, free; swap for the client's domain with one variable) |
 | Host | EC2 `t3.small`, Elastic IP `43.204.56.60`, 2 GiB swap, CPU credits `standard` |
@@ -89,9 +90,14 @@ imposes limits, two of which we hit:
   `rds_backup_retention_days = 1` in the tfvars; set 7 after upgrading.
 - **Textract** is unavailable, as on the old account (E2).
 
-`budgets.tf` emails `budget_alert_email` at $15, $30 and $45 of **gross**
-monthly spend, and when the forecast passes $45. Gross matters: a budget
-that nets credits off reads $0 and never fires.
+`budgets.tf` emails `budget_alert_email` at a third, two thirds and all of
+`budget_monthly_usd` of **gross** monthly spend, and when the forecast
+passes it. Gross matters: a budget that nets credits off reads $0 and never
+fires. **Since UAT (2026-11-19) the account costs about $86/month** and the
+budget is $90: it measures the whole account, so only production's state
+creates one. On 2026-11-19 $73.89 of credit was left, which at that rate
+lasts until roughly mid-December 2026 -- **upgrade before then** or the
+account closes with production in it.
 
 ### 0.4 How it was built — and how to rebuild it
 
@@ -135,6 +141,66 @@ which owns the database and is therefore not subject to RLS.
 Every later deploy is just `deploy/ship.sh`. Restoring the database is the
 RDS console (Automated backups → Restore to point in time), which makes a
 *new* instance — point the three URLs in `.env` at it.
+
+### 0.5 Production and UAT
+
+Added 2026-11-19. **One Terraform configuration, two workspaces, two
+complete copies** in the same account and region, the same size (EC2
+`t3.small` + RDS `db.t4g.micro`) and nothing shared but the SES sender
+identity and the state bucket.
+
+| | Production | UAT |
+|---|---|---|
+| Terraform workspace | `default` | `uat` |
+| Variables | `deploy.auto.tfvars` | `deploy.auto.tfvars`, then `-var-file=uat.tfvars` over it |
+| `environment` (name suffix) | `dev` -- historical, immutable | `uat` |
+| `stage` (tags only) | `prod` | `uat` |
+| Elastic IP | `43.204.56.60` | `13.235.1.169` |
+| API | `https://bharatpath-api.duckdns.org/api/v1` | `https://bharatpath-uat.duckdns.org/api/v1` |
+| Deploy | `ship.sh 43.204.56.60` | `ship.sh 13.235.1.169` |
+| Cognito, S3, SQS, Secrets, RDS | `bharatpath-*-dev` | `bharatpath-*-uat` -- **separate users and files** |
+| State | `bharatpath/terraform.tfstate` | `env:/uat/bharatpath/terraform.tfstate` |
+
+**Why production is still called `dev`.** Renaming means changing
+`environment`, and a Cognito user pool, S3 bucket or SQS queue cannot be
+renamed -- Terraform would destroy and recreate them, with every account and
+CV in them. So `environment` stays the physical suffix and `stage` is the
+label: the `Environment` and `Name` tags, and `force_destroy` (off for
+`prod`). The app's own `ENVIRONMENT=dev` in both hosts' `.env` is a separate
+setting and deliberately unchanged: `staging`/`prod` there refuse the
+payments stub (D3), which is how checkout works until a gateway is chosen.
+
+**The workspace and `environment` cannot be crossed.** A validation on
+`environment` refuses any plan where it does not match the workspace
+(`default` -> `dev`, `uat` -> `uat`). Forgetting `-var-file=uat.tfvars` in
+`uat`, or passing it in `default`, fails before anything is planned -- which
+matters, because the second would otherwise plan to replace production's
+Cognito pools.
+
+```bash
+cd infra/terraform
+terraform workspace show                       # always check first
+
+# production
+terraform workspace select default
+terraform plan -out=prod.plan && terraform apply prod.plan
+
+# UAT
+terraform workspace select uat
+terraform plan -var-file=uat.tfvars -out=uat.plan && terraform apply uat.plan
+terraform output -raw host_env_file            # UAT's .env template
+```
+
+`deploy.auto.tfvars` is shared, so the SSH CIDR, key, RDS retention and
+email sender change both environments -- plan each workspace after editing
+it. Deploying code is the same `deploy/ship.sh`, given the UAT address.
+
+**UAT's `.env`** (built 2026-11-19) is `terraform output -raw host_env_file`
+from the `uat` workspace, with the model and speech keys
+(`OPENAI_API_KEY`, `SARVAM_API_KEY`) and the provider switches copied from
+production's, and its **own** `PAYMENTS_WEBHOOK_SECRET`. Both environments
+spend on the same OpenAI and Sarvam accounts. UAT starts with no staff and
+no users: `create_platform_staff.py` (§3.8) against UAT's host.
 
 ---
 
