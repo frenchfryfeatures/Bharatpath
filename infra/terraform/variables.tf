@@ -5,9 +5,41 @@ variable "aws_region" {
 }
 
 variable "environment" {
-  description = "Environment name; used as a suffix so dev and prod can coexist in one account."
+  description = <<-DESC
+    The suffix on every resource's physical name. **Not the stage label** --
+    see `stage`. Production carries "dev" for historical reasons (it was
+    built as the dev host on 2026-10-01 and became production on
+    2026-11-19), and that cannot change: a Cognito pool, an S3 bucket or a
+    queue cannot be renamed, only destroyed and recreated, taking every
+    account and file with it.
+
+    Bound to the Terraform workspace, so the two can never be crossed:
+    `default` -> "dev" (production), `uat` -> "uat". A plan run in the
+    wrong workspace, or without `-var-file=uat.tfvars` in `uat`, refuses.
+  DESC
   type        = string
   default     = "dev"
+
+  validation {
+    condition     = var.environment == (terraform.workspace == "default" ? "dev" : terraform.workspace)
+    error_message = "environment does not match the Terraform workspace. In workspace 'default' (production) it must be \"dev\"; in 'uat' pass -var-file=uat.tfvars. See docs/aws-deployment.md §0.5."
+  }
+}
+
+variable "stage" {
+  description = "What this environment is: \"prod\" or \"uat\". Tags only (the Environment tag and the Name tags), so changing it never replaces a resource. Empty means `environment`."
+  type        = string
+  default     = ""
+}
+
+variable "manage_email_sender_identity" {
+  description = <<-DESC
+    Whether this state owns the SES identity for `email_sender_address`. An
+    SES identity is account-wide, so only one environment can create it;
+    production does. UAT sets false and uses the same verified identity.
+  DESC
+  type        = bool
+  default     = true
 }
 
 variable "project" {

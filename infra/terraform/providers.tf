@@ -26,13 +26,18 @@ terraform {
   }
 }
 
+locals {
+  # The label people read; `var.environment` is the immutable name suffix.
+  stage = var.stage != "" ? var.stage : var.environment
+}
+
 provider "aws" {
   region = var.aws_region
 
   default_tags {
     tags = {
       Project     = "bharatpath"
-      Environment = var.environment
+      Environment = local.stage
       ManagedBy   = "terraform"
     }
   }
