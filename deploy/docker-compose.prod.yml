@@ -123,7 +123,7 @@ services:
       [
         "sh",
         "-c",
-        "python -m alembic upgrade head && python scripts/seed_catalogue.py && python scripts/seed_config.py && python scripts/seed_filter_options.py",
+        "python -m alembic upgrade head && python scripts/seed_catalogue.py && python scripts/seed_config.py && python scripts/seed_filter_options.py && python scripts/seed_job_taxonomy.py --allow-remote && python scripts/seed_education_taxonomy.py --allow-remote",
       ]
     environment:
       DATABASE_URL: ${DATABASE_URL_MIGRATOR:?set DATABASE_URL_MIGRATOR in .env}
