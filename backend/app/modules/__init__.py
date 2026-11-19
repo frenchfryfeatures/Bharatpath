@@ -5,6 +5,7 @@ from __future__ import annotations
 from types import ModuleType
 
 from . import (
+    access,
     admin,
     analytics,
     applications,
@@ -50,6 +51,7 @@ ALL_MODULES: tuple[ModuleType, ...] = (
     college,
     analytics,
     admin,
+    access,
     notifications,
     privacy,
     engagement,

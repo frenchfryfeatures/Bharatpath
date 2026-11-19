@@ -94,6 +94,7 @@ class CognitoIdentityProvider:
             # a new user row.
             phone=claims.get("phone_number"),
             email=claims.get("email"),
+            auth_time=_epoch(claims.get("auth_time")),
         )
 
     def _pool_from_issuer(self, raw_token: str) -> Pool:
@@ -241,3 +242,10 @@ class CognitoIdentityProvider:
 #: Structural conformance, checked by mypy rather than by a base class. If a
 #: method signature drifts from the protocol, this line stops the build.
 _CONFORMS: type[IdentityProvider] = CognitoIdentityProvider
+
+
+def _epoch(value: object) -> int | None:
+    """A numeric claim, or None when absent or not a number."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    return int(value)

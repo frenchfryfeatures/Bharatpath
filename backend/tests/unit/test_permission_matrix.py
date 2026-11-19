@@ -50,9 +50,12 @@ def test_the_matrix_covers_every_role() -> None:
 
     A role added to `ALL_ROLES` without a thought for authorisation would
     otherwise slip in silently -- every test below iterates ALL_ROLES, so it
-    would be *covered* but never *considered*. Ten is the count in SRS 1.2.
+    would be *covered* but never *considered*. SRS 1.2 names ten; since
+    2026-11-19 the four staff roles are one membership role, PLATFORM_STAFF,
+    and what staff may do is permissions (`require_permission`,
+    `tests/unit/test_staff_permissions.py`), so seven.
     """
-    assert len(ROLES) == 10, f"role list changed: {ROLES}"
+    assert len(ROLES) == 7, f"role list changed: {ROLES}"
 
 
 @pytest.mark.parametrize("granted", ROLES)

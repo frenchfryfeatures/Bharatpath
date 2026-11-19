@@ -118,7 +118,7 @@ async def _allocate(tenant_id: str, seats: int) -> college_service.Allocation:
         return await college_service.allocate_seats(
             session,
             actor_id=None,
-            actor_role="PLATFORM_ADMIN",
+            actor_role="PLATFORM_STAFF",
             tenant_id=uuid.UUID(tenant_id),
             seats=seats,
         )

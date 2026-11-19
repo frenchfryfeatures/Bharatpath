@@ -20,30 +20,46 @@ through that isolation.
 
 ## 0. The big picture — one permission table, one bypass session, one audit row per look
 
-**Staff are members of exactly one tenant: `PLATFORM`.** There is no
-self-registration for any of it — `scripts/create_platform_staff.py`, or a
-console route under §7 below, is how a staff account comes to exist.
-Four roles: `PLATFORM_ADMIN` (everything), `KYB_REVIEWER`,
-`INTEGRITY_REVIEWER`, `SUPPORT_AGENT` — each holding only the capabilities
-`CONSOLE_ROLES` actually grants them:
+**Staff are members of exactly one tenant: `PLATFORM`.** Since 2026-11-19
+their membership role is a single `PLATFORM_STAFF`, and **what they may do
+is the console roles they hold, each a set of permissions** -- see
+[19-access-management-apis.md](19-access-management-apis.md), which
+replaces the four hardcoded roles and the `CONSOLE_ROLES` capability table
+this section used to show. A SUPER_ADMIN invites staff and assigns roles
+at `/admin/access`; `scripts/create_platform_staff.py` makes the first one.
 
-| Capability | Who holds it |
+**The "Auth" lines below still name the old capabilities.** Each became
+one or more permissions; a route needs all of the ones listed:
+
+| Old capability | Permission(s) now |
 |---|---|
-| `kyb` | Admin, KYB Reviewer |
-| `integrity` | Admin, Integrity Reviewer |
-| `tenants` (read) | Admin, KYB Reviewer, Support Agent |
-| `suspend`, `seats`, `audit_search`, `accounts`, `discounts` | **Admin only** |
-| `candidate_drilldown` (the candidate list and the drill-down) | Admin, Support Agent, Integrity Reviewer |
-| `employer_drilldown` | Admin, Support Agent, KYB Reviewer |
-| `college_drilldown`, `disputes`, `suppress_notifications`, `resend_invitation`, `discounts_read` | Admin, Support Agent |
-| `dashboard` | **Every** staff role (sections inside are gated by the rows above — §0.5) |
+| `dashboard` | `dashboard.view` |
+| `kyb` | `kyb.view` (queue, submission, setting); `employers.approve_kyb` (decision) |
+| `kyb_policy` | `kyb.configure` (SUPER_ADMIN only) |
+| `integrity` | `integrity.view`; `integrity.resolve` (resolve) |
+| `tenants` | `organisations.view` |
+| `suspend` | `organisations.suspend` |
+| `seats` | `institutes.manage_seats` |
+| `candidate_drilldown` | `candidates.view` |
+| `employer_drilldown` / `college_drilldown` | `employers.view` / `institutes.view` |
+| `candidate_contact` / `candidate_resume` / `candidate_recordings` | `candidate_contact.view` / `resume.download` / `recordings.listen` |
+| `sales_leads` | `candidates.leads` **and** `candidate_contact.view` |
+| `disputes` | `disputes.view`; `disputes.resolve` (assign, resolve) |
+| `suppress_notifications` | `notifications.suppress` |
+| `audit_search` | `audit.view` (SUPER_ADMIN only) |
+| `accounts` / `resend_invitation` | `accounts.create` / `accounts.resend_invitation` |
+| `discounts` / `discounts_read` | `discounts.manage` / `discounts.view` |
+| `search_filters` | `taxonomy.view`, `taxonomy.create`, `taxonomy.edit`, `taxonomy.import` |
+| `courses` | `courses.view`, `courses.manage`, `courses.publish` |
 
-**Every single route names its capability from this one table** — nowhere
-in the router are roles listed by hand per-route, so "can a Support Agent
-suspend an employer?" has exactly one place to answer it (no — only
-`suspend`, held by `PLATFORM_ADMIN` alone), and an invariant test
-(`tests/invariants/test_admin_console.py`) drives every route with every
-role and every outsider to hold that table to the router.
+**HIGH and CRITICAL permissions** (contacts, CVs, recordings, leads, seats,
+discount codes, account creation, suspension, the audit log) **also need
+`X-Access-Reason`, an enrolled authenticator and, for CRITICAL, a recent
+sign-in** -- [19 §5](19-access-management-apis.md#5-the-step-up-on-high-and-critical-permissions).
+
+**Every route names its permissions**, and an invariant test
+(`tests/invariants/test_admin_console.py`) holds each one to an explicit
+table and drives every route with every system role and every outsider.
 
 **No payment gate anywhere in this doc.** Every other paid surface in this
 product checks `require_active_subscription`; the console never does — it's

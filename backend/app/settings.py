@@ -68,6 +68,15 @@ class Settings(BaseSettings):
     redis_url: RedisDsn
     membership_cache_ttl_seconds: int = 60
 
+    # -- staff step-up (2026-11-19) ------------------------------------------
+    # A HIGH or CRITICAL console permission (`app.core.staff_permissions`)
+    # needs an enrolled authenticator app on the staff member's Cognito user,
+    # a stated reason, and -- for CRITICAL -- a sign-in this recent. Off only
+    # on a laptop with local tokens, where there is no Cognito to ask; refused
+    # off in staging and prod.
+    staff_mfa_required: bool = True
+    staff_recent_auth_seconds: int = 900
+
     # -- CORS --------------------------------------------------------------
     # Which browser origins may call this API. The three web consoles are
     # served from different hosts than the API, so without this the browser
@@ -432,6 +441,15 @@ class Settings(BaseSettings):
                 "it enables a token issuer whose signing key this process generates "
                 "itself, so anyone who can reach the API could mint any identity."
             )
+        return self
+
+    @model_validator(mode="after")
+    def _staff_mfa_is_never_optional_when_deployed(self) -> Settings:
+        """Switching the staff authenticator check off is for local work only."""
+        if not self.staff_mfa_required and self.environment in ("staging", "prod"):
+            raise ValueError("STAFF_MFA_REQUIRED must not be false in staging or production.")
+        if self.staff_recent_auth_seconds < 60:
+            raise ValueError("STAFF_RECENT_AUTH_SECONDS below 60 would refuse every sign-in.")
         return self
 
     @model_validator(mode="after")

@@ -571,13 +571,10 @@ async def list_tenants(
     return [_tenant(row) for row in rows]
 
 
-async def staff_ids(session: AsyncSession, *, roles: frozenset[str]) -> list[uuid.UUID]:
-    """Active members of our own PLATFORM tenant holding `roles`: who on the
-    staff hears about work waiting for them. Empty before any is provisioned."""
+async def platform_tenant_id(session: AsyncSession) -> uuid.UUID | None:
+    """Our own tenant, or None before any member of staff exists."""
     tenant = await repository.platform_tenant(session)
-    if tenant is None:
-        return []
-    return await repository.active_member_ids(session, tenant_id=tenant.id, roles=roles)
+    return None if tenant is None else tenant.id
 
 
 async def member_ids(
@@ -593,20 +590,20 @@ async def member_role_counts(session: AsyncSession, *, tenant_id: uuid.UUID) -> 
 
 
 async def provision_platform_staff(
-    session: AsyncSession, *, email: str, role: str
+    session: AsyncSession, *, email: str
 ) -> tuple[uuid.UUID, uuid.UUID]:
-    """Make an address a member of our staff. **Has no route, deliberately.**
+    """Make an address a member of our staff: the PLATFORM membership only.
 
-    Run by `scripts/create_platform_staff.py` as the migrator. A route that
-    grants staff roles would be the one endpoint worth attacking, and nobody
-    adds a colleague so often that a script is a burden. The Cognito user is
-    created in the business pool separately (admin-create-only); on first
-    sign-in it adopts this row by email, as an invited recruiter does.
+    **Grants nothing by itself.** What the person may do is the role
+    assignments `access.service.provision_staff` writes beside this, in the
+    same transaction; that is the only caller, behind a SUPER_ADMIN's
+    `admins.invite` (2026-11-19) or `scripts/create_platform_staff.py`. On
+    first sign-in the Cognito user adopts this row by email, as an invited
+    recruiter does.
 
     Returns `(tenant_id, user_id)`.
     """
-    if role not in PLATFORM_ROLES:
-        raise ValueError(f"{role} is not a platform role: {sorted(PLATFORM_ROLES)}")
+    (role,) = PLATFORM_ROLES
     tenant_id = await repository.create_platform_tenant(session)
     address = normalise_email(email)
     user = await repository.user_by_email(session, email=address)

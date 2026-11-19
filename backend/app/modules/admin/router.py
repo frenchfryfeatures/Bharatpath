@@ -9,10 +9,12 @@ import-linter enforces the second half of that sentence.
 belong to the PLATFORM tenant. `raiser_router` is `/disputes`, where a
 candidate, an employer or a college raises a dispute and reads the answer.
 
-**Every console route names its capability** from `domain.CONSOLE_ROLES`, so
-the permission table is the one place to read who may do what, and
-`tests/invariants/test_admin_console.py` holds it: no external role reaches
-any `/admin` route, and every drill-down writes an audit row.
+**Every console route names its permission** (2026-11-19, replacing the
+`CONSOLE_ROLES` capability map): `app/core/staff_permissions.py` is the
+catalogue, a member of staff's role assignments decide what they hold, and
+`tests/invariants/test_admin_console.py` holds every route to
+`ROUTE_PERMISSION`: no external role reaches any `/admin` route, and every
+drill-down writes an audit row.
 
 **No payment gate here.** The console is ours; a dispute about a payment must
 not require one.
@@ -26,10 +28,16 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Query, Request, status
 
-from app.core.deps import CurrentUser, DbSession, get_request_id, require_role
+from app.core.deps import (
+    CurrentUser,
+    DbSession,
+    get_request_id,
+    require_permission,
+    require_role,
+)
 from app.core.listing import SortOrder
 from app.modules.admin import service
-from app.modules.admin.domain import CONSOLE_ROLES, DISPUTE_RAISER_ROLES, Capability, LeadStage
+from app.modules.admin.domain import DISPUTE_RAISER_ROLES, LeadStage
 from app.modules.admin.schemas import (
     AccountFormsResponse,
     AddOrganisationMemberRequest,
@@ -97,8 +105,12 @@ router = APIRouter()
 raiser_router = APIRouter()
 
 
-def can(capability: Capability) -> list[Any]:
-    return [Depends(require_role(*sorted(CONSOLE_ROLES[capability])))]
+def can(
+    permission: str, *, also: tuple[str, ...] = (), tenant_param: str | None = None
+) -> list[Any]:
+    """The route's permission (`app/core/staff_permissions.py`). `tenant_param`
+    lets an organisation-scoped grant count on a route about one organisation."""
+    return [Depends(require_permission(permission, also=also, tenant_param=tenant_param))]
 
 
 Limit = Query(default=None, ge=1, le=100)
@@ -123,8 +135,8 @@ FilterOptionSort = Literal["key", "label", "created_at"]
 Order = Query(default=None, description="`asc` or `desc`; each sort has its own default")
 #: Every list has one search box, `q` (2026-10-22). On a list of people it is
 #: tried against the name, the email and the phone at once. Part of an email
-#: or phone matches only for a role that reads whole contacts
-#: (PLATFORM_ADMIN, SUPPORT_AGENT); for any other, the whole address or
+#: or phone matches only for staff who read whole contacts
+#: (`candidate_contact.view`); for any other, the whole address or
 #: number. Text is read as a phone only when it looks like one.
 PersonQuery = Query(
     default=None,
@@ -140,7 +152,7 @@ PersonQuery = Query(
 @router.get(
     "/dashboard",
     response_model=AdminDashboard,
-    dependencies=can("dashboard"),
+    dependencies=can("dashboard.view"),
     summary="The console's landing page: every queue the caller can open, counted (audited)",
 )
 async def dashboard(request: Request, user: CurrentUser, session: DbSession) -> AdminDashboard:
@@ -156,7 +168,7 @@ async def dashboard(request: Request, user: CurrentUser, session: DbSession) -> 
 @router.get(
     "/kyb/submissions",
     response_model=KybSubmissionsPage,
-    dependencies=can("kyb"),
+    dependencies=can("kyb.view"),
     summary="Every KYB submission, newest first",
 )
 async def list_kyb_submissions(
@@ -195,7 +207,7 @@ async def list_kyb_submissions(
 @router.get(
     "/settings/kyb-approval",
     response_model=KybApprovalMode,
-    dependencies=can("kyb"),
+    dependencies=can("kyb.view"),
     summary="Whether KYB submissions wait for a reviewer or are approved on arrival",
 )
 async def kyb_approval_mode(user: CurrentUser, session: DbSession) -> KybApprovalMode:
@@ -205,7 +217,7 @@ async def kyb_approval_mode(user: CurrentUser, session: DbSession) -> KybApprova
 @router.put(
     "/settings/kyb-approval",
     response_model=KybApprovalMode,
-    dependencies=can("kyb_policy"),
+    dependencies=can("kyb.configure"),
     summary="Switch KYB between manual review and approval on arrival (audited)",
 )
 async def set_kyb_approval_mode(
@@ -227,7 +239,7 @@ async def set_kyb_approval_mode(
 @router.get(
     "/kyb/submissions/{submission_id}",
     response_model=KybSubmissionResponse,
-    dependencies=can("kyb"),
+    dependencies=can("kyb.view"),
     summary="One submission with its answers and documents (audited)",
 )
 async def open_kyb_submission(
@@ -241,7 +253,7 @@ async def open_kyb_submission(
 @router.post(
     "/kyb/submissions/{submission_id}/decision",
     response_model=KybSubmissionResponse,
-    dependencies=can("kyb"),
+    dependencies=can("employers.approve_kyb"),
     summary="Record a KYB decision",
 )
 async def decide_kyb(
@@ -274,7 +286,7 @@ async def decide_kyb(
 @router.get(
     "/integrity/signals",
     response_model=IntegritySignalsPage,
-    dependencies=can("integrity"),
+    dependencies=can("integrity.view"),
     summary="The integrity review queue, oldest first",
 )
 async def integrity_queue(
@@ -315,7 +327,7 @@ async def integrity_queue(
 @router.get(
     "/integrity/signals/{signal_id}",
     response_model=IntegritySignalDetail,
-    dependencies=can("integrity"),
+    dependencies=can("integrity.view"),
     summary="One signal with its evidence (audited)",
 )
 async def open_signal(
@@ -329,7 +341,7 @@ async def open_signal(
 @router.post(
     "/integrity/signals/{signal_id}/resolve",
     response_model=IntegritySignalDetail,
-    dependencies=can("integrity"),
+    dependencies=can("integrity.resolve"),
     summary="Clear or confirm a signal",
 )
 async def resolve_signal(
@@ -348,7 +360,7 @@ async def resolve_signal(
 @router.get(
     "/tenants",
     response_model=TenantsPage,
-    dependencies=can("tenants"),
+    dependencies=can("organisations.view"),
     summary="Employers and colleges by name",
 )
 async def list_tenants(
@@ -392,7 +404,7 @@ async def list_tenants(
     "/tenants/{tenant_id}/suspend",
     response_model=SuspensionResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=can("suspend"),
+    dependencies=can("organisations.suspend", tenant_param="tenant_id"),
     summary="Stop an organisation operating, immediately",
 )
 async def suspend_tenant(
@@ -416,7 +428,7 @@ async def suspend_tenant(
 @router.post(
     "/tenants/{tenant_id}/reinstate",
     response_model=SuspensionResponse,
-    dependencies=can("suspend"),
+    dependencies=can("organisations.suspend", tenant_param="tenant_id"),
     summary="Lift an organisation's suspension",
 )
 async def reinstate_tenant(
@@ -430,7 +442,7 @@ async def reinstate_tenant(
 @router.get(
     "/tenants/{tenant_id}/suspensions",
     response_model=list[SuspensionResponse],
-    dependencies=can("tenants"),
+    dependencies=can("organisations.view", tenant_param="tenant_id"),
     summary="An organisation's suspension history, newest first",
 )
 async def suspension_history(tenant_id: uuid.UUID, session: DbSession) -> list[SuspensionResponse]:
@@ -440,7 +452,7 @@ async def suspension_history(tenant_id: uuid.UUID, session: DbSession) -> list[S
 @router.put(
     "/colleges/{tenant_id}/seats",
     response_model=SeatAllocationResponse,
-    dependencies=can("seats"),
+    dependencies=can("institutes.manage_seats", tenant_param="tenant_id"),
     summary="Set a college's seat allowance",
 )
 async def allocate_seats(
@@ -467,7 +479,7 @@ async def allocate_seats(
 @router.get(
     "/candidates",
     response_model=CandidatesPage,
-    dependencies=can("candidate_drilldown"),
+    dependencies=can("candidates.view"),
     summary="Candidate accounts, newest first (audited)",
 )
 async def list_candidates(
@@ -518,7 +530,7 @@ async def list_candidates(
 @router.get(
     "/leads",
     response_model=LeadsPage,
-    dependencies=can("sales_leads"),
+    dependencies=can("candidates.leads", also=("candidate_contact.view",)),
     summary="Candidates to follow up: signed up or downloaded a resume, not paid (audited)",
 )
 async def list_leads(
@@ -564,7 +576,7 @@ async def list_leads(
 @router.get(
     "/leads/summary",
     response_model=LeadsSummary,
-    dependencies=can("sales_leads"),
+    dependencies=can("candidates.leads", also=("candidate_contact.view",)),
     summary="How many active candidates are at each follow-up stage",
 )
 async def lead_summary(request: Request, user: CurrentUser, session: DbSession) -> LeadsSummary:
@@ -574,7 +586,7 @@ async def lead_summary(request: Request, user: CurrentUser, session: DbSession) 
 @router.get(
     "/candidates/{user_id}",
     response_model=CandidateDrilldown,
-    dependencies=can("candidate_drilldown"),
+    dependencies=can("candidates.view"),
     summary="One candidate across every module (audited)",
 )
 async def candidate_drilldown(
@@ -589,7 +601,7 @@ async def candidate_drilldown(
 @router.get(
     "/candidates/{user_id}/onboarding",
     response_model=CandidateOnboarding,
-    dependencies=can("candidate_contact"),
+    dependencies=can("candidate_contact.view"),
     summary="Everything the candidate gave at onboarding, contact unmasked (audited)",
 )
 async def candidate_onboarding(
@@ -603,7 +615,7 @@ async def candidate_onboarding(
 @router.get(
     "/candidates/{user_id}/resume",
     response_model=CandidateResumeView,
-    dependencies=can("candidate_resume"),
+    dependencies=can("resume.download"),
     summary="The candidate's CV: text and the uploaded file (audited)",
 )
 async def candidate_resume(
@@ -620,7 +632,7 @@ async def candidate_resume(
 @router.get(
     "/candidates/{user_id}/score-timeline",
     response_model=ScoreTimeline,
-    dependencies=can("candidate_drilldown"),
+    dependencies=can("candidates.view"),
     summary="Every change in the candidate's score, oldest first (audited)",
 )
 async def candidate_score_timeline(
@@ -636,7 +648,7 @@ async def candidate_score_timeline(
 @router.get(
     "/candidates/{user_id}/interviews",
     response_model=list[InterviewSessionRow],
-    dependencies=can("candidate_drilldown"),
+    dependencies=can("candidates.view"),
     summary="The mock interviews the candidate sat (audited)",
 )
 async def candidate_interviews(
@@ -650,7 +662,7 @@ async def candidate_interviews(
 @router.get(
     "/candidates/{user_id}/interviews/{session_id}/recordings",
     response_model=list[InterviewRecordingRow],
-    dependencies=can("candidate_recordings"),
+    dependencies=can("recordings.listen"),
     summary="Play back one interview's recorded answers (audited)",
 )
 async def candidate_interview_recordings(
@@ -674,7 +686,7 @@ async def candidate_interview_recordings(
 @router.get(
     "/candidates/{user_id}/courses",
     response_model=list[CourseStatusRow],
-    dependencies=can("candidate_drilldown"),
+    dependencies=can("candidates.view"),
     summary="The candidate's course purchases and progress (audited)",
 )
 async def candidate_courses(
@@ -688,7 +700,7 @@ async def candidate_courses(
 @router.get(
     "/candidates/{user_id}/applications",
     response_model=CandidateApplications,
-    dependencies=can("candidate_drilldown"),
+    dependencies=can("candidates.view"),
     summary="Every job the candidate applied to, its stage, and stage analytics (audited)",
 )
 async def candidate_applications(
@@ -702,7 +714,7 @@ async def candidate_applications(
 @router.get(
     "/employers/{tenant_id}",
     response_model=EmployerDrilldown,
-    dependencies=can("employer_drilldown"),
+    dependencies=can("employers.view", tenant_param="tenant_id"),
     summary="One employer across every module (audited)",
 )
 async def employer_drilldown(
@@ -716,7 +728,7 @@ async def employer_drilldown(
 @router.get(
     "/colleges/{tenant_id}",
     response_model=CollegeDrilldown,
-    dependencies=can("college_drilldown"),
+    dependencies=can("institutes.view", tenant_param="tenant_id"),
     summary="One college across every module (audited)",
 )
 async def college_drilldown(
@@ -730,7 +742,7 @@ async def college_drilldown(
 @router.post(
     "/users/{user_id}/notification-suppressions",
     response_model=SuppressResponse,
-    dependencies=can("suppress_notifications"),
+    dependencies=can("notifications.suppress"),
     summary="Stop messages to one account on a channel (audited)",
 )
 async def suppress_notifications(
@@ -758,7 +770,7 @@ async def suppress_notifications(
 @router.get(
     "/disputes",
     response_model=DisputesPage,
-    dependencies=can("disputes"),
+    dependencies=can("disputes.view"),
     summary="The dispute queue across candidates, employers and colleges",
 )
 async def dispute_queue(
@@ -798,7 +810,7 @@ async def dispute_queue(
 @router.get(
     "/disputes/{dispute_id}",
     response_model=DisputeDetail,
-    dependencies=can("disputes"),
+    dependencies=can("disputes.view"),
     summary="One dispute, cross-linked to its people and records (audited)",
 )
 async def open_dispute(
@@ -812,7 +824,7 @@ async def open_dispute(
 @router.post(
     "/disputes/{dispute_id}/assign",
     response_model=DisputeDetail,
-    dependencies=can("disputes"),
+    dependencies=can("disputes.resolve"),
     summary="Take a dispute",
 )
 async def assign_dispute(
@@ -826,7 +838,7 @@ async def assign_dispute(
 @router.post(
     "/disputes/{dispute_id}/resolve",
     response_model=DisputeDetail,
-    dependencies=can("disputes"),
+    dependencies=can("disputes.resolve"),
     summary="Close a dispute with an answer for the raiser",
 )
 async def resolve_dispute(
@@ -854,7 +866,7 @@ async def resolve_dispute(
 @router.get(
     "/audit-events",
     response_model=AuditEventsPage,
-    dependencies=can("audit_search"),
+    dependencies=can("audit.view"),
     summary="Search the audit trail by actor, action, target and time",
 )
 async def search_audit(
@@ -897,7 +909,7 @@ async def search_audit(
 @router.get(
     "/accounts/forms",
     response_model=AccountFormsResponse,
-    dependencies=can("accounts"),
+    dependencies=can("accounts.create"),
     summary="The employer and college onboarding forms, as staff may fill them",
 )
 async def account_forms() -> AccountFormsResponse:
@@ -911,7 +923,7 @@ async def account_forms() -> AccountFormsResponse:
     "/accounts/candidates",
     response_model=ProvisionedAccountResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=can("accounts"),
+    dependencies=can("accounts.create"),
     summary="Create a candidate account; Cognito emails a temporary password",
 )
 async def provision_candidate(
@@ -929,7 +941,7 @@ async def provision_candidate(
     "/accounts/employers",
     response_model=ProvisionedAccountResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=can("accounts"),
+    dependencies=can("accounts.create"),
     summary="Create an employer and its owner; Cognito emails a temporary password",
 )
 async def provision_employer(
@@ -946,7 +958,7 @@ async def provision_employer(
     "/accounts/colleges",
     response_model=ProvisionedAccountResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=can("accounts"),
+    dependencies=can("accounts.create"),
     summary="Create a college and its admin; Cognito emails a temporary password",
 )
 async def provision_college(
@@ -961,7 +973,7 @@ async def provision_college(
     "/tenants/{tenant_id}/members",
     response_model=ProvisionedAccountResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=can("accounts"),
+    dependencies=can("accounts.create", tenant_param="tenant_id"),
     summary="Add a member to an employer or college, inviting them if new",
 )
 async def add_organisation_member(
@@ -983,7 +995,7 @@ async def add_organisation_member(
 @router.post(
     "/accounts/{user_id}/resend-invitation",
     response_model=InvitationResentResponse,
-    dependencies=can("resend_invitation"),
+    dependencies=can("accounts.resend_invitation"),
     summary="Email a provisioned account's temporary password again",
 )
 async def resend_invitation(
@@ -1004,7 +1016,7 @@ async def resend_invitation(
     "/discount-codes",
     response_model=DiscountCodeResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=can("discounts"),
+    dependencies=can("discounts.manage"),
     summary="Create a discount code for candidates, employers or colleges",
 )
 async def create_discount_code(
@@ -1020,7 +1032,7 @@ async def create_discount_code(
 @router.get(
     "/discount-codes",
     response_model=DiscountCodesPage,
-    dependencies=can("discounts_read"),
+    dependencies=can("discounts.view"),
     summary="Every discount code with its usage and status, newest first",
 )
 async def list_discount_codes(
@@ -1056,7 +1068,7 @@ async def list_discount_codes(
 @router.get(
     "/discount-codes/{code_id}",
     response_model=DiscountCodeResponse,
-    dependencies=can("discounts_read"),
+    dependencies=can("discounts.view"),
     summary="One discount code",
 )
 async def get_discount_code(code_id: uuid.UUID, session: DbSession) -> DiscountCodeResponse:
@@ -1066,7 +1078,7 @@ async def get_discount_code(code_id: uuid.UUID, session: DbSession) -> DiscountC
 @router.post(
     "/discount-codes/{code_id}/disable",
     response_model=DiscountCodeResponse,
-    dependencies=can("discounts"),
+    dependencies=can("discounts.manage"),
     summary="Switch a discount code off, for good",
 )
 async def disable_discount_code(
@@ -1081,7 +1093,7 @@ async def disable_discount_code(
 @router.get(
     "/discount-codes/{code_id}/redemptions",
     response_model=DiscountRedemptionsPage,
-    dependencies=can("discounts_read"),
+    dependencies=can("discounts.view"),
     summary="Who used a discount code, on which payment, and when",
 )
 async def discount_redemptions(
@@ -1125,7 +1137,7 @@ async def discount_redemptions(
 @router.get(
     "/search-filters",
     response_model=SearchFilterOptionsPage,
-    dependencies=can("search_filters"),
+    dependencies=can("taxonomy.view"),
     summary="The skills and cities employers filter by",
 )
 async def list_search_filter_options(
@@ -1158,7 +1170,7 @@ async def list_search_filter_options(
     "/search-filters",
     response_model=SearchFilterOptionResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=can("search_filters"),
+    dependencies=can("taxonomy.create"),
     summary="Add a skill or a city to the search filters",
 )
 async def create_search_filter_option(
@@ -1180,7 +1192,7 @@ async def create_search_filter_option(
     "/search-filters/import",
     response_model=ImportSearchFilterOptionsResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=can("search_filters"),
+    dependencies=can("taxonomy.import"),
     summary="Import up to 500 skills or cities at once, all or none",
 )
 async def import_search_filter_options(
@@ -1200,7 +1212,7 @@ async def import_search_filter_options(
 @router.get(
     "/search-filters/{option_id}",
     response_model=SearchFilterOptionResponse,
-    dependencies=can("search_filters"),
+    dependencies=can("taxonomy.view"),
     summary="One search filter option",
 )
 async def get_search_filter_option(
@@ -1212,7 +1224,7 @@ async def get_search_filter_option(
 @router.patch(
     "/search-filters/{option_id}",
     response_model=SearchFilterOptionResponse,
-    dependencies=can("search_filters"),
+    dependencies=can("taxonomy.edit"),
     summary="Change, feature, reorder or switch off a search filter option",
 )
 async def update_search_filter_option(
@@ -1276,7 +1288,7 @@ async def my_disputes(user: CurrentUser, session: DbSession) -> list[MyDisputeRe
 @router.get(
     "/courses",
     response_model=list[AdminCourseView],
-    dependencies=can("courses"),
+    dependencies=can("courses.view"),
     summary="Every course with all its modules and lessons",
 )
 async def list_courses(session: DbSession) -> list[AdminCourseView]:
@@ -1287,7 +1299,7 @@ async def list_courses(session: DbSession) -> list[AdminCourseView]:
     "/courses/{code}/modules",
     response_model=AdminCourseView,
     status_code=status.HTTP_201_CREATED,
-    dependencies=can("courses"),
+    dependencies=can("courses.manage"),
     summary="Add a module to a course",
 )
 async def create_course_module(
@@ -1305,7 +1317,7 @@ async def create_course_module(
 @router.patch(
     "/course-modules/{module_id}",
     response_model=AdminCourseView,
-    dependencies=can("courses"),
+    dependencies=can("courses.manage"),
     summary="Rename, reorder or switch off a module",
 )
 async def update_course_module(
@@ -1324,7 +1336,7 @@ async def update_course_module(
     "/course-modules/{module_id}/lessons",
     response_model=AdminLessonView,
     status_code=status.HTTP_201_CREATED,
-    dependencies=can("courses"),
+    dependencies=can("courses.manage"),
     summary="Add a lesson: a YouTube link, or a video to upload",
 )
 async def create_course_lesson(
@@ -1347,7 +1359,7 @@ async def create_course_lesson(
 @router.patch(
     "/course-lessons/{lesson_id}",
     response_model=AdminLessonView,
-    dependencies=can("courses"),
+    dependencies=can("courses.manage"),
     summary="Edit a lesson, replace its YouTube video, or switch it off",
 )
 async def update_course_lesson(
@@ -1365,7 +1377,7 @@ async def update_course_lesson(
 @router.post(
     "/course-lessons/{lesson_id}/upload",
     response_model=LessonUploadResponse,
-    dependencies=can("courses"),
+    dependencies=can("courses.manage"),
     summary="A presigned URL to PUT a lesson's video (MP4 or WebM)",
 )
 async def issue_lesson_upload(lesson_id: uuid.UUID, session: DbSession) -> LessonUploadResponse:
@@ -1377,7 +1389,7 @@ async def issue_lesson_upload(lesson_id: uuid.UUID, session: DbSession) -> Lesso
 @router.post(
     "/course-lessons/{lesson_id}/upload/confirm",
     response_model=AdminLessonView,
-    dependencies=can("courses"),
+    dependencies=can("courses.manage"),
     summary="Check the uploaded video and make the lesson playable",
 )
 async def confirm_lesson_upload(
@@ -1393,7 +1405,7 @@ async def confirm_lesson_upload(
 @router.put(
     "/courses/{code}/published",
     response_model=AdminCourseView,
-    dependencies=can("courses"),
+    dependencies=can("courses.publish"),
     summary="Put a course on sale, or take it off",
 )
 async def publish_course(

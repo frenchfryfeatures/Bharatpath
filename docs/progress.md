@@ -9,6 +9,48 @@ states. Newest entries first.
 
 ---
 
+## 2026-11-19 — Admin RBAC: staff roles, permissions and access management
+
+Asked for: a configurable Admin Role and Access Management module in place of
+the four hardcoded staff roles. Branch `feat/admin-rbac` (from `main`).
+Decisions taken with the user: staff are invited through a route; permissions
+for features that do not exist (refunds, job moderation, export) are left out
+until those are built; login sessions are not built. Reference:
+`docs/backend-guide/19-access-management-apis.md`.
+
+- **Permissions, not roles, guard every console route.** 35 permissions in
+  `app/core/staff_permissions.py`; all 57 `/admin` routes moved from
+  `CONSOLE_ROLES` capabilities to `require_permission`. 17 new routes at
+  `/admin/access` (staff, roles, permissions, impact preview, history, me).
+- **Nine system roles** (permissions in code) and custom roles (rows);
+  multiple roles per person, union of permissions. `PLATFORM_ADMIN` →
+  `SUPER_ADMIN`; KYB/Integrity/Support keep their names and exactly their
+  old access. Migration `0022_staff_access` moves every staff membership to
+  `PLATFORM_STAFF` plus an assignment. **Verified on a database at 0021 with
+  legacy staff**, a suspended one included: downgrade, seed, upgrade.
+- **SUPER_ADMIN alone** manages roles, invites and manages staff, reads the
+  audit log and flips the KYB switch. The last active one cannot be revoked or
+  suspended: the service says 409, and two triggers hold it for every writer.
+- **Scope**: organisation-scoped grants count only on the seven routes
+  addressed by an organisation id, and grant nothing elsewhere (fail closed).
+  Expiry is checked per request. Region scope and "assigned records only"
+  are not built, because neither a region field nor queue assignment exists.
+- **Step-up on HIGH/CRITICAL**: `X-Access-Reason`, an enrolled Cognito
+  authenticator, and (CRITICAL) a sign-in within 15 minutes. Each use writes
+  `staff_sensitive_access` with the reason, IP and user agent. Every
+  access-management change is audited with before/after.
+- **`/auth/me` keeps `role`** as the old name for the current portal, which
+  still routes on it (`frontend/lib/auth/route-access.ts`); the new `staff`
+  object is the real answer.
+- **Not built:** Access Requests (two-person approval) and Login Sessions.
+- **Before deploying:** (1) `terraform apply` for
+  `cognito-idp:AdminUserGlobalSignOut` (`iam.tf`); (2) every staff member who
+  uses a HIGH permission (support: contacts, CVs, recordings, leads) enrols
+  an authenticator app; (3) the admin portal sends `X-Access-Reason` and
+  handles `access_reason_required`, `mfa_required` and
+  `reauthentication_required`. Without (2) and (3), those actions return 403
+  in production.
+
 ## 2026-11-19 — Production and UAT
 
 Asked for: the one AWS environment labelled production, and a UAT that is a

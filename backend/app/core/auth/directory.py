@@ -25,8 +25,9 @@ it runs there is no identifier left to delete by.
 
 Two implementations, chosen once at boot like `provider.py`:
 
-* `CognitoAccountDirectory` -- the real one. Needs `cognito-idp:AdminCreateUser`
-  and `cognito-idp:AdminDeleteUser` on both pools (`infra/terraform/iam.tf`).
+* `CognitoAccountDirectory` -- the real one. Needs `cognito-idp:AdminCreateUser`,
+  `AdminDeleteUser`, `AdminGetUser` and `AdminUserGlobalSignOut` on both pools
+  (`infra/terraform/iam.tf`).
 * `LocalAccountDirectory` -- local development and tests, whenever
   `AUTH_ALLOW_LOCAL_TOKENS` is on (which `Settings` refuses in staging and
   production). Records what it was asked for, so a test can read it.
@@ -85,6 +86,26 @@ class AccountDirectory(Protocol):
         """
         ...
 
+    async def mfa_enabled(self, *, pool: Pool, subject: str) -> bool:
+        """Whether this sign-in has an authenticator app enrolled.
+
+        The staff step-up reads it (2026-11-19). In a pool where MFA is
+        optional, Cognito challenges every sign-in of a user who has enrolled,
+        so enrolled means the token in hand came through that challenge -- with
+        one gap: a user may enrol after signing in, on that same session. The
+        CRITICAL tier's recent-sign-in rule narrows it to minutes.
+        """
+        ...
+
+    async def sign_out_everywhere(self, *, pool: Pool, subject: str) -> None:
+        """Revoke every refresh token this sign-in holds. Idempotent.
+
+        Access tokens already issued stay cryptographically valid until they
+        expire; what stops them working is our membership row, which the
+        caller revokes first. This ends the sessions that would mint more.
+        """
+        ...
+
 
 # ---------------------------------------------------------------------------
 # Local
@@ -98,6 +119,10 @@ class LocalAccountDirectory:
     sent: list[dict[str, str]] = field(default_factory=list)
     #: Subjects an erasure asked to destroy, for a test to assert on.
     deleted: list[dict[str, str]] = field(default_factory=list)
+    #: Subjects with an authenticator enrolled. A test enrols its staff here.
+    mfa_enrolled: set[str] = field(default_factory=set)
+    #: Subjects whose sessions were ended, for a test to assert on.
+    signed_out: list[dict[str, str]] = field(default_factory=list)
 
     async def invite(self, *, pool: Pool, email: str) -> InviteOutcome:
         key = (pool, email)
@@ -114,6 +139,12 @@ class LocalAccountDirectory:
 
     async def delete_user(self, *, pool: Pool, subject: str) -> None:
         self.deleted.append({"pool": pool, "subject": subject})
+
+    async def mfa_enabled(self, *, pool: Pool, subject: str) -> bool:
+        return subject in self.mfa_enrolled
+
+    async def sign_out_everywhere(self, *, pool: Pool, subject: str) -> None:
+        self.signed_out.append({"pool": pool, "subject": subject})
 
 
 # ---------------------------------------------------------------------------
@@ -205,6 +236,38 @@ class CognitoAccountDirectory:
                 raise DirectoryError(f"cognito_{code}") from exc
 
         await asyncio.to_thread(_delete)
+
+    async def mfa_enabled(self, *, pool: Pool, subject: str) -> bool:
+        pool_id = self._pool_id(pool)
+
+        def _read() -> bool:
+            client = self._cognito()
+            try:
+                user = client.admin_get_user(  # type: ignore[attr-defined]
+                    UserPoolId=pool_id, Username=subject
+                )
+            except Exception as exc:
+                raise DirectoryError(f"cognito_{_error_code(exc)}") from exc
+            return "SOFTWARE_TOKEN_MFA" in (user.get("UserMFASettingList") or [])
+
+        return await asyncio.to_thread(_read)
+
+    async def sign_out_everywhere(self, *, pool: Pool, subject: str) -> None:
+        pool_id = self._pool_id(pool)
+
+        def _sign_out() -> None:
+            client = self._cognito()
+            try:
+                client.admin_user_global_sign_out(  # type: ignore[attr-defined]
+                    UserPoolId=pool_id, Username=subject
+                )
+            except Exception as exc:
+                code = _error_code(exc)
+                if code == "UserNotFoundException":
+                    return
+                raise DirectoryError(f"cognito_{code}") from exc
+
+        await asyncio.to_thread(_sign_out)
 
 
 def _error_code(exc: Exception) -> str:

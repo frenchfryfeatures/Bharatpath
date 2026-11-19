@@ -87,6 +87,11 @@ MODULES: tuple[ModuleSpec, ...] = (
     ),
     ModuleSpec("analytics", "/college/analytics", "Cohort aggregates, placement tracking."),
     ModuleSpec("admin", "/admin", "Queues, drill-downs, disputes, suspensions."),
+    ModuleSpec(
+        "access",
+        "/admin/access",
+        "Staff roles, permissions and their assignments: the console's Access Management.",
+    ),
     ModuleSpec("notifications", "/notifications", "Event to channel fan-out, templates."),
     ModuleSpec("privacy", "/privacy", "Export and deletion requests, DSR tracking."),
     ModuleSpec(

@@ -7,8 +7,8 @@ import typing
 
 import pytest
 
+from app.core.staff_permissions import BY_KEY, SYSTEM_ROLES, role_permission_refusal
 from app.modules.admin.domain import (
-    CONSOLE_ROLES,
     LEAD_STAGES,
     UNPAID_STAGES,
     LeadStage,
@@ -17,9 +17,14 @@ from app.modules.admin.domain import (
 
 
 def test_the_list_is_no_wider_a_door_to_contacts_than_the_candidate_page() -> None:
-    """It carries whole phone numbers and emails, so exactly the roles that
-    already read one may open it. Widening either is one decision, made twice."""
-    assert CONSOLE_ROLES["sales_leads"] == CONSOLE_ROLES["candidate_contact"]
+    """It carries whole phone numbers and emails, so it is held only beside
+    the permission that reads one: the catalogue says so, a custom role
+    without it is refused, and the route checks both (`ROUTE_PERMISSION`)."""
+    assert BY_KEY["candidates.leads"].requires == ("candidate_contact.view",)
+    assert role_permission_refusal({"candidates.leads"}) == "role_permission_requires_another"
+    for role in SYSTEM_ROLES.values():
+        if "candidates.leads" in role.permissions:
+            assert "candidate_contact.view" in role.permissions, role.key
 
 
 def test_the_stage_names_agree() -> None:

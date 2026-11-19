@@ -973,15 +973,15 @@ SUPPORT_AGENT).
 
 ## Admin console, suspension, disputes — Day 19
 
-- **Staff are members of the one PLATFORM tenant** (E10). Provision with
-  `scripts/create_platform_staff.py` (or `identity.service.provision_platform_staff`
-  as the migrator in tests -- `_staff` in `tests/integration/test_admin_console.py`);
-  there is no route. `guard_membership_tenant_type` refuses a staff role in any
-  other tenant and a customer role in ours, **generated from
-  `identity.domain.ROLE_TENANT_TYPE`**.
-- **Who may call what is `admin.domain.CONSOLE_ROLES`.** A new console route
-  needs its endpoint in `ROUTE_CAPABILITY` in `tests/invariants/test_admin_console.py`,
-  which drives every route with every staff role and every outsider. `/admin`
+- **Staff are members of the one PLATFORM tenant** (E10), all with membership
+  role `PLATFORM_STAFF` since 2026-11-19. What they may do is their console
+  roles -- see _Access management_ below. `guard_membership_tenant_type`
+  refuses a staff role in any other tenant and a customer role in ours,
+  **generated from `identity.domain.ROLE_TENANT_TYPE`**.
+- **Who may call what is permissions, not roles** (2026-11-19; `CONSOLE_ROLES`
+  is gone). A new console route uses `can("perm")` (`require_permission`) and
+  needs its endpoint in `ROUTE_PERMISSION` in `tests/invariants/test_admin_console.py`,
+  which drives every route with every system role and every outsider. `/admin`
   is no longer a cross-tenant surface; that test replaces it.
 - **Every cross-tenant read goes through `admin.service._reveal`**: audit row on
   the request's session first, then the read-only bypass session
@@ -1033,6 +1033,53 @@ the digits of `ravi 2024` would match every number holding a 2024.
 new queue section means a new entry there and never a check written by
 hand. It is one `_reveal` per load. Its tests assert deltas, because the
 counts cover the whole shared database.
+
+## Access management: staff roles and permissions — 2026-11-19
+
+`app/core/staff_permissions.py` (catalogue, system roles), `app/modules/access`
+(`/admin/access`), `app/core/auth/staff_access.py` (resolution), migration
+`0022_staff_access`, `docs/backend-guide/19`. Replaced `CONSOLE_ROLES`.
+
+- **Roles hold permissions; staff hold roles; access is the union.** No deny
+  rules. Nine system roles whose permissions are **code** (never rows, never
+  editable); custom roles are rows. `PLATFORM_ADMIN` became `SUPER_ADMIN` and
+  every other staff member kept the role of their old name, so nobody's access
+  changed.
+- **A permission exists only where a route enforces it.** No refund, job
+  moderation or export permission until those routes exist (the user,
+  2026-11-19). A test fails on a permission no route names.
+- **SUPER_ADMIN alone** holds `roles.manage`, `admins.invite`,
+  `admins.manage`, `audit.view` and `kyb.configure` (`super_admin_only`). A
+  CHECK generated from `GRANTABLE` stops one being stored on a custom role.
+  `candidates.leads` **requires** `candidate_contact.view` (the role is refused
+  without it, and its route checks both).
+- **The last active SUPER_ADMIN cannot be revoked or suspended**: the service
+  says 409 `last_super_admin`, and two triggers hold it for every writer
+  under the `staff_access` advisory lock. SUPER_ADMIN is never scoped or
+  expiring. **Nobody changes their own access** (`staff_self_change`).
+- **There is a route that grants staff access now** (`POST /admin/access/staff`,
+  the user's decision 2026-11-19, reversing "no route, deliberately"). What
+  makes that acceptable is the step-up below. Keep every access write CRITICAL.
+- **The step-up** (`require_permission`): HIGH and CRITICAL need
+  `X-Access-Reason` (percent-encoded), an enrolled Cognito authenticator
+  (`directory.mfa_enabled`, cached one TTL; off only via
+  `STAFF_MFA_REQUIRED=false` locally), and CRITICAL a sign-in within
+  `STAFF_RECENT_AUTH_SECONDS` (`auth_time`, kept across refreshes). Each use
+  writes `staff_sensitive_access` with the reason, IP and user agent.
+- **Scope is fail-closed.** An organisation-scoped grant counts only on a route
+  declared with `tenant_param`; everywhere else it grants nothing. Expiry is
+  evaluated per request, not per cache fill.
+- **A change bites on the next request**: every write calls
+  `staff_access.mark_changed` before commit (the tenant-suspension flag
+  technique). Suspending staff also ends their Cognito sessions
+  (`AdminUserGlobalSignOut`, best effort after the rows).
+- **`/auth/me`'s `role` is kept for the current portal** (`legacy_role`:
+  PLATFORM_ADMIN for SUPER_ADMIN, else the old name, else PLATFORM_STAFF); the
+  `staff` object is the real answer. Drop `legacy_role` when the portal reads it.
+- **Tests:** `_staff(mint_token, role)` takes a system key or an old name,
+  enrols MFA in `LocalAccountDirectory` and sends a reason; pass `mfa=False`
+  / `reason=False` to test the refusals. A service-level `ctx` for staff
+  needs `staff=StaffAccess.from_grants(...)`.
 
 ## Notifications and the relay — Day 19
 

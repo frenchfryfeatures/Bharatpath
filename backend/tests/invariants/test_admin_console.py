@@ -10,8 +10,12 @@ route added tomorrow is covered without anyone remembering to add it:
 2. **Every cross-tenant read writes its audit row first**, and a read whose
    audit row cannot be written returns nothing (SRS 2.24.5, invariant 7').
 
-Plus the permission table itself: every console route is guarded by exactly
-the staff roles `admin.domain.CONSOLE_ROLES` names, and nothing wider.
+Plus the permission table itself (2026-11-19, replacing `CONSOLE_ROLES`):
+every console route -- Access Management included -- requires exactly the
+permissions `ROUTE_PERMISSION` names, which is written out here rather than
+read from the router; every system role is driven at every route; every
+permission in the catalogue is enforced by some route; and a permission is
+`scopable` exactly when a route addressed by an organisation uses it.
 """
 
 from __future__ import annotations
@@ -21,8 +25,7 @@ from typing import Any
 
 import pytest
 
-from app.modules.admin.domain import CONSOLE_ROLES
-from app.modules.identity.domain import PLATFORM_ROLES
+from app.core.staff_permissions import BY_KEY, PERMISSION_KEYS, SYSTEM_ROLES
 from tests.integration.test_admin_console import _staff
 from tests.integration.test_candidate_marketplace import _candidate, _employer
 from tests.integration.test_college import _college
@@ -38,6 +41,15 @@ BODIES: dict[str, dict[str, Any]] = {
     "suspend": {"reason": "Invariant check"},
     "seats": {"seats": 1},
     "notification-suppressions": {"channel": "SMS", "reason": "SUPPORT_REQUEST"},
+    # Access management (2026-11-19). Each names a made-up id, so an admitted
+    # caller gets 404 and nothing is written.
+    "impact": {"name": "Invariant", "permissions": ["dashboard.view"]},
+    "duplicate": {"name": "Invariant copy"},
+    "staff": {
+        "email": "nobody-invariant@example.test",
+        "roles": [{"role_id": "00000000-0000-0000-0000-000000000000"}],
+    },
+    "roles": {"role_id": "00000000-0000-0000-0000-000000000000"},
 }
 
 
@@ -89,10 +101,10 @@ async def test_no_candidate_employer_or_college_reaches_any_console_route(
 async def test_each_console_route_admits_exactly_its_staff_roles(
     app: Any, client: Any, mint_token: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Driven, not read from the dependency tree: every staff role is sent to
-    every route, and a role outside the route's capability must get 403. A
-    role inside it may get anything but 403 -- 404 for the made-up id is the
-    ordinary answer."""
+    """Driven, not read from the dependency tree: every system role is sent to
+    every route, and a role that does not hold all of the route's permissions
+    must get 403. A role that does may get anything but 403 -- 404 for the
+    made-up id is the ordinary answer."""
     # Lists carry presigned logo links, and the shared database holds logos
     # other tests left behind; CI has no AWS credentials to sign them with.
     # Who may call a route is the question here, not S3.
@@ -102,114 +114,185 @@ async def test_each_console_route_admits_exactly_its_staff_roles(
         return f"https://signed.example/{bucket}/{key}"
 
     monkeypatch.setattr(storage, "presign_get", presign_get)
-    staff = {role: await _staff(mint_token, role) for role in sorted(PLATFORM_ROLES)}
+    staff = {key: await _staff(mint_token, key) for key in sorted(SYSTEM_ROLES)}
     mismatches = []
     for method, path in _console_operations(app):
+        if path == f"{ADMIN}/access/roles" and method == "POST":
+            continue  # would create a role per admitted caller; driven below
         url, body = _concrete(path), _body(path)
-        allowed = _capability_roles(app, method, path)
-        for role, member in staff.items():
+        needed = ROUTE_PERMISSION[_endpoint(app, method, path)]
+        for key, member in staff.items():
+            allowed = needed <= SYSTEM_ROLES[key].permissions
             response = await client.request(method, url, json=body, headers=member["headers"])
             refused = response.status_code == 403
-            if refused == (role in allowed):
-                mismatches.append(f"{role}: {method} {path} -> {response.status_code}")
+            if refused == allowed:
+                mismatches.append(f"{key}: {method} {path} -> {response.status_code}")
     assert not mismatches, mismatches
+
+
+async def test_creating_a_role_is_super_admins_alone(client: Any, mint_token: Any) -> None:
+    for key in sorted(SYSTEM_ROLES):
+        member = await _staff(mint_token, key)
+        body = {"name": f"Invariant {uuid.uuid4().hex[:8]}", "permissions": ["dashboard.view"]}
+        response = await client.post(f"{ADMIN}/access/roles", json=body, headers=member["headers"])
+        assert (response.status_code == 403) == (key != "SUPER_ADMIN"), (key, response.text)
 
 
 def _endpoint(app: Any, method: str, path: str) -> str:
     """The endpoint function's name, from FastAPI's generated operation id
-    (`<name>_<path>_<method>`). Read from the schema because included routers
-    are nested in `app.routes` and do not list their endpoints there."""
+    (`<name>_<path>_<method>`)."""
     operation_id = app.openapi()["paths"][path][method.lower()]["operationId"]
     return str(operation_id.split("_api_v1_admin")[0])
 
 
-def _capability_roles(app: Any, method: str, path: str) -> frozenset[str]:
-    """The roles a route should admit, looked up by its endpoint name in
-    `ROUTE_CAPABILITY` -- written out here rather than read from the router,
-    so a guard edited in the router without the table disagrees with it."""
-    return CONSOLE_ROLES[ROUTE_CAPABILITY[_endpoint(app, method, path)]]
+def _all_routes(routes: Any) -> list[Any]:
+    """Every endpoint route. FastAPI 0.141 keeps an included router nested
+    (`original_router`) rather than copying its routes onto the app. Only a
+    console route declares `require_permission`, so the walk needs no path."""
+    out: list[Any] = []
+    for route in routes:
+        nested = getattr(route, "original_router", None)
+        out.extend(_all_routes(nested.routes) if nested is not None else [route])
+    return out
 
 
-ROUTE_CAPABILITY: dict[str, Any] = {
-    "list_kyb_submissions": "kyb",
-    "open_kyb_submission": "kyb",
-    "decide_kyb": "kyb",
-    # 2026-10-09: reviewers can see the switch; only the admin flips it.
-    "kyb_approval_mode": "kyb",
-    "set_kyb_approval_mode": "kyb_policy",
-    "integrity_queue": "integrity",
-    "open_signal": "integrity",
-    "resolve_signal": "integrity",
-    "list_tenants": "tenants",
-    "suspend_tenant": "suspend",
-    "reinstate_tenant": "suspend",
-    "suspension_history": "tenants",
-    "allocate_seats": "seats",
-    "candidate_drilldown": "candidate_drilldown",
-    # 2026-09-23: whoever may open a candidate may find one.
-    "list_candidates": "candidate_drilldown",
-    # 2026-10-13: the sales follow-up list carries whole contacts.
-    "list_leads": "sales_leads",
-    "lead_summary": "sales_leads",
-    "employer_drilldown": "employer_drilldown",
-    "college_drilldown": "college_drilldown",
-    "suppress_notifications": "suppress_notifications",
-    "dispute_queue": "disputes",
-    "open_dispute": "disputes",
-    "assign_dispute": "disputes",
-    "resolve_dispute": "disputes",
-    "search_audit": "audit_search",
-    # 2026-09-18: accounts made on someone's behalf, and discount codes.
-    "account_forms": "accounts",
-    "provision_candidate": "accounts",
-    "provision_employer": "accounts",
-    "provision_college": "accounts",
-    "add_organisation_member": "accounts",
-    "resend_invitation": "resend_invitation",
-    "create_discount_code": "discounts",
-    "disable_discount_code": "discounts",
-    "list_discount_codes": "discounts_read",
-    "get_discount_code": "discounts_read",
-    "discount_redemptions": "discounts_read",
-    # 2026-09-23: the landing page, for all staff; its sections are gated inside.
-    "dashboard": "dashboard",
-    # 2026-09-24: the skills and cities employers filter by; support edits too.
-    "list_search_filter_options": "search_filters",
-    "create_search_filter_option": "search_filters",
-    "import_search_filter_options": "search_filters",
-    "get_search_filter_option": "search_filters",
-    "update_search_filter_option": "search_filters",
-    # 2026-09-29: the full candidate page. The CV and the recordings are
-    # larger reveals than the drill-down, each with its own capability; the
-    # onboarding page is the one with a whole contact.
-    "candidate_onboarding": "candidate_contact",
-    "candidate_resume": "candidate_resume",
-    "candidate_score_timeline": "candidate_drilldown",
-    "candidate_interviews": "candidate_drilldown",
-    "candidate_interview_recordings": "candidate_recordings",
-    "candidate_courses": "candidate_drilldown",
-    "candidate_applications": "candidate_drilldown",
-    # 2026-09-29: building the course, the admin's alone.
-    "list_courses": "courses",
-    "create_course_module": "courses",
-    "update_course_module": "courses",
-    "create_course_lesson": "courses",
-    "update_course_lesson": "courses",
-    "issue_lesson_upload": "courses",
-    "confirm_lesson_upload": "courses",
-    "publish_course": "courses",
+def _declared(app: Any) -> dict[str, tuple[tuple[str, ...], str | None]]:
+    """What each console route's guard actually declares: its permissions and
+    the path parameter naming the organisation it acts on."""
+    out: dict[str, tuple[tuple[str, ...], str | None]] = {}
+    for route in _all_routes(app.routes):
+        for dep in getattr(route, "dependencies", []):
+            needed = getattr(dep.dependency, "permissions", None)
+            if needed is not None:
+                out[route.name] = (needed, dep.dependency.tenant_param)
+    return out
+
+
+#: endpoint -> the permissions it requires, all of them. The empty set is
+#: "any member of staff" (the caller's own access).
+ROUTE_PERMISSION: dict[str, frozenset[str]] = {
+    endpoint: frozenset(needed)
+    for endpoint, needed in {
+        "dashboard": {"dashboard.view"},
+        "list_kyb_submissions": {"kyb.view"},
+        "open_kyb_submission": {"kyb.view"},
+        "decide_kyb": {"employers.approve_kyb"},
+        # Reviewers can see the switch; only a super admin flips it.
+        "kyb_approval_mode": {"kyb.view"},
+        "set_kyb_approval_mode": {"kyb.configure"},
+        "integrity_queue": {"integrity.view"},
+        "open_signal": {"integrity.view"},
+        "resolve_signal": {"integrity.resolve"},
+        "list_tenants": {"organisations.view"},
+        "suspension_history": {"organisations.view"},
+        "suspend_tenant": {"organisations.suspend"},
+        "reinstate_tenant": {"organisations.suspend"},
+        "allocate_seats": {"institutes.manage_seats"},
+        "list_candidates": {"candidates.view"},
+        "candidate_drilldown": {"candidates.view"},
+        "candidate_score_timeline": {"candidates.view"},
+        "candidate_interviews": {"candidates.view"},
+        "candidate_courses": {"candidates.view"},
+        "candidate_applications": {"candidates.view"},
+        # The sales follow-up list carries whole contacts: both, always.
+        "list_leads": {"candidates.leads", "candidate_contact.view"},
+        "lead_summary": {"candidates.leads", "candidate_contact.view"},
+        "candidate_onboarding": {"candidate_contact.view"},
+        "candidate_resume": {"resume.download"},
+        "candidate_interview_recordings": {"recordings.listen"},
+        "employer_drilldown": {"employers.view"},
+        "college_drilldown": {"institutes.view"},
+        "suppress_notifications": {"notifications.suppress"},
+        "dispute_queue": {"disputes.view"},
+        "open_dispute": {"disputes.view"},
+        "assign_dispute": {"disputes.resolve"},
+        "resolve_dispute": {"disputes.resolve"},
+        "search_audit": {"audit.view"},
+        "account_forms": {"accounts.create"},
+        "provision_candidate": {"accounts.create"},
+        "provision_employer": {"accounts.create"},
+        "provision_college": {"accounts.create"},
+        "add_organisation_member": {"accounts.create"},
+        "resend_invitation": {"accounts.resend_invitation"},
+        "create_discount_code": {"discounts.manage"},
+        "disable_discount_code": {"discounts.manage"},
+        "list_discount_codes": {"discounts.view"},
+        "get_discount_code": {"discounts.view"},
+        "discount_redemptions": {"discounts.view"},
+        "list_search_filter_options": {"taxonomy.view"},
+        "get_search_filter_option": {"taxonomy.view"},
+        "create_search_filter_option": {"taxonomy.create"},
+        "import_search_filter_options": {"taxonomy.import"},
+        "update_search_filter_option": {"taxonomy.edit"},
+        "list_courses": {"courses.view"},
+        "create_course_module": {"courses.manage"},
+        "update_course_module": {"courses.manage"},
+        "create_course_lesson": {"courses.manage"},
+        "update_course_lesson": {"courses.manage"},
+        "issue_lesson_upload": {"courses.manage"},
+        "confirm_lesson_upload": {"courses.manage"},
+        "publish_course": {"courses.publish"},
+        # Access management (2026-11-19).
+        "my_access": set(),
+        "list_permissions": {"admins.view"},
+        "list_roles": {"admins.view"},
+        "get_role": {"admins.view"},
+        "role_impact": {"admins.view"},
+        "create_role": {"roles.manage"},
+        "update_role": {"roles.manage"},
+        "duplicate_role": {"roles.manage"},
+        "archive_role": {"roles.manage"},
+        "list_staff": {"admins.view"},
+        "get_staff": {"admins.view"},
+        "invite_staff": {"admins.invite"},
+        "assign_role": {"admins.manage"},
+        "revoke_role": {"admins.manage"},
+        "suspend_staff": {"admins.manage"},
+        "reinstate_staff": {"admins.manage"},
+        "access_history": {"audit.view"},
+    }.items()
 }
 
 
-def test_every_console_endpoint_names_its_capability(app: Any) -> None:
-    endpoints = {_endpoint(app, method, path) for method, path in _console_operations(app)}
-    assert endpoints == set(ROUTE_CAPABILITY)
+def test_every_console_endpoint_names_its_permission(app: Any) -> None:
+    endpoints = [_endpoint(app, method, path) for method, path in _console_operations(app)]
+    assert len(endpoints) == len(set(endpoints)), "two console endpoints share a name"
+    assert set(endpoints) == set(ROUTE_PERMISSION)
+
+
+def test_the_router_declares_what_the_table_says(app: Any) -> None:
+    declared = _declared(app)
+    for endpoint, needed in ROUTE_PERMISSION.items():
+        if not needed:
+            assert endpoint not in declared, endpoint
+        else:
+            assert frozenset(declared[endpoint][0]) == needed, endpoint
+
+
+def test_every_permission_is_enforced_somewhere() -> None:
+    """A permission no route checks would be a checkbox in the role editor
+    that does nothing."""
+    used: set[str] = set().union(*ROUTE_PERMISSION.values())
+    assert used == PERMISSION_KEYS, sorted(PERMISSION_KEYS ^ used)
+
+
+def test_scopable_means_a_route_names_the_organisation(app: Any) -> None:
+    scoped = {
+        permission
+        for needed, param in _declared(app).values()
+        if param is not None
+        for permission in needed
+    }
+    assert scoped == {key for key, spec in BY_KEY.items() if spec.scopable}
 
 
 async def test_no_audit_row_means_no_reveal(client: Any, mint_token: Any, monkeypatch: Any) -> None:
     """Every cross-tenant read goes through `_reveal`, which audits before it
     opens the bypass session. If the audit write fails, nothing is read."""
+    from datetime import UTC, datetime
+
     from app.core.db import get_session_factory
+    from app.core.staff_permissions import Grant, StaffAccess
     from app.core.tenant import TenantContext
     from app.modules.admin import service as admin_service
 
@@ -219,8 +302,12 @@ async def test_no_audit_row_means_no_reveal(client: Any, mint_token: Any, monkey
     ctx = TenantContext(
         user_id=admin["user_id"],
         tenant_id=admin["tenant_id"],
-        role="PLATFORM_ADMIN",
+        role="PLATFORM_STAFF",
         pool="BUSINESS",
+        staff=StaffAccess.from_grants(
+            [Grant("SUPER_ADMIN", "Super Admin", SYSTEM_ROLES["SUPER_ADMIN"].permissions)],
+            now=datetime.now(UTC),
+        ),
     )
     opened: list[str] = []
 

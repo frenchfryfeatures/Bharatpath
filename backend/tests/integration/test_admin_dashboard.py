@@ -16,8 +16,8 @@ from typing import Any
 import pytest
 from sqlalchemy import text
 
+from app.core.staff_permissions import SYSTEM_ROLES
 from app.modules.admin.domain import THROUGHPUT_DAYS, dashboard_sections
-from app.modules.identity.domain import PLATFORM_ROLES
 from tests.conftest import _seed_url, sessions
 from tests.integration.test_admin_console import ADMIN, API, DISPUTES, _audit_rows, _scalar, _staff
 from tests.integration.test_candidate_marketplace import _candidate, _employer, _job
@@ -58,10 +58,10 @@ def _today(body: dict[str, Any]) -> dict[str, int]:
 async def test_each_role_sees_the_queues_it_can_open_and_nothing_more(
     client: Any, mint_token: Any
 ) -> None:
-    for role in sorted(PLATFORM_ROLES):
+    for role in sorted(SYSTEM_ROLES):
         body = await _load(client, await _staff(mint_token, role))
         shown = {section for section, (field, _) in SECTIONS.items() if body[field] is not None}
-        assert shown == dashboard_sections(role), role
+        assert shown == dashboard_sections(SYSTEM_ROLES[role].permissions), role
         types = {SECTIONS[section][1] for section in shown}
         assert {w["type"] for w in body["oldest_waiting"]} <= types, role
         assert body["platform_totals"] is not None

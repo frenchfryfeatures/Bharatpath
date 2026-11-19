@@ -72,6 +72,18 @@ class OtpStartResponse(_Base):
 # ---------------------------------------------------------------------------
 # Whoami
 # ---------------------------------------------------------------------------
+class StaffAccessSummary(_Base):
+    """A member of staff's console access (2026-11-19). The console shows
+    what this allows; the server checks every request regardless."""
+
+    roles: list[str] = Field(description="Role keys held now, e.g. SUPER_ADMIN, SUPPORT_AGENT.")
+    permissions: list[str] = Field(description="Permissions held for every organisation.")
+    scoped_permissions: list[str] = Field(
+        description="Permissions held only for some organisations."
+    )
+    is_super_admin: bool
+
+
 class MeResponse(_Base):
     """The caller's own identity, as resolved server-side.
 
@@ -81,9 +93,17 @@ class MeResponse(_Base):
     """
 
     user_id: uuid.UUID
-    role: str
+    role: str = Field(
+        description="The membership role. **For our staff this is deprecated**: it reads "
+        "PLATFORM_ADMIN, KYB_REVIEWER, INTEGRITY_REVIEWER or SUPPORT_AGENT for someone holding "
+        "that system role (PLATFORM_ADMIN for SUPER_ADMIN), else PLATFORM_STAFF, so the admin "
+        "portal keeps working while it moves to `staff`."
+    )
     pool: str
     tenant_id: uuid.UUID | None = None
+    staff: StaffAccessSummary | None = Field(
+        default=None, description="Our staff only: their roles and permissions."
+    )
     email: str | None = Field(
         default=None,
         description="The caller's own address, from our `users` row. Null only if none is held.",

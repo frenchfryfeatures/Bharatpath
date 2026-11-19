@@ -38,7 +38,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import storage
 from app.core.audit import AuditAction, audit_event
-from app.core.deps import PLATFORM_ADMIN
+from app.core.deps import PLATFORM_STAFF
 from app.core.errors import ConflictError, NotFoundError, PermissionDeniedError
 from app.core.errors import ValidationError as AppValidationError
 from app.core.logging import get_logger
@@ -81,7 +81,7 @@ logger = get_logger(__name__)
 SYSTEM_ACTOR: Final = "SYSTEM"
 
 #: Who may record a completion. Never CANDIDATE.
-COMPLETION_WRITER_ROLES: Final = frozenset({SYSTEM_ACTOR, PLATFORM_ADMIN})
+COMPLETION_WRITER_ROLES: Final = frozenset({SYSTEM_ACTOR, PLATFORM_STAFF})
 
 
 class CourseNotFoundError(NotFoundError):

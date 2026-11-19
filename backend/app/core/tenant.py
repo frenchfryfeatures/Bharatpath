@@ -16,6 +16,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
+from app.core.staff_permissions import StaffAccess
+
 
 @dataclass(frozen=True, slots=True)
 class TenantContext:
@@ -25,6 +27,16 @@ class TenantContext:
     tenant_id: UUID | None
     role: str
     pool: str
+    #: Our own staff only (role PLATFORM_STAFF): what their role assignments
+    #: grant, resolved from the database like the membership. None for
+    #: everyone else, which `can` answers False to.
+    staff: StaffAccess | None = None
+    #: When the token's holder last signed in; the CRITICAL step-up reads it.
+    auth_time: int | None = None
+
+    def can(self, permission: str, *, tenant_id: UUID | None = None) -> bool:
+        """Whether this caller holds a console permission (see `StaffAccess.can`)."""
+        return self.staff is not None and self.staff.can(permission, tenant_id=tenant_id)
 
     @property
     def is_tenant_scoped(self) -> bool:

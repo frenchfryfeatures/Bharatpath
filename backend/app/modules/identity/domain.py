@@ -20,12 +20,16 @@ from __future__ import annotations
 
 from typing import Final
 
+from app.core.staff_permissions import PLATFORM_STAFF
+
 TENANT_TYPES: Final = ("EMPLOYER", "COLLEGE", "PLATFORM")
 
-#: The staff roles. Held only in the PLATFORM tenant.
-PLATFORM_ROLES: Final[frozenset[str]] = frozenset(
-    {"PLATFORM_ADMIN", "KYB_REVIEWER", "INTEGRITY_REVIEWER", "SUPPORT_AGENT"}
-)
+#: The staff membership role. Held only in the PLATFORM tenant. Since
+#: 2026-11-19 it says only "a member of staff"; what they may do is their role
+#: assignments (`app.modules.access`, `app.core.staff_permissions`). The four
+#: roles it replaced became system roles of the same names (PLATFORM_ADMIN
+#: became SUPER_ADMIN) in migration 0022.
+PLATFORM_ROLES: Final[frozenset[str]] = frozenset({PLATFORM_STAFF})
 
 #: `role -> the tenant type it may be held in`. CANDIDATE is absent: a
 #: candidate belongs to no tenant and holds no membership at all.

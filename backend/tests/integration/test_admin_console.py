@@ -50,16 +50,47 @@ APP_URL = os.environ.get("DATABASE_URL", "")
 
 
 # --- helpers ------------------------------------------------------------------------
-async def _staff(mint_token: Any, role: str = "PLATFORM_ADMIN") -> dict[str, Any]:
-    from app.modules.identity import service as identity_service
+#: What every console request in the suite says it is for. HIGH and CRITICAL
+#: permissions refuse without one (`access_reason_required`).
+REASON = {"X-Access-Reason": "integration test"}
 
+
+async def _staff(
+    mint_token: Any,
+    role: str = "PLATFORM_ADMIN",
+    *,
+    roles: tuple[str, ...] | None = None,
+    mfa: bool = True,
+    reason: bool = True,
+) -> dict[str, Any]:
+    """A member of staff holding `role` -- a system role key, or one of the
+    four names from before 2026-11-19 (PLATFORM_ADMIN is SUPER_ADMIN) -- or
+    every one of `roles`. Enrolled in MFA and sending a reason unless told
+    otherwise, so the step-up on HIGH and CRITICAL routes passes and the test
+    is about what it says it is about."""
+    from app.core.auth.directory import get_account_directory
+    from app.core.staff_permissions import LEGACY_ROLE_TO_SYSTEM_ROLE
+    from app.modules.access import service as access_service
+
+    keys = [LEGACY_ROLE_TO_SYSTEM_ROLE.get(r, r) for r in (roles or (role,))]
     email = f"staff-{uuid.uuid4().hex[:12]}@example.test"
     async with sessions(_seed_url())() as session, session.begin():
-        tenant_id, user_id = await identity_service.provision_platform_staff(
-            session, email=email, role=role
+        tenant_id, user_id = await access_service.provision_staff(
+            session, email=email, role_keys=keys
         )
-    headers, _ = mint_token(pool="BUSINESS", email=email)
-    return {"headers": headers, "user_id": user_id, "tenant_id": tenant_id, "role": role}
+    headers, subject = mint_token(pool="BUSINESS", email=email)
+    if mfa:
+        get_account_directory().mfa_enrolled.add(subject)  # type: ignore[attr-defined]
+    if reason:
+        headers = {**headers, **REASON}
+    return {
+        "headers": headers,
+        "user_id": user_id,
+        "tenant_id": tenant_id,
+        "role": role,
+        "subject": subject,
+        "email": email,
+    }
 
 
 async def _scalar(sql: str, **params: Any) -> Any:
@@ -112,7 +143,7 @@ async def test_a_staff_role_cannot_be_held_outside_the_platform_tenant(
     client: Any, mint_token: Any
 ) -> None:
     """Held by the database, for every writer: an employer who could add a
-    PLATFORM_ADMIN to its own team would have handed itself the console."""
+    member of staff to its own team would have handed itself the console."""
     employer = await _employer(client, mint_token)
     staff = await _staff(mint_token)
     user_id = uuid.uuid4()
@@ -125,7 +156,7 @@ async def test_a_staff_role_cannot_be_held_outside_the_platform_tenant(
             {"u": str(user_id), "e": f"{user_id.hex[:12]}@example.test"},
         )
     for tenant_id, role in (
-        (employer["tenant_id"], "PLATFORM_ADMIN"),
+        (employer["tenant_id"], "PLATFORM_STAFF"),
         (str(staff["tenant_id"]), "EMPLOYER_OWNER"),
     ):
         with pytest.raises(DBAPIError, match="MEMBERSHIP_GUARD"):
@@ -140,7 +171,7 @@ async def test_a_staff_role_cannot_be_held_outside_the_platform_tenant(
 
     added = await client.post(
         f"{API}/employer/team",
-        json={"email": f"{uuid.uuid4().hex[:12]}@example.test", "role": "PLATFORM_ADMIN"},
+        json={"email": f"{uuid.uuid4().hex[:12]}@example.test", "role": "PLATFORM_STAFF"},
         headers=employer["headers"],
     )
     assert added.status_code in (409, 422), added.text

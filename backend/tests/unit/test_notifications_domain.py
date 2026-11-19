@@ -100,11 +100,14 @@ def test_a_submission_waiting_for_review_tells_staff_in_their_inbox_only() -> No
         assert plan.audience == "KYB_REVIEWERS" and plan.variables == ("employer",)
 
 
-def test_the_reviewers_told_are_the_ones_who_can_review() -> None:
-    from app.modules.admin.domain import CONSOLE_ROLES
-    from app.modules.notifications.domain import KYB_REVIEWER_ROLES
+def test_the_reviewers_told_are_the_ones_who_can_decide() -> None:
+    """The KYB queue's notice goes to whoever holds the permission the
+    decision route checks, not to a list of role names kept beside it."""
+    from app.core.staff_permissions import BY_KEY
+    from app.modules.notifications.domain import KYB_REVIEWER_PERMISSION
 
-    assert CONSOLE_ROLES["kyb"] == KYB_REVIEWER_ROLES
+    assert KYB_REVIEWER_PERMISSION == "employers.approve_kyb"
+    assert KYB_REVIEWER_PERMISSION in BY_KEY
 
 
 def test_a_college_learns_that_a_student_left_and_never_which() -> None:

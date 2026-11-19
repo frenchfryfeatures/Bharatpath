@@ -94,6 +94,7 @@ class LocalIdentityProvider:
         phone: str | None = None,
         email: str | None = None,
         ttl_seconds: int | None = None,
+        auth_time: int | None = None,
     ) -> tuple[str, str]:
         """Mint a token. Returns `(raw_token, subject)`.
 
@@ -112,6 +113,8 @@ class LocalIdentityProvider:
             "pool": pool,
             "iat": now,
             "exp": now + ttl,
+            # As Cognito does: the moment of sign-in, kept across refreshes.
+            "auth_time": now if auth_time is None else auth_time,
         }
         # Carried in the token so first sign-in needs no profile round trip.
         # Cognito access tokens do not include these; the identity service
@@ -151,6 +154,7 @@ class LocalIdentityProvider:
             pool=pool,
             phone=claims.get("phone_number"),
             email=claims.get("email"),
+            auth_time=claims.get("auth_time") if isinstance(claims.get("auth_time"), int) else None,
         )
 
     async def fetch_profile(self, raw_token: str, token: VerifiedToken) -> ProviderProfile:
