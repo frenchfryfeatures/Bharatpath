@@ -29,7 +29,7 @@ mkdir -p "$STAGE/init" "$STAGE/backend"
 cp deploy/docker-compose.prod.yml deploy/Caddyfile deploy/init_rds.sh "$STAGE/"
 cp backend/scripts/init_db_roles.sql backend/scripts/init_db_extensions.sql "$STAGE/init/"
 cp -r backend/Dockerfile backend/pyproject.toml backend/alembic.ini \
-      backend/app backend/alembic backend/scripts "$STAGE/backend/"
+      backend/app backend/alembic backend/scripts backend/data "$STAGE/backend/"
 find "$STAGE" -name __pycache__ -type d -prune -exec rm -rf {} +
 echo "$REVISION" > "$STAGE/REVISION"
 
