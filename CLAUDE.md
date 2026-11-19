@@ -54,7 +54,10 @@ Logs: `/tmp/bp_api.log`, `/tmp/bp_workers.log`. Use it instead of
 what runs now (2026-10-01): one EC2 host (API, worker, beat, Redis, Caddy) and
 Postgres on RDS, at `https://bharatpath-api.duckdns.org/api/v1`. A deploy is
 `BP_SSH_KEY=~/.ssh/bharatpath_ed25519 bash deploy/ship.sh 43.204.56.60`.
-**Celery's broker on the host is Redis, not SQS** — the SQS path never worked
+**That host is production** (2026-11-19), though its resources are named
+`-dev` and always will be; **UAT** is a full mirror at `13.235.1.169` in the
+Terraform workspace `uat` (`-var-file=uat.tfvars`) -- §0.5. Run `terraform
+workspace show` before every plan. **Celery's broker on the host is Redis, not SQS** — the SQS path never worked
 (`blockers.md` E44). §7 is the rest of the migration to ECS Fargate.
 
 **Run tests as CI does — bare `pytest`, not `python -m pytest`.** The latter puts

@@ -23,8 +23,9 @@ locals {
 resource "aws_s3_bucket" "this" {
   for_each = local.buckets
 
-  bucket        = local.bucket_names[each.key]
-  force_destroy = var.environment == "dev"
+  bucket = local.bucket_names[each.key]
+  # Production's buckets hold real candidates' CVs: never emptied by a destroy.
+  force_destroy = local.stage != "prod"
 }
 
 # Every one of these buckets holds personal data under DPDP. None of them

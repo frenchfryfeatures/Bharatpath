@@ -209,7 +209,7 @@ resource "aws_instance" "app" {
   user_data_replace_on_change = false # changing it must not destroy the box
 
   tags = {
-    Name = "${var.project}-app-${var.environment}"
+    Name = "${var.project}-app-${local.stage}"
   }
 
   lifecycle {
@@ -236,7 +236,7 @@ resource "aws_ebs_volume" "data" {
   encrypted         = true
 
   tags = {
-    Name = "${var.project}-data-${var.environment}"
+    Name = "${var.project}-data-${local.stage}"
   }
 
   lifecycle {
@@ -259,6 +259,6 @@ resource "aws_eip" "app" {
   domain   = "vpc"
 
   tags = {
-    Name = "${var.project}-app-${var.environment}"
+    Name = "${var.project}-app-${local.stage}"
   }
 }

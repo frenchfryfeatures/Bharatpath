@@ -9,6 +9,43 @@ states. Newest entries first.
 
 ---
 
+## 2026-11-19 — Production and UAT
+
+Asked for: the one AWS environment labelled production, and a UAT that is a
+full mirror of it. Branch `infra/uat-environment`. `aws-deployment.md` §0.5.
+
+- **Checked first: exactly one environment existed** (`bharatpath-*-dev`:
+  one EC2, one RDS, two Cognito pools, seven buckets, two queues; nothing in
+  other regions).
+- **Production is relabelled, not renamed.** New variable `stage` drives the
+  `Environment` and `Name` tags and `force_destroy` (now off for prod's
+  buckets); `environment` stays `dev` as the physical suffix because Cognito
+  pools, buckets and queues cannot be renamed. Applied: 0 added, 27
+  changed, 0 destroyed; API 200 afterwards. The app's `ENVIRONMENT=dev` is
+  untouched (the payments stub needs it).
+- **UAT is the `uat` workspace** with `uat.tfvars` (gitignored) over the
+  shared `deploy.auto.tfvars`. A validation on `environment` refuses a plan
+  whose value does not match the workspace -- tested: `uat` without the
+  var-file fails. Applied: 59 added, 0 changed, 0 destroyed. Elastic IP
+  `13.235.1.169`, RDS `bharatpath-uat`, separate Cognito pools.
+- **SES sender identity is account-wide**, so prod's state owns it and UAT
+  references it (`manage_email_sender_identity = false`). The budget is
+  account-wide too: prod's raised to $90, UAT creates none.
+- **Cost doubles to ~$86/month.** $73.89 of Free-plan credit left on
+  2026-11-19: upgrade to the Paid plan before mid-December or the account
+  closes with production in it.
+- **UAT is running production's commit `d171792`** at
+  `https://bharatpath-uat.duckdns.org/api/v1` (DuckDNS name made by the user,
+  Let's Encrypt certificate). `.env` from the `uat` workspace's
+  `host_env_file`, model/speech keys copied from production, its own webhook
+  secret; `init_rds.sh` (app role `bypassrls=false`); migrate wrote the
+  catalogue, 9 config keys and 156 filter options. Health 200, 230 paths as
+  production, `/auth/me` 401, worker ready, beat sending.
+- The home IP had changed again; the SSH rule was updated and applied in both workspaces.
+- **Still open:** no staff account on UAT yet.
+
+---
+
 ## 2026-11-03 (later) — Website restyled to the student portal; government jobs bulletin
 
 - `website/` now uses the student portal's look (purple `#5F4DB2`, ink

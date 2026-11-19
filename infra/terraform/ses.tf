@@ -54,7 +54,11 @@ locals {
   # The ARN of whichever identity exists, for the IAM grant and for Cognito.
   email_identity_arn = (
     local.domain_enabled ? try(aws_sesv2_email_identity.domain[0].arn, "") :
-    local.address_enabled ? try(aws_sesv2_email_identity.sender[0].arn, "") : ""
+    local.address_enabled ? (
+      var.manage_email_sender_identity
+      ? try(aws_sesv2_email_identity.sender[0].arn, "")
+      : "arn:aws:ses:${var.aws_region}:${data.aws_caller_identity.current.account_id}:identity/${var.email_sender_address}"
+    ) : ""
   )
 
   # Cognito wants `Name <address>`.
@@ -76,7 +80,7 @@ locals {
 # addresses and reaches no real candidate. Production access is a support
 # request -- see infra/README.md, and `docs/aws-deployment.md`.
 resource "aws_sesv2_email_identity" "sender" {
-  count          = local.address_enabled ? 1 : 0
+  count          = local.address_enabled && var.manage_email_sender_identity ? 1 : 0
   email_identity = var.email_sender_address
 }
 
