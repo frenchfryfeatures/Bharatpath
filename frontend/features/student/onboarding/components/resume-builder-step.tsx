@@ -23,6 +23,9 @@ import {
   type BuilderTemplateKey,
 } from "@/store/student";
 
+import {validateReviewedResume} from "./resume-review-validation";
+import contract from "@/lib/resume/editor-contract.json";
+
 type Experience = StructuredResume["experience"][number];
 type Education = StructuredResume["education"][number];
 type Project = StructuredResume["projects"][number];
@@ -30,12 +33,12 @@ type Certification = StructuredResume["certifications"][number];
 type Language = StructuredResume["languages"][number];
 type OtherSection = StructuredResume["other_sections"][number];
 type RowErrors = Record<string, string>;
+const rowHasErrors = (errors: RowErrors) => Object.values(errors).some(Boolean);
 
 const required = (value: string, label: string) => value.trim() ? "" : `Enter ${label}.`;
 const monthDateError = (value: string, label: string, isRequired = true) => {
   if (!value) return isRequired ? `Select ${label}.` : "";
-  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) return "";
-  if (/^\d{4}$/.test(value)) return `Select a month for ${label}.`;
+  if (/^(?:19|20)\d{2}(?:-(0[1-9]|1[0-2]))?$/.test(value)) return "";
   if (/^-(0[1-9]|1[0-2])$/.test(value)) return `Select a year for ${label}.`;
   return `Select a year and month for ${label}.`;
 };
@@ -44,7 +47,6 @@ const invalidOrder = (start: string, end: string) => {
   if (start.slice(0, 4) !== end.slice(0, 4)) return start.slice(0, 4) > end.slice(0, 4);
   return start.length === 7 && end.length === 7 && start > end;
 };
-const rowHasErrors = (errors: RowErrors) => Object.values(errors).some(Boolean);
 
 const validateExperience = (item: Experience): RowErrors => ({
   job_title: required(item.job_title, "a job title"),
@@ -55,8 +57,8 @@ const validateExperience = (item: Experience): RowErrors => ({
 const validateEducation = (item: Education): RowErrors => ({
   qualification: required(item.qualification, "a qualification"),
   institution: required(item.institution, "an institution"),
-  start_date: required(item.start_date, "a start year"),
-  end_date: required(item.end_date, "an end or expected year") || (invalidOrder(item.start_date, item.end_date) ? "End year must follow the start year." : ""),
+  start_date: monthDateError(item.start_date, "a start year"),
+  end_date: monthDateError(item.end_date, "an end or expected year") || (invalidOrder(item.start_date, item.end_date) ? "End year must follow the start year." : ""),
 });
 const validateProject = (item: Project): RowErrors => ({
   name: required(item.name, "a project name"),
@@ -76,27 +78,19 @@ const validateLanguage = (item: Language): RowErrors => ({
 });
 const validateOtherSection = (item: OtherSection): RowErrors => ({
   heading: required(item.heading, "a section heading"),
+  items: item.items.length ? "" : "Add at least one item.",
 });
-
-function hasInvalidRows(resume: StructuredResume) {
-  return resume.experience.some((item) => rowHasErrors(validateExperience(item)))
-    || resume.education.some((item) => rowHasErrors(validateEducation(item)))
-    || resume.projects.some((item) => rowHasErrors(validateProject(item)))
-    || resume.certifications.some((item) => rowHasErrors(validateCertification(item)))
-    || resume.languages.some((item) => rowHasErrors(validateLanguage(item)))
-    || resume.other_sections.some((item) => rowHasErrors(validateOtherSection(item)));
-}
 
 const input =
   "w-full rounded-lg border border-[#DDD6C7] bg-white px-3 py-2 text-[14px] text-[#0A1931] outline-none transition placeholder:text-[#9AA1AE] focus:border-[#5F4DB2] focus:ring-2 focus:ring-[#5F4DB2]/15";
 
 const blank = {
-  experience: (): Experience => ({ job_title: "", company: "", location: "", employment_type: "", start_date: "", end_date: "", is_current: false, description: "", highlights: [], skills_used: [] }),
-  education: (): Education => ({ qualification: "", field_of_study: "", institution: "", location: "", start_date: "", end_date: "", grade: "", description: "" }),
-  project: (): Project => ({ name: "", role: "", description: "", technologies: [], url: "", start_date: "", end_date: "" }),
-  certification: (): Certification => ({ name: "", issuer: "", issue_date: "", expiry_date: "", credential_id: "", url: "" }),
-  language: (): Language => ({ name: "", proficiency: "" }),
-  otherSection: (): OtherSection => ({ heading: "", items: [] }),
+  experience: (): Experience => structuredClone(contract.entries.experience),
+  education: (): Education => structuredClone(contract.entries.education),
+  project: (): Project => structuredClone(contract.entries.projects),
+  certification: (): Certification => structuredClone(contract.entries.certifications),
+  language: (): Language => structuredClone(contract.entries.languages),
+  otherSection: (): OtherSection => structuredClone(contract.entries.other_sections),
 };
 
 /**
@@ -108,6 +102,7 @@ export function ResumeBuilderStep({
   onBack,
   onSubmitted,
   initialTemplate,
+  initialContent,
   profileMode = false,
   profileSubmissionLabel,
   profileSubmissionDisabled = false,
@@ -118,6 +113,7 @@ export function ResumeBuilderStep({
   onBack: () => void;
   onSubmitted: (result: BuilderPush) => void | Promise<void>;
   initialTemplate?: BuilderTemplateKey;
+  initialContent?: StructuredResume;
   profileMode?: boolean;
   /** Overrides the profile submission button label. */
   profileSubmissionLabel?: string;
@@ -190,12 +186,13 @@ export function ResumeBuilderStep({
   useEffect(() => {
     if (!draftQuery.data || loaded.current) return;
     loaded.current = true;
-    const { content: initial, template_key, saved } = draftQuery.data;
+    const { content: savedContent, template_key, saved } = draftQuery.data;
+    const initial = initialContent ?? savedContent;
     setContent(initial);
     const chosenTemplate = initialTemplate ?? template_key;
     setTemplate(chosenTemplate);
     // An unsaved first draft counts as changed, so the candidate is nudged to save it.
-    setSavedSnapshot(saved ? snapshot(initial, template_key) : "");
+    setSavedSnapshot(saved ? snapshot(savedContent, template_key) : "");
     queueMicrotask(() => {
       if (profileMode && chosenTemplate !== template_key) {
         void saveEntryTemplate(initial, chosenTemplate);
@@ -223,7 +220,7 @@ export function ResumeBuilderStep({
 
   const validateBeforeAction = () => {
     if (!content) return false;
-    if (content.full_name.trim() && !hasInvalidRows(content)) return true;
+    if (!validateReviewedResume(content).length) return true;
     setShowValidation(true);
     setMobileTab("edit");
     setError("Complete or remove the highlighted entries before continuing.");
@@ -430,92 +427,8 @@ export function ResumeBuilderStep({
               <p className="text-[12px] leading-5 text-[#5F6B80]">Choose a template to preview it with your current details. Save to keep your choice.</p>
             </Section>
 
-            <Section id="builder-section-about" title="About you">
-              <Text label="Full name" value={content.full_name} onChange={(full_name) => patch({ full_name })} error={showValidation ? required(content.full_name, "your full name") : ""} />
-              <Text label="Headline" value={content.headline} onChange={(headline) => patch({ headline })} placeholder="e.g. Data Analyst" />
-              <Text label="City" value={content.location} onChange={(location) => patch({ location })} />
-              <Text label="Summary" value={content.summary} onChange={(summary) => patch({ summary })} multiline placeholder="Two or three lines about your work." />
-            </Section>
+            <ResumeContentFields content={content} onChange={next=>patch(next)} showValidation={showValidation}/>
 
-            <Section id="builder-section-contacts" title="Contact and links">
-              <Text label="Email" value={contacts.email} onChange={(email) => patch({ contacts: { ...contacts, email } })} />
-              <div className="flex min-w-0 flex-col gap-1">
-                <span className="text-[12px] font-semibold text-[#3A4761]">Phone</span>
-                <PhoneNumberInput
-                  variant="student-compact"
-                  value={contacts.phone}
-                  onChange={(phone) => patch({ contacts: { ...contacts, phone } })}
-                  ariaLabel="Phone"
-                  inputClassName={input}
-                />
-              </div>
-              <Text label="LinkedIn" value={contacts.linkedin} onChange={(linkedin) => patch({ contacts: { ...contacts, linkedin } })} />
-              <Text label="GitHub" value={contacts.github} onChange={(github) => patch({ contacts: { ...contacts, github } })} />
-              <Text label="Website" value={contacts.website} onChange={(website) => patch({ contacts: { ...contacts, website } })} />
-            </Section>
-
-            <Section id="builder-section-experience" title="Experience">
-              <Repeater items={content.experience} blank={blank.experience} validate={validateExperience} showErrors={showValidation} onChange={(experience) => patch({ experience })} addLabel="Add experience" empty="Freshers can leave this empty."
-                render={(item, set, errors) => (<>
-                  <Row><Text label="Job title" value={item.job_title} onChange={(job_title) => set({ job_title })} error={errors.job_title} /><Text label="Company" value={item.company} onChange={(company) => set({ company })} error={errors.company} /></Row>
-                  <Row><PartialDateField label="Start date" value={item.start_date} onChange={(start_date) => set({ start_date })} error={errors.start_date} />
-                    <PartialDateField label="End date" value={item.is_current ? "" : item.end_date} disabled={item.is_current} onChange={(end_date) => set({ end_date })} error={errors.end_date} /></Row>
-                  <label className="flex items-center gap-2 text-[13px]"><input type="checkbox" checked={item.is_current} onChange={(event) => set({ is_current: event.target.checked, end_date: event.target.checked ? "" : item.end_date })} /> I work here now</label>
-                  <Text label="Location" value={item.location} onChange={(location) => set({ location })} />
-                  <Text label="What you did" value={item.description} onChange={(description) => set({ description })} multiline />
-                  <ListText label="Highlights (one per line)" value={item.highlights} onChange={(highlights) => set({ highlights })} lines />
-                </>)} />
-            </Section>
-
-            <Section id="builder-section-education" title="Education">
-              <Repeater items={content.education} blank={blank.education} validate={validateEducation} showErrors={showValidation} onChange={(education) => patch({ education })} addLabel="Add education"
-                render={(item, set, errors) => (<>
-                  <Row><Text label="Qualification" value={item.qualification} onChange={(qualification) => set({ qualification })} placeholder="B.Com" error={errors.qualification} /><Text label="Field of study" value={item.field_of_study} onChange={(field_of_study) => set({ field_of_study })} /></Row>
-                  <Text label="Institution" value={item.institution} onChange={(institution) => set({ institution })} error={errors.institution} />
-                  <Text label="Institution city" value={item.location} onChange={(location) => set({ location })} placeholder="e.g. Mumbai" />
-                  <Row><PartialDateField label="Start year" value={item.start_date} onChange={(start_date) => set({ start_date })} yearOnly error={errors.start_date} /><PartialDateField label="End / expected year" value={item.end_date} onChange={(end_date) => set({ end_date })} yearOnly error={errors.end_date} /></Row>
-                  <Text label="Grade" value={item.grade} onChange={(grade) => set({ grade })} placeholder="8.4 CGPA" />
-                </>)} />
-            </Section>
-
-            <Section id="builder-section-skills" title="Skills">
-              <BadgeListField label="Skills" singular="skill" value={content.skills} onChange={(skills) => patch({ skills })} maxItems={150} maxLength={300} />
-            </Section>
-
-            <Section id="builder-section-projects" title="Projects">
-              <Repeater items={content.projects} blank={blank.project} validate={validateProject} showErrors={showValidation} onChange={(projects) => patch({ projects })} addLabel="Add a project" empty="Add projects to make your resume stronger."
-                render={(item, set, errors) => (<>
-                  <Row><Text label="Project name" value={item.name} onChange={(name) => set({ name })} error={errors.name} /><Text label="Your role" value={item.role} onChange={(role) => set({ role })} /></Row>
-                  <Text label="Description" value={item.description} onChange={(description) => set({ description })} multiline placeholder="What it does and what you built." error={errors.description} />
-                  <ListText label="Technologies (comma separated)" value={item.technologies} onChange={(technologies) => set({ technologies })} />
-                  <Text label="Link" value={item.url} onChange={(url) => set({ url })} />
-                  <Row><PartialDateField label="Start date" value={item.start_date} onChange={(start_date) => set({ start_date })} error={errors.start_date} /><PartialDateField label="End date" value={item.end_date} onChange={(end_date) => set({ end_date })} error={errors.end_date} /></Row>
-                </>)} />
-            </Section>
-
-            <Section id="builder-section-certifications" title="Certifications">
-              <Repeater items={content.certifications} blank={blank.certification} validate={validateCertification} showErrors={showValidation} onChange={(certifications) => patch({ certifications })} addLabel="Add certification"
-                render={(item, set, errors) => (<>
-                  <Row><Text label="Name" value={item.name} onChange={(name) => set({ name })} error={errors.name} /><Text label="Issued by" value={item.issuer} onChange={(issuer) => set({ issuer })} error={errors.issuer} /></Row>
-                  <Row><PartialDateField label="Issue date" value={item.issue_date} onChange={(issue_date) => set({ issue_date })} error={errors.issue_date} /><PartialDateField label="Expiry date" value={item.expiry_date} onChange={(expiry_date) => set({ expiry_date })} error={errors.expiry_date} /></Row>
-                </>)} />
-            </Section>
-
-            <Section id="builder-section-languages" title="Languages">
-              <Repeater items={content.languages} blank={blank.language} validate={validateLanguage} showErrors={showValidation} onChange={(languages) => patch({ languages })} addLabel="Add language"
-                render={(item, set, errors) => (
-                  <Row><Text label="Language" value={item.name} onChange={(name) => set({ name })} error={errors.name} /><ProficiencyField value={item.proficiency} onChange={(proficiency) => set({ proficiency })} error={errors.proficiency} /></Row>
-                )} />
-            </Section>
-
-            <Section id="builder-section-achievements-and-interests" title="Achievements and interests">
-              <BadgeListField label="Achievements" singular="achievement" value={content.achievements} onChange={(achievements) => patch({ achievements })} maxItems={60} maxLength={5000} />
-              <BadgeListField label="Interests" singular="interest" value={content.interests} onChange={(interests) => patch({ interests })} maxItems={40} maxLength={300} />
-            </Section>
-            <Section id="builder-section-other-sections" title="Other sections">
-              <Repeater items={content.other_sections} blank={blank.otherSection} validate={validateOtherSection} showErrors={showValidation} onChange={(other_sections) => patch({ other_sections })} addLabel="Add other section" empty="Add an extra section for details that do not fit elsewhere."
-                render={(item, set, errors) => <><Text label="Section heading" value={item.heading} onChange={(heading) => set({ heading })} error={errors.heading} /><ListText label="Items (one per line)" value={item.items} onChange={(items) => set({ items })} lines /></>} />
-            </Section>
           </div>
         </div>
 
@@ -556,6 +469,108 @@ function Section({ id, title, action, children }: { id?: string; title: string; 
 }
 
 const Row = ({ children }: { children: ReactNode }) => <div className="grid gap-3 sm:grid-cols-2">{children}</div>;
+
+export function ResumeContentFields({content,onChange,showValidation=false}:{content:StructuredResume;onChange:(next:StructuredResume)=>void;showValidation?:boolean}) {
+ const contacts=content.contacts;
+ const patch=(values:Partial<StructuredResume>)=>onChange({...content,...values});
+ return <>
+            <Section id="builder-section-about" title="About you">
+              <Text label="Full name" value={content.full_name} onChange={(full_name) => patch({ full_name })} error={showValidation ? required(content.full_name, "your full name") : ""} />
+              <Text label="Headline" value={content.headline} onChange={(headline) => patch({ headline })} placeholder="e.g. Data Analyst" />
+              <Text label="City" value={content.location} onChange={(location) => patch({ location })} />
+              <Text label="Summary" value={content.summary} onChange={(summary) => patch({ summary })} multiline placeholder="Two or three lines about your work." />
+            </Section>
+
+            <Section id="builder-section-contacts" title="Contact and links">
+              <Text label="Email" error={showValidation ? validateReviewedResume(content).find(issue=>issue.path.join(".") === "contacts.email")?.message : undefined} value={contacts.email} onChange={(email) => patch({ contacts: { ...contacts, email } })} />
+              <div className="flex min-w-0 flex-col gap-1">
+                <span className="text-[12px] font-semibold text-[#3A4761]">Phone</span>
+                <PhoneNumberInput
+                  variant="student-compact"
+                  value={contacts.phone}
+                  onChange={(phone) => patch({ contacts: { ...contacts, phone } })}
+                  ariaLabel="Phone"
+                  inputClassName={input}
+                />
+              </div>
+              <Text label="LinkedIn" value={contacts.linkedin} onChange={(linkedin) => patch({ contacts: { ...contacts, linkedin } })} />
+              <Text label="GitHub" value={contacts.github} onChange={(github) => patch({ contacts: { ...contacts, github } })} />
+              <Text label="Website" value={contacts.website} onChange={(website) => patch({ contacts: { ...contacts, website } })} />
+              {([['behance','Behance'],['instagram','Instagram'],['tiktok','TikTok'],['pinterest','Pinterest'],['x_twitter','X / Twitter'],['medium','Medium'],['dev_to','DEV Community'],['stack_overflow','Stack Overflow']] as const).map(([key,label])=><Text key={key} label={label} value={contacts[key]} onChange={value=>patch({contacts:{...contacts,[key]:value}})}/>)}
+              <Repeater items={contacts.others} validate={item=>({label:required(item.label,"a link label"),url:required(item.url,"a link URL")})} showErrors={showValidation} blank={()=>structuredClone(contract.entries.others)} onChange={others=>patch({contacts:{...contacts,others}})} addLabel="Add another link" render={(item,set)=><Row><Text label="Link label" value={item.label} onChange={label=>set({label})}/><Text label="URL" value={item.url} onChange={url=>set({url})}/></Row>}/>
+
+            </Section>
+
+            <Section id="builder-section-experience" title="Experience">
+              <Repeater items={content.experience} blank={blank.experience} validate={validateExperience} showErrors={showValidation} onChange={(experience) => patch({ experience })} addLabel="Add experience" empty="Freshers can leave this empty."
+                render={(item, set, errors) => (<>
+                  <Row><Text label="Job title" value={item.job_title} onChange={(job_title) => set({ job_title })} error={errors.job_title} /><Text label="Company" value={item.company} onChange={(company) => set({ company })} error={errors.company} /></Row>
+                  <Row><PartialDateField label="Start date" value={item.start_date} onChange={(start_date) => set({ start_date })} error={errors.start_date} />
+                    <PartialDateField label="End date" value={item.is_current ? "" : item.end_date} disabled={item.is_current} onChange={(end_date) => set({ end_date })} error={errors.end_date} /></Row>
+                  <label className="flex items-center gap-2 text-[13px]"><input type="checkbox" checked={item.is_current} onChange={(event) => set({ is_current: event.target.checked, end_date: event.target.checked ? "" : item.end_date })} /> I work here now</label>
+                  <Text label="Location" value={item.location} onChange={(location) => set({ location })} />
+                  <Text label="Employment type" value={item.employment_type} onChange={employment_type=>set({employment_type})}/>
+                  <Text label="What you did" value={item.description} onChange={(description) => set({ description })} multiline />
+                  <ListText label="Highlights (one per line)" value={item.highlights} onChange={(highlights) => set({ highlights })} lines />
+                  <ListText label="Skills used (comma separated)" value={item.skills_used} onChange={skills_used=>set({skills_used})}/>
+                </>)} />
+            </Section>
+
+            <Section id="builder-section-education" title="Education">
+              <Repeater items={content.education} blank={blank.education} validate={validateEducation} showErrors={showValidation} onChange={(education) => patch({ education })} addLabel="Add education"
+                render={(item, set, errors) => (<>
+                  <Row><Text label="Qualification" value={item.qualification} onChange={(qualification) => set({ qualification })} placeholder="B.Com" error={errors.qualification} /><Text label="Field of study" value={item.field_of_study} onChange={(field_of_study) => set({ field_of_study })} /></Row>
+                  <Text label="Institution" value={item.institution} onChange={(institution) => set({ institution })} error={errors.institution} />
+                  <Text label="Institution city" value={item.location} onChange={(location) => set({ location })} placeholder="e.g. Mumbai" />
+                  <Row><PartialDateField label="Start year" value={item.start_date} onChange={(start_date) => set({ start_date })} yearOnly error={errors.start_date} /><PartialDateField label="End / expected year" value={item.end_date} onChange={(end_date) => set({ end_date })} yearOnly error={errors.end_date} /></Row>
+                  <Text label="Grade" value={item.grade} onChange={(grade) => set({ grade })} placeholder="8.4 CGPA" />
+                  <Text label="Description" value={item.description} onChange={description=>set({description})} multiline/>
+                </>)} />
+            </Section>
+
+            <Section id="builder-section-skills" title="Skills">
+              <BadgeListField label="Skills" singular="skill" value={content.skills} onChange={(skills) => patch({ skills })} maxItems={150} maxLength={300} />
+            </Section>
+
+            <Section id="builder-section-projects" title="Projects">
+              <Repeater items={content.projects} blank={blank.project} validate={validateProject} showErrors={showValidation} onChange={(projects) => patch({ projects })} addLabel="Add a project" empty="Add projects to make your resume stronger."
+                render={(item, set, errors) => (<>
+                  <Row><Text label="Project name" value={item.name} onChange={(name) => set({ name })} error={errors.name} /><Text label="Your role" value={item.role} onChange={(role) => set({ role })} /></Row>
+                  <Text label="Description" value={item.description} onChange={(description) => set({ description })} multiline placeholder="What it does and what you built." error={errors.description} />
+                  <ListText label="Technologies (comma separated)" value={item.technologies} onChange={(technologies) => set({ technologies })} />
+                  <Text label="Link" value={item.url} onChange={(url) => set({ url })} />
+                  <Row><PartialDateField label="Start date" value={item.start_date} onChange={(start_date) => set({ start_date })} error={errors.start_date} /><PartialDateField label="End date" value={item.end_date} onChange={(end_date) => set({ end_date })} error={errors.end_date} /></Row>
+                </>)} />
+            </Section>
+
+            <Section id="builder-section-certifications" title="Certifications">
+              <Repeater items={content.certifications} blank={blank.certification} validate={validateCertification} showErrors={showValidation} onChange={(certifications) => patch({ certifications })} addLabel="Add certification"
+                render={(item, set, errors) => (<>
+                  <Row><Text label="Name" value={item.name} onChange={(name) => set({ name })} error={errors.name} /><Text label="Issued by" value={item.issuer} onChange={(issuer) => set({ issuer })} error={errors.issuer} /></Row>
+                  <Row><PartialDateField label="Issue date" value={item.issue_date} onChange={(issue_date) => set({ issue_date })} error={errors.issue_date} /><PartialDateField label="Expiry date" value={item.expiry_date} onChange={(expiry_date) => set({ expiry_date })} error={errors.expiry_date} /></Row>
+                  <Text label="Credential ID" value={item.credential_id} onChange={credential_id=>set({credential_id})}/>
+                  <Text label="Credential URL" value={item.url} onChange={url=>set({url})}/>
+
+                </>)} />
+            </Section>
+
+            <Section id="builder-section-languages" title="Languages">
+              <Repeater items={content.languages} blank={blank.language} validate={validateLanguage} showErrors={showValidation} onChange={(languages) => patch({ languages })} addLabel="Add language"
+                render={(item, set, errors) => (
+                  <Row><Text label="Language" value={item.name} onChange={(name) => set({ name })} error={errors.name} /><ProficiencyField value={item.proficiency} onChange={(proficiency) => set({ proficiency })} error={errors.proficiency} /></Row>
+                )} />
+            </Section>
+
+            <Section id="builder-section-achievements-and-interests" title="Achievements and interests">
+              <BadgeListField label="Achievements" singular="achievement" value={content.achievements} onChange={(achievements) => patch({ achievements })} maxItems={60} maxLength={5000} />
+              <BadgeListField label="Interests" singular="interest" value={content.interests} onChange={(interests) => patch({ interests })} maxItems={40} maxLength={300} />
+            </Section>
+            <Section id="builder-section-other-sections" title="Other sections">
+              <Repeater items={content.other_sections} blank={blank.otherSection} validate={validateOtherSection} showErrors={showValidation} onChange={(other_sections) => patch({ other_sections })} addLabel="Add other section" empty="Add an extra section for details that do not fit elsewhere."
+                render={(item, set, errors) => <><Text label="Section heading" value={item.heading} onChange={(heading) => set({ heading })} error={errors.heading} /><ListText label="Items (one per line)" value={item.items} onChange={(items) => set({ items })} lines /></>} />
+            </Section>
+ </>;
+}
 
 function Text({ label, value, onChange, multiline, placeholder, disabled, error }: {
   label: string; value: string; onChange: (value: string) => void; multiline?: boolean; placeholder?: string; disabled?: boolean; error?: string;

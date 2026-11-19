@@ -1,0 +1,111 @@
+﻿Application,Group,Package or requirement,Declared version
+frontend,dependencies,@hookform/resolvers,^5.9.1
+frontend,dependencies,@reduxjs/toolkit,^2.12.0
+frontend,dependencies,@tanstack/react-query,^5.102.8
+frontend,dependencies,aws-amplify,^6.16.0
+frontend,dependencies,libphonenumber-js,^1.13.15
+frontend,dependencies,lucide-react,^1.43.0
+frontend,dependencies,next,16.3.4
+frontend,dependencies,qrcode,^1.5.4
+frontend,dependencies,react,19.2.8
+frontend,dependencies,react-dom,19.2.8
+frontend,dependencies,react-hook-form,^7.87.0
+frontend,dependencies,react-redux,^9.3.0
+frontend,dependencies,zod,^4.5.4
+frontend,devDependencies,@tailwindcss/postcss,^4
+frontend,devDependencies,@types/node,^20
+frontend,devDependencies,@types/qrcode,^1.5.5
+frontend,devDependencies,@types/react,^19
+frontend,devDependencies,@types/react-dom,^19
+frontend,devDependencies,eslint,^9
+frontend,devDependencies,eslint-config-next,16.3.4
+frontend,devDependencies,tailwindcss,^4
+frontend,devDependencies,typescript,^5
+mobile-app,dependencies,@expo-google-fonts/inter,^0.4.2
+mobile-app,dependencies,@expo-google-fonts/noto-sans-devanagari,^0.4.1
+mobile-app,dependencies,@expo-google-fonts/space-mono,^0.4.2
+mobile-app,dependencies,@expo/vector-icons,^15.0.3
+mobile-app,dependencies,@lucide/lab,^0.1.2
+mobile-app,dependencies,@react-native-async-storage/async-storage,2.2.0
+mobile-app,dependencies,@react-navigation/bottom-tabs,^7.2.0
+mobile-app,dependencies,@react-navigation/native,^7.0.14
+mobile-app,dependencies,@supabase/supabase-js,^2.58.0
+mobile-app,dependencies,babel-preset-expo,~54.0.10
+mobile-app,dependencies,expo,~54.0.37
+mobile-app,dependencies,expo-asset,~12.0.13
+mobile-app,dependencies,expo-audio,~1.1.1
+mobile-app,dependencies,expo-blur,~15.0.8
+mobile-app,dependencies,expo-camera,~17.0.10
+mobile-app,dependencies,expo-constants,~18.0.14
+mobile-app,dependencies,expo-document-picker,~14.0.8
+mobile-app,dependencies,expo-file-system,~19.0.24
+mobile-app,dependencies,expo-font,~14.0.12
+mobile-app,dependencies,expo-haptics,~15.0.8
+mobile-app,dependencies,expo-image-picker,~17.0.11
+mobile-app,dependencies,expo-linear-gradient,~15.0.8
+mobile-app,dependencies,expo-linking,~8.0.12
+mobile-app,dependencies,expo-notifications,^0.32.17
+mobile-app,dependencies,expo-router,~6.0.24
+mobile-app,dependencies,expo-sharing,~14.0.8
+mobile-app,dependencies,expo-speech,~14.0.8
+mobile-app,dependencies,expo-splash-screen,~31.0.13
+mobile-app,dependencies,expo-status-bar,~3.0.9
+mobile-app,dependencies,expo-symbols,~1.0.8
+mobile-app,dependencies,expo-system-ui,~6.0.9
+mobile-app,dependencies,expo-web-browser,~15.0.11
+mobile-app,dependencies,libphonenumber-js,^1.13.15
+mobile-app,dependencies,lucide-react-native,^0.544.0
+mobile-app,dependencies,phosphor-react-native,^3.0.6
+mobile-app,dependencies,react,19.1.0
+mobile-app,dependencies,react-dom,19.1.0
+mobile-app,dependencies,react-native,0.81.5
+mobile-app,dependencies,react-native-gesture-handler,~2.28.0
+mobile-app,dependencies,react-native-reanimated,~4.1.1
+mobile-app,dependencies,react-native-safe-area-context,~5.6.0
+mobile-app,dependencies,react-native-screens,~4.16.0
+mobile-app,dependencies,react-native-svg,15.12.1
+mobile-app,dependencies,react-native-url-polyfill,^2.0.0
+mobile-app,dependencies,react-native-web,^0.21.0
+mobile-app,dependencies,react-native-webview,13.15.0
+mobile-app,dependencies,react-native-worklets,0.5.1
+mobile-app,devDependencies,@babel/core,^7.25.2
+mobile-app,devDependencies,@expo/ngrok,^4.1.3
+mobile-app,devDependencies,@types/react,~19.1.10
+mobile-app,devDependencies,eslint,^9.0.0
+mobile-app,devDependencies,eslint-config-expo,~10.0.0
+mobile-app,devDependencies,typescript,~5.9.2
+backend,runtime,fastapi>=0.115,See requirement
+backend,runtime,uvicorn[standard]>=0.32,See requirement
+backend,runtime,pydantic>=2.9,See requirement
+backend,runtime,pydantic-settings>=2.6,See requirement
+backend,runtime,python-multipart>=0.0.12,See requirement
+backend,runtime,"sqlalchemy[asyncio]>=2.0.36,<2.1",See requirement
+backend,runtime,asyncpg>=0.30,See requirement
+backend,runtime,alembic>=1.14,See requirement
+backend,runtime,redis>=5.2,See requirement
+backend,runtime,celery[sqs]>=5.4,See requirement
+backend,runtime,boto3>=1.35,See requirement
+backend,runtime,pypdf>=5.1,See requirement
+backend,runtime,pypdfium2>=4.30,See requirement
+backend,runtime,Pillow>=10.4,See requirement
+backend,runtime,python-docx>=1.1,See requirement
+backend,runtime,"typst>=0.13.2,<0.14",See requirement
+backend,runtime,pyjwt[crypto]>=2.10,See requirement
+backend,runtime,httpx>=0.28,See requirement
+backend,runtime,structlog>=24.4,See requirement
+backend,runtime,opentelemetry-api>=1.28,See requirement
+backend,runtime,opentelemetry-sdk>=1.28,See requirement
+backend,runtime,opentelemetry-instrumentation-fastapi>=0.49b0,See requirement
+backend,dev,pytest>=8.3,See requirement
+backend,dev,pytest-asyncio>=0.24,See requirement
+backend,dev,pytest-cov>=6.0,See requirement
+backend,dev,hypothesis>=6.115,See requirement
+backend,dev,testcontainers[postgres]>=4.8,See requirement
+backend,dev,schemathesis>=3.38,See requirement
+backend,dev,polyfactory>=2.18,See requirement
+backend,dev,ruff>=0.8,See requirement
+backend,dev,mypy>=1.13,See requirement
+backend,dev,import-linter>=2.1,See requirement
+backend,dev,pre-commit>=4.0,See requirement
+backend,dev,types-boto3,See requirement
+backend,build,setuptools>=75,See requirement

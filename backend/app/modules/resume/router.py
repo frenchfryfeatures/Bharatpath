@@ -14,9 +14,10 @@ the build if any route below becomes reachable without a token.
 from __future__ import annotations
 
 import uuid
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Body, Depends, File, UploadFile, status
+from fastapi.responses import Response
 
 from app.core.deps import (
     CANDIDATE,
@@ -46,7 +47,7 @@ from app.modules.resume.schemas import (
 )
 from app.modules.resume.sections import section_items, split_sections
 from app.modules.resume.structuring import STORED_KEY as STRUCTURED_KEY
-from app.modules.resume.structuring import structured_view
+from app.modules.resume.structuring import StructuredResume, structured_view
 from app.settings import get_settings
 
 router = APIRouter()
@@ -236,6 +237,25 @@ async def manual_entry(
     age-gating, and `scripts/check_no_age_fields.py` fails the build on one.
     """
     row = await service.create_manual_version(session, user_id=user.user_id, payload=payload)
+    return ResumeVersionResponse(
+        resume_version_id=row.id,
+        source="MANUAL",
+        confirmed=row.confirmed_at is not None,
+        created_at=row.created_at,
+    )
+
+
+@router.post(
+    "/document",
+    response_model=ResumeVersionResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[CandidateOnly],
+    summary="Submit the complete structured resume document",
+)
+async def document_entry(
+    payload: StructuredResume, user: CurrentUser, session: DbSession
+) -> ResumeVersionResponse:
+    row = await service.create_document_version(session, user_id=user.user_id, document=payload)
     return ResumeVersionResponse(
         resume_version_id=row.id,
         source="MANUAL",
@@ -435,3 +455,28 @@ async def resume_preview(
     return await service.profile_resume_preview(
         session, user_id=user.user_id, resume_version_id=resume_version_id
     )
+
+
+@router.get("/versions/{resume_version_id}/render", dependencies=[CandidateOnly])
+async def render_review_document(
+    resume_version_id: uuid.UUID,
+    user: CurrentUser,
+    session: DbSession,
+    response: Response,
+    format: Literal["pdf", "png"] = "pdf",
+) -> Any:
+    """Preview or download saved review details, including manual/pasted resumes."""
+    response.headers["Cache-Control"] = "no-store"
+    result = await service.render_review_document(
+        session, user_id=user.user_id, resume_version_id=resume_version_id, preview=format == "png"
+    )
+    if isinstance(result, bytes):
+        return Response(
+            result,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": 'attachment; filename="Resume.pdf"',
+                "Cache-Control": "no-store",
+            },
+        )
+    return result

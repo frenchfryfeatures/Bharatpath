@@ -37,6 +37,7 @@ from celery.schedules import crontab, schedule
 #: wrong beyond the interval. `tests/unit/test_beat_schedule.py` asserts it
 #: against the registered task signatures.
 BEAT_SCHEDULE: Final[dict[str, dict[str, object]]] = {
+    "profile-insights": {"task":"insights.aggregate", "schedule":schedule(run_every=60.0), "options":{"expires":55.0}},
     # -- the one that is not really periodic -------------------------------
     # The relay is the heart of the system: nothing is granted, sent,
     # re-scored or dispatched until it runs, because every one of those is

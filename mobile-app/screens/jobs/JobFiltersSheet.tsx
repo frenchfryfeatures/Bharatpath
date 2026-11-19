@@ -30,7 +30,7 @@ import {
   MapPin,
   CurrencyInr,
   Briefcase,
-  Sparkle,
+  Wrench,
   Check,
   X,
 } from 'phosphor-react-native';
@@ -118,40 +118,18 @@ export function JobFiltersSheet({
               <Funnel size={12} color="#A87C17" weight="bold" />
               <Text style={styles.eyebrowText}>SHOW ME</Text>
             </View>
-            <View style={styles.toggleRow}>
-              <Pressable
-                style={[
-                  styles.toggleButton,
-                  !draft.eligible_only && styles.toggleButtonActive,
-                ]}
-                onPress={() => update({ eligible_only: false })}
-              >
-                <Text
-                  style={[
-                    styles.toggleText,
-                    !draft.eligible_only && styles.toggleTextActive,
-                  ]}
-                >
-                  All jobs
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[
-                  styles.toggleButton,
-                  draft.eligible_only && styles.toggleButtonActive,
-                ]}
-                onPress={() => update({ eligible_only: true })}
-              >
-                <Text
-                  style={[
-                    styles.toggleText,
-                    draft.eligible_only && styles.toggleTextActive,
-                  ]}
-                >
-                  Only jobs I can apply to
-                </Text>
-              </Pressable>
-            </View>
+            <Pressable
+              style={styles.checkboxRow}
+              onPress={() => update({ eligible_only: !draft.eligible_only })}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: draft.eligible_only }}
+              accessibilityLabel="Only jobs I can apply to"
+            >
+              <View style={[styles.checkbox, draft.eligible_only && styles.checkboxChecked]}>
+                {draft.eligible_only ? <Check size={13} color="#FFFFFF" weight="bold" /> : null}
+              </View>
+              <Text style={styles.checkboxLabel}>Only jobs I can apply to</Text>
+            </Pressable>
           </View>
 
           {/* Section 2: LOCATION */}
@@ -256,7 +234,7 @@ export function JobFiltersSheet({
           {/* Section 5: SKILL */}
           <View style={styles.filterSection}>
             <View style={styles.sectionEyebrow}>
-              <Sparkle size={12} color="#A87C17" weight="bold" />
+              <Wrench size={12} color="#A87C17" weight="bold" />
               <Text style={styles.eyebrowText}>SKILL</Text>
             </View>
             <View style={styles.textInputWrap}>
@@ -369,31 +347,38 @@ const styles = StyleSheet.create({
     color: '#5F6B80',
     fontWeight: '700',
   },
-  toggleRow: {
+  checkboxRow: {
     flexDirection: 'row',
-    gap: 8,
-  },
-  toggleButton: {
-    flex: 1,
+    alignItems: 'center',
+    gap: 12,
+    minHeight: 48,
+    paddingHorizontal: 14,
     paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: '#F7EFD6',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.surface.border,
+    backgroundColor: '#F7F4EC',
+  },
+  checkbox: {
+    width: 21,
+    height: 21,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: '#9AA2AF',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  toggleButtonActive: {
-    backgroundColor: '#F1EAF7',
-    borderWidth: 1,
-    borderColor: '#C9BEEB',
+  checkboxChecked: {
+    borderColor: Colors.brandAccent,
+    backgroundColor: Colors.brandAccent,
   },
-  toggleText: {
+  checkboxLabel: {
+    flex: 1,
     fontFamily: 'GeneralSans-Semibold',
-    fontSize: 13,
-    lineHeight: 16,
+    fontSize: 14,
+    lineHeight: 19,
     color: '#0A1931',
-  },
-  toggleTextActive: {
-    color: '#4A3E8F',
   },
   textInputWrap: {
     flexDirection: 'row',

@@ -1,15 +1,4 @@
-"""Through HTTP: the career profile against a CV whose versions have moved on.
-
-Reported 2026-10-13: changing a student's city on the web profile answered
-409 `resume_version_superseded`, on every attempt. A completed save writes the
-reviewed facts as a new version of the CV (A -> B) and links B, but the page
-kept sending A, the version it was first given -- and A, having a successor,
-was refused. Nothing the student could do in the app recovered from it.
-
-A version id now names the CV: the save follows the candidate's own chain to
-its newest version. And a change the scored text does not carry (the city)
-writes no new version at all.
-"""
+"""Profile changes never create resume revisions; links remain owner-scoped."""
 
 from __future__ import annotations
 
@@ -40,10 +29,12 @@ def _details(**overrides: Any) -> dict[str, Any]:
         "key_skills": ["SQL", "Excel"],
         "highest_qualification": "B.Com",
         "course": "Commerce",
+        "specialization": "Commerce",
         "course_type": "FULL_TIME",
         "institution": "Fergusson College",
         "starting_year": 2021,
         "passing_year": 2024,
+        "gender": "FEMALE",
         **overrides,
     }
 
@@ -88,9 +79,16 @@ async def test_a_save_naming_an_older_version_of_the_cv_is_not_refused(
     completed = await _save(client, me, first)
     assert completed.status_code == 200, completed.text
     linked = completed.json()["resume_version_id"]
-    assert linked != first  # the reviewed facts became version B
+    assert linked == first  # profile facts remain independent of the CV
 
-    # The report: the page still sends A, and only the city changed.
+    # The resume editor creates B independently; the profile page still sends A.
+    revised = await client.post(
+        f"{VERSIONS}/{first}/edit",
+        json={"text": CV + " Resume-only revision."},
+        headers=me["headers"],
+    )
+    assert revised.status_code == 201, revised.text
+    linked = revised.json()["resume_version_id"]
     moved = await _save(client, me, first, current_city="Chennai")
     assert moved.status_code == 200, moved.text
     assert moved.json()["details"]["current_city"] == "Chennai"
@@ -99,14 +97,14 @@ async def test_a_save_naming_an_older_version_of_the_cv_is_not_refused(
     # The city is not in the scored text, so no identical version was written.
     assert len(await _versions(client, me)) == 2
 
-    # A change the text does carry still writes a new version, after the newest.
+    # Skills change the profile only, exactly like a city change.
     skilled = await _save(client, me, first, key_skills=["SQL", "Excel", "Power BI"])
     assert skilled.status_code == 200, skilled.text
     newest = skilled.json()["resume_version_id"]
-    assert newest not in (first, linked)
+    assert newest == linked
     versions = {v["resume_version_id"]: v for v in await _versions(client, me)}
-    assert len(versions) == 3
-    assert versions[newest]["supersedes_id"] == linked
+    assert len(versions) == 2
+    assert versions[newest]["supersedes_id"] == first
 
 
 async def test_prefilling_from_an_older_version_of_the_linked_cv_changes_nothing(
@@ -128,3 +126,34 @@ async def test_another_candidates_version_is_still_not_found(client: Any, mint_t
     response = await _save(client, me, theirs)
     assert response.status_code == 404
     assert response.json()["code"] == "resume_version_not_found"
+
+
+async def test_completing_a_profile_without_a_resume_does_not_create_one(
+    client: Any, mint_token: Any
+):
+    me = await _candidate(mint_token, scored=False, subscribed=False)
+    await client.put(
+        f"{API}/candidate/profile/name",
+        json={"full_name": "Independent Profile"},
+        headers=me["headers"],
+    )
+    response = await client.put(
+        DETAILS, json={"details": _details(), "complete": True}, headers=me["headers"]
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["resume_version_id"] is None
+    assert await _versions(client, me) == []
+
+
+async def test_resume_edit_does_not_overwrite_profile_answers(client: Any, mint_token: Any):
+    me, first = await _student(client, mint_token)
+    saved = await _save(client, me, first, current_city="Chennai")
+    assert saved.status_code == 200, saved.text
+    edited = await client.post(
+        f"{VERSIONS}/{first}/edit",
+        json={"text": CV + " New resume-only wording."},
+        headers=me["headers"],
+    )
+    assert edited.status_code == 201, edited.text
+    profile = (await client.get(DETAILS, headers=me["headers"])).json()
+    assert profile["details"] == saved.json()["details"]

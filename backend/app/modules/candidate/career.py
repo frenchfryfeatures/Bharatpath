@@ -10,6 +10,7 @@ from pydantic import Field, model_validator
 
 from app.core.schemas import ApiSchema
 from app.modules.candidate.domain import normalise_city
+from app.modules.candidate.onboarding_policy import field_rules, matches
 from app.modules.jobs.domain import MatchTerms
 
 Text = Annotated[str, Field(max_length=300)]
@@ -36,6 +37,8 @@ class CareerDetails(ApiSchema):
     current_city: Text = ""
     employment_start: Annotated[str, Field(default="", max_length=7)] = ""
     employment_end: Annotated[str, Field(default="", max_length=7)] = ""
+    annual_salary_currency: Literal["INR", "USD"] = "INR"
+    preferred_salary_currency: Literal["INR", "USD"] = "INR"
     annual_salary: Annotated[int | None, Field(default=None, ge=0, le=1_000_000_000)] = None
     notice_period: Literal[
         "",
@@ -54,11 +57,23 @@ class CareerDetails(ApiSchema):
     department: Text = ""
     role_category: Text = ""
     job_role: Text = ""
+    industry_id: uuid.UUID | None = None
+    department_id: uuid.UUID | None = None
+    role_category_id: uuid.UUID | None = None
+    job_role_id: uuid.UUID | None = None
+    taxonomy_others: dict[
+        Literal["industry", "department", "role_category", "job_role"],
+        Annotated[str, Field(max_length=160)],
+    ] = Field(default_factory=dict)
+    highest_qualification_id: uuid.UUID | None = None
+    course_id: uuid.UUID | None = None
+    specialization_id: uuid.UUID | None = None
+    education_others: dict[Literal["highest_qualification", "course", "specialization"], Annotated[str, Field(max_length=160)]] = Field(default_factory=dict)
     highest_qualification: Text = ""
     course: Text = ""
     course_type: Literal["", "FULL_TIME", "PART_TIME", "DISTANCE", "ONLINE"] = ""
     specialization: Text = ""
-    specialization_name: Text = ""
+    specialization_name: Text = Field(default="", exclude=True, deprecated=True)
     institution: Text = ""
     starting_year: Annotated[int | None, Field(default=None, ge=1950, le=2100)] = None
     passing_year: Annotated[int | None, Field(default=None, ge=1950, le=2100)] = None
@@ -74,16 +89,26 @@ class CareerDetails(ApiSchema):
     def remove_inapplicable_employment(cls, value: Any) -> Any:
         if not isinstance(value, dict):
             return value
+        value = dict(value)
+        if not value.get("specialization") and value.get("specialization_name"):
+            value["specialization"] = value["specialization_name"]
+        value["specialization_name"] = ""
+        if value.get("work_status") == "FRESHER":
+            return {**value, **INACTIVE_EMPLOYMENT_DEFAULTS, "currently_employed": "NO", "notice_period": "IMMEDIATE"}
         if value.get("currently_employed") == "NO":
-            return {**value, **INACTIVE_EMPLOYMENT_DEFAULTS}
+            return {**value, "notice_period": "IMMEDIATE"}
         if value.get("currently_employed") == "YES":
             return {**value, "employment_end": ""}
         return value
 
     @model_validator(mode="after")
     def validate_details(self) -> CareerDetails:
+        if self.work_status == "FRESHER":
+            self.job_role_id = None
+            self.taxonomy_others.pop("job_role", None)
         if self.current_city:
             self.current_city = normalise_city(self.current_city) or ""
+        self.phone = re.sub(r"[\s-]", "", self.phone)
         if self.phone and not re.fullmatch(r"\+[1-9]\d{7,14}", self.phone):
             raise ValueError("phone must use international format, e.g. +919876543210")
         for value in (self.employment_start, self.employment_end):
@@ -119,22 +144,13 @@ class CareerSaveRequest(ApiSchema):
 
 
 def missing_required(details: CareerDetails) -> list[str]:
-    required = [
-        "phone",
-        "work_status",
-        "current_city",
-        "highest_qualification",
-        "course",
-        "course_type",
-        "institution",
-        "starting_year",
-        "passing_year",
-    ]
-    if details.work_status == "EXPERIENCED":
-        required += ["currently_employed"]
-        if details.currently_employed == "YES":
-            required += ["company_name", "job_title", "employment_start"]
-    missing = [key for key in required if not getattr(details, key)]
+    missing = []
+    for field in form_fields():
+        key = field["key"]
+        value = getattr(details, key)
+        absent = value is None if key == "annual_salary" else not value
+        if matches(field["rules"]["required_when"], details) and absent:
+            missing.append(key)
     if details.work_status == "EXPERIENCED" and not (
         details.experience_years or details.experience_months
     ):
@@ -148,7 +164,7 @@ def match_terms(details: CareerDetails, *, city: str | None = None) -> MatchTerm
     Skills, the roles the candidate names, where they want to work and how
     long they have worked -- and only those. **Never `gender`**, and nothing
     else about who someone is: see `jobs.domain` on recommendations. Nor the
-    salary fields, whose unit the form does not fix.
+    salary fields: currency-tagged amounts are not compared or converted for matching.
 
     The desired role comes before the current title, and preferred places
     before the current city, because `MatchTerms.build` keeps the first terms
@@ -187,12 +203,13 @@ def form_fields() -> list[dict[str, Any]]:
                 ("currently_employed", "Are you currently employed?", "select", False),
                 ("experience_years", "Total work experience - years", "number", False),
                 ("experience_months", "Total work experience - months", "number", False),
-                ("company_name", "Company name", "text", False),
-                ("job_title", "Current / most recent job title", "text", False),
+                ("company_name", "Current Company", "text", False),
+                ("job_title", "Current Job Title", "text", False),
                 ("employment_start", "Employment starting month", "month", False),
                 ("employment_end", "Employment ending month", "month", False),
-                ("annual_salary", "Annual salary (INR)", "number", False),
-                ("notice_period", "Notice period", "select", False),
+                ("annual_salary_currency", "Salary currency", "select", False),
+                ("annual_salary", "Annual Salary", "number", False),
+                ("notice_period", "Notice Period", "select", True),
                 ("key_skills", "Key skills", "list", False),
                 ("industry", "Industry", "text", False),
                 ("department", "Department", "text", False),
@@ -207,7 +224,6 @@ def form_fields() -> list[dict[str, Any]]:
                 ("course", "Course", "text", True),
                 ("course_type", "Course type", "select", True),
                 ("specialization", "Specialization", "text", False),
-                ("specialization_name", "Specialization name", "text", False),
                 ("institution", "University / Institute", "text", True),
                 ("starting_year", "Starting year", "number", True),
                 ("passing_year", "Passing / expected passing year", "number", True),
@@ -218,12 +234,15 @@ def form_fields() -> list[dict[str, Any]]:
             [
                 ("headline", "Profile headline", "text", False),
                 ("preferred_locations", "Preferred work locations", "list", False),
-                ("preferred_salary", "Preferred annual salary (INR)", "number", False),
-                ("gender", "Gender", "select", False),
+                ("preferred_salary_currency", "Preferred salary currency", "select", False),
+                ("preferred_salary", "Preferred Annual Salary", "number", False),
+                ("gender", "Gender", "select", True),
             ],
         ),
     ]
     options = {
+        "annual_salary_currency": [("INR", "₹ INR"), ("USD", "$ USD")],
+        "preferred_salary_currency": [("INR", "₹ INR"), ("USD", "$ USD")],
         "work_status": [("EXPERIENCED", "I'm experienced"), ("FRESHER", "I'm a fresher")],
         "currently_employed": [("YES", "Yes"), ("NO", "No")],
         "notice_period": [
@@ -255,9 +274,15 @@ def form_fields() -> list[dict[str, Any]]:
             "label": label,
             "type": kind,
             "required": required,
+            "rules": field_rules(key, required),
             "section": section,
             "options": [{"value": value, "label": text} for value, text in options.get(key, [])],
         }
         for section, fields in groups
         for key, label, kind, required in fields
     ]
+
+
+def employment_dates_ordered(details: CareerDetails) -> bool:
+    """Apply strict ordering on save without invalidating historical profile reads."""
+    return not (details.employment_start and details.employment_end) or details.employment_end > details.employment_start

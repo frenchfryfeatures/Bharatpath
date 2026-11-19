@@ -131,6 +131,9 @@ def _capability_roles(app: Any, method: str, path: str) -> frozenset[str]:
 
 
 ROUTE_CAPABILITY: dict[str, Any] = {
+    "insights_config": "insights_config",
+    "set_insights_config": "insights_config",
+    "insights_volumes": "insights_config",
     "list_kyb_submissions": "kyb",
     "open_kyb_submission": "kyb",
     "decide_kyb": "kyb",

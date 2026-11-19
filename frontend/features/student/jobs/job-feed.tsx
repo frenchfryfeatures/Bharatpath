@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { BriefcaseBusiness, Check, Funnel, IndianRupee, MapPin, Search, SlidersHorizontal, Sparkles, X } from "lucide-react";
+import { BriefcaseBusiness, Check, Funnel, IndianRupee, MapPin, Search, SlidersHorizontal, Wrench, X } from "lucide-react";
 
 import { StudentJobCardSkeleton, StudentJobGridSkeleton } from "@/features/student/loading";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -92,7 +92,7 @@ export function JobFeed() {
       <div className="flex flex-1 flex-col gap-5">
         <div className="flex flex-col gap-3.5">
           <div className="flex gap-2">
-            <label className="flex min-w-0 flex-1 items-center gap-3 rounded-full border border-[#E7E0D4] bg-white px-4 py-3">
+            <label className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl border border-[#E7E0D4] bg-white px-4 py-3">
               <Search size={16} className="text-[#5F6B80]" />
               <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Role, company or skill" aria-label="Search jobs" className="min-w-0 flex-1 bg-transparent text-[15px] leading-5 text-[#0A1931] outline-none placeholder:text-[#8891a0]" />
             </label>
@@ -101,10 +101,6 @@ export function JobFeed() {
               {(qualifiedOnly || workMode || location || skill || minSalaryMinor) && <span className="absolute right-0.5 top-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-[#5F4DB2]" />}
             </button>
           </div>
-          <button type="button" onClick={() => dispatch(toggleQualifiedOnly())} className="flex w-full cursor-pointer items-center gap-3 rounded-2xl border border-[#E7E0D4] bg-white px-4 py-3 text-left text-[14px] font-semibold text-[#0A1931] sm:max-w-xs">
-            <span className={`grid h-5 w-5 place-items-center rounded-full border ${qualifiedOnly ? "border-[#5F4DB2] bg-[#5F4DB2] text-white" : "border-[#C6BFAF]"}`}>{qualifiedOnly && <Check size={12} />}</span>
-            Only jobs I can apply to
-          </button>
         </div>
 
         <div className="flex items-baseline justify-between">
@@ -159,9 +155,10 @@ export function JobFeed() {
           </>
         ) : (
           <EmptyState
-            icon={<Search size={22} />}
-            title={debouncedSearch.trim() ? "No results found" : qualifiedOnly || workMode || location || skill || minSalaryMinor ? "No jobs match these filters" : "No jobs available yet"}
-            message={debouncedSearch.trim() ? "Try a different search or clear your search." : qualifiedOnly || workMode || location || skill || minSalaryMinor ? "Try clearing a filter." : "Check back later for new jobs."}
+            icon={debouncedSearch.trim() || qualifiedOnly || workMode || location || skill || minSalaryMinor ? <Search size={22} /> : <BriefcaseBusiness size={22} />}
+            title={debouncedSearch.trim() ? "No results found" : qualifiedOnly || workMode || location || skill || minSalaryMinor ? "No jobs match these filters" : "No jobs in your area yet"}
+            message={debouncedSearch.trim() ? "Try a different search or clear your search." : qualifiedOnly || workMode || location || skill || minSalaryMinor ? "Try clearing a filter." : "Adjust your filters to explore opportunities in other locations."}
+            action={!debouncedSearch.trim() && !(qualifiedOnly || workMode || location || skill || minSalaryMinor) ? <button type="button" onClick={() => setFiltersOpen(true)} className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-[#C9BEEB] bg-white px-4 py-2.5 text-[13px] font-semibold text-[#5F4DB2] transition hover:bg-[#F1EAF7]"><SlidersHorizontal size={16} />Change filters</button> : undefined}
           />
         )}
       </div>
@@ -233,10 +230,11 @@ function JobFiltersDrawer({ onClose, onApply, ...initial }: JobFilterValues & {
 
         <div className="bp-scrollbar flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
           <FilterGroup icon={<Funnel size={16} />} label="Show me">
-            <div className="grid grid-cols-2 gap-2">
-              <Choice active={!draft.qualifiedOnly} onClick={() => update("qualifiedOnly", false)}>All jobs</Choice>
-              <Choice active={draft.qualifiedOnly} onClick={() => update("qualifiedOnly", true)}>Only jobs I can apply to</Choice>
-            </div>
+            <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-[#E7E0D4] bg-[#F7F4EC] px-3.5 py-3 text-[13px] font-semibold text-[#0A1931] lg:text-[14px]">
+              <input type="checkbox" checked={draft.qualifiedOnly} onChange={(event) => update("qualifiedOnly", event.target.checked)} className="peer sr-only" />
+              <span aria-hidden="true" className={`grid h-5 w-5 shrink-0 place-items-center rounded-md border ${draft.qualifiedOnly ? "border-[#5F4DB2] bg-[#5F4DB2] text-white" : "border-[#9AA2AF] bg-white"}`}>{draft.qualifiedOnly ? <Check size={13} strokeWidth={3} /> : null}</span>
+              Only jobs I can apply to
+            </label>
           </FilterGroup>
 
           <FilterGroup icon={<MapPin size={16} />} label="Location">
@@ -251,7 +249,7 @@ function JobFiltersDrawer({ onClose, onApply, ...initial }: JobFilterValues & {
             <div className="flex flex-wrap gap-2">{SALARIES.map((salary) => <Choice key={salary.value} active={draft.minSalaryMinor === salary.value} onClick={() => update("minSalaryMinor", draft.minSalaryMinor === salary.value ? null : salary.value)}>{salary.label}</Choice>)}</div>
           </FilterGroup>
 
-          <FilterGroup icon={<Sparkles size={16} />} label="Skill">
+          <FilterGroup icon={<Wrench size={16} />} label="Skill">
             <input value={draft.skill} maxLength={80} onChange={(event) => update("skill", event.target.value)} placeholder="e.g. React, Nursing, Tally" className="w-full rounded-xl border border-[#E7E0D4] bg-white px-3.5 py-3 text-[13px] text-[#0A1931] outline-none placeholder:text-[#8891A0] focus:border-[#5F4DB2] lg:text-[14px]" />
           </FilterGroup>
         </div>

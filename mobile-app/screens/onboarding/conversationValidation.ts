@@ -20,6 +20,7 @@ export function applyCareerAnswer(
   value: CareerDetails[string],
 ): CareerDetails {
   const next = { ...details, [key]: value };
+  if (key === "employment_start" && (!value || (next.employment_end && String(next.employment_end) <= String(value)))) next.employment_end = "";
   if (key === 'work_status' && value === 'FRESHER') {
     Object.assign(next, {
       experience_years: 0,
@@ -30,7 +31,7 @@ export function applyCareerAnswer(
       employment_start: '',
       employment_end: '',
       annual_salary: null,
-      notice_period: '',
+      notice_period: 'IMMEDIATE',
       job_role: '',
     });
   }
@@ -38,20 +39,7 @@ export function applyCareerAnswer(
     next.employment_end = '';
     next.work_status = 'EXPERIENCED';
   }
-  if (key === 'currently_employed' && value === 'NO') {
-    Object.assign(next, {
-      company_name: '',
-      job_title: '',
-      employment_start: '',
-      employment_end: '',
-      annual_salary: null,
-      notice_period: '',
-      industry: '',
-      department: '',
-      role_category: '',
-      job_role: '',
-    });
-  }
+  if (key === 'currently_employed' && value === 'NO') next.notice_period = 'IMMEDIATE';
   return next;
 }
 
@@ -60,17 +48,9 @@ export const MAX_PROFILE_RUPEES = 1_000_000_000; // 100 Crore
 /**
  * Format raw salary rupees into human-readable Indian display string (e.g. ₹77 LPA or ₹1.5 Cr).
  */
-export function formatSalaryDisplay(rupees: number | null | undefined): string {
-  if (rupees == null || !Number.isFinite(rupees)) return 'Not specified';
-  if (rupees === 0) return '₹0';
-  const lpa = rupees / 100_000;
-  if (lpa >= 100) {
-    const cr = rupees / 10_000_000;
-    const crStr = cr % 1 === 0 ? cr.toFixed(0) : cr.toFixed(2);
-    return `₹${crStr} Cr`;
-  }
-  const lpaStr = lpa % 1 === 0 ? lpa.toFixed(0) : lpa.toFixed(2);
-  return `₹${lpaStr} LPA`;
+export function formatSalaryDisplay(amount: number | null | undefined, currency: unknown = 'INR'): string {
+  if (amount == null || !Number.isFinite(amount)) return 'Not specified';
+  return `${currency === 'USD' ? '$' : '₹'}${new Intl.NumberFormat(currency === 'USD' ? 'en-US' : 'en-IN').format(amount)} / year`;
 }
 
 /**
@@ -81,7 +61,14 @@ export function formatSalaryDisplay(rupees: number | null | undefined): string {
  * - Monthly amounts (e.g. "50,000 per month", "50k/month", "50k pm", "40000 monthly") -> converted to annual (* 12)
  * - Plain numbers (e.g. "77" or "12" -> LPA; "7700000" or "600000" -> raw rupees)
  */
-export function parseSalaryInput(raw: string): ParsedAnswer {
+export function parseSalaryInput(raw: string, currency: unknown = "INR"): ParsedAnswer {
+  if (currency === 'USD') {
+    const amount = raw.replace(/\$/g, '').replace(/USD/gi, '').replace(/,/g, '').trim();
+    const value = Number(amount);
+    return /^\d+$/.test(amount) && Number.isSafeInteger(value) && value <= 1_000_000_000
+      ? { value } : { error: 'Enter a whole annual amount in US dollars, for example 75000.' };
+  }
+  if (/\$|\bUSD\b/i.test(raw)) return { error: 'Select USD before entering a dollar amount.' };
   const text = raw.trim();
   if (!text) {
     return {
@@ -172,32 +159,7 @@ export function parseSalaryInput(raw: string): ParsedAnswer {
       return { value: 0 };
     }
 
-    let rupees: number;
-    if (isMonthly) {
-      // Monthly specified without unit, e.g. "50000 per month" or "1.5 per month"
-      if (num <= 500) {
-        // e.g. 1.5 per month = 1.5 Lakhs/month = 18 LPA
-        rupees = Math.round(num * 100_000 * 12);
-      } else {
-        // e.g. 50000 per month = 6,00,000
-        rupees = Math.round(num * 12);
-      }
-    } else {
-      // Annual
-      if (num <= 500) {
-        // In Indian context, entering 77 or 12 or 6.5 for annual salary means LPA!
-        rupees = Math.round(num * 100_000);
-      } else if (num >= 10_000) {
-        // e.g. 600000 or 7700000 -> whole rupees
-        rupees = Math.round(num);
-      } else {
-        // Between 501 and 9999 (e.g. 2000): Ambiguous
-        return {
-          error:
-            'Please specify salary units, for example: 12 LPA, 50k/month, or ₹6,00,000.',
-        };
-      }
-    }
+    const rupees = Math.round(num * (isMonthly ? 12 : 1));
 
     if (rupees > MAX_PROFILE_RUPEES) {
       return { error: 'Salary exceeds the maximum allowed limit of ₹100 Crore.' };
@@ -267,6 +229,7 @@ export function parseConversationAnswer(
   required: boolean,
   details: CareerDetails,
 ): ParsedAnswer {
+  const educationYearSpan = field.rules?.education_max_years ?? 7;
   const text = raw.trim();
   if (!text) {
     if (required) {
@@ -336,7 +299,7 @@ export function parseConversationAnswer(
   if (field.type === 'number') {
     // Salary fields support LPA, Cr, K, monthly, and rupees
     if (field.key === 'annual_salary' || field.key === 'preferred_salary') {
-      return parseSalaryInput(text);
+      return parseSalaryInput(text, details[field.key === "annual_salary" ? "annual_salary_currency" : "preferred_salary_currency"]);
     }
 
     if (!/^\d+$/.test(text)) {
@@ -344,7 +307,7 @@ export function parseConversationAnswer(
     }
     const value = Number(text);
     const currentYear = new Date().getFullYear();
-    const min = field.key.endsWith('year') ? 1950 : 0;
+    const min = field.key === 'starting_year' ? currentYear - 100 : field.key.endsWith('year') ? 1900 : 0;
     const max =
       field.key === 'experience_months'
         ? 11
@@ -389,11 +352,11 @@ export function parseConversationAnswer(
     if (
       field.key === 'passing_year' &&
       details.starting_year &&
-      value > Number(details.starting_year) + 7
+      value > Number(details.starting_year) + educationYearSpan
     ) {
       return {
         error:
-          `Your graduation year must be within 7 years of your starting year (${details.starting_year}).`,
+          `Your graduation year must be within ${educationYearSpan} years of your starting year (${details.starting_year}).`,
       };
     }
     if (
@@ -444,12 +407,13 @@ export function parseConversationAnswer(
     if (
       field.key === 'employment_end' &&
       details.employment_start &&
-      parsedMonth < String(details.employment_start)
+      parsedMonth <= String(details.employment_start)
     ) {
       return {
-        error: 'The ending month must be the same as or after the starting month.',
+        error: 'The ending month must be after the starting month.',
       };
     }
+    if (field.key === 'employment_start' && details.employment_end && parsedMonth >= String(details.employment_end)) return {error: 'The starting month must be before the ending month.'};
     return { value: parsedMonth };
   }
 

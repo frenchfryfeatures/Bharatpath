@@ -12,7 +12,7 @@ import {
   signUpWithCognito,
   verifyTotpSetupCognito,
 } from "@/lib/auth/cognito";
-import { getFreshToken, refreshSession } from "@/lib/auth/refresh-session";
+import { getFreshToken, poolOfToken, refreshSession } from "@/lib/auth/refresh-session";
 import { clearBrowserAuthStorage, setStoredToken } from "@/lib/auth/token";
 import { clearSession } from "@/lib/auth/session";
 import { LoginResponse, SignupRequest, SignupResponse } from "../types";
@@ -74,11 +74,9 @@ async function resolveSession(
   if (!meResponse.ok) {
     const isBusiness = fallback.pool === "BUSINESS";
 
-    // On sign-in a 403 always means "business account with no organisation
-    // yet"; let them in to create one. On sign-up that is true only for the
-    // `no_active_membership` code - other 403s (a conflicting pool, an
-    // inactive account) must still error.
-    if (meResponse.status === 403 && (!options.signup || isBusiness)) {
+    // Only a business account without a membership may enter organisation
+    // onboarding. Other permission failures must never become student sessions.
+    if (meResponse.status === 403) {
       let code: string | undefined;
       try {
         const body = (await meResponse.clone().json()) as { code?: string };
@@ -95,10 +93,8 @@ async function resolveSession(
         );
       }
 
-      if (!options.signup || code === "no_active_membership") {
-        const mapping = isBusiness
-          ? { portal: "employer" as const, path: "/employer", authRole: "EMPLOYER" as const }
-          : { portal: "student" as const, path: "/student", authRole: "STUDENT" as const };
+      if (isBusiness && code === "no_active_membership") {
+        const mapping = { portal: "employer" as const, path: "/employer", authRole: "EMPLOYER" as const };
 
         setStoredToken(accessToken);
 
@@ -118,7 +114,9 @@ async function resolveSession(
       }
 
       throw new ApiError(
-        "Could not create your account. Please try again.",
+        options.signup
+          ? "Could not create your account. Please try again."
+          : "Your account does not have access to this portal. Contact support.",
         meResponse.status,
         code,
       );
@@ -344,12 +342,12 @@ export const authService = {
     }
 
     try {
-      return await resolveSession(token, "", { pool: "CANDIDATE" });
+      return await resolveSession(token, "", { pool: poolOfToken(token) ?? "CANDIDATE" });
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         const renewed = await refreshSession(true);
         if (renewed.status === "OK") {
-          return resolveSession(renewed.token, "", { pool: "CANDIDATE" });
+          return resolveSession(renewed.token, "", { pool: poolOfToken(renewed.token) ?? "CANDIDATE" });
         }
         if (renewed.status === "EXPIRED") handleSessionExpired();
       }

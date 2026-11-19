@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import {
   AuthSession,
@@ -19,6 +20,7 @@ import {
   clearAllAuthData,
 } from '@/services/storage/authStorage';
 import { unregisterCurrentPushDevice } from '@/services/notifications/device';
+import { logger } from '@/utils/logger';
 
 interface AuthContextType {
   session: AuthSession | null;
@@ -105,6 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let isMounted = true;
     async function initAuth() {
+      logger.step('AuthContext', 'initAuth starting (hydrating stored session, name, score)');
       try {
         const [sess, storedName, storedScore] = await Promise.all([
           getCurrentSession(),
@@ -112,6 +115,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           getStoredCandidateScore(),
         ]);
         if (!isMounted) return;
+
+        logger.info('AuthContext', 'initAuth hydrated storage', {
+          hasSession: Boolean(sess),
+          email: sess?.email,
+          userId: sess?.userId,
+          storedName,
+          storedScoreStatus: storedScore?.status,
+          storedScoreValue: storedScore?.value,
+        });
 
         if (storedName) {
           setCandidateFullName(storedName);
@@ -148,11 +160,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             })
             .catch(() => undefined);
 
-          refreshScore();
+          if (storedScore?.status === 'READY') {
+            refreshScore();
+          }
           refreshPhoto();
         }
       } catch (err) {
-        console.warn('[AuthContext] initAuth failed:', err);
+        logger.error('AuthContext', 'initAuth failed', err);
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -280,6 +294,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await unregisterCurrentPushDevice().catch((error) =>
       console.warn('[Notifications] could not unregister on sign out', error));
     await apiSignOut();
+    await AsyncStorage.getAllKeys().then(keys=>AsyncStorage.multiRemove(keys.filter(key=>key.startsWith('profile-insights:')))).catch(()=>{});
     setSession(null);
     setProfile(null);
     setCandidateFullName(null);

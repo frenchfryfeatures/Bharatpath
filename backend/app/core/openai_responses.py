@@ -36,7 +36,7 @@ TIMEOUT: Final = httpx.Timeout(180.0, connect=10.0)
 
 #: Keywords strict mode refuses. Our own `model_validate` still enforces them
 #: after the call -- a schema the API enforced is a claim, validation is the check.
-_UNSUPPORTED: Final = frozenset({"default", "maxLength", "minLength", "title"})
+_UNSUPPORTED: Final = frozenset({"default", "maxLength", "minLength", "title", "propertyNames"})
 
 #: Replaced in tests with an `httpx.MockTransport`. Never set in the app.
 _transport: httpx.AsyncBaseTransport | None = None

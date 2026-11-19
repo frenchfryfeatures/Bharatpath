@@ -1,4 +1,4 @@
-import type { CareerField } from "./career-api";
+import type { CareerField } from './career-api';
 
 const questions: Record<string, string> = {
   work_status: "Let's start with your work experience. Are you a fresher or do you have experience?",
@@ -26,12 +26,29 @@ const questions: Record<string, string> = {
   headline: "How would you introduce yourself to employers in one short headline?",
   preferred_locations: "Where would you like to work? You can add up to five locations.",
   preferred_salary: "What annual salary are you looking for? (e.g. 15 LPA, or in rupees)",
-  gender: "Would you like to share your gender? This is optional.",
+  gender: "Please select your gender.",
 };
 
-export function conversationQuestion(field?: CareerField) {
+export function conversationQuestion(field?: CareerField, details?: Record<string, unknown>): string {
   if (!field) return "Ready to continue to the next step?";
-  return questions[field.key] ?? (field.label.endsWith("?") ? field.label : `Tell me your ${field.label.toLowerCase()}.`);
+  if (details?.work_status === 'EXPERIENCED' && details?.currently_employed === 'NO') {
+    const previous: Record<string, string> = {
+      company_name: 'What was your previous company?', job_title: 'What was your previous job title?',
+      employment_start: 'When did you start your previous job?', employment_end: 'When did your previous job end?',
+      annual_salary: 'What was your previous annual salary? Enter the full annual amount in the selected currency.',
+      industry: 'Which industry was your previous company in?', department: 'Which department did you work in?',
+      job_role: 'What was your previous job role?', role_category: 'What was your previous role category?',
+    };
+    if (previous[field.key]) return previous[field.key];
+  }
+  if (field.key === 'annual_salary' || field.key === 'preferred_salary')
+    return 'Enter the full annual salary amount in the selected currency.';
+  return (
+    questions[field.key] ??
+    (field.label.endsWith('?')
+      ? field.label
+      : `Tell me your ${field.label.toLowerCase()}.`)
+  );
 }
 
 export interface ConversationAnswer {

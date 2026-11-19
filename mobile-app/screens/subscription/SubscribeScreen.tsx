@@ -47,6 +47,7 @@ import {
 } from '@/services/api/subscription';
 import { Radii } from '@/theme/tokens';
 import { PaymentSheet } from './PaymentSheet';
+import { logger } from '@/utils/logger';
 
 const INCLUDED = [
   { icon: Sparkle, label: 'Your score', detail: 'Read as soon as your resume is confirmed' },
@@ -89,6 +90,7 @@ export function SubscribeScreen({
   const load = useCallback(async () => {
     setIsLoading(true);
     setLoadError(null);
+    logger.step('SubscribeScreen', 'Loading candidate plans & subscription status');
     try {
       const [planList, current] = await Promise.all([
         listCandidatePlans(),
@@ -98,7 +100,13 @@ export function SubscribeScreen({
       setPlans(sorted);
       setSubscription(current);
       setSelectedCode((existing) => sorted.some((plan) => plan.code === existing) ? existing : sorted[0]?.code || null);
+      logger.info('SubscribeScreen', 'Loaded plans & subscription', {
+        plansCount: sorted.length,
+        subscriptionState: current.state,
+        hasAccess: current.has_access,
+      });
     } catch (error) {
+      logger.error('SubscribeScreen', 'Failed to load membership plans', error);
       setLoadError(billingErrorMessage(error, 'Could not load the membership plans.'));
     } finally {
       setIsLoading(false);
@@ -167,10 +175,16 @@ export function SubscribeScreen({
     if (!selectedPlan) return;
     setIsCheckingOut(true);
     setCheckoutError(null);
+    logger.step('SubscribeScreen', `Starting checkout for plan: ${selectedPlan.code}`, {
+      discountCode: appliedCode || undefined,
+      payableMinor,
+    });
     try {
       const opened = await checkoutSubscription(selectedPlan.code, appliedCode || undefined);
+      logger.step('SubscribeScreen', `Checkout created: ${opened.payment_id} (${opened.status})`, opened);
       setCheckout(opened);
     } catch (error) {
+      logger.error('SubscribeScreen', `Checkout failed for plan ${selectedPlan.code}`, error);
       if (error instanceof ApiError && error.code === 'payments_unavailable') {
         setPaymentsUnavailable(true);
       }

@@ -296,7 +296,7 @@ export function structuredResumeCareerDetails(
       : monthValue(latestRole?.end_date),
     highest_qualification: education?.qualification || '',
     course: education?.qualification || '',
-    specialization_name: education?.field_of_study || '',
+    specialization: education?.field_of_study || '',
     institution: education?.institution || '',
     starting_year: yearValue(education?.start_date),
     passing_year: yearValue(education?.end_date),

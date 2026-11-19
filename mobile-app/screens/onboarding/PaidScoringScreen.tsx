@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { ArrowLeft, Sparkle, WarningCircle } from 'phosphor-react-native';
 import { confirmResumeVersion } from '@/services/api/resume';
+import { logger } from '@/utils/logger';
 
 export function PaidScoringScreen({
   versionId,
@@ -27,10 +28,13 @@ export function PaidScoringScreen({
   const start = async () => {
     setBusy(true);
     setError('');
+    logger.step('PaidScoringScreen', `Confirming resume version for scoring: ${versionId}`);
     try {
       const result = await confirmResumeVersion(versionId);
+      logger.step('PaidScoringScreen', `Resume version confirmed: ${versionId}`, result);
       onConfirmed(result.confirmed_at);
     } catch (failure) {
+      logger.error('PaidScoringScreen', `Failed to confirm resume version ${versionId}`, failure);
       setError(
         failure instanceof Error
           ? failure.message

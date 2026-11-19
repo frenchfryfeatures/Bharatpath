@@ -44,7 +44,7 @@ careerModule._compile(careerCompiled, careerFilename);
 const { fieldRequired, fieldVisible, missingRequiredCareerFields } = careerModule.exports;
 
 const otherwiseComplete = {
-  phone: '+919793273692', work_status: 'FRESHER',
+  phone: '+919793273692', work_status: 'FRESHER', gender: 'FEMALE',
   highest_qualification: 'Bachelors', course: 'BTech', course_type: 'FULL_TIME',
   institution: 'University', starting_year: 2018, passing_year: 2022,
 };

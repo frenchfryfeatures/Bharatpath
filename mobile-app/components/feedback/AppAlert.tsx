@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
 import { Colors, Radii } from '@/theme/tokens';
+import { logger } from '@/utils/logger';
 
 export type AlertButton = {
   text: string;
@@ -18,6 +19,10 @@ let listeners: ((config: AlertConfig | null) => void)[] = [];
 
 export const AppAlert = {
   alert: (title: string, message?: string, buttons?: AlertButton[]) => {
+    logger.warn('AppAlert', `Showing alert dialog: "${title}"`, {
+      message,
+      buttons: buttons?.map((b) => b.text) || ['OK'],
+    });
     listeners.forEach((listener) => listener({ title, message, buttons }));
   },
 };

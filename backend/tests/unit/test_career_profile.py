@@ -23,36 +23,39 @@ from app.modules.resume.preview import render_pdf
 
 
 def fresher(**updates) -> CareerDetails:
-    return CareerDetails(
-        phone="+919876543210",
-        work_status="FRESHER",
-        current_city="Pune",
-        key_skills=["Python"],
-        highest_qualification="Graduate",
-        course="BSc",
-        course_type="FULL_TIME",
-        institution="University",
-        starting_year=2020,
-        passing_year=2023,
+    base = {
+        "phone": "+919876543210",
+        "work_status": "FRESHER",
+        "current_city": "Pune",
+        "key_skills": ["Python"],
+        "highest_qualification": "Graduate",
+        "course": "BSc",
+        "course_type": "FULL_TIME",
+        "institution": "University",
+        "starting_year": 2020,
+        "passing_year": 2023,
+        "gender": "PREFER_NOT_TO_SAY",
         **updates,
-    )
+    }
+    return CareerDetails(**base)
 
 
 def context(role="CANDIDATE", tenant_id=None):
     return TenantContext(user_id=uuid.uuid4(), tenant_id=tenant_id, role=role, pool="CANDIDATE")
 
 
-def test_fresher_does_not_need_employment_salary_preferences_or_gender():
+def test_fresher_does_not_need_employment_salary_or_preferences_but_requires_gender():
     assert missing_required(fresher()) == []
     assert missing_required(fresher().model_copy(update={"key_skills": []})) == []
+    assert missing_required(fresher().model_copy(update={"gender": ""})) == ["gender"]
 
 
-def test_experienced_candidate_without_current_job_needs_only_experience_and_skills():
+def test_experienced_candidate_without_current_job_needs_previous_employment():
     details = fresher().model_copy(
         update={"work_status": "EXPERIENCED", "currently_employed": "NO", "key_skills": []}
     )
-    assert missing_required(details) == ["experience_years"]
-    assert missing_required(details.model_copy(update={"experience_months": 1})) == []
+    assert set(missing_required(details)) == {"experience_years", "company_name", "job_title", "employment_start", "employment_end", "annual_salary"}
+    assert missing_required(details.model_copy(update={"experience_months": 1, "company_name": "Previous company", "job_title": "Engineer", "employment_start": "2020-01", "employment_end": "2023-01", "annual_salary": 500000})) == []
 
 
 def test_current_job_requires_company_title_and_start_but_not_end():
@@ -64,38 +67,15 @@ def test_current_job_requires_company_title_and_start_but_not_end():
             "key_skills": [],
         }
     )
-    assert set(missing_required(details)) == {"company_name", "job_title", "employment_start"}
+    assert set(missing_required(details)) == {"company_name", "job_title", "employment_start", "annual_salary"}
 
 
-def test_inapplicable_employment_values_are_discarded_before_validation():
-    details = CareerDetails.model_validate(
-        {
-            "work_status": "EXPERIENCED",
-            "currently_employed": "NO",
-            "experience_years": 2,
-            "experience_months": 6,
-            "key_skills": ["Python", "SQL"],
-            "company_name": "Old employer",
-            "job_title": "Old title",
-            "employment_start": "not a month",
-            "employment_end": "not a month",
-            "annual_salary": -1,
-            "notice_period": "invalid",
-            "job_role": "Old role",
-        }
-    )
-    assert all(
-        getattr(details, key) == value
-        for key, value in {
-            "company_name": "",
-            "job_title": "",
-            "employment_start": "",
-            "employment_end": "",
-            "annual_salary": None,
-            "notice_period": "",
-            "job_role": "",
-        }.items()
-    )
+def test_previous_employment_is_validated_instead_of_discarded():
+    with pytest.raises(ValidationError):
+        CareerDetails(work_status="EXPERIENCED", currently_employed="NO", employment_start="not a month")
+    details = CareerDetails(work_status="EXPERIENCED", currently_employed="NO", company_name="Previous company", employment_start="2020-01", employment_end="2023-01")
+    assert details.company_name == "Previous company"
+    assert details.notice_period == "IMMEDIATE"
 
 
 def test_current_job_discards_employment_end():
@@ -134,9 +114,12 @@ def test_authentication_secrets_are_never_profile_fields():
 
 def test_both_clients_receive_all_fields_once():
     fields = form_fields()
-    assert {field["key"] for field in fields} == CareerDetails.model_fields.keys()
-    assert len(fields) == len(CareerDetails.model_fields)
-    assert not next(field for field in fields if field["key"] == "gender")["required"]
+    answer_keys = CareerDetails.model_fields.keys() - {
+        "industry_id", "department_id", "role_category_id", "job_role_id", "taxonomy_others", "specialization_name", "highest_qualification_id", "course_id", "specialization_id", "education_others",
+    }
+    assert {field["key"] for field in fields} == answer_keys
+    assert len(fields) == len(answer_keys)
+    assert next(field for field in fields if field["key"] == "gender")["required"]
     assert not next(field for field in fields if field["key"] == "key_skills")["required"]
 
 
@@ -172,7 +155,8 @@ async def test_incomplete_completion_is_rejected_before_writing(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_unemployed_experienced_candidate_completes_without_job_dates(monkeypatch):
+async def test_unemployed_experienced_candidate_completes_with_previous_job(monkeypatch):
+    monkeypatch.setattr("app.modules.education_taxonomy.service.validate_profile", AsyncMock(side_effect=lambda session, details, previous, user_id: details))
     ctx = context()
     row = SimpleNamespace(
         career={}, full_name="Kavya Iyer", city=None, updated_at=datetime.now(UTC)
@@ -207,7 +191,10 @@ async def test_unemployed_experienced_candidate_completes_without_job_dates(monk
             "work_status": "EXPERIENCED",
             "currently_employed": "NO",
             "experience_years": 2,
+            "company_name": "Previous company", "job_title": "Engineer",
+            "employment_start": "2020-01", "employment_end": "2023-01",
             "experience_months": 6,
+            "annual_salary": 500000,
             "key_skills": [],
         }
     )
@@ -215,14 +202,15 @@ async def test_unemployed_experienced_candidate_completes_without_job_dates(monk
         AsyncMock(), ctx=ctx, payload=CareerSaveRequest(details=details, complete=True)
     )
     assert result.completed
-    assert create_version.call_args.kwargs["payload"].experience == []
+    assert create_version.call_args.kwargs["payload"].experience[0].employer == "Previous company"
     assert create_version.call_args.kwargs["payload"].skills == []
-    assert row.career["details"]["company_name"] == ""
-    assert row.career["details"]["employment_start"] == ""
+    assert row.career["details"]["company_name"] == "Previous company"
+    assert row.career["details"]["employment_start"] == "2020-01"
 
 
 @pytest.mark.asyncio
 async def test_owner_scoped_resume_and_revision_without_scoring(monkeypatch):
+    monkeypatch.setattr("app.modules.education_taxonomy.service.validate_profile", AsyncMock(side_effect=lambda session, details, previous, user_id: details))
     ctx = context()
     version_id = uuid.uuid4()
     revised_id = uuid.uuid4()

@@ -43,6 +43,7 @@ import {
   readyStructuredResume,
   structuredResumeCareerDetails,
 } from '@/services/profile/structuredResume';
+import { logger } from '@/utils/logger';
 
 interface ParsingScreenProps {
   fileMeta?: UploadedFileMeta;
@@ -120,6 +121,11 @@ export function ParsingScreen({
   const executeParsing = async () => {
     if (inProgressRef.current) return;
     inProgressRef.current = true;
+    logger.step('ParsingScreen', 'executeParsing started', {
+      source: payload?.source || 'upload',
+      fileName,
+      existingVersionId: createdVersionRef.current,
+    });
     setErrorMsg(null);
     setCurrentStepIndex(0);
     setProgressPercent(20);
@@ -130,10 +136,12 @@ export function ParsingScreen({
 
       // 1. Process according to source
       if (createdVersionId) {
+        logger.info('ParsingScreen', `Reusing already created resume version: ${createdVersionId}`);
         setCurrentStepIndex(4);
         setProgressPercent(90);
       } else if (payload?.source === 'paste' && payload.pastedText) {
         // Step 1: Submit pasted text to backend
+        logger.step('ParsingScreen', 'Submitting pasted resume text', { length: payload.pastedText.length });
         setCurrentStepIndex(0);
         setProgressPercent(25);
         const res = await submitPastedText(payload.pastedText);
@@ -155,6 +163,7 @@ export function ParsingScreen({
         await new Promise((r) => setTimeout(r, 300));
       } else if (payload?.source === 'form' && payload.manualData) {
         // Step 1: Submit manual structured data to backend
+        logger.step('ParsingScreen', 'Submitting manual structured resume');
         setCurrentStepIndex(0);
         setProgressPercent(25);
         const res = await submitManualResume(payload.manualData);
@@ -183,17 +192,12 @@ export function ParsingScreen({
           const selectedFile = payload?.fileMeta ?? fileMeta;
           if (!selectedFile?.fileUri)
             throw new Error('Choose your resume file again.');
-          // Match the web flow: read transient facts, create the owned resume
-          // version, then link both to the career profile in one screen flow.
-          // Linking here means the next screen does not need to invoke AI a
-          // second time just to display the fields we already extracted.
-          // Use the signup preview when it is already available. Otherwise,
-          // preview before intake so a parser failure cannot leave an
-          // unattached resume version behind.
+          logger.step('ParsingScreen', `Uploading resume via intakeCareerResume (/candidate/resume/intake): ${selectedFile.fileName}`);
           const currentProfile = await getCareerProfile();
           const created = await intakeCareerResume(selectedFile);
           createdVersionId = created.resume_version_id;
           if (!createdVersionId) throw new Error('The server did not return a resume version. Please try again.');
+          logger.info('ParsingScreen', `intakeCareerResume created version: ${createdVersionId}`);
           createdVersionRef.current = createdVersionId;
           await updatePendingResume({ versionId: createdVersionId });
           if (initialDetails) {
@@ -205,11 +209,11 @@ export function ParsingScreen({
                 selectedFile.fileName,
               );
             } catch (draftErr) {
-              console.warn('Initial draft sync deferred to structured resume save:', draftErr);
+              logger.warn('ParsingScreen', 'Initial draft sync deferred to structured resume save', draftErr);
             }
           }
         } catch (uploadErr) {
-          console.warn('Upload/complete failed:', uploadErr);
+          logger.error('ParsingScreen', 'Upload/intake failed', uploadErr);
           throw uploadErr;
         }
 
@@ -223,10 +227,17 @@ export function ParsingScreen({
 
       if (createdVersionId) {
         setVersionId(createdVersionId);
+        logger.step('ParsingScreen', `Fetching version details for ${createdVersionId}`);
         const details = await getResumeVersionDetails(createdVersionId);
         const structured = readyStructuredResume(details);
         const structuredStatus =
           details?.structured_status ?? details?.parsed?.structured_status;
+        logger.info('ParsingScreen', 'Fetched version details', {
+          versionId: createdVersionId,
+          structuredStatus,
+          hasStructuredResume: Boolean(structured),
+          sectionsCount: details?.sections?.length ?? 0,
+        });
         if (structured) {
           const currentProfile = await getCareerProfile();
           const mappedDetails = structuredResumeCareerDetails(
@@ -288,10 +299,11 @@ export function ParsingScreen({
       }
 
       if (isCancelledRef.current) return;
+      logger.step('ParsingScreen', 'executeParsing completed successfully', { versionId: createdVersionId });
       setIsCompleted(true);
     } catch (err: any) {
       if (isCancelledRef.current) return;
-      console.error('[Parsing Error]:', err);
+      logger.error('ParsingScreen', 'executeParsing failed with error', err);
       if (err instanceof ApiError) {
         setErrorMsg(
           err.problem?.title || err.message || 'Failed to parse resume.',

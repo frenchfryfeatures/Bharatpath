@@ -63,9 +63,9 @@ assert.equal(parseSalaryInput('50,000 pm').value, 600_000, '50,000 pm should be 
 assert.equal(parseSalaryInput('1 lakh per month').value, 1_200_000, '1 lakh/month should be 1,200,000/yr');
 
 // Plain numbers
-assert.equal(parseSalaryInput('77').value, 7_700_000, '77 without unit should be treated as 77 LPA');
-assert.equal(parseSalaryInput('12').value, 1_200_000, '12 without unit should be treated as 12 LPA');
-assert.equal(parseSalaryInput('6.5').value, 650_000, '6.5 without unit should be treated as 6.5 LPA');
+assert.equal(parseSalaryInput('77').value, 77, '77 without a unit is the annual amount');
+assert.equal(parseSalaryInput('12').value, 12, '12 without a unit is the annual amount');
+assert.equal(parseSalaryInput('6.5').value, 7, '6.5 is rounded to whole currency units');
 assert.equal(parseSalaryInput('7700000').value, 7_700_000, '7700000 should be raw rupees');
 assert.equal(parseSalaryInput('₹7,70,000').value, 770_000, '₹7,70,000 should be formatted rupees');
 
@@ -74,9 +74,9 @@ assert.ok(parseSalaryInput('').error, 'empty should error');
 assert.ok(parseSalaryInput('abc').error, 'non-number should error');
 
 // Salary display
-assert.equal(formatSalaryDisplay(7_700_000), '₹77 LPA');
-assert.equal(formatSalaryDisplay(650_000), '₹6.50 LPA');
-assert.equal(formatSalaryDisplay(15_000_000), '₹1.50 Cr');
+assert.equal(formatSalaryDisplay(7_700_000), '₹77,00,000 / year');
+assert.equal(formatSalaryDisplay(650_000), '₹6,50,000 / year');
+assert.equal(formatSalaryDisplay(15_000_000), '₹1,50,00,000 / year');
 console.log('✓ Salary parsing and formatting tests passed.');
 
 // ─── 2. FUTURE MONTH TESTS ────────────────────────────────────

@@ -38,7 +38,7 @@ export interface ShareResultScreenProps {
 
 export function ShareResultScreen({
   score,
-  maxScore = 990,
+  maxScore = 1000,
   bandName,
   candidateName,
   candidateField,

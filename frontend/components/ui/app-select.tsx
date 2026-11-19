@@ -40,6 +40,7 @@ interface AppSelectProps {
   ariaDescribedBy?: string;
   /** Show a search box inside the menu to filter options. Off by default. */
   searchable?: boolean;
+  pinnedOptionValues?: readonly string[];
   /** Placeholder for the search box (only used when searchable). */
   searchPlaceholder?: string;
   /** Receives search text for server-backed option loading. */
@@ -79,6 +80,7 @@ export function AppSelect({
   ariaInvalid,
   ariaDescribedBy,
   searchable = false,
+  pinnedOptionValues = [],
   searchPlaceholder = "Search",
   onSearchChange,
   isSearching = false,
@@ -117,7 +119,7 @@ export function AppSelect({
   const visibleOptions =
     searchable && query.trim()
       ? options.filter((option) =>
-          option.label
+          pinnedOptionValues.includes(option.value) || option.label
             .toLowerCase()
             .includes(query.trim().toLowerCase()),
         )

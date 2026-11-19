@@ -2,8 +2,9 @@ import { apiRequest } from './client';
 import { Platform } from 'react-native';
 import { File as ExpoFile } from 'expo-file-system';
 import type { UploadedFileMeta } from '@/screens/onboarding/ResumeIntakeScreen';
+import { logger } from '@/utils/logger';
 
-export type CareerDetails = Record<string, string | number | string[] | null>;
+export type CareerDetails = Record<string, string | number | string[] | Record<string, string> | null>;
 export interface ResumeDraft {
   full_name: string;
   email: string;
@@ -32,7 +33,15 @@ export function mergeResumeDetails(
   };
 }
 async function resumeBody(file: UploadedFileMeta) {
-  if (!file.fileUri) throw new Error('Select a resume file.');
+  if (!file.fileUri) {
+    logger.error('CareerResume', 'resumeBody called without fileUri', undefined, file);
+    throw new Error('Select a resume file.');
+  }
+  logger.step('CareerResume', `Preparing multipart resumeBody for ${file.fileName || 'resume.pdf'}`, {
+    fileUri: file.fileUri,
+    fileSize: file.fileSize,
+    mimeType: file.mimeType,
+  });
   const body = new FormData();
   if (Platform.OS === 'web')
     body.append(
@@ -46,7 +55,13 @@ async function resumeBody(file: UploadedFileMeta) {
     // without the selected document bytes on newer Android runtimes, leaving
     // the preview API with nothing useful to extract.
     const selectedFile = new ExpoFile(file.fileUri);
-    if (!selectedFile.exists) throw new Error('The selected resume is no longer available.');
+    if (!selectedFile.exists) {
+      logger.error('CareerResume', 'Selected resume file does not exist on disk', undefined, {
+        fileUri: file.fileUri,
+        fileName: file.fileName,
+      });
+      throw new Error('The selected resume is no longer available.');
+    }
     body.append('file', selectedFile, file.fileName || 'resume.pdf');
   }
   return body;
@@ -66,6 +81,7 @@ export interface CareerField {
   label: string;
   type: 'text' | 'tel' | 'number' | 'month' | 'list' | 'select';
   required: boolean;
+  rules?: {required_when: string; visible_when: string; education_max_years: number};
   section: 'basic' | 'employment' | 'education' | 'preferences';
   options: { value: string; label: string }[];
 }
@@ -78,7 +94,19 @@ export interface CareerProfile {
   updated_at: string | null;
 }
 export const getCareerFields = async (): Promise<CareerField[]> => {
-  const fields = await apiRequest<CareerField[]>('/candidate/profile/form');
+  const rawFields = await apiRequest<CareerField[]>('/candidate/profile/form');
+  const fields = rawFields.map((field) => {
+    if (field.key === 'company_name') {
+      return { ...field, label: 'Current Company' };
+    }
+    if (field.key === 'job_title') {
+      return { ...field, label: 'Current Job Title' };
+    }
+    if (field.key === 'gender') {
+      return { ...field, required: true };
+    }
+    return field;
+  });
   const workStatus = fields.find((field) => field.key === 'work_status');
   const ordered = fields.filter((field) => field.key !== 'work_status');
   const employmentIndex = ordered.findIndex((field) => field.section === 'employment');
@@ -130,7 +158,8 @@ export function cleanCareerDetailsForApi(raw: CareerDetails): CareerDetails {
   if (!phoneStr.startsWith('+') && /^\d{10}$/.test(phoneStr)) {
     phoneStr = `+91${phoneStr}`;
   }
-  cleaned.phone = /^\+[1-9]\d{7,14}$/.test(phoneStr) ? phoneStr : '';
+  if (phoneStr && !/^\+[1-9]\d{7,14}$/.test(phoneStr)) throw new Error('Enter a valid mobile number with country code.');
+  cleaned.phone = phoneStr;
 
   // 2. Work status
   const ws = String(details.work_status || '').toUpperCase();
@@ -161,7 +190,7 @@ export function cleanCareerDetailsForApi(raw: CareerDetails): CareerDetails {
 
   if (cleaned.currently_employed === 'YES') {
     cleaned.employment_end = '';
-  } else if (cleaned.currently_employed === 'NO') {
+  } else if (cleaned.work_status === 'FRESHER') {
     cleaned.company_name = '';
     cleaned.job_title = '';
     cleaned.employment_start = '';
@@ -171,20 +200,20 @@ export function cleanCareerDetailsForApi(raw: CareerDetails): CareerDetails {
     cleaned.job_role = '';
   }
 
-  if (cleaned.employment_start && cleaned.employment_end && cleaned.employment_end < cleaned.employment_start) {
+  if (cleaned.employment_start && cleaned.employment_end && cleaned.employment_end <= cleaned.employment_start) {
     cleaned.employment_end = '';
   }
 
   // 6. Education years
   const startYearNum = Number(details.starting_year);
   cleaned.starting_year =
-    Number.isInteger(startYearNum) && startYearNum >= 1950 && startYearNum <= 2100
+    Number.isInteger(startYearNum) && startYearNum >= 1900 && startYearNum <= 2100
       ? startYearNum
       : null;
 
   const passingYearNum = Number(details.passing_year);
   cleaned.passing_year =
-    Number.isInteger(passingYearNum) && passingYearNum >= 1950 && passingYearNum <= 2100
+    Number.isInteger(passingYearNum) && passingYearNum >= 1900 && passingYearNum <= 2100
       ? passingYearNum
       : null;
 
@@ -227,7 +256,9 @@ export function cleanCareerDetailsForApi(raw: CareerDetails): CareerDetails {
     'MORE_THAN_90_DAYS',
     'NOT_WORKING',
   ];
-  cleaned.notice_period = validNp.includes(np) ? np : '';
+  cleaned.notice_period = cleaned.currently_employed === 'NO' ? 'IMMEDIATE' : validNp.includes(np) ? np : '';
+  cleaned.annual_salary_currency = details.annual_salary_currency === 'USD' ? 'USD' : 'INR';
+  cleaned.preferred_salary_currency = details.preferred_salary_currency === 'USD' ? 'USD' : 'INR';
 
   // 9. Course type
   const ct = String(details.course_type || '');
@@ -253,8 +284,12 @@ export function cleanCareerDetailsForApi(raw: CareerDetails): CareerDetails {
     .filter((l) => l.length > 0)
     .slice(0, 5);
 
+  details.specialization = String(details.specialization || details.specialization_name || "").trim();
+
   // 13. Current city: must strictly follow backend city rules (letters, spaces, . ' -)
-  cleaned.current_city = sanitizeCity(details.current_city);
+  const city = String(details.current_city || '').trim().replace(/\s+/g, ' ');
+  if (city && (city.length > 100 || !/\p{L}/u.test(city) || !/^[\p{L}\p{M} .'-]+$/u.test(city))) throw new Error('Enter your city name using letters, spaces, dots, apostrophes, or hyphens.');
+  cleaned.current_city = city;
 
   // 14. Text fields (max 300 chars)
   const textFields = [
@@ -267,7 +302,6 @@ export function cleanCareerDetailsForApi(raw: CareerDetails): CareerDetails {
     'highest_qualification',
     'course',
     'specialization',
-    'specialization_name',
     'institution',
     'headline',
   ];
@@ -278,6 +312,11 @@ export function cleanCareerDetailsForApi(raw: CareerDetails): CareerDetails {
     }
   }
 
+  for (const key of ['industry', 'department', 'role_category', 'job_role', 'highest_qualification', 'course', 'specialization']) {
+    cleaned[key + '_id'] = typeof details[key + '_id'] === 'string' ? details[key + '_id'] : null;
+  }
+  cleaned.education_others = details.education_others && typeof details.education_others === "object" && !Array.isArray(details.education_others) ? {...details.education_others} : {};
+  cleaned.taxonomy_others = details.taxonomy_others && typeof details.taxonomy_others === 'object' && !Array.isArray(details.taxonomy_others) ? details.taxonomy_others : {};
   return cleaned as CareerDetails;
 }
 
@@ -330,23 +369,24 @@ const inactiveEmploymentFields = [
   'job_role',
 ];
 
-// Describe the current job, so they are hidden when there is none. Unlike
-// inactiveEmploymentFields they are not stripped on save.
-const jobDescribingFields = ['industry', 'department', 'role_category'];
 
 export function careerDetailsForSave(details: CareerDetails): CareerDetails {
   const result = { ...details };
-  delete result.key_skills;
+  result.specialization = result.specialization || result.specialization_name || "";
+  delete result.specialization_name;
   if (details.work_status === 'FRESHER') {
     result.currently_employed = 'NO';
     result.experience_years = 0;
     result.experience_months = 0;
   }
-  if (details.currently_employed === 'NO') {
+  if (details.work_status === 'FRESHER') {
     for (const key of inactiveEmploymentFields) delete result[key];
   } else if (details.currently_employed === 'YES') {
     delete result.employment_end;
   }
+  if (result.currently_employed === "NO" || result.work_status === "FRESHER") result.notice_period = "IMMEDIATE";
+  result.annual_salary_currency ??= "INR";
+  result.preferred_salary_currency ??= "INR";
   return result;
 }
 
@@ -356,61 +396,50 @@ export function missingRequiredCareerFields(details: CareerDetails): string[] {
   const required = [
     'phone', 'work_status', 'current_city', 'highest_qualification',
     'course', 'course_type', 'institution', 'starting_year', 'passing_year',
+    'gender',
   ];
   if (clean.work_status === 'EXPERIENCED') {
     required.push('currently_employed');
-    if (clean.currently_employed === 'YES') {
-      required.push('company_name', 'job_title', 'employment_start');
-    }
+    required.push('company_name', 'job_title', 'employment_start');
+    if (clean.currently_employed === 'NO') required.push('employment_end');
+    else required.push('notice_period');
   }
   const missing = required.filter((key) => !clean[key]);
+  if (clean.work_status === 'EXPERIENCED' && clean.annual_salary == null) missing.push('annual_salary');
   if (clean.work_status === 'EXPERIENCED' &&
-      !clean.experience_years && !clean.experience_months) {
+    !clean.experience_years && !clean.experience_months) {
     missing.push('experience_years');
   }
   return missing;
 }
 
+function matchesRule(condition: string, details: CareerDetails): boolean {
+  return condition === "ALWAYS" || (condition === "EMPLOYMENT_CHOSEN" && ["YES", "NO"].includes(String(details.currently_employed))) || (condition === "EMPLOYED" && details.currently_employed === "YES") ||
+    (condition === "EXPERIENCED" && (details.work_status === "EXPERIENCED" || details.currently_employed === "YES")) ||
+    (condition === "PREVIOUS" && details.work_status === "EXPERIENCED" && details.currently_employed === "NO");
+}
+
 export function fieldRequired(field: CareerField, details: CareerDetails) {
+  if (field.rules) return matchesRule(field.rules.required_when, details);
+  if (field.key === "preferred_salary") return false;
+  if (field.key.endsWith('_salary_currency')) return true;
+  if (field.key === 'annual_salary') return details.work_status === 'EXPERIENCED' || details.currently_employed === 'YES';
   if (field.key === 'key_skills') return false;
-  if (field.required) return true;
+  if (field.key === 'notice_period') return details.currently_employed === 'YES';
+  if (field.required || field.key === 'gender') return true;
   if (details.work_status !== 'EXPERIENCED') return false;
-  if (field.key === 'currently_employed') return true;
-  return (
-    details.currently_employed === 'YES' &&
-    ['company_name', 'job_title', 'employment_start'].includes(field.key)
-  );
+  return ['currently_employed', 'company_name', 'job_title', 'employment_start'].includes(field.key) ||
+    (field.key === 'employment_end' && details.currently_employed === 'NO');
 }
 export function fieldVisible(field: CareerField, details: CareerDetails) {
-  if (field.key === 'employment_end') return false;
+  if (field.key === "notice_period" && details.currently_employed === "NO") return true;
+  if (field.key === "specialization_name") return false;
+  if (field.rules) return matchesRule(field.rules.visible_when, details);
   if (field.key === 'key_skills') return false;
-  // The employed question is always asked; "Yes" opens the rest, even for a
-  // fresher, who becomes experienced by answering it.
   if (field.key === 'currently_employed') return true;
-  if (details.currently_employed === 'YES') return true;
-  const experiencedOnly = [
-    'currently_employed',
-    'experience_years',
-    'experience_months',
-    'company_name',
-    'job_title',
-    'employment_start',
-    'employment_end',
-    'annual_salary',
-    'notice_period',
-    'industry',
-    'department',
-    'role_category',
-    'job_role',
-  ];
-  return (
-    !(
-      details.work_status === 'FRESHER' && experiencedOnly.includes(field.key)
-    ) &&
-    !(
-      details.currently_employed === 'NO' &&
-      (inactiveEmploymentFields.includes(field.key) ||
-        jobDescribingFields.includes(field.key))
-    )
-  );
+  if (field.key === 'employment_end') return details.work_status === 'EXPERIENCED' && details.currently_employed === 'NO';
+  if (field.key === 'notice_period') return details.currently_employed === 'YES';
+  const history = ['experience_years', 'experience_months', 'company_name', 'job_title', 'employment_start',
+    'annual_salary', 'annual_salary_currency', 'industry', 'department', 'role_category', 'job_role'];
+  return !history.includes(field.key) || details.work_status === 'EXPERIENCED' || details.currently_employed === 'YES';
 }

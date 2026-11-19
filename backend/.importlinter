@@ -102,6 +102,7 @@ type = forbidden
 allow_indirect_imports = True
 source_modules =
     app.modules.resume_builder
+    app.modules.taxonomy
 forbidden_modules =
     app.modules.scoring
 
@@ -202,6 +203,7 @@ source_modules =
     app.modules.profile_images
     app.modules.assistant
     app.modules.resume_builder
+    app.modules.taxonomy
 forbidden_modules =
     app.modules.identity.repository
     app.modules.identity.models
@@ -256,6 +258,7 @@ source_modules =
     app.modules.profile_images
     app.modules.assistant
     app.modules.resume_builder
+    app.modules.taxonomy
 forbidden_modules =
     app.modules.resume.repository
     app.modules.resume.models

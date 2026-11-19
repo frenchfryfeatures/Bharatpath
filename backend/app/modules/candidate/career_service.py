@@ -8,30 +8,26 @@ from contextlib import suppress
 from fastapi import status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import AppError
+from app.core.errors import AppError, ValidationError
 from app.core.tenant import TenantContext
 from app.modules.candidate import repository
 from app.modules.candidate.career import (
     CareerDetails,
     CareerResponse,
     CareerSaveRequest,
+    employment_dates_ordered,
     match_terms,
     missing_required,
 )
 from app.modules.candidate.domain import normalise_city
 from app.modules.candidate.extraction import extract_career
 from app.modules.candidate.models import CandidateProfile
+from app.modules.candidate.onboarding_policy import EDUCATION_MAX_YEARS
 from app.modules.candidate.schemas import NameRequest
 from app.modules.candidate.service import _candidate, set_full_name
 from app.modules.jobs import service as jobs_service
 from app.modules.jobs.schemas import RecommendedJobs
 from app.modules.resume import service as resume_service
-from app.modules.resume.schemas import (
-    ManualEducation,
-    ManualExperience,
-    ManualResumeRequest,
-    ResumeEditRequest,
-)
 
 
 class CareerIncompleteError(AppError):
@@ -84,101 +80,35 @@ async def save_details(
 ) -> CareerResponse:
     _candidate(ctx)
     old = await get_details(session, ctx=ctx)
+    from app.modules.taxonomy.service import validate_profile
+
+    if (payload.details.starting_year and payload.details.passing_year
+            and payload.details.passing_year > payload.details.starting_year + EDUCATION_MAX_YEARS):
+        raise ValidationError(code="education_years_invalid", title="Graduation must be within seven years of the starting year.", params={"fields": ["passing_year"]})
+    if not employment_dates_ordered(payload.details):
+        raise ValidationError(code="employment_dates_invalid", title="The ending month must be after the starting month.", params={"fields": ["employment_end"]})
+    await validate_profile(session, payload.details, old.details, ctx.user_id)
+    from app.modules.education_taxonomy.domain import missing_custom_fields
+    from app.modules.education_taxonomy.service import validate_profile as validate_education
+    await validate_education(session, payload.details, old.details, ctx.user_id)
     missing = missing_required(payload.details) if payload.complete else []
+    if payload.complete:
+        missing = list(dict.fromkeys([*missing, *missing_custom_fields(payload.details)]))
     profile = await repository.get_profile(session, user_id=ctx.user_id)
     if payload.complete and not (profile and profile.full_name):
         missing.append("full_name")
     if missing:
         raise CareerIncompleteError(params={"fields": missing})
-    full_name = profile.full_name if profile and profile.full_name else ""
+    # Profile editing is independent of resume editing. Linking an owned resume
+    # is allowed, but saving profile facts never creates or rewrites a CV.
     version_id = payload.resume_version_id or old.resume_version_id
     file_id = old.resume_file_id
-    if payload.complete and not version_id:
-        facts = payload.details
-        version = await resume_service.create_manual_version(
-            session,
-            user_id=ctx.user_id,
-            payload=ManualResumeRequest(
-                full_name=full_name,
-                headline=facts.headline or None,
-                skills=facts.key_skills,
-                experience=[
-                    ManualExperience(
-                        employer=facts.company_name,
-                        title=facts.job_title,
-                        start_year=int(facts.employment_start[:4]),
-                        end_year=int(facts.employment_end[:4]) if facts.employment_end else None,
-                        summary=None,
-                    )
-                ]
-                if facts.work_status == "EXPERIENCED" and facts.currently_employed == "YES"
-                else [],
-                education=[
-                    ManualEducation(
-                        institution=facts.institution,
-                        qualification=(
-                            f"{facts.highest_qualification} {facts.course} "
-                            f"{facts.specialization_name}"
-                        ).strip(),
-                        completed_year=facts.passing_year,
-                    )
-                ],
-            ),
-        )
-        version_id = version.id
     if version_id:
-        # The newest version of this CV, not necessarily the row named: a
-        # client still holding the version it uploaded, after a completed
-        # save or a correction superseded it, would otherwise be refused
-        # `resume_version_superseded` on every save from then on (2026-10-13).
         version = await resume_service.latest_version_for_profile(
             session, user_id=ctx.user_id, resume_version_id=version_id
         )
         version_id = version.id
         file_id = version.resume_file_id
-        # A resume-builder version is edited in the builder, which redraws
-        # its PDF; appending profile facts here would refuse (an edit of a
-        # built version is `resume_version_built`) and, if it did not, would
-        # leave the PDF an employer sees saying something else (2026-10-13).
-        if (
-            payload.complete
-            and version.source != "BUILDER"
-            and (not old.completed or payload.details != old.details)
-        ):
-            # A reviewed profile becomes an unconfirmed resume revision. Creating
-            # it emits no scoring event; paid confirmation is a separate request.
-            parsed = version.parsed or {}
-            original = parsed.get("raw_text") or str(parsed)
-            original = original.split("\n\nCandidate-reviewed career facts:\n", 1)[0]
-            facts = payload.details
-            employment_line = (
-                f"Employer: {facts.company_name}; role: {facts.job_title}; "
-                f"dates: {facts.employment_start} to present\n"
-                if facts.work_status == "EXPERIENCED" and facts.currently_employed == "YES"
-                else ""
-            )
-            reviewed = (
-                f"\n\nCandidate-reviewed career facts:\n"
-                f"Candidate-confirmed facts take precedence over earlier values.\n"
-                f"Name: {full_name}\nHeadline: {facts.headline}\n"
-                f"Work status: {facts.work_status}; total experience: "
-                f"{facts.experience_years} years {facts.experience_months} months\n"
-                f"{employment_line}"
-                f"Education: {facts.highest_qualification}, {facts.course}, "
-                f"{facts.specialization} {facts.specialization_name}, {facts.institution}, "
-                f"{facts.starting_year} to {facts.passing_year}\n"
-                f"Skills: {', '.join(facts.key_skills)}"
-            )
-            # A change the scored text does not carry -- the city, preferences,
-            # salary -- writes no new version: an identical revision would
-            # only ask the candidate to confirm the same CV again.
-            # Compared as stored: an edit's text is normalised on the way in.
-            edit = ResumeEditRequest(text=original + reviewed)
-            if edit.edited_text() != parsed.get("raw_text"):
-                updated_version = await resume_service.edit_version(
-                    session, user_id=ctx.user_id, resume_version_id=version_id, payload=edit
-                )
-                version_id = updated_version.id
     saved = {
         "details": payload.details.model_dump(mode="json"),
         "resume_version_id": str(version_id) if version_id else None,
@@ -208,10 +138,8 @@ async def attach_resume(
 ) -> CareerResponse:
     """Link the profile to a resume the candidate made in the resume builder.
 
-    Only the link moves: the answers, and whether the profile is complete,
-    stay as they were. Not `save_details`, which would append the answers to
-    the version as reviewed facts -- a built resume is already the
-    candidate's own words, and the builder is where it is edited.
+    Only the resume link moves. Profile answers and completion stay unchanged;
+    resume content is edited exclusively in the resume editor.
     """
     _candidate(ctx)
     old = await get_details(session, ctx=ctx)

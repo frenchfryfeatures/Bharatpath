@@ -15,8 +15,8 @@ import {
   useGetCareerFieldsQuery,
   useGetCareerProfileQuery,
   usePrefillCareerProfileMutation,
-  visibleCareerField,
 } from "./career-api";
+import { profileValueText } from "./profile-display";
 import { CareerForm, type CareerEditSection } from "./career-form";
 import { getApiErrorMessage } from "@/lib/api/error-message";
 import { Modal } from "@/components/ui/modal";
@@ -148,7 +148,7 @@ export function CareerOverview({
             {String(
               details.job_title ||
                 details.headline ||
-                "Add your profile headline",
+                "N/A",
             )}
           </p>
           {details.company_name && (
@@ -159,33 +159,31 @@ export function CareerOverview({
           <div className="mt-3 grid gap-2.5 border-t border-[#F0EBDF] pt-3 text-[13px] leading-5 text-[#3A4761] sm:grid-cols-2">
             <p className="flex gap-2">
               <MapPin size={17} />
-              {String(details.current_city || "Location not added")}
+              {String(details.current_city || "N/A")}
             </p>
             <p className="flex gap-2">
               <Phone size={17} />
-              {String(details.phone || "Mobile not added")}
+              {String(details.phone || "N/A")}
             </p>
             <p className="flex gap-2">
               <BriefcaseBusiness size={17} />
               {details.work_status === "FRESHER"
                 ? "Fresher"
                 : details.work_status === "EXPERIENCED"
-                  ? `${details.experience_years ?? 0} years ${details.experience_months ?? 0} months`
-                  : "Experience not added"}
+                  ? `${details.experience_years ?? "N/A"} years ${details.experience_months ?? "N/A"} months`
+                  : "N/A"}
             </p>
             <p className="flex min-w-0 items-center gap-2">
               <Mail size={17} className="shrink-0" />
-              <span className="truncate">{email || account.data?.email}</span>
+              <span className="truncate">{email || account.data?.email || "N/A"}</span>
             </p>
             <p className="flex gap-2">
               <Wallet size={17} />
-              {formatSalaryLpaFromRupees(details.annual_salary)}
+              {profileValueText(details.annual_salary) === "N/A" ? "N/A" : formatSalaryLpaFromRupees(details.annual_salary, details.annual_salary_currency)}
             </p>
             <p className="flex gap-2">
               <CalendarDays size={17} />
-              {String(details.notice_period || "Notice period not added")
-                .replaceAll("_", " ")
-                .toLowerCase()}
+              {profileValueText(details.notice_period, fields.data?.find(field => field.key === "notice_period")?.options)}
             </p>
           </div>
           {profile.data?.updated_at && (
@@ -284,12 +282,7 @@ export function CareerOverview({
               </div>
               {group.id === "headline" ? (
                 <p className="text-[13px] leading-5 text-[#3A4761]">
-                  {String(
-                    details.headline ||
-                      (profile.isError
-                        ? "Headline unavailable"
-                        : "Add a headline that describes your skills and career goals."),
-                  )}
+                  {profileValueText(details.headline)}
                 </p>
               ) : (
                 <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
@@ -297,32 +290,19 @@ export function CareerOverview({
                     ?.filter(
                       (field) =>
                         field.section === group.id &&
-                        field.key !== "headline" &&
-                        visibleCareerField(field, details),
+                        field.key !== "headline" && field.key !== "specialization_name",
                     )
                     .map((field) => {
                       const value = details[field.key];
-                      const text =
-                        field.options.find((option) => option.value === value)
-                          ?.label ??
-                        (Array.isArray(value)
-                          ? value.length
-                            ? value.join(", ")
-                            : "Not added"
-                          : value === null ||
-                              value === undefined ||
-                              value === ""
-                            ? field.key === "currently_employed"
-                              ? "No"
-                              : "Not added"
-                            : String(value));
+                      const text = profileValueText(value, field.options);
                       return (
                         <div key={field.key}>
                           <dt className="text-[11px] font-medium leading-4 text-[#7B8495]">
-                            {profileFieldLabel(field.key, field.label)}
+                            {profileFieldLabel(field.key, field.label, details)}
+
                           </dt>
                           <dd className="mt-1 text-[14px] font-medium leading-5 text-[#0A1931]">
-                            {isProfileSalary(field.key) ? formatSalaryLpaFromRupees(value) : text}
+                            {isProfileSalary(field.key) && text !== "N/A" ? formatSalaryLpaFromRupees(value, details[field.key === "annual_salary" ? "annual_salary_currency" : "preferred_salary_currency"]) : text}
                           </dd>
                         </div>
                       );

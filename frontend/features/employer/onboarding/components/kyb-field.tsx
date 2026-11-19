@@ -78,8 +78,6 @@ export function renderFieldLabel(
   options?: RenderFieldLabelOptions,
 ) {
   const {
-    showOptional = false,
-    optionalText = "Optional",
     asteriskColor = "text-[#b42318]",
   } = options ?? {};
 
@@ -107,32 +105,6 @@ export function renderFieldLabel(
         {trimmed}
         <span className={`ml-0.5 ${asteriskColor}`} aria-hidden="true">
           *
-        </span>
-      </span>
-    );
-  }
-
-  if (showOptional) {
-    if (lastSpaceIndex !== -1) {
-      const mainPart = trimmed.slice(0, lastSpaceIndex);
-      const lastWord = trimmed.slice(lastSpaceIndex + 1);
-      return (
-        <>
-          {mainPart}{" "}
-          <span>
-            {lastWord}
-            <span className="ml-1 text-[11px] font-normal text-[#8790a0]">
-              {optionalText}
-            </span>
-          </span>
-        </>
-      );
-    }
-    return (
-      <span>
-        {trimmed}
-        <span className="ml-1 text-[11px] font-normal text-[#8790a0]">
-          {optionalText}
         </span>
       </span>
     );
@@ -322,7 +294,7 @@ export function KybFieldInput({
   }
 
   return (
-    <div>
+    <div data-field-invalid={invalid || undefined}>
       <div className="mb-1.5 flex items-center justify-between gap-1.5">
         <label
           id={`${id}-label`}

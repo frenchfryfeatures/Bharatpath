@@ -361,8 +361,8 @@ class ResumeSectionEdit(_Base):
 class ResumeEditRequest(_Base):
     """A correction to a reviewed version. Sends the resume **entire**.
 
-    Exactly one of `text`, `structured` or `sections`, and the reason it is
-    not two is that they carry the same facts in different shapes: accepting
+    Exactly one of `text`, `structured`, `sections` or `structured_resume`. It is
+    not two because they carry the same facts in different shapes: accepting
     both would make "which one is scored?" a question with an answer buried in
     merge code. Sending none is equally a client bug, so both are 422s rather
     than a silent no-op that returns a version nobody changed.
@@ -372,8 +372,10 @@ class ResumeEditRequest(_Base):
     stored exactly as a `text` edit is.
     """
 
+    # Full editor writes preserve the builder document; old shapes remain supported.
     text: Annotated[str | None, Field(default=None, min_length=50)] = None
     structured: ManualResumeRequest | None = None
+    structured_resume: StructuredResume | None = None
     sections: Annotated[list[ResumeSectionEdit] | None, Field(default=None, max_length=40)] = None
 
     @field_validator("text")
@@ -391,9 +393,15 @@ class ResumeEditRequest(_Base):
 
     @model_validator(mode="after")
     def _exactly_one(self) -> ResumeEditRequest:
-        given = [v for v in (self.text, self.structured, self.sections) if v is not None]
+        given = [
+            v
+            for v in (self.text, self.structured, self.sections, self.structured_resume)
+            if v is not None
+        ]
         if len(given) != 1:
-            raise ValueError("send exactly one of `text`, `structured` or `sections`")
+            raise ValueError(
+                "send exactly one of `text`, `structured`, `sections` or `structured_resume`"
+            )
         if self.sections is not None:
             if any(s.kind == HEADER for s in self.sections[1:]):
                 # Assembled anywhere else it would read back as part of the

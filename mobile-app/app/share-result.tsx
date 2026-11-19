@@ -14,6 +14,7 @@ import {
   getMyScore,
   CandidateScoreResponse,
   bandLabel,
+  UI_SCORE_MAX,
 } from '@/services/api/scoring';
 import {
   listResumeVersions,
@@ -118,7 +119,7 @@ export default function ShareResultRoute() {
   const handleShare = async () => {
     try {
       const bandStr = band ? ` (${band})` : '';
-      const scoreStr = scoreNum ? `${scoreNum}/990` : 'Verified';
+      const scoreStr = scoreNum ? `${scoreNum}/${UI_SCORE_MAX}` : 'Verified';
       await Share.share({
         message: `I scored ${scoreStr}${bandStr} on BharatPath! Verify your employability score and get discovered by top employers.`,
       });
@@ -138,7 +139,7 @@ export default function ShareResultRoute() {
   return (
     <ShareResultScreen
       score={scoreNum}
-      maxScore={990}
+      maxScore={UI_SCORE_MAX}
       bandName={band}
       candidateName={displayName}
       candidateField={resumeInfo.field || undefined}

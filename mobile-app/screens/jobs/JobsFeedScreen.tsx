@@ -34,10 +34,10 @@ import {
   MapPin,
   SlidersHorizontal,
   MagnifyingGlass,
-  Check,
   CaretRight,
   CheckCircle,
   Clock,
+  Briefcase,
   XCircle,
   SpinnerGap,
   X,
@@ -177,8 +177,20 @@ export function JobsFeedScreen({
     }
     return (
       <View style={styles.emptyState}>
+        <View style={styles.emptyIcon}>
+          <Briefcase size={24} color={Colors.brandAccent} weight="duotone" />
+        </View>
         <Text style={styles.emptyTitle}>No jobs in your area yet.</Text>
         <Text style={styles.emptySubtitle}>{TXT_NO_JOBS_SUB}</Text>
+        <Pressable
+          style={({ pressed }) => [styles.emptyActionBtn, pressed && styles.btnPressed]}
+          onPress={() => setIsFilterSheetOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Change job filters"
+        >
+          <SlidersHorizontal size={16} color={Colors.brandAccent} weight="bold" />
+          <Text style={styles.emptyActionText}>Change filters</Text>
+        </Pressable>
       </View>
     );
   };
@@ -242,39 +254,6 @@ export function JobsFeedScreen({
             )}
           </View>
 
-          {/* "Only jobs I can apply to" toggle (replaces the banned matches banner) */}
-          <Pressable
-            style={({ pressed }) => [
-              styles.eligibleToggle,
-              filters.eligible_only && styles.eligibleToggleActive,
-              pressed && styles.btnPressed,
-            ]}
-            onPress={() =>
-              setFilters({ ...filters, eligible_only: !filters.eligible_only })
-            }
-            accessibilityRole="switch"
-            accessibilityState={{ checked: filters.eligible_only }}
-            accessibilityLabel="Only jobs I can apply to"
-          >
-            <View
-              style={[
-                styles.toggleCheck,
-                filters.eligible_only && styles.toggleCheckActive,
-              ]}
-            >
-              {filters.eligible_only && (
-                <Check size={11} color="#FFFFFF" weight="bold" />
-              )}
-            </View>
-            <Text
-              style={[
-                styles.eligibleToggleText,
-                filters.eligible_only && styles.eligibleToggleTextActive,
-              ]}
-            >
-              Only jobs I can apply to
-            </Text>
-          </Pressable>
         </View>
 
         {/* Job list with infinite scroll */}
@@ -545,7 +524,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: Colors.surface.border,
-    borderRadius: 999,
+    borderRadius: 14,
     paddingHorizontal: 16,
     minHeight: 52,
     paddingVertical: 10,
@@ -557,45 +536,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: Colors.navy,
     padding: 0,
-  },
-  eligibleToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    minHeight: 52,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.surface.border,
-    backgroundColor: '#FFFFFF',
-  },
-  eligibleToggleActive: {
-    borderColor: '#C9BEEB',
-    backgroundColor: Colors.indigoSemantic.bg,
-  },
-  toggleCheck: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: Colors.surface.borderSecondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-  },
-  toggleCheckActive: {
-    borderColor: Colors.brandAccent,
-    backgroundColor: Colors.brandAccent,
-  },
-  eligibleToggleText: {
-    fontFamily: 'GeneralSans-Semibold',
-    fontSize: 14,
-    lineHeight: 18,
-    color: Colors.navy,
-  },
-  eligibleToggleTextActive: {
-    color: Colors.indigoSemantic.fg,
   },
   listContent: {
     paddingHorizontal: 20,
@@ -816,6 +756,14 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingHorizontal: 32,
   },
+  emptyIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.indigoSemantic.bg,
+  },
   emptyTitle: {
     fontFamily: 'GeneralSans-Semibold',
     fontSize: 16,
@@ -829,6 +777,24 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: '#5F6B80',
     textAlign: 'center',
+  },
+  emptyActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#C9BEEB',
+    backgroundColor: '#FFFFFF',
+  },
+  emptyActionText: {
+    fontFamily: 'GeneralSans-Semibold',
+    fontSize: 14,
+    lineHeight: 18,
+    color: Colors.brandAccent,
   },
   retryBtn: {
     paddingVertical: 10,

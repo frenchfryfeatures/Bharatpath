@@ -38,6 +38,7 @@ export interface PhoneNumberInputProps {
   containerStyle?: StyleProp<ViewStyle>;
   accessibilityLabel?: string;
   autoFocus?: boolean;
+  inputRef?: React.RefObject<TextInput | null>;
 }
 
 export interface CountryItem {
@@ -134,11 +135,13 @@ export function PhoneNumberInput({
   containerStyle,
   accessibilityLabel = 'Mobile number',
   autoFocus = false,
+  inputRef: providedInputRef,
 }: PhoneNumberInputProps) {
   const [modalVisible, setModalVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isFocused, setIsFocused] = useState(false);
-  const inputRef = useRef<TextInput>(null);
+  const fallbackInputRef = useRef<TextInput>(null);
+  const inputRef = providedInputRef ?? fallbackInputRef;
 
   const initialCountry = countryFromValue(value) ?? ('IN' as CountryCode);
   const [selectedCountry, setSelectedCountry] =
@@ -283,7 +286,7 @@ export function PhoneNumberInput({
         }}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}
         >
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>

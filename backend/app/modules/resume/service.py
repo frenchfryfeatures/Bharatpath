@@ -47,7 +47,7 @@ from app.modules.resume.schemas import (
 from app.modules.resume.sections import split_sections
 from app.modules.resume.structuring import SCHEMA_VERSION as STRUCTURED_SCHEMA_VERSION
 from app.modules.resume.structuring import STORED_KEY as STRUCTURED_KEY
-from app.modules.resume.structuring import structure_resume, structured_view
+from app.modules.resume.structuring import StructuredResume, structure_resume, structured_view
 from app.settings import Settings, get_settings
 
 logger = get_logger(__name__)
@@ -337,6 +337,25 @@ async def create_manual_version(
     return row
 
 
+async def create_document_version(
+    session: AsyncSession, *, user_id: uuid.UUID, document: StructuredResume
+) -> Any:
+    """A full manual resume, preserved without an AI structuring round trip."""
+    from app.modules.resume.document import document_payload
+
+    parsed = document_payload(document)
+    parsed["extractor"] = {"parser": "manual_document", "parser_version": "1"}
+    row = await repository.create_version(session, user_id=user_id, source="MANUAL", parsed=parsed)
+    await emit(
+        session,
+        event_type=f"{MODULE}.version_created",
+        aggregate_type="resume_version",
+        aggregate_id=row.id,
+        payload={"user_id": str(user_id), "source": "MANUAL"},
+    )
+    return row
+
+
 async def create_builder_version(
     session: AsyncSession,
     *,
@@ -592,7 +611,11 @@ async def edit_version(
     if previous.source == "BUILDER":
         raise BuiltVersionEditError()
 
-    if payload.structured is not None:
+    if payload.structured_resume is not None:
+        from app.modules.resume.document import document_payload
+
+        replacement = document_payload(payload.structured_resume)
+    elif payload.structured is not None:
         replacement: dict[str, Any] = {
             "full_name": payload.structured.full_name,
             "headline": payload.structured.headline,
@@ -916,3 +939,35 @@ async def users_with_any_resume(
     read**: it says whether a version exists, never what one holds, so it does
     not go near the confirm gate."""
     return await repository.users_with_any_resume(session, user_ids=user_ids)
+
+
+async def render_review_document(
+    session: AsyncSession, *, user_id: uuid.UUID, resume_version_id: uuid.UUID, preview: bool
+) -> bytes | dict[str, Any]:
+    """Render exactly the reviewed version, without saving a draft or scoring."""
+    from app.modules.resume_builder import domain, rendering
+
+    version = await get_version_for_profile(
+        session, user_id=user_id, resume_version_id=resume_version_id
+    )
+    parsed = version.parsed or {}
+    document, _ = structured_view(parsed)
+    if document is None:
+        # Keep the read-only export available for legacy text resumes too.
+        text = str(parsed.get("raw_text") or "")
+        chunks = [text[index : index + 5000] for index in range(0, len(text), 5000)]
+        document = StructuredResume(
+            summary=chunks[0] if chunks else "",
+            other_sections=[
+                {"heading": "Resume details", "items": chunks[index : index + 60]}
+                for index in range(1, len(chunks), 60)
+            ],
+        )
+    template = (parsed.get("extractor") or {}).get("template_key", domain.DEFAULT_TEMPLATE)
+    if template not in domain.TEMPLATE_KEYS:
+        template = domain.DEFAULT_TEMPLATE
+    view = domain.template_view(document.model_dump(mode="json"))
+    if preview:
+        pages, total = await rendering.preview(template, view)
+        return {"pages": pages, "truncated": total > len(pages)}
+    return await rendering.pdf(template, view)

@@ -43,7 +43,7 @@ export function AuthPageShell({
           }}
         />
 
-        <div className="relative flex items-center gap-3">
+        <div className="relative flex items-center justify-between gap-3">
           <BrandIcon className="h-11 w-11" />
           <div>
             <p className="text-lg font-semibold tracking-tight">

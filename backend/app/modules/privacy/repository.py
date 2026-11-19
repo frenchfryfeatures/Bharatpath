@@ -356,6 +356,7 @@ async def erase_candidate(
 #: `domain.EXPORT_FORBIDDEN_FIELDS`, and a test asserts that against the
 #: returned keys rather than against this text.
 _EXPORT_QUERIES: dict[str, str] = {
+    "profile_insights": "SELECT day,metric,count FROM profile_insight_days WHERE candidate_id=:user_id ORDER BY day,metric",
     "account": """
         SELECT phone, email, locale, status, created_at
           FROM users WHERE id = :user_id

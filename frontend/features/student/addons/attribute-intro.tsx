@@ -80,14 +80,24 @@ function QuestionnaireForm({
     () => questionnaire.sections.flatMap((section) => section.questions),
     [questionnaire.sections],
   );
-  const sectionRanges = useMemo(() => {
-    let next = 1;
-    return questionnaire.sections.map((section) => {
-      const start = next;
-      next += section.questions.length;
-      return { section, start, end: next - 1 };
-    });
-  }, [questionnaire.sections]);
+
+
+
+
+  const sectionRanges = useMemo(
+    () =>
+      questionnaire.sections.reduce<
+        { section: (typeof questionnaire.sections)[number]; start: number; end: number }[]
+      >((acc, section) => {
+        const start = acc.length === 0 ? 1 : acc[acc.length - 1].end + 1;
+        acc.push({ section, start, end: start + section.questions.length - 1 });
+        return acc;
+      }, []),
+    [questionnaire.sections],
+  );
+
+
+
   const missingRequired = questions.some((question) => {
     const answer = answers[question.code];
     return (

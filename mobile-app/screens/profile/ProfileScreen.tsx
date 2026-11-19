@@ -1,3 +1,4 @@
+import {ProfileInsightsSummary} from "./ProfileInsightsScreen";
 /**
  * BharatPath - ProfileScreen ("You" Screen)
  *
@@ -251,6 +252,7 @@ export function ProfileScreen({
             </Pressable>
           </View>
 
+          <ProfileInsightsSummary/>
           {/* Section: MY INFORMATION */}
           <View style={styles.sectionContainer}>
             <View style={styles.sectionEyebrow}>

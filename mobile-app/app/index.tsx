@@ -26,6 +26,7 @@ import type {
 import { ParsingScreen } from '@/screens/onboarding/ParsingScreen';
 import { CareerDetailsScreen } from '@/screens/profile/CareerDetailsScreen';
 import { ResumeUploadRequiredScreen } from '@/screens/onboarding/ResumeUploadRequiredScreen';
+import { ResumeBuilderScreen } from '@/screens/onboarding/ResumeBuilderScreen';
 import { nextAfterProfile } from '@/services/profile/onboarding';
 import {
   getCareerProfile,
@@ -51,6 +52,7 @@ import {
   nextBandLabel,
   pointsToNextBand,
   getMyScore,
+  UI_SCORE_MAX,
 } from '@/services/api/scoring';
 import { HomeScreen } from '@/screens/home/HomeScreen';
 import { useAuthContext } from '@/context/AuthContext';
@@ -65,6 +67,7 @@ import {
   resendConfirmationCode,
   getCurrentSession,
 } from '@/services/api/auth';
+import { logger } from '@/utils/logger';
 
 type AppStep =
   | 'splash'
@@ -82,6 +85,7 @@ type AppStep =
   | 'parsing'
   | 'review'
   | 'resume-required'
+  | 'resume-builder'
   | 'scoring'
   | 'score'
   | 'breakdown'
@@ -146,11 +150,26 @@ export default function FoundationPreview() {
   const candidateScore = authCandidateScore || localCandidateScore;
   const scoreGain = useScoreChange(session?.userId, candidateScore);
 
+  const prevStepRef = useRef<AppStep>(step);
+  useEffect(() => {
+    if (prevStepRef.current !== step) {
+      logger.step('OnboardingFlow', `Step transition: ${prevStepRef.current} -> ${step}`, {
+        userEmail: userEmail || session?.email || null,
+        resumeVersionId: resumeVersionId || null,
+        onboardingSection,
+        hasFileMeta: Boolean(fileMeta),
+      });
+      prevStepRef.current = step;
+    }
+  }, [step, userEmail, session?.email, resumeVersionId, onboardingSection, fileMeta]);
+
   // Refresh candidate score on screen focus so newly scored resumes are reflected
   useFocusEffect(
     useCallback(() => {
-      refreshScore().catch(() => undefined);
-    }, [refreshScore]),
+      if (session && (step === 'preview' || step === 'score' || step === 'share')) {
+        refreshScore().catch(() => undefined);
+      }
+    }, [refreshScore, session, step]),
   );
 
   useEffect(() => {
@@ -223,6 +242,12 @@ export default function FoundationPreview() {
 
   const continueAfterProfile = async (profile: Awaited<ReturnType<typeof getCareerProfile>>) => {
     const beforePayment = nextAfterProfile(profile, false);
+    logger.step('OnboardingFlow', `continueAfterProfile evaluated`, {
+      completed: profile.completed,
+      resume_version_id: profile.resume_version_id,
+      resume_file_id: profile.resume_file_id,
+      beforePaymentDecision: beforePayment,
+    });
     if (beforePayment === 'review') {
       setOnboardingSection(1);
       setStep('review');
@@ -235,27 +260,52 @@ export default function FoundationPreview() {
     setResumeVersionId(profile.resume_version_id ?? undefined);
     try {
       const subscription = await getCandidateSubscription();
-      if (nextAfterProfile(profile, Boolean(subscription?.has_access)) === 'paid-scoring') {
+      const afterSubDecision = nextAfterProfile(profile, Boolean(subscription?.has_access));
+      logger.info('OnboardingFlow', 'Subscription check after profile', {
+        state: subscription?.state,
+        has_access: subscription?.has_access,
+        decision: afterSubDecision,
+      });
+      if (afterSubDecision === 'paid-scoring') {
         setStep('paid-scoring');
         return;
       }
     } catch (error) {
-      console.warn('Could not check membership; showing payment page:', error);
+      logger.warn('OnboardingFlow', 'Could not check membership; showing payment page', error);
     }
     setStep(collegeReferralCode ? 'referral' : 'subscribe');
   };
 
   const restoreOnboarding = async (email?: string) => {
+    logger.step('OnboardingFlow', `restoreOnboarding starting for ${email || 'current user'}`);
     try {
-      const [score, versions, profile, pending] = await Promise.all([
-        getMyScore().catch(() => null),
+      const [versions, profile, pending] = await Promise.all([
         listResumeVersions(),
         getCareerProfile(),
         getPendingResume(),
       ]);
       const latest = versions.find((version) => !version.superseded);
       const matchingPending = pending && (!pending.email || pending.email === email?.toLowerCase()) ? pending : null;
+      const shouldFetchScore = Boolean(
+        (profile.completed && profile.resume_file_id) || matchingPending?.versionId,
+      );
+      const score = shouldFetchScore
+        ? await getMyScore().catch((err) => {
+            logger.warn('OnboardingFlow', 'restoreOnboarding: getMyScore not ready (non-fatal)', err);
+            return null;
+          })
+        : null;
       const currentVersionId = profile.resume_version_id || latest?.resume_version_id;
+      logger.info('OnboardingFlow', 'restoreOnboarding fetched state', {
+        scoreStatus: score?.status,
+        scoreValue: score?.value,
+        versionsCount: versions.length,
+        latestVersionId: latest?.resume_version_id,
+        profileCompleted: profile.completed,
+        profileResumeVersionId: profile.resume_version_id,
+        profileResumeFileId: profile.resume_file_id,
+        hasMatchingPendingResume: Boolean(matchingPending),
+      });
       if (matchingPending) {
         const pendingOrigin = matchingPending.origin === 'signup' || !matchingPending.origin
           ? 'signup' : 'resume-required';
@@ -277,28 +327,36 @@ export default function FoundationPreview() {
           setStep('parsing');
           return;
         }
-        const details = await getResumeVersionDetails(matchingPending.versionId);
-        setResumeVersionDetails(details);
-        if (details.confirmed_at) {
-          setConfirmedAtTimestamp(details.confirmed_at);
-          const scoredAt = score?.computed_at ? Date.parse(score.computed_at) : 0;
-          if (score?.status === 'READY' && scoredAt >= Date.parse(details.confirmed_at)) {
-            await clearPendingResume();
-            router.replace('/home');
-          } else setStep('scoring');
-        } else {
-          if (pendingOrigin === 'resume-required') {
-            const saved = await saveCareerProfile(
-              profile.details, matchingPending.versionId, true, matchingPending.file.fileName,
-            );
-            await continueAfterProfile(saved);
-            return;
+        try {
+          const details = await getResumeVersionDetails(matchingPending.versionId);
+          setResumeVersionDetails(details);
+          if (details.confirmed_at) {
+            setConfirmedAtTimestamp(details.confirmed_at);
+            const scoredAt = score?.computed_at ? Date.parse(score.computed_at) : 0;
+            if (score?.status === 'READY' && scoredAt >= Date.parse(details.confirmed_at)) {
+              await clearPendingResume();
+              router.replace('/home');
+            } else setStep('scoring');
+          } else {
+            if (pendingOrigin === 'resume-required') {
+              const saved = await saveCareerProfile(
+                profile.details, matchingPending.versionId, true, matchingPending.file.fileName,
+              );
+              await continueAfterProfile(saved);
+              return;
+            }
+            setOnboardingSection(1);
+            setReviewFromParsing(true);
+            setStep('review');
           }
-          setOnboardingSection(1);
-          setReviewFromParsing(true);
-          setStep('review');
+          return;
+        } catch (stalePendingErr) {
+          logger.warn('OnboardingFlow', `Pending resume version ${matchingPending.versionId} is stale or missing; clearing pending resume`, stalePendingErr);
+          await clearPendingResume().catch(() => undefined);
+          setFileMeta(undefined);
+          setIntakePayload(undefined);
+          setResumeVersionId(currentVersionId);
         }
-        return;
       }
       if (!profile.completed) {
         setResumeVersionId(currentVersionId);
@@ -342,7 +400,20 @@ export default function FoundationPreview() {
       } else {
         setResumeVersionDetails(null);
       }
-    } catch {
+    } catch (restoreErr) {
+      const isOfflineOrTimeout =
+        restoreErr != null &&
+        typeof restoreErr === 'object' &&
+        'status' in restoreErr &&
+        (restoreErr as { status?: number }).status === 0;
+      const hasCachedReadyScore =
+        candidateScore?.status === 'READY' && candidateScore.value != null;
+      if (isOfflineOrTimeout && hasCachedReadyScore) {
+        logger.warn('OnboardingFlow', 'restoreOnboarding timed out; routing scored user to /home using cached score', restoreErr);
+        router.replace('/home');
+        return;
+      }
+      logger.error('OnboardingFlow', 'restoreOnboarding failed; falling back to review step', restoreErr);
       setOnboardingSection(1);
       setOnboardingDraft(null);
       setStep('review');
@@ -401,6 +472,7 @@ export default function FoundationPreview() {
         initialFullName={userName}
         initialEmail={userEmail}
         initialPhone={typeof onboardingDraft?.phone === 'string' ? onboardingDraft.phone : ''}
+        initialCity={typeof onboardingDraft?.current_city === 'string' ? onboardingDraft.current_city : ''}
         initialWorkStatus={typeof onboardingDraft?.work_status === 'string' ? onboardingDraft.work_status : ''}
         initialReferralCode={collegeReferralCode}
         initialFileMeta={fileMeta}
@@ -408,7 +480,7 @@ export default function FoundationPreview() {
         onResumeSelected={(meta) => {
           setParsingOrigin('signup');
           setFileMeta(meta);
-          setIntakePayload({ source: 'upload', fileMeta: meta });
+          setIntakePayload(meta ? { source: 'upload', fileMeta: meta } : undefined);
           setResumeVersionId(undefined);
         }}
         onBack={() => setStep('intro')}
@@ -739,7 +811,7 @@ export default function FoundationPreview() {
         resumeFilename={fileMeta?.fileName}
         versionId={resumeVersionId}
         onBack={() => {
-          setStep(reviewFromParsing ? 'parsing' : 'signup');
+          if (!session) setStep(reviewFromParsing ? 'parsing' : 'signup');
         }}
         onDone={async (profile) => {
           const verId = profile.resume_version_id ?? resumeVersionId;
@@ -752,13 +824,17 @@ export default function FoundationPreview() {
     );
   }
 
-  // A completed profile needs a real uploaded resume before membership.
+  // A completed profile needs a real uploaded or built resume before membership.
   if (step === 'resume-required') {
     return (
       <ResumeUploadRequiredScreen
         onBack={() => {
           setOnboardingSection(1);
           setStep('review');
+        }}
+        onBuildResume={() => {
+          logger.step('OnboardingFlow', 'User selected Create / Build your resume from resume-required step');
+          setStep('resume-builder');
         }}
         onUpload={async () => {
           try {
@@ -792,6 +868,27 @@ export default function FoundationPreview() {
           } catch (error) {
             console.warn('Could not select resume:', error);
             AppAlert.alert('File selection failed', 'Please choose your resume again.');
+          }
+        }}
+      />
+    );
+  }
+
+  // 10b. Onboarding: Build a resume from profile answers (4 templates + PDF preview/download + push)
+  if (step === 'resume-builder') {
+    return (
+      <ResumeBuilderScreen
+        onBack={() => setStep('resume-required')}
+        onUploadCv={() => setStep('resume-required')}
+        onDone={async (builtVersionId) => {
+          logger.step('OnboardingFlow', `ResumeBuilder finished pushing built resume version: ${builtVersionId}`);
+          setResumeVersionId(builtVersionId);
+          try {
+            const updatedProfile = await getCareerProfile();
+            await continueAfterProfile(updatedProfile);
+          } catch (err) {
+            logger.error('OnboardingFlow', 'Failed to read career profile after building resume', err);
+            setStep(collegeReferralCode ? 'referral' : 'subscribe');
           }
         }}
       />
@@ -854,7 +951,7 @@ export default function FoundationPreview() {
     return (
       <ShareResultScreen
         score={candidateScore?.value ?? undefined}
-        maxScore={990}
+        maxScore={UI_SCORE_MAX}
         bandName={bandLabel(candidateScore?.band) || undefined}
         candidateName={resumeInfo.name || userName || undefined}
         candidateField={resumeInfo.field || undefined}
@@ -883,7 +980,7 @@ export default function FoundationPreview() {
         resumeInfo.name || candidateFullName || userName || undefined
       }
       score={candidateScore?.value ?? undefined}
-      maxScore={990}
+      maxScore={UI_SCORE_MAX}
       bandName={bandLabel(candidateScore?.band) || undefined}
       bandNumber={bandIndex(candidateScore?.band)}
       bandTotal={4}

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, usePathname, useGlobalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useBharatPathFonts } from '@/theme/fonts';
 import { injectWebFonts } from '@/theme/webFonts';
@@ -8,15 +8,39 @@ import { AppProvider } from '@/context/AppContext';
 import { configureNotificationPresentation } from '@/services/notifications/device';
 import { AppAlertRoot } from '@/components/feedback/AppAlert';
 import { PushNotificationBridge } from '@/components/PushNotificationBridge';
+import { installGlobalErrorLogger, logger } from '@/utils/logger';
+import { getBaseUrl } from '@/services/api/client';
+
+installGlobalErrorLogger();
 
 export default function RootLayout() {
   const { fontsLoaded, fontError } = useBharatPathFonts();
+  const pathname = usePathname();
+  const searchParams = useGlobalSearchParams();
 
   useEffect(() => {
+    logger.step('AppBoot', 'RootLayout mounted', {
+      resolvedApiBaseUrl: getBaseUrl(),
+      cognitoRegion: process.env.EXPO_PUBLIC_COGNITO_REGION || 'ap-south-1',
+      cognitoPoolId: process.env.EXPO_PUBLIC_COGNITO_USER_POOL_ID || 'ap-south-1_W3LPdPnh4',
+      devTokenMode: process.env.EXPO_PUBLIC_AUTH_USE_DEV_TOKEN === 'true',
+    });
     injectWebFonts();
     // Foreground notifications must explicitly opt into a banner/list entry.
     configureNotificationPresentation();
   }, []);
+
+  useEffect(() => {
+    if (fontError) {
+      logger.error('AppBoot', 'Font loading failed', fontError);
+    }
+  }, [fontError]);
+
+  useEffect(() => {
+    if (pathname) {
+      logger.step('Router', `Navigated to route: ${pathname}`, Object.keys(searchParams).length ? searchParams : undefined);
+    }
+  }, [pathname, JSON.stringify(searchParams)]);
 
   if (!fontsLoaded && !fontError) {
     return null;

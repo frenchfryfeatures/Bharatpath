@@ -1,4 +1,5 @@
 "use client";
+import { focusFormError } from "@/lib/ui/focus-form-error";
 
 import { useMemo, useState } from "react";
 import { OnboardingBackButton } from "@/components/common/onboarding-back-button";
@@ -277,6 +278,7 @@ function KybFlow({
 
     if (Object.keys(fieldErrors).length > 0) {
       setErrors(fieldErrors);
+      focusFormError();
 
       const firstInvalid = Math.min(
         ...Object.keys(fieldErrors)
@@ -299,6 +301,7 @@ function KybFlow({
 
     if (Object.keys(sectionErrors).length > 0) {
       setErrors(sectionErrors);
+      focusFormError();
       setBanner("Some details need attention. Check the highlighted fields.");
       return;
     }
@@ -329,6 +332,7 @@ function KybFlow({
 
     if (Object.keys(allErrors).length > 0) {
       setErrors(allErrors);
+      focusFormError();
       const firstInvalid = sections.findIndex((item) =>
         item.fields.some((field) => allErrors[field.code]),
       );

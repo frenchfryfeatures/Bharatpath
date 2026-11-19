@@ -15,6 +15,7 @@ from . import (
     courses,
     discovery,
     employer,
+    education_taxonomy,
     engagement,
     identity,
     integrity,
@@ -23,12 +24,14 @@ from . import (
     kyb,
     notifications,
     privacy,
+    profile_insights,
     profile_images,
     questionnaire,
     resume,
     resume_builder,
     scoring,
     subscriptions,
+    taxonomy,
 )
 
 ALL_MODULES: tuple[ModuleType, ...] = (
@@ -52,8 +55,11 @@ ALL_MODULES: tuple[ModuleType, ...] = (
     admin,
     notifications,
     privacy,
+    profile_insights,
     engagement,
     profile_images,
     assistant,
     resume_builder,
+    taxonomy,
+    education_taxonomy,
 )

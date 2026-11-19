@@ -11,6 +11,7 @@ import {
   GraduationCap,
   Loader2,
   Lock,
+  LogOut,
   Sparkles,
 } from "lucide-react";
 
@@ -60,15 +61,17 @@ export function SignupFrame({
     <div className={`${conversationMode ? "h-dvh overflow-hidden" : "min-h-screen"} bg-[#FFFCF7] text-[#0A1931]`}>
       <header className="sticky top-0 z-30 shrink-0 border-b border-[#F0EBDF] bg-[#FFFCF7]/90 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:px-8">
-          <Wordmark />
+          <div className="flex min-w-0 items-center gap-4"><div className={signedIn ? "hidden sm:block" : ""}><Wordmark /></div>{signedIn && <span className="text-[16px] font-semibold text-[#0A1931]">Complete your Profile</span>}</div>
           {signedIn ? (
             onSignOut ? (
               <button
                 type="button"
                 onClick={onSignOut}
+                aria-label="Sign out"
+                title="Sign out"
                 className="cursor-pointer rounded-full border border-[#DDD6C7] bg-white px-4 py-2 text-[13px] font-semibold text-[#0A1931] transition hover:bg-[#F7F4EC]"
               >
-                Sign out
+                <LogOut size={20} aria-hidden="true" />
               </button>
             ) : null
           ) : (
@@ -139,7 +142,7 @@ const JOURNEY: ReadonlyArray<{
   {
     phase: "preferences",
     title: "Headline and preferences",
-    body: "Add your career headline, preferred locations and salary. Gender is optional.",
+    body: "Add your career headline, preferred locations, salary and gender.",
     icon: <Sparkles className="h-4 w-4" aria-hidden="true" />,
   },
 ];
@@ -291,7 +294,7 @@ export function StepHeader({
           </div>
         </>
       )}
-      <div className={`flex flex-col ${index >= 0 ? "mt-2" : ""}`}>
+      <div className={`flex flex-col ${index >= 0 ? "mt-1" : ""}`}>
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="m-0 text-[28px] font-bold leading-8 tracking-[-0.025em] text-[#0A1931] sm:text-[30px] sm:leading-[34px]">
             {title}
@@ -382,16 +385,12 @@ export function Field({
   label,
   hint,
   error,
-  optional,
   children,
 }: Readonly<FieldProps>) {
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-1.5" data-field-invalid={Boolean(error) || undefined}>
       <label htmlFor={id} className="text-[13px] font-semibold text-[#0A1931]">
         {label}
-        {optional && (
-          <span className="ml-1.5 font-normal text-[#5F6B80]">Optional</span>
-        )}
       </label>
       {children}
       {error ? (

@@ -1,9 +1,9 @@
 import React from 'react';
 import { View, Text } from 'react-native';
 
-export function OnboardingProgress({ step }: { step: number }) {
+export function OnboardingProgress({ step, bottomSpacing = 8 }: { step: number; bottomSpacing?: number }) {
   return (
-    <View style={{ gap: 8, marginBottom: 16 }}>
+    <View style={{ gap: 8, marginBottom: bottomSpacing }}>
       <Text
         style={{
           fontFamily: 'GeneralSans-Bold',

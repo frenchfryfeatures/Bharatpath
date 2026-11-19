@@ -1,4 +1,5 @@
 "use client";
+import { focusFormError } from "@/lib/ui/focus-form-error";
 
 import { useRouter } from "next/navigation";
 import { OnboardingBackButton } from "@/components/common/onboarding-back-button";
@@ -140,6 +141,7 @@ export function CollegeDetailsWizard({
       );
     }
     setErrors(next);
+    focusFormError();
 
     // Take them to the first section that still has something to fix.
     const first = sections.findIndex((item) =>
@@ -155,6 +157,7 @@ export function CollegeDetailsWizard({
 
     const problems = validateSection(section, answers, NO_UPLOADS);
     setErrors(problems);
+    focusFormError();
     if (Object.keys(problems).length > 0) return;
 
     setBusy(true);

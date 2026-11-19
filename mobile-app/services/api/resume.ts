@@ -1,3 +1,4 @@
+import type { ResumeBuilderContent } from './resumeBuilder';
 /**
  * BharatPath - Resume Service
  * Integrates with Backend /api/v1/candidate/resume/* endpoints:
@@ -9,8 +10,11 @@
  */
 import { Platform } from 'react-native';
 import { uploadAsync, FileSystemUploadType } from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import { apiRequest, getBaseUrl } from './client';
 import { ManualResumeData } from '@/screens/onboarding/ManualResumeModal';
+import { logger } from '@/utils/logger';
 
 export interface UploadTicketResponse {
   upload_id: string;
@@ -39,7 +43,7 @@ export interface ResumeFileStatusResponse {
 
 export interface ResumeVersionResponse {
   resume_version_id: string;
-  source: 'UPLOAD' | 'PASTE' | 'MANUAL' | 'EDIT';
+  source: 'UPLOAD' | 'PASTE' | 'MANUAL' | 'EDIT' | 'BUILDER';
   confirmed: boolean;
   created_at: string;
 }
@@ -139,7 +143,7 @@ export type StructuredResumeStatus = 'READY' | 'FAILED' | 'UNAVAILABLE';
 
 export interface ResumeVersionDetailResponse {
   resume_version_id: string;
-  source: 'UPLOAD' | 'PASTE' | 'MANUAL' | 'EDIT';
+  source: 'UPLOAD' | 'PASTE' | 'MANUAL' | 'EDIT' | 'BUILDER';
   parsed: {
     raw_text?: string;
     page_count?: number;
@@ -207,13 +211,14 @@ export interface ResumeSectionEdit {
 }
 
 export type ResumeEditRequest =
+  | { structured_resume: ResumeBuilderContent; text?: never; structured?: never; sections?: never }
   | { text: string; structured?: never; sections?: never }
   | { text?: never; structured: StructuredResumeData; sections?: never }
   | { text?: never; structured?: never; sections: ResumeSectionEdit[] };
 
 export interface ResumeVersionSummary {
   resume_version_id: string;
-  source: 'UPLOAD' | 'PASTE' | 'MANUAL' | 'EDIT';
+  source: 'UPLOAD' | 'PASTE' | 'MANUAL' | 'EDIT' | 'BUILDER';
   confirmed: boolean;
   confirmed_at: string | null;
   supersedes_id: string | null;
@@ -354,6 +359,18 @@ export async function uploadFileToPresignedUrl(
 ): Promise<boolean> {
   const targetUrl = reachableFromThisDevice(presignedUrl);
   const contentType = mimeType || 'application/pdf';
+  const startedAt = Date.now();
+  logger.step('ResumeUpload', '--> PUT presigned S3 upload starting', {
+    fileUri,
+    contentType,
+    targetHost: (() => {
+      try {
+        return new URL(targetUrl).host;
+      } catch {
+        return 'unknown';
+      }
+    })(),
+  });
 
   // On a device the picked file is a `file://` or `content://` URI, which
   // `fetch` cannot read; the native uploader streams it instead.
@@ -364,13 +381,24 @@ export async function uploadFileToPresignedUrl(
       headers: { 'Content-Type': contentType },
     });
     if (result.status < 200 || result.status >= 300) {
+      logger.error(
+        'ResumeUpload',
+        `<-- PUT presigned S3 upload FAILED (${result.status}, ${Date.now() - startedAt}ms)`,
+        undefined,
+        { status: result.status, body: result.body },
+      );
       throw new UploadTransferError(result.status, result.body ?? '');
     }
+    logger.info('ResumeUpload', `<-- PUT presigned S3 upload OK (${result.status}, ${Date.now() - startedAt}ms)`);
     return true;
   }
 
   const localFileResponse = await fetch(fileUri);
   if (!localFileResponse.ok) {
+    logger.error('ResumeUpload', 'Could not read local selected resume file', undefined, {
+      fileUri,
+      status: localFileResponse.status,
+    });
     throw new Error('Could not read the selected resume file.');
   }
 
@@ -381,11 +409,19 @@ export async function uploadFileToPresignedUrl(
   });
 
   if (!uploadResponse.ok) {
+    const errText = await uploadResponse.text();
+    logger.error(
+      'ResumeUpload',
+      `<-- PUT presigned S3 upload (web) FAILED (${uploadResponse.status}, ${Date.now() - startedAt}ms)`,
+      undefined,
+      { status: uploadResponse.status, body: errText },
+    );
     throw new UploadTransferError(
       uploadResponse.status,
-      await uploadResponse.text(),
+      errText,
     );
   }
+  logger.info('ResumeUpload', `<-- PUT presigned S3 upload (web) OK (${uploadResponse.status}, ${Date.now() - startedAt}ms)`);
   return true;
 }
 
@@ -434,6 +470,7 @@ export async function submitPastedText(
 export async function submitManualResume(
   data: ManualResumeData,
 ): Promise<ResumeVersionResponse> {
+  if (data.structured_resume) return submitResumeDocument(data.structured_resume);
   return await apiRequest<ResumeVersionResponse>('/candidate/resume/manual', {
     method: 'POST',
     body: {
@@ -496,4 +533,36 @@ export async function listResumeVersions(): Promise<ResumeVersionSummary[]> {
   if (!Array.isArray(versions)) throw new Error('The server returned an invalid resume list. Please try again.');
   return versions.filter((version): version is ResumeVersionSummary =>
     !!record(version) && typeof version.resume_version_id === 'string' && !!version.resume_version_id);
+}
+
+/** Full editor document: no text conversion or model re-extraction. */
+export async function submitResumeDocument(document: ResumeBuilderContent): Promise<ResumeVersionResponse> {
+ return apiRequest<ResumeVersionResponse>('/candidate/resume/document',{method:'POST',body:document});
+}
+
+
+export function previewResumeVersion(id: string): Promise<{pages: string[]; truncated: boolean}> {
+  return apiRequest(`/candidate/resume/versions/${encodeURIComponent(id)}/render?format=png`);
+}
+
+/** Export the selected saved version; never overwrite the builder draft. */
+export async function downloadResumeVersion(id: string): Promise<void> {
+  const documentBytes = await apiRequest<ArrayBuffer>(`/candidate/resume/versions/${encodeURIComponent(id)}/render`, {
+    responseType: 'arrayBuffer', headers: {Accept:'application/pdf'},
+  });
+  if (Platform.OS === 'web') {
+    const url = URL.createObjectURL(new Blob([documentBytes], {type:'application/pdf'}));
+    const link = document.createElement('a');
+    link.href = url; link.download = 'Resume.pdf'; link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    return;
+  }
+  if (!await Sharing.isAvailableAsync()) throw new Error('Saving files is not available on this device.');
+  const bytes = new Uint8Array(documentBytes);
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  const uri = `${FileSystem.cacheDirectory}Resume-${id}.pdf`;
+  const base64 = typeof btoa === 'function' ? btoa(binary) : Buffer.from(binary, 'binary').toString('base64');
+  await FileSystem.writeAsStringAsync(uri, base64, {encoding: FileSystem.EncodingType.Base64});
+  await Sharing.shareAsync(uri, {mimeType:'application/pdf', UTI:'com.adobe.pdf', dialogTitle:'Save or share your resume'});
 }

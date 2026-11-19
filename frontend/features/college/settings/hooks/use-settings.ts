@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import {
@@ -93,21 +93,20 @@ export function useSettings(scope: SettingsDataScope) {
   const [updateOrganisation, updateOrganisationState] =
     useUpdateCollegeOrganisationMutation();
 
-  const [draftName, setDraftName] = useState("");
-  const [draftInstitutionType, setDraftInstitutionType] = useState<
-    string | null
-  >(null);
+  const [draftNameOverride, setDraftName] = useState<string | null>(null);
+  const [draftInstitutionTypeOverride, setDraftInstitutionType] = useState<
+    string | null | undefined
+  >(undefined);
 
   /*
    * Seed the editable draft from the server once the organisation loads.
    */
   const organisation = organisationQuery.data;
-  useEffect(() => {
-    if (organisation) {
-      setDraftName(organisation.name);
-      setDraftInstitutionType(organisation.institutionType);
-    }
-  }, [organisation]);
+  const draftName = draftNameOverride ?? organisation?.name ?? "";
+  const draftInstitutionType =
+    draftInstitutionTypeOverride !== undefined
+      ? draftInstitutionTypeOverride
+      : (organisation?.institutionType ?? null);
 
   const saveProfile = useCallback(async () => {
     await updateOrganisation({

@@ -2,6 +2,7 @@
 
 import { humanizeCode } from "@/lib/format/labels";
 
+import {useInsightTracking} from "./use-insight-tracking";
 import { useState } from "react";
 import { Download, ExternalLink, FileText, RotateCw } from "lucide-react";
 
@@ -9,6 +10,8 @@ import { StructuredResumeUnavailable, StructuredResumeView, type StructuredResum
 import type { RevealedCandidateResponse } from "@/store/employer/candidates";
 
 export interface ResumeShowcaseProps {
+  candidateId?: string;
+  applicationId?: string;
   resume?: RevealedCandidateResponse["resume"] | null;
   currentTime?: number;
   onRefresh?: () => void;
@@ -18,7 +21,8 @@ function humanise(value: string) {
   return humanizeCode(value);
 }
 
-export function ResumeShowcase({ resume, currentTime, onRefresh }: ResumeShowcaseProps) {
+export function ResumeShowcase({ resume, currentTime, onRefresh, candidateId, applicationId }: ResumeShowcaseProps) {
+  const track=useInsightTracking();
   const [mountedAt] = useState(() => Date.now());
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState(false);
@@ -50,6 +54,7 @@ export function ResumeShowcase({ resume, currentTime, onRefresh }: ResumeShowcas
       document.body.appendChild(link);
       link.click();
       link.remove();
+      if(candidateId)track(candidateId,"CV_DOWNLOAD",applicationId);
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
     } catch {
       setDownloadError(true);

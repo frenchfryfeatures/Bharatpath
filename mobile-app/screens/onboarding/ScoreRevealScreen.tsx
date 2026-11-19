@@ -167,7 +167,7 @@ export function ScoreRevealScreen({
                     <Text style={styles.pointsBadgeText}>+26 POINTS</Text>
                   </View>
                 ) : (
-                  <Text style={styles.outOfText}>{isPending ? 'NOT SCORED YET' : 'OUT OF 990'}</Text>
+                  <Text style={styles.outOfText}>{isPending ? 'NOT SCORED YET' : 'OUT OF 1000'}</Text>
                 )}
               </View>
             </View>

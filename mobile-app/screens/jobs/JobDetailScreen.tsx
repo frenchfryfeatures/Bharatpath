@@ -48,7 +48,7 @@ import {
   XCircle,
   SpinnerGap,
   Briefcase,
-  Sparkle,
+  Wrench,
   Bell,
   ArrowSquareOut,
   GraduationCap,
@@ -516,7 +516,7 @@ export function JobDetailScreen({
               <View style={styles.skillsChipsWrap}>
                 {job.skills.map((skill) => (
                   <View key={skill} style={styles.skillChip}>
-                    <Sparkle size={11} color="#5F6B80" weight="bold" />
+                    <Wrench size={11} color="#5F6B80" weight="bold" />
                     <Text style={styles.skillChipText}>{skill}</Text>
                   </View>
                 ))}
@@ -533,7 +533,7 @@ export function JobDetailScreen({
               <View style={styles.skillsChipsWrap}>
                 {preferredSkills.map((skill) => (
                   <View key={skill} style={styles.skillChipSecondary}>
-                    <Sparkle size={11} color="#5F4DB2" weight="bold" />
+                    <Wrench size={11} color="#5F4DB2" weight="bold" />
                     <Text style={styles.skillChipSecondaryText}>{skill}</Text>
                   </View>
                 ))}

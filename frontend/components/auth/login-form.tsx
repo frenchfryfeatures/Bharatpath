@@ -71,6 +71,22 @@ type AuthStep =
 
 type AccountType = "CANDIDATE" | "EMPLOYER" | "INSTITUTION" | "ADMIN";
 
+/**
+ * `?as=` names the audience a public-site link came from. It locks the form to
+ * that account type and hides the selector, so the public site can send each
+ * audience to its own sign-in. Admin is deliberately absent: staff sign in from
+ * the plain `/login`, which nothing on the public site links to.
+ */
+const lockedAccountTypeByParam: Record<string, Exclude<AccountType, "ADMIN">> = {
+  student: "CANDIDATE",
+  candidate: "CANDIDATE",
+  employer: "EMPLOYER",
+  college: "INSTITUTION",
+};
+
+const poolForAccountType = (type: AccountType): CognitoPoolType =>
+  type === "CANDIDATE" ? "CANDIDATE" : "BUSINESS";
+
 const portalByAccountType: Record<AccountType, PortalType> = {
   CANDIDATE: PORTAL_TYPES.STUDENT,
   EMPLOYER: PORTAL_TYPES.EMPLOYER,
@@ -83,8 +99,12 @@ export function LoginForm() {
   const searchParams = useSearchParams();
   const dispatch = useAppDispatch();
 
-  const [pool, setPool] = useState<CognitoPoolType>("CANDIDATE");
-  const [accountType, setAccountType] = useState<AccountType>("CANDIDATE");
+  const lockedAccountType =
+    lockedAccountTypeByParam[searchParams.get("as") ?? ""] ?? null;
+  const initialAccountType: AccountType = lockedAccountType ?? "CANDIDATE";
+
+  const [pool, setPool] = useState<CognitoPoolType>(poolForAccountType(initialAccountType));
+  const [accountType, setAccountType] = useState<AccountType>(initialAccountType);
   const [showPassword, setShowPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [serverError, setServerError] = useState("");
@@ -122,8 +142,9 @@ export function LoginForm() {
     }
 
     setShowSessionExpiredToast(true);
-    router.replace("/login", { scroll: false });
-  }, [router, sessionTimedOut]);
+    const audience = searchParams.get("as");
+    router.replace(audience ? `/login?as=${encodeURIComponent(audience)}` : "/login", { scroll: false });
+  }, [router, searchParams, sessionTimedOut]);
 
   useEffect(() => {
     if (!showSessionExpiredToast) {
@@ -148,15 +169,14 @@ export function LoginForm() {
     defaultValues: {
       email: searchParams.get("email") ?? "",
       password: "",
-      pool: "CANDIDATE",
+      pool: poolForAccountType(initialAccountType),
     },
   });
 
   const enteredEmail = watch("email");
 
   const handleAccountTypeChange = (nextAccountType: AccountType) => {
-    const nextPool: CognitoPoolType =
-      nextAccountType === "CANDIDATE" ? "CANDIDATE" : "BUSINESS";
+    const nextPool = poolForAccountType(nextAccountType);
     setAccountType(nextAccountType);
     setPool(nextPool);
     setValue("pool", nextPool);
@@ -485,7 +505,21 @@ export function LoginForm() {
           <AccountDestinationLoading portal={destinationPortal ?? portalByAccountType[accountType]} />
         </div>
       )}
-      {/* Account type selector */}
+      {/* Account type selector, hidden when a public-site link fixed the audience */}
+      {lockedAccountType ? (
+        <p className="flex items-center justify-between rounded-xl bg-[#f0f2f6] px-3 py-2.5 text-xs text-[#4b5563]">
+          <span>
+            Signing in as{" "}
+            <span className="font-semibold text-[#17233a]">
+              {lockedAccountType === "CANDIDATE"
+                ? "a candidate"
+                : lockedAccountType === "EMPLOYER"
+                  ? "an employer"
+                  : "an institution"}
+            </span>
+          </span>
+        </p>
+      ) : (
       <div className="grid grid-cols-4 rounded-xl bg-[#f0f2f6] p-1 text-[11px] font-medium text-[#4b5563]">
         <button
           type="button"
@@ -540,6 +574,7 @@ export function LoginForm() {
           <span>Admin</span>
         </button>
       </div>
+      )}
 
       {serverError && <ErrorState message={serverError} />}
 

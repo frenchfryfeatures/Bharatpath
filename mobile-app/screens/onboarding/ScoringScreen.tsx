@@ -9,6 +9,7 @@ import {
   getMyScore,
   scoringErrorMessage,
 } from '@/services/api/scoring';
+import { logger } from '@/utils/logger';
 
 /**
  * Waits for a real score. Confirming a resume does not compute one - it emits
@@ -80,6 +81,10 @@ export function ScoringScreen({
   const checkOnce = useCallback(async (): Promise<boolean> => {
     if (settledRef.current) return true;
     try {
+      logger.info('ScoringScreen', `Polling GET /candidate/score/me (attempt ${pollCount + 1}/${MAX_POLLS})`, {
+        minComputedAt,
+        previousComputedAt,
+      });
       const score = await getMyScore();
       if (score && score.status === 'READY' && score.value != null) {
         // GET /score/me continues returning the previous READY row while the
@@ -100,18 +105,26 @@ export function ScoringScreen({
           (!Number.isFinite(computedTime) || computedTime < confirmedTime);
 
         if (isPreviousRow || predatesConfirmation) {
+          logger.info('ScoringScreen', 'Score row is from an older confirmation; waiting for worker...', {
+            scoreComputedAt: score.computed_at,
+            minComputedAt,
+            previousComputedAt,
+          });
           return false;
         }
 
         // This is either the first score, or a row computed after the current
         // resume was confirmed. It is safe to display and cache.
+        logger.step('ScoringScreen', `New score READY: ${score.value} (${score.band})`, score);
         settledRef.current = true;
         setIsPolling(false);
         onReady(score);
         return true;
       }
+      logger.info('ScoringScreen', `Score status is ${score?.status || 'NONE'}; still waiting...`);
       return false;
     } catch (err) {
+      logger.warn('ScoringScreen', `Score poll attempt ${pollCount + 1} failed`, err);
       if (pollCount >= MAX_POLLS - 1) {
         throw err;
       }

@@ -1,3 +1,4 @@
+import { ResumePickerLabel } from '@/components/inputs/ResumePickerLabel';
 import React, { useState, useRef, useEffect } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
 import type { UploadedFileMeta } from '@/screens/onboarding/ResumeIntakeScreen';
@@ -23,11 +24,11 @@ import {
   ArrowLeft,
   User,
   EnvelopeSimple,
+  MapPin,
   Lock,
   Eye,
   EyeSlash,
   WarningCircle,
-  ShieldCheck,
   Check,
   X,
 } from 'phosphor-react-native';
@@ -36,8 +37,9 @@ import { signUpWithEmail } from '@/services/api/auth';
 import { ApiError } from '@/services/api/client';
 import { useAuthContext } from '@/context/AuthContext';
 import { PhoneNumberInput } from '@/components/inputs/PhoneNumberInput';
-import { keepPendingResume } from '@/services/storage/pendingResume';
+import { clearPendingResume, keepPendingResume } from '@/services/storage/pendingResume';
 import { resumeFileError } from '@/services/profile/resumeFile';
+import { logger } from '@/utils/logger';
 
 export interface SignUpFormData {
   referralCode?: string;
@@ -49,7 +51,7 @@ export interface SignUpFormData {
 }
 
 export interface SignUpScreenProps {
-  onResumeSelected?: (file: UploadedFileMeta) => void;
+  onResumeSelected?: (file: UploadedFileMeta | undefined) => void;
   onBack?: () => void;
   onNavigateToLogin?: () => void;
   onSubmit?: (
@@ -59,6 +61,7 @@ export interface SignUpScreenProps {
   initialFullName?: string;
   initialEmail?: string;
   initialPhone?: string;
+  initialCity?: string;
   initialWorkStatus?: string;
   initialReferralCode?: string;
   initialFileMeta?: UploadedFileMeta | null;
@@ -73,6 +76,7 @@ export function SignUpScreen({
   initialFullName,
   initialEmail,
   initialPhone,
+  initialCity,
   initialWorkStatus,
   initialReferralCode,
   initialFileMeta,
@@ -85,12 +89,19 @@ export function SignUpScreen({
     initialCareerDetails || {},
   );
   const [phone, setPhone] = useState(initialPhone || '');
+  const [currentCity, setCurrentCity] = useState(
+    initialCity ||
+    (typeof initialCareerDetails?.current_city === 'string'
+      ? initialCareerDetails.current_city
+      : ''),
+  );
   const [workStatus, setWorkStatus] = useState(initialWorkStatus || '');
   const [referralCode, setReferralCode] = useState(initialReferralCode || '');
   const [readingResume, setReadingResume] = useState(false);
   const careerDetails = (): CareerDetails => ({
     ...resumeDetails,
     phone,
+    current_city: currentCity.trim().replace(/\s+/g, ' '),
     work_status: workStatus,
     ...(workStatus === 'FRESHER'
       ? { experience_years: 0, experience_months: 0, currently_employed: 'NO' }
@@ -110,6 +121,7 @@ export function SignUpScreen({
   // Explicit input refs for clean, controlled keyboard navigation
   const fullNameRef = useRef<TextInput>(null);
   const emailRef = useRef<TextInput>(null);
+  const currentCityRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
   const confirmPasswordRef = useRef<TextInput>(null);
   const scrollRef = useRef<ScrollView>(null);
@@ -167,6 +179,21 @@ export function SignUpScreen({
   const validate = (): boolean => {
     setErrorMsg(null);
     if (readingResume) return false;
+    const normalizedCity = currentCity.trim().replace(/\s+/g, ' ');
+    if (!normalizedCity) {
+      setErrorMsg('Please enter your current city.');
+      return false;
+    }
+    if (
+      normalizedCity.length > 100 ||
+      !/\p{L}/u.test(normalizedCity) ||
+      !/^[\p{L}\p{M} .'-]+$/u.test(normalizedCity)
+    ) {
+      setErrorMsg(
+        'Current city can only contain letters, spaces, dots, hyphens, and apostrophes.',
+      );
+      return false;
+    }
     if (!/^\+[1-9]\d{7,14}$/.test(phone) || !workStatus) {
       setErrorMsg(
         !workStatus
@@ -229,7 +256,24 @@ export function SignUpScreen({
   const requirements = passwordRequirements(password);
 
   const handleSubmit = async () => {
-    if (!validate()) return;
+    logger.step('SignUpScreen', 'Submit button pressed', {
+      email: email.trim().toLowerCase(),
+      fullName: fullName.trim(),
+      phone,
+      workStatus,
+      hasResumeSelected: Boolean(resumeName),
+      referralCode: referralCode.trim() || undefined,
+    });
+    if (!validate()) {
+      logger.warn('SignUpScreen', 'Client-side validation failed before submit', {
+        email: email.trim().toLowerCase(),
+        fullName: fullName.trim(),
+        phone,
+        workStatus,
+        readingResume,
+      });
+      return;
+    }
 
     setIsLoading(true);
     setErrorMsg(null);
@@ -321,7 +365,7 @@ export function SignUpScreen({
       } else {
         setErrorMsg(
           err?.message ||
-            'Failed to create account. Please check your connection.',
+          'Failed to create account. Please check your connection.',
         );
       }
     } finally {
@@ -341,7 +385,7 @@ export function SignUpScreen({
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView
           style={styles.keyboardAvoid}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
         >
           {/* Top Navigation Bar */}
@@ -357,7 +401,7 @@ export function SignUpScreen({
             >
               <ArrowLeft size={18} color={Colors.navy} weight="bold" />
             </Pressable>
-            <Text style={styles.navTitle}>Create Account</Text>
+            <Text style={styles.navTitle}>Create your profile</Text>
             <View style={styles.navPlaceholder} />
           </View>
 
@@ -376,16 +420,6 @@ export function SignUpScreen({
           >
             {/* Header / Intro */}
             <View style={styles.headerSection}>
-              <View style={styles.badgeRow}>
-                <View style={styles.badge}>
-                  <ShieldCheck
-                    size={14}
-                    color={Colors.brandAccent}
-                    weight="bold"
-                  />
-                  <Text style={styles.badgeText}>CANDIDATE SIGNUP</Text>
-                </View>
-              </View>
               <OnboardingProgress step={0} />
               <Text style={styles.title}>Basic details</Text>
               <Text style={styles.subtitle}>
@@ -397,74 +431,97 @@ export function SignUpScreen({
             {onResumeSelected && (
               <View style={styles.resumeSection}>
                 <Text style={styles.inputLabel}>Start with your resume/CV</Text>
-                <Pressable
-                  style={styles.resumeCard}
-                  disabled={readingResume || isLoading}
-                  onPress={async () => {
-                    try {
-                      const result = await DocumentPicker.getDocumentAsync({
-                        type: [
-                          'application/pdf',
-                          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                        ],
-                        copyToCacheDirectory: true,
-                      });
-                      if (result.canceled) return;
-                      const asset = result.assets[0];
-                      const fileError = resumeFileError(asset);
-                      if (fileError) {
-                        setErrorMsg(fileError);
-                        return;
-                      }
-                      const pending = await keepPendingResume({
-                        fileName: asset.name,
-                        fileUri: asset.uri,
-                        fileSizeBytes: asset.size,
-                        fileSize: asset.size
-                          ? `${Math.round(asset.size / 1024)} KB`
-                          : '',
-                        mimeType: asset.mimeType,
-                      });
-                      setResumeName(asset.name);
-                      onResumeSelected?.(pending.file);
-                      setErrorMsg(null);
-                      setReadingResume(true);
+                <View style={styles.resumeCardRow}>
+                  <Pressable
+                    style={[styles.resumeCard, { flex: 1 }]}
+                    disabled={readingResume || isLoading}
+                    onPress={async () => {
                       try {
-                        const facts = await previewSignupResume(pending.file);
-                        setResumeDetails(facts.details);
-                        if (facts.full_name?.trim())
-                          setFullName((current) => current || facts.full_name.trim());
-                        if (facts.email?.trim())
-                          setEmail((current) => current || facts.email.trim());
-                        if (facts.details?.phone)
-                          setPhone((current) => current || String(facts.details.phone).trim());
-                        if (facts.details?.work_status)
-                          setWorkStatus(
-                            (current) => current || String(facts.details.work_status).trim(),
-                          );
-                      } catch (err) {
-                        console.warn('Transient resume preview skipped or unavailable:', err);
-                      } finally {
-                        setReadingResume(false);
+                        const result = await DocumentPicker.getDocumentAsync({
+                          type: [
+                            'application/pdf',
+                            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                          ],
+                          copyToCacheDirectory: true,
+                        });
+                        if (result.canceled) return;
+                        const asset = result.assets[0];
+                        logger.step('SignUpScreen', `Document picked: ${asset.name}`, {
+                          size: asset.size,
+                          mimeType: asset.mimeType,
+                          uri: asset.uri,
+                        });
+                        const fileError = resumeFileError(asset);
+                        if (fileError) {
+                          logger.warn('SignUpScreen', `Picked resume rejected by validation: ${fileError}`, asset);
+                          setErrorMsg(fileError);
+                          return;
+                        }
+                        const pending = await keepPendingResume({
+                          fileName: asset.name,
+                          fileUri: asset.uri,
+                          fileSizeBytes: asset.size,
+                          fileSize: asset.size
+                            ? `${Math.round(asset.size / 1024)} KB`
+                            : '',
+                          mimeType: asset.mimeType,
+                        });
+                        setResumeName(asset.name);
+                        onResumeSelected?.(pending.file);
+                        setErrorMsg(null);
+                        setReadingResume(true);
+                        try {
+                          logger.step('SignUpScreen', `Calling previewSignupResume (/auth/resume-preview) for ${asset.name}`);
+                          const facts = await previewSignupResume(pending.file);
+                          logger.info('SignUpScreen', 'previewSignupResume returned extracted facts', facts);
+                          setResumeDetails(facts.details);
+                          if (facts.full_name?.trim())
+                            setFullName((current) => current || facts.full_name.trim());
+                          if (facts.email?.trim())
+                            setEmail((current) => current || facts.email.trim());
+                          if (facts.details?.phone)
+                            setPhone((current) => current || String(facts.details.phone).trim());
+                          if (facts.details?.current_city)
+                            setCurrentCity(
+                              (current) =>
+                                current || String(facts.details.current_city).trim(),
+                            );
+                          if (facts.details?.work_status)
+                            setWorkStatus(
+                              (current) => current || String(facts.details.work_status).trim(),
+                            );
+                        } catch (err) {
+                          logger.warn('SignUpScreen', 'Transient resume preview skipped or unavailable', err);
+                        } finally {
+                          setReadingResume(false);
+                        }
+                      } catch (pickerErr) {
+                        console.warn('Document picker error:', pickerErr);
+                        setErrorMsg('Could not save this resume on your device. Please choose it again.');
                       }
-                    } catch (pickerErr) {
-                      console.warn('Document picker error:', pickerErr);
-                      setErrorMsg('Could not save this resume on your device. Please choose it again.');
-                    }
-                  }}
-                >
-                  <Text
-                    style={
-                      resumeName
-                        ? styles.resumeCardText
-                        : styles.resumeCardTextEmpty
-                    }
+                    }}
                   >
-                    {resumeName
-                      ? `📄 ${resumeName} (Tap to change)`
-                      : 'Choose PDF or DOCX'}
-                  </Text>
-                </Pressable>
+                    <ResumePickerLabel filename={resumeName} />
+                  </Pressable>
+                  {resumeName ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Remove resume"
+                      disabled={readingResume || isLoading}
+                      onPress={async () => {
+                        logger.step('SignUpScreen', 'User removed selected resume');
+                        setResumeName('');
+                        setResumeDetails({});
+                        onResumeSelected?.(undefined);
+                        await clearPendingResume().catch(() => undefined);
+                      }}
+                      style={styles.removeResumeBtn}
+                      hitSlop={8}
+                    >
+                      <X size={18} color={Colors.navy} weight="bold" />
+                    </Pressable>
+                  ) : null}
+                </View>
                 <Text style={styles.inputHint}>
                   {readingResume
                     ? 'Reading your resume/CV and filling your details…'
@@ -619,7 +676,7 @@ export function SignUpScreen({
                 onLayout={(e) => onFieldLayout('phone', e)}
               >
                 <PhoneNumberInput
-                  label="Mobile number"
+                  label="Mobile number *"
                   value={phone}
                   onChange={setPhone}
                   onFocus={() => {
@@ -635,12 +692,66 @@ export function SignUpScreen({
                 />
               </View>
 
+              {/* Current City */}
+              <View
+                style={styles.inputGroup}
+                onLayout={(e) => onFieldLayout('currentCity', e)}
+              >
+                <Text style={styles.inputLabel}>Current city *</Text>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    focusedField === 'currentCity' && styles.inputWrapperFocused,
+                  ]}
+                >
+                  <MapPin
+                    size={20}
+                    color={
+                      focusedField === 'currentCity'
+                        ? Colors.brandAccent
+                        : Colors.text.muted
+                    }
+                  />
+                  <TextInput
+                    ref={currentCityRef}
+                    style={styles.textInput}
+                    accessibilityLabel="Current city"
+                    placeholder="e.g. Pune"
+                    placeholderTextColor={Colors.text.muted}
+                    value={currentCity}
+                    onChangeText={(text) => {
+                      setCurrentCity(text);
+                      if (errorMsg) setErrorMsg(null);
+                    }}
+                    onFocus={() => {
+                      setFocusedField('currentCity');
+                      scrollToField('currentCity');
+                    }}
+                    onBlur={() => {
+                      setFocusedField(null);
+                      if (activeFieldKey.current === 'currentCity')
+                        activeFieldKey.current = null;
+                    }}
+                    autoCapitalize="words"
+                    autoCorrect={false}
+                    maxLength={100}
+                    editable={!isLoading}
+                    blurOnSubmit={false}
+                    returnKeyType="next"
+                    onSubmitEditing={() => passwordRef.current?.focus()}
+                  />
+                </View>
+                <Text style={styles.inputHint}>
+                  Enter your city or town, without an address or PIN code.
+                </Text>
+              </View>
+
               {/* Work Status */}
               <View
                 style={styles.inputGroup}
                 onLayout={(e) => onFieldLayout('workStatus', e)}
               >
-                <Text style={styles.inputLabel}>Work status</Text>
+                <Text style={styles.inputLabel}>Work status *</Text>
                 <View style={styles.workStatusRow}>
                   {[
                     { value: 'EXPERIENCED', label: "I'm experienced" },
@@ -757,7 +868,7 @@ export function SignUpScreen({
                   style={[
                     styles.inputWrapper,
                     focusedField === 'confirmPassword' &&
-                      styles.inputWrapperFocused,
+                    styles.inputWrapperFocused,
                   ]}
                 >
                   <Lock
@@ -825,7 +936,7 @@ export function SignUpScreen({
                 style={styles.inputGroup}
                 onLayout={(e) => onFieldLayout('referralCode', e)}
               >
-                <Text style={styles.inputLabel}>College referral code (optional)</Text>
+                <Text style={styles.inputLabel}>College referral code</Text>
                 <View style={styles.inputWrapper}>
                   <TextInput
                     style={styles.textInput}
@@ -949,25 +1060,6 @@ const styles = StyleSheet.create({
   headerSection: {
     gap: Spacing.xs,
   },
-  badgeRow: {
-    flexDirection: 'row',
-    marginBottom: Spacing.xs,
-  },
-  badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    backgroundColor: Colors.indigoSemantic.bg,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: Radii.pill,
-  },
-  badgeText: {
-    fontFamily: 'SpaceMono-Bold',
-    fontSize: 11,
-    letterSpacing: 0.6,
-    color: Colors.brandAccent,
-  },
   title: {
     fontFamily: 'GeneralSans-Bold',
     fontSize: 26,
@@ -1006,6 +1098,21 @@ const styles = StyleSheet.create({
   resumeSection: {
     gap: Spacing.opt6,
   },
+  resumeCardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  removeResumeBtn: {
+    width: 44,
+    height: 52,
+    borderRadius: Radii.input,
+    borderWidth: 1.5,
+    borderColor: Colors.surface.border,
+    backgroundColor: Colors.surface.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   resumeCard: {
     borderRadius: Radii.input,
     borderWidth: 1.5,
@@ -1015,16 +1122,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface.card,
     minHeight: 52,
     justifyContent: 'center',
-  },
-  resumeCardText: {
-    fontFamily: 'GeneralSans-Medium',
-    fontSize: 15,
-    color: Colors.brandAccent,
-  },
-  resumeCardTextEmpty: {
-    fontFamily: 'GeneralSans-Regular',
-    fontSize: 15,
-    color: Colors.text.muted,
   },
   inputGroup: {
     gap: Spacing.opt6,

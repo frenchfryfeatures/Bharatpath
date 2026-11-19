@@ -12,8 +12,8 @@ export type SettingsTab =
 
 export type UserRole = "Admin" | "Staff";
 
-export interface CollegeProfile
-  extends CollegeOrganisation {}
+export type CollegeProfile =
+  CollegeOrganisation;
 
 export interface CollegeUser extends CollegeTeamMember {
   initials: string;

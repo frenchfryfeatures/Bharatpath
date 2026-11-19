@@ -178,6 +178,21 @@ def _not_personal(why: str) -> TablePlan:
 #: here fails `tests/invariants/test_erasure_plan.py`, which reads the live
 #: database rather than this file.
 ERASURE_PLAN: Final[Mapping[str, TablePlan]] = {
+    "profile_insight_events": _erase(
+        "candidate_id", "Personal activity receipts expire after a year and are removed on erasure."
+    ),
+    "profile_insight_receipts": _erase(
+        "candidate_id", "Short-lived personal search receipts are removed on erasure."
+    ),
+    "profile_insight_days": _erase(
+        "candidate_id", "Candidate-linked daily activity is removed on erasure."
+    ),
+    "profile_insight_rollup": _not_personal(
+        "Only the global summary job timestamp; no person is named."
+    ),
+    "profile_insight_anonymous_totals": _not_personal(
+        "Lifetime anonymous metric totals, without candidate, actor or company identifiers."
+    ),
     # -- the anchor ------------------------------------------------------
     "users": TablePlan(
         Disposition.ANONYMISE,
@@ -415,6 +430,7 @@ def tables_with_disposition(disposition: Disposition) -> tuple[str, ...]:
 #: breakdown handed over in an export is the explanation, delivered by another
 #: door. The value is included; the reasoning is not.
 EXPORT_SECTIONS: Final = (
+    "profile_insights",
     "account",
     "profile",
     "resumes",

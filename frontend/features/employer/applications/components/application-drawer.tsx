@@ -155,6 +155,8 @@ export function ApplicationDrawer({
                 </div>
               ) : (
                 <ResumeShowcase
+                  candidateId={application.candidate.id}
+                  applicationId={application.id}
                   resume={resume}
                   currentTime={currentTime}
                   onRefresh={() => void detail.refetch()}
