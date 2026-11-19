@@ -1,7 +1,7 @@
+import {ResumeBuilderScreen} from './ResumeBuilderScreen';
+import {legacyResumeDocument,editorSectionForKind,type ResumeEditorSection} from '@/services/profile/resumeDocument';
 import React, { useEffect, useMemo, useState } from 'react';
-import { AppAlert } from '@/components/feedback/AppAlert';
 import {
-  Alert,
   View,
   Text,
   StyleSheet,
@@ -9,10 +9,15 @@ import {
   ScrollView,
   ActivityIndicator,
   Modal,
+  Image,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import {
+  Eye,
+  DownloadSimple,
+  X,
   User,
   GraduationCap,
   Wrench,
@@ -25,26 +30,19 @@ import {
   Trophy,
   Globe,
   FileText,
-  Sparkle,
   ArrowLeft,
   UploadSimple,
   ArrowRight,
 } from 'phosphor-react-native';
-import { Colors, Radii, Spacing } from '@/theme/tokens';
-import { ManualResumeData, ManualResumeModal } from './ManualResumeModal';
-import { PasteTextModal } from './PasteTextModal';
-import { SectionEditModal } from './SectionEditModal';
-import { FixSuggestionModal } from './FixSuggestionModal';
-import { AddSectionModal } from './AddSectionModal';
+import { Radii, Spacing } from '@/theme/tokens';
+import type { ManualResumeData } from './ManualResumeModal';
 import {
+  previewResumeVersion,
+  downloadResumeVersion,
   confirmResumeVersion,
-  editResumeVersion,
   getResumeVersionDetails,
   listResumeVersions,
-  ResumeSection,
-  ResumeSectionItem,
   ResumeVersionDetailResponse,
-  ResumeVersionResponse,
   SectionKind,
 } from '@/services/api/resume';
 import { ApiError } from '@/services/api/client';
@@ -140,6 +138,9 @@ export function ReviewDetailsScreen({
   requireEditToSave = false,
   initialHasEdited = false,
 }: ReviewDetailsScreenProps) {
+  const {width: screenWidth} = useWindowDimensions();
+  const [documentBusy,setDocumentBusy] = useState(false);
+  const [preview,setPreview] = useState<{pages:string[];truncated:boolean}|null>(null);
   const [activeVersionId, setActiveVersionId] = useState(versionId);
   const [details, setDetails] = useState(versionDetails);
   const [hasEdited, setHasEdited] = useState(initialHasEdited);
@@ -161,21 +162,10 @@ export function ReviewDetailsScreen({
   const canSave = requireEditToSave ? hasEdited : (hasEdited || !details?.confirmed);
 
   // Modals state
-  const [editingSectionIndex, setEditingSectionIndex] = useState<number | null>(null);
-  const [isAddSectionOpen, setIsAddSectionOpen] = useState(false);
-  const [fixingItemInfo, setFixingItemInfo] = useState<{
-    sectionIndex: number;
-    itemIndex: number;
-    item: ResumeSectionItem;
-    sectionTitle: string;
-  } | null>(null);
-
-  // Fallback modal states (for manual / raw text resumes)
-  const [isStructuredEditorOpen, setIsStructuredEditorOpen] = useState(false);
-  const [isTextEditorOpen, setIsTextEditorOpen] = useState(false);
-
+  const [documentSection,setDocumentSection] = useState<ResumeEditorSection>('personal');
+  const [builderOpen,setBuilderOpen] = useState(false);
   // Action status
-  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const isSavingEdit = builderOpen;
   const [isConfirming, setIsConfirming] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
 
@@ -262,6 +252,11 @@ export function ReviewDetailsScreen({
     [candidateName, manualData, parsed, resumeInfo.name, structuredResume]
   );
 
+  const reviewDocument=useMemo(()=>legacyResumeDocument(structuredResume||{...parsed,...structuredData}),[structuredResume,structuredData,parsed]);
+  const openDocumentEditor=(kind='header')=>{
+    setConfirmError(null);setDocumentSection(editorSectionForKind(kind));
+    setBuilderOpen(true);
+  };
   const errorMessage = (error: unknown, fallback: string): string => {
     if (error instanceof ApiError) {
       const detail = error.problem?.params?.detail;
@@ -298,308 +293,11 @@ export function ReviewDetailsScreen({
     error instanceof ApiError && (error.status === 402 || error.code === 'subscription_required');
 
   const adoptEditedVersion = async (newVersionId: string) => {
-    try {
-      const newDetails = await getResumeVersionDetails(newVersionId);
-      setActiveVersionId(newVersionId);
-      setDetails(newDetails);
-      setHasEdited(true);
-      onVersionUpdated?.(newVersionId, newDetails);
-    } catch (fetchErr) {
-      console.warn('Adopt version details fetch failed:', fetchErr);
-      setActiveVersionId(newVersionId);
-      setHasEdited(true);
-    }
-  };
-
-  const sanitizeSectionPayload = (s: {
-    kind: SectionKind;
-    heading?: string | null;
-    body: string;
-  }) => {
-    let kind = s.kind;
-    const rawHeading = s.heading?.trim() || '';
-
-    // Reclassify if marked as activities/personal but heading indicates another section
-    if ((kind === 'activities' || kind === 'personal') && rawHeading) {
-      const lower = rawHeading.toLowerCase();
-      if (lower.includes('summary') || lower.includes('profile') || lower.includes('objective')) {
-        kind = 'summary';
-      } else if (lower.includes('skill') || lower.includes('technology') || lower.includes('technologies')) {
-        kind = 'skills';
-      } else if (lower.includes('project')) {
-        kind = 'projects';
-      } else if (lower.includes('certif') || lower.includes('license')) {
-        kind = 'certifications';
-      } else if (lower.includes('language')) {
-        kind = 'languages';
-      } else if (lower.includes('education') || lower.includes('academic')) {
-        kind = 'education';
-      } else if (lower.includes('experience') || lower.includes('employment') || lower.includes('work')) {
-        kind = 'experience';
-      } else if (lower.includes('achievement') || lower.includes('award') || lower.includes('honor')) {
-        kind = 'achievements';
-      } else if (lower.includes('interest') || lower.includes('hobbi') || lower.includes('hobby')) {
-        kind = 'activities';
-      }
-    }
-
-    // Setting heading to null tells the backend to write under the canonical heading for this kind.
-    // Backend schemas strictly require `heading_kind(heading) == kind` when heading is non-null,
-    // so sending null completely prevents any 422 heading mismatch errors.
-    return {
-      kind,
-      heading: null,
-      body: s.body || '',
-    };
-  };
-
-  const executeEditWithRetry = async (
-    performEdit: (targetVersionId: string) => Promise<ResumeVersionResponse>,
-  ): Promise<ResumeVersionResponse> => {
-    if (!activeVersionId) throw new Error('No active resume version to edit.');
-    try {
-      return await performEdit(activeVersionId);
-    } catch (firstErr: any) {
-      const errCode = firstErr?.code || firstErr?.problem?.code || firstErr?.message;
-      const isSuperseded =
-        errCode === 'resume_version_superseded' ||
-        String(firstErr?.message || '').includes('replaced by a newer one') ||
-        firstErr?.status === 409;
-
-      if (isSuperseded) {
-        const freshVersions = await listResumeVersions();
-        const newest = freshVersions.find((v) => !v.superseded) ?? freshVersions[0];
-        if (newest && newest.resume_version_id !== activeVersionId) {
-          setActiveVersionId(newest.resume_version_id);
-          return await performEdit(newest.resume_version_id);
-        }
-      }
-      throw firstErr;
-    }
-  };
-
-  // Section-based editing
-  const handleSaveSectionEdit = async (updatedSection: {
-    kind: SectionKind;
-    heading?: string | null;
-    body: string;
-  }) => {
-    if (!activeVersionId || !sections || editingSectionIndex === null) return;
-    setConfirmError(null);
-    setIsSavingEdit(true);
-
-    try {
-      const updatedList = sections.map((s, idx) => {
-        if (idx === editingSectionIndex) {
-          return sanitizeSectionPayload(updatedSection);
-        }
-        return sanitizeSectionPayload(s);
-      });
-
-      // Backend constraint: HEADER kind can only ever appear as the first section
-      const sanitizedList = updatedList.map((s, idx) => {
-        if (idx > 0 && s.kind === 'header') {
-          return { ...s, kind: 'summary' as SectionKind };
-        }
-        return s;
-      });
-
-      const res = await executeEditWithRetry((targetId) =>
-        editResumeVersion(targetId, {
-          sections: sanitizedList,
-        }),
-      );
-
-      await adoptEditedVersion(res.resume_version_id);
-      setEditingSectionIndex(null);
-    } catch (err: any) {
-      if (isSubscriptionRequiredError(err)) {
-        setEditingSectionIndex(null);
-        onRequireSubscription?.();
-        return;
-      }
-      const msg = errorMessage(err, 'Failed to save section changes.');
-      setConfirmError(msg);
-      AppAlert.alert('Save Failed', msg, [{ text: 'OK' }]);
-    } finally {
-      setIsSavingEdit(false);
-    }
-  };
-
-  const handleDeleteSection = async () => {
-    if (!activeVersionId || !sections || editingSectionIndex === null) return;
-    setConfirmError(null);
-    setIsSavingEdit(true);
-
-    try {
-      const updatedList = sections
-        .filter((_, idx) => idx !== editingSectionIndex)
-        .map((s) => sanitizeSectionPayload(s));
-
-      const sanitizedList = updatedList.map((s, idx) => {
-        if (idx > 0 && s.kind === 'header') {
-          return { ...s, kind: 'summary' as SectionKind };
-        }
-        return s;
-      });
-
-      const res = await executeEditWithRetry((targetId) =>
-        editResumeVersion(targetId, {
-          sections: sanitizedList,
-        }),
-      );
-
-      await adoptEditedVersion(res.resume_version_id);
-      setEditingSectionIndex(null);
-    } catch (err: any) {
-      if (isSubscriptionRequiredError(err)) {
-        setEditingSectionIndex(null);
-        onRequireSubscription?.();
-        return;
-      }
-      const msg = errorMessage(err, 'Failed to delete section.');
-      setConfirmError(msg);
-      AppAlert.alert('Delete Failed', msg, [{ text: 'OK' }]);
-    } finally {
-      setIsSavingEdit(false);
-    }
-  };
-
-  const handleAddNewSection = async (newSection: { kind: SectionKind; body: string }) => {
-    if (!activeVersionId || !sections) return;
-    setConfirmError(null);
-    setIsSavingEdit(true);
-
-    try {
-      const updatedList = [
-        ...sections.map((s) => sanitizeSectionPayload(s)),
-        sanitizeSectionPayload({
-          kind: newSection.kind,
-          heading: null,
-          body: newSection.body,
-        }),
-      ];
-
-      const sanitizedList = updatedList.map((s, idx) => {
-        if (idx > 0 && s.kind === 'header') {
-          return { ...s, kind: 'summary' as SectionKind };
-        }
-        return s;
-      });
-
-      const res = await executeEditWithRetry((targetId) =>
-        editResumeVersion(targetId, {
-          sections: sanitizedList,
-        }),
-      );
-
-      await adoptEditedVersion(res.resume_version_id);
-      setIsAddSectionOpen(false);
-    } catch (err: any) {
-      if (isSubscriptionRequiredError(err)) {
-        setIsAddSectionOpen(false);
-        onRequireSubscription?.();
-        return;
-      }
-      const msg = errorMessage(err, 'Failed to add section.');
-      setConfirmError(msg);
-      AppAlert.alert('Add Failed', msg, [{ text: 'OK' }]);
-    } finally {
-      setIsSavingEdit(false);
-    }
-  };
-
-  // 1-tap suggestion fix for unclear chips
-  const handleApplySuggestionFix = async (fixedText: string) => {
-    if (!activeVersionId || !sections || !fixingItemInfo) return;
-    setConfirmError(null);
-    setIsSavingEdit(true);
-
-    const { sectionIndex, itemIndex } = fixingItemInfo;
-    const targetSection = sections[sectionIndex];
-
-    try {
-      const updatedItems = (targetSection.items || []).map((item, idx) =>
-        idx === itemIndex ? { ...item, text: fixedText, unclear: false } : item
-      );
-
-      const delimiter = targetSection.kind === 'certifications' ? '\n' : ', ';
-      const updatedBody = updatedItems.map((i) => i.text).join(delimiter);
-
-      const updatedList = sections.map((s, idx) => {
-        if (idx === sectionIndex) {
-          return sanitizeSectionPayload({
-            kind: s.kind,
-            heading: s.heading,
-            body: updatedBody,
-          });
-        }
-        return sanitizeSectionPayload(s);
-      });
-
-      const res = await executeEditWithRetry((targetId) =>
-        editResumeVersion(targetId, {
-          sections: updatedList,
-        }),
-      );
-
-      await adoptEditedVersion(res.resume_version_id);
-      setFixingItemInfo(null);
-    } catch (err: any) {
-      if (isSubscriptionRequiredError(err)) {
-        setFixingItemInfo(null);
-        onRequireSubscription?.();
-        return;
-      }
-      setConfirmError(errorMessage(err, 'Failed to apply suggestion.'));
-    } finally {
-      setIsSavingEdit(false);
-    }
-  };
-
-  // Fallback edit handlers
-  const handleStructuredEdit = async (data: ManualResumeData) => {
-    if (!activeVersionId) return;
-    setConfirmError(null);
-    setIsSavingEdit(true);
-    try {
-      const created = await executeEditWithRetry((targetId) =>
-        editResumeVersion(targetId, { structured: data }),
-      );
-      await adoptEditedVersion(created.resume_version_id);
-      setIsStructuredEditorOpen(false);
-    } catch (error) {
-      if (isSubscriptionRequiredError(error)) {
-        setIsStructuredEditorOpen(false);
-        onRequireSubscription?.();
-        return;
-      }
-      setConfirmError(errorMessage(error, 'Could not save your resume changes.'));
-    } finally {
-      setIsSavingEdit(false);
-    }
-  };
-
-  const handleTextEdit = async (text: string) => {
-    if (!activeVersionId) return;
-    setConfirmError(null);
-    setIsSavingEdit(true);
-    try {
-      const created = await executeEditWithRetry((targetId) =>
-        editResumeVersion(targetId, { text }),
-      );
-      await adoptEditedVersion(created.resume_version_id);
-      setIsTextEditorOpen(false);
-    } catch (error) {
-      if (isSubscriptionRequiredError(error)) {
-        setIsTextEditorOpen(false);
-        onRequireSubscription?.();
-        return;
-      }
-      setConfirmError(errorMessage(error, 'Could not save your resume changes.'));
-    } finally {
-      setIsSavingEdit(false);
-    }
+    const newDetails = await getResumeVersionDetails(newVersionId);
+    setActiveVersionId(newVersionId);
+    setDetails(newDetails);
+    setHasEdited(true);
+    onVersionUpdated?.(newVersionId, newDetails);
   };
 
   // Confirm gate
@@ -648,6 +346,17 @@ export function ReviewDetailsScreen({
     }
   };
 
+  const openResumeDocument = async (download: boolean) => {
+    if (!activeVersionId || documentBusy) return;
+    setDocumentBusy(true); setConfirmError(null);
+    try {
+      if (download) await downloadResumeVersion(activeVersionId);
+      else setPreview(await previewResumeVersion(activeVersionId));
+    } catch (failure) {
+      setConfirmError(errorMessage(failure,'Your resume could not be opened. Please try again.'));
+    } finally { setDocumentBusy(false); }
+  };
+
   const sectionIconForKind = (kind: SectionKind) => {
     switch (kind) {
       case 'header':
@@ -671,9 +380,6 @@ export function ReviewDetailsScreen({
         return ClipboardText;
     }
   };
-
-  const editingSection =
-    editingSectionIndex !== null && sections ? sections[editingSectionIndex] : null;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -702,7 +408,10 @@ export function ReviewDetailsScreen({
               </View>
             ) : null}
             <View style={styles.titleRow}>
-              <Text style={styles.title}>{title || 'Review details'}</Text>
+              <Text style={[styles.title,{flex:1,minWidth:150}]}>{title || 'Review details'}</Text>
+              <View style={{flexDirection:'row',gap:8}}>
+                {[{download:false,label:'Preview resume',Icon:Eye},{download:true,label:'Download resume',Icon:DownloadSimple}].map(({download,label,Icon})=><Pressable key={label} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled:documentBusy||isSavingEdit||!activeVersionId}} disabled={documentBusy||isSavingEdit||!activeVersionId} onPress={()=>void openResumeDocument(download)} style={[styles.backButton,{opacity:documentBusy||isSavingEdit||!activeVersionId?0.5:1}]}>{documentBusy?<ActivityIndicator size="small" color="#5F4DB2"/>:<Icon size={20} color="#5F4DB2"/>}</Pressable>)}
+              </View>
               {totalUnclear > 0 ? (
                 <View style={styles.toFixBadge}>
                   <WarningCircle size={15} color="#7A5C0E" weight="bold" />
@@ -804,7 +513,7 @@ export function ReviewDetailsScreen({
                             styles.pencilRight,
                             pressed && styles.cardPressed,
                           ]}
-                          onPress={() => setEditingSectionIndex(idx)}
+                          onPress={() => openDocumentEditor(section.kind)}
                           hitSlop={12}
                         >
                           <PencilLine size={16} color="#566073" weight="bold" />
@@ -824,12 +533,7 @@ export function ReviewDetailsScreen({
                                   pressed && styles.cardPressed,
                                 ]}
                                 onPress={() =>
-                                  setFixingItemInfo({
-                                    sectionIndex: idx,
-                                    itemIndex: itemIdx,
-                                    item,
-                                    sectionTitle: section.heading || section.kind,
-                                  })
+                                  openDocumentEditor(section.kind)
                                 }
                               >
                                 <Text style={styles.dashedChipText}>{item.text}</Text>
@@ -980,7 +684,7 @@ export function ReviewDetailsScreen({
                     styles.addSectionCardBtn,
                     pressed && styles.cardPressed,
                   ]}
-                  onPress={() => setIsAddSectionOpen(true)}
+                  onPress={() => openDocumentEditor('projects')}
                 >
                   <Plus size={16} color="#5F4DB2" weight="bold" />
                   <Text style={styles.addSectionCardText}>Add missing section</Text>
@@ -1001,7 +705,7 @@ export function ReviewDetailsScreen({
                       styles.secondaryEditButton,
                       pressed && styles.cardPressed,
                     ]}
-                    onPress={() => setIsTextEditorOpen(true)}
+                    onPress={() => openDocumentEditor()}
                   >
                     <PencilLine size={14} color="#5E4DB2" weight="bold" />
                     <Text style={styles.secondaryEditButtonText}>Correct text</Text>
@@ -1011,7 +715,7 @@ export function ReviewDetailsScreen({
                       styles.primaryEditButton,
                       pressed && styles.buttonPressed,
                     ]}
-                    onPress={() => setIsStructuredEditorOpen(true)}
+                    onPress={() => openDocumentEditor()}
                   >
                     <Text style={styles.primaryEditButtonText}>Edit as fields</Text>
                   </Pressable>
@@ -1023,7 +727,7 @@ export function ReviewDetailsScreen({
                 {/* BASICS */}
                 <Pressable
                   style={({ pressed }) => [styles.detailCard, pressed && styles.cardPressed]}
-                  onPress={() => setIsStructuredEditorOpen(true)}
+                  onPress={() => openDocumentEditor()}
                 >
                   <View style={styles.cardHeaderRow}>
                     <User size={16} color="#5F6B80" weight="bold" />
@@ -1050,7 +754,7 @@ export function ReviewDetailsScreen({
                 {/* EDUCATION */}
                 <Pressable
                   style={({ pressed }) => [styles.detailCard, pressed && styles.cardPressed]}
-                  onPress={() => setIsStructuredEditorOpen(true)}
+                  onPress={() => openDocumentEditor()}
                 >
                   <View style={styles.cardHeaderRow}>
                     <GraduationCap size={16} color="#5F6B80" weight="bold" />
@@ -1085,7 +789,7 @@ export function ReviewDetailsScreen({
                 {/* SKILLS */}
                 <Pressable
                   style={({ pressed }) => [styles.detailCard, pressed && styles.cardPressed]}
-                  onPress={() => setIsStructuredEditorOpen(true)}
+                  onPress={() => openDocumentEditor()}
                 >
                   <View style={styles.cardHeaderRow}>
                     <Wrench size={16} color="#5F6B80" weight="bold" />
@@ -1110,7 +814,7 @@ export function ReviewDetailsScreen({
                 {/* EXPERIENCE & PROJECTS */}
                 <Pressable
                   style={({ pressed }) => [styles.detailCard, pressed && styles.cardPressed]}
-                  onPress={() => setIsStructuredEditorOpen(true)}
+                  onPress={() => openDocumentEditor()}
                 >
                   <View style={styles.cardHeaderRow}>
                     <Flask size={16} color="#5F6B80" weight="bold" />
@@ -1186,60 +890,23 @@ export function ReviewDetailsScreen({
           </Text>
         </View>
 
-        {/* Modal: Section Editor */}
-        <SectionEditModal
-          visible={editingSectionIndex !== null}
-          section={editingSection}
-          sectionIndex={editingSectionIndex}
-          isSubmitting={isSavingEdit}
-          onClose={() => !isSavingEdit && setEditingSectionIndex(null)}
-          onSave={handleSaveSectionEdit}
-          onDelete={handleDeleteSection}
-        />
+        <Modal visible={preview!==null} animationType="slide" onRequestClose={()=>setPreview(null)}>
+          <SafeAreaView style={{flex:1,backgroundColor:'#FFFCF7'}}>
+            <View style={{padding:16,flexDirection:'row',alignItems:'center',justifyContent:'space-between'}}>
+              <Text style={{fontFamily:'GeneralSans-Semibold',fontSize:22,color:'#0A1931'}}>Resume preview</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel="Close resume preview" onPress={()=>setPreview(null)} style={styles.backButton}><X size={22} color="#0A1931"/></Pressable>
+            </View>
+            <ScrollView contentContainerStyle={{padding:12,gap:12}}>
+              {preview?.pages.map((page,index)=><Image key={index} accessibilityLabel={`Resume page ${index+1}`} source={{uri:`data:image/png;base64,${page}`}} style={{width:Math.max(1,screenWidth-24),aspectRatio:210/297}} resizeMode="contain"/>)}
+              {preview?.truncated&&<Text>Showing the first 10 pages. Download to view the complete resume.</Text>}
+            </ScrollView>
+          </SafeAreaView>
+        </Modal>
+        <Modal visible={builderOpen} animationType="slide" onRequestClose={()=>setBuilderOpen(false)}>
+          <ResumeBuilderScreen initialContent={reviewDocument} initialStep={(['personal','experience','education','skills','projects'].includes(documentSection) ? ['personal','experience','education','skills','projects'].indexOf(documentSection) : 5)}
+            onBack={()=>setBuilderOpen(false)} onDone={async id=>{await adoptEditedVersion(id);setBuilderOpen(false);}}/>
+        </Modal>
 
-        {/* Modal: Fix Suggestion for Unclear Chip */}
-        <FixSuggestionModal
-          visible={fixingItemInfo !== null}
-          item={fixingItemInfo?.item || null}
-          sectionTitle={fixingItemInfo?.sectionTitle}
-          isSubmitting={isSavingEdit}
-          onClose={() => !isSavingEdit && setFixingItemInfo(null)}
-          onApplyFix={handleApplySuggestionFix}
-        />
-
-        {/* Modal: Add New Section */}
-        <AddSectionModal
-          visible={isAddSectionOpen}
-          existingKinds={sections ? sections.map((s) => s.kind) : []}
-          isSubmitting={isSavingEdit}
-          onClose={() => !isSavingEdit && setIsAddSectionOpen(false)}
-          onAdd={handleAddNewSection}
-        />
-
-        {/* Fallback Modals */}
-        <ManualResumeModal
-          visible={isStructuredEditorOpen}
-          initialData={structuredData}
-          initialFullName={candidateName}
-          title="Edit resume details"
-          subtitle="Saving creates a new resume version"
-          submitLabel="Save as new version"
-          isSubmitting={isSavingEdit}
-          onSubmit={handleStructuredEdit}
-          onClose={() => !isSavingEdit && setIsStructuredEditorOpen(false)}
-        />
-
-        <PasteTextModal
-          visible={isTextEditorOpen}
-          initialText={rawText}
-          title="Edit extracted resume"
-          subtitle="Saving creates a new resume version"
-          submitLabel="Save as new version"
-          showSampleAction={false}
-          isSubmitting={isSavingEdit}
-          onSubmit={handleTextEdit}
-          onClose={() => !isSavingEdit && setIsTextEditorOpen(false)}
-        />
       </View>
     </SafeAreaView>
   );
@@ -1280,6 +947,7 @@ const styles = StyleSheet.create({
   },
   titleRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'space-between',
     width: '100%',

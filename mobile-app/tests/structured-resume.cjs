@@ -122,7 +122,7 @@ assert.equal(
   'Mumbai',
 );
 assert.equal(career.highest_qualification, 'BTech');
-assert.equal(career.specialization_name, 'Computer Science');
+assert.equal(career.specialization, 'Computer Science');
 assert.deepEqual(career.key_skills, ['TypeScript']);
 assert.equal(career.course_type, 'FULL_TIME');
 

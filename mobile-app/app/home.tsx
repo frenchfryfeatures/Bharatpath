@@ -15,6 +15,7 @@ import {
   bandLabel,
   nextBandLabel,
   pointsToNextBand,
+  UI_SCORE_MAX,
 } from '@/services/api/scoring';
 
 export default function HomeRoute() {
@@ -47,8 +48,15 @@ export default function HomeRoute() {
             refreshScore().catch(() => undefined);
             refreshPhoto().catch(() => undefined);
           }
-        } catch {
-          if (isMounted) {
+        } catch (err) {
+          const isOfflineOrTimeout =
+            err != null &&
+            typeof err === 'object' &&
+            'status' in err &&
+            (err as { status?: number }).status === 0;
+          const hasCachedReadyScore =
+            candidateScore?.status === 'READY' && candidateScore.value != null;
+          if (isMounted && !(isOfflineOrTimeout && hasCachedReadyScore)) {
             router.replace('/?step=review');
           }
         }
@@ -76,7 +84,7 @@ export default function HomeRoute() {
           ? (candidateScore.value ?? undefined)
           : undefined
       }
-      maxScore={999}
+      maxScore={UI_SCORE_MAX}
       scoreGain={scoreGain}
       bandName={bandLabel(candidateScore?.band) || undefined}
       bandNumber={bandIndex(candidateScore?.band)}

@@ -21,9 +21,9 @@ const api = baseApi.injectEndpoints({ endpoints: (builder) => ({
   }),
 }) });
 
-export function TaxonomyField({ fieldKey, details, onChange, label, id, invalid = false }: {
+export function TaxonomyField({ fieldKey, details, onChange, label, id, invalid = false, compact = false }: {
   fieldKey: TaxonomyKey; details: CareerDetails; onChange: (details: CareerDetails) => void;
-  label: string; id?: string; invalid?: boolean;
+  label: string; id?: string; invalid?: boolean; compact?: boolean;
 }) {
   const state = taxonomyState(details, fieldKey);
   const [query, setQuery] = useState("");
@@ -35,7 +35,8 @@ export function TaxonomyField({ fieldKey, details, onChange, label, id, invalid 
   const choose = (value: string) => onChange(chooseTaxonomy(details, fieldKey, value === "__other__" ? "other" : items.find((item) => item.id === value) || null));
   return <div className="space-y-2">
     {!state.freeText && <AppSelect id={id} ariaLabel={label} ariaInvalid={invalid} ariaDescribedBy={invalid && id ? `${id}-error` : undefined}
-      variant="student" menuPlacement="auto" portal searchable pinnedOptionValues={["__other__"]} onSearchChange={setQuery} searchPlaceholder={`Search ${label.toLowerCase()}`}
+      className={`[&>button]:h-[54px] [&>button]:rounded-[16px] [&>button]:border-[1.5px] [&>button]:px-4 [&>button>span]:font-medium ${compact ? "[&>button]:!h-10 [&>button]:!rounded-lg [&>button]:!border [&>button]:!px-3" : ""}`}
+      variant={compact ? "student-compact" : "student"} menuPlacement="auto" portal searchable pinnedOptionValues={["__other__"]} onSearchChange={setQuery} searchPlaceholder={`Search ${label.toLowerCase()}`}
       value={state.other ? "__other__" : state.id} selectedLabel={state.id ? String(details[fieldKey] || "") : undefined}
       disabled={state.disabled} isSearching={isFetching} loadingMessage="Loading options..."
       placeholder={state.disabled ? "Choose the preceding field first" : "Select"}

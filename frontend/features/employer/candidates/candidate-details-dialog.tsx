@@ -10,6 +10,7 @@ import {
   Minimize2,
   Phone,
   UserRound,
+  Wrench,
   X,
 } from "lucide-react";
 
@@ -289,7 +290,7 @@ export function CandidateDetailsDialog({
 
               <section>
                 <SectionHeading
-                  icon={BriefcaseBusiness}
+                  icon={Wrench}
                   title="Skills"
                 />
                 {candidate.skills.length > 0 ? (

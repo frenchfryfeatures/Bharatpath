@@ -7,20 +7,32 @@ const MAX_PROFILE_RUPEES = 1_000_000_000;
 
 export const isProfileSalary = (key: string) => key === "annual_salary" || key === "preferred_salary";
 
-export function profileFieldLabel(key: string, label: string): string {
-  if (key === "annual_salary") return "Current annual salary (LPA)";
-  if (key === "preferred_salary") return "Preferred annual salary (LPA)";
+export function profileFieldLabel(key: string, label: string, details?: CareerDetails): string {
+  const previous = details?.work_status === "EXPERIENCED" && details?.currently_employed === "NO";
+    if (previous && key === 'industry') return 'Previous Industry';
+    if (previous && key === 'department') return 'Previous Department';
+    if (previous && key === 'role_category') return 'Previous Role Category';
+    if (previous && key === 'job_role') return 'Previous Job Role';
+  if (previous && key === "company_name") return "Previous Company";
+  if (previous && key === "job_title") return "Previous Job Title";
+  if (previous && key === "annual_salary") return "Previous Annual Salary";
+  if (previous && key === "employment_start") return "Previous employment starting month";
+  if (previous && key === "employment_end") return "Previous employment ending month";
+  if (key === "company_name") return "Current Company";
+  if (key === "job_title") return "Current Job Title";
+  if (key === "annual_salary") return "Annual Salary";
+  if (key === "preferred_salary") return "Preferred Annual Salary";
   if (key === "passing_year") return "Graduation or expected graduation year";
   return label;
 }
 
 export function salaryInputFromRupees(value: CareerDetails[string]): string {
-  return typeof value === "number" && Number.isFinite(value) ? String(value / RUPEES_PER_LPA) : "";
+  return typeof value === "number" && Number.isFinite(value) ? String(value) : "";
 }
 
-export function formatSalaryLpaFromRupees(value: unknown): string {
+export function formatSalaryLpaFromRupees(value: unknown, currency: unknown = "INR"): string {
   if (typeof value !== "number" || !Number.isFinite(value)) return "Not added";
-  return `₹${new Intl.NumberFormat("en-IN", { maximumFractionDigits: 5 }).format(value / RUPEES_PER_LPA)} LPA`;
+  return `${currency === "USD" ? "$" : "₹"}${new Intl.NumberFormat(currency === "USD" ? "en-US" : "en-IN").format(value)} / year`;
 }
 
 export function formatSalaryLpaFromPaise(value: number, period: SalaryPeriod = "MONTHLY"): string {
@@ -28,7 +40,14 @@ export function formatSalaryLpaFromPaise(value: number, period: SalaryPeriod = "
   return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 5 }).format(value * annualMultiplier / PAISE_PER_LPA);
 }
 
-export function parseSalaryLpa(raw: string): { value: number; error?: never } | { error: string; value?: never } {
+export function parseSalaryLpa(raw: string, currency: unknown = "INR"): { value: number; error?: never } | { error: string; value?: never } {
+  if (currency === 'USD') {
+    const amount = raw.replace(/\$/g, '').replace(/USD/gi, '').replace(/,/g, '').trim();
+    const value = Number(amount);
+    return /^\d+$/.test(amount) && Number.isSafeInteger(value) && value <= 1_000_000_000
+      ? { value } : { error: 'Enter a whole annual amount in US dollars, for example 75000.' };
+  }
+  if (/\$|\bUSD\b/i.test(raw)) return { error: 'Select USD before entering a dollar amount.' };
   const text = raw.trim();
   if (!text) return { error: "Enter a salary, for example: 12 LPA, 50k/month, or ₹6,00,000." };
 
@@ -81,9 +100,9 @@ export function parseSalaryLpa(raw: string): { value: number; error?: never } | 
     if (num === 0) return { value: 0 };
     let rupees: number;
     if (isMonthly) {
-      rupees = Math.round((num <= 500 ? num * RUPEES_PER_LPA : num) * 12);
+      rupees = Math.round(num * 12);
     } else {
-      rupees = Math.round(num <= 500 ? num * RUPEES_PER_LPA : num);
+      rupees = Math.round(num);
     }
     if (rupees > MAX_PROFILE_RUPEES) return { error: "Salary exceeds the maximum limit of ₹100 Crore." };
     return { value: rupees };

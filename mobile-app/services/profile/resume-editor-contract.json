@@ -1,0 +1,573 @@
+{
+  "document": {
+    "full_name": "",
+    "headline": "",
+    "location": "",
+    "summary": "",
+    "contacts": {
+      "email": "",
+      "phone": "",
+      "linkedin": "",
+      "github": "",
+      "behance": "",
+      "website": "",
+      "instagram": "",
+      "tiktok": "",
+      "pinterest": "",
+      "x_twitter": "",
+      "medium": "",
+      "dev_to": "",
+      "stack_overflow": "",
+      "others": []
+    },
+    "experience": [],
+    "education": [],
+    "skills": [],
+    "projects": [],
+    "certifications": [],
+    "languages": [],
+    "achievements": [],
+    "interests": [],
+    "other_sections": []
+  },
+  "entries": {
+    "others": {
+      "label": "",
+      "url": ""
+    },
+    "experience": {
+      "job_title": "",
+      "company": "",
+      "location": "",
+      "employment_type": "",
+      "start_date": "",
+      "end_date": "",
+      "is_current": false,
+      "description": "",
+      "highlights": [],
+      "skills_used": []
+    },
+    "education": {
+      "qualification": "",
+      "field_of_study": "",
+      "institution": "",
+      "location": "",
+      "start_date": "",
+      "end_date": "",
+      "grade": "",
+      "description": ""
+    },
+    "projects": {
+      "name": "",
+      "role": "",
+      "description": "",
+      "technologies": [],
+      "url": "",
+      "start_date": "",
+      "end_date": ""
+    },
+    "certifications": {
+      "name": "",
+      "issuer": "",
+      "issue_date": "",
+      "expiry_date": "",
+      "credential_id": "",
+      "url": ""
+    },
+    "languages": {
+      "name": "",
+      "proficiency": ""
+    },
+    "other_sections": {
+      "heading": "",
+      "items": []
+    }
+  },
+  "schema": {
+    "$defs": {
+      "ContactLink": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Label",
+            "type": "string"
+          },
+          "url": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "title": "ContactLink",
+        "type": "object"
+      },
+      "ResumeCertification": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Name",
+            "type": "string"
+          },
+          "issuer": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Issuer",
+            "type": "string"
+          },
+          "issue_date": {
+            "default": "",
+            "maxLength": 7,
+            "title": "Issue Date",
+            "type": "string"
+          },
+          "expiry_date": {
+            "default": "",
+            "maxLength": 7,
+            "title": "Expiry Date",
+            "type": "string"
+          },
+          "credential_id": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Credential Id",
+            "type": "string"
+          },
+          "url": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "title": "ResumeCertification",
+        "type": "object"
+      },
+      "ResumeContacts": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Email",
+            "type": "string"
+          },
+          "phone": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Phone",
+            "type": "string"
+          },
+          "linkedin": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Linkedin",
+            "type": "string"
+          },
+          "github": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Github",
+            "type": "string"
+          },
+          "behance": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Behance",
+            "type": "string"
+          },
+          "website": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Website",
+            "type": "string"
+          },
+          "instagram": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Instagram",
+            "type": "string"
+          },
+          "tiktok": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Tiktok",
+            "type": "string"
+          },
+          "pinterest": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Pinterest",
+            "type": "string"
+          },
+          "x_twitter": {
+            "default": "",
+            "maxLength": 500,
+            "title": "X Twitter",
+            "type": "string"
+          },
+          "medium": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Medium",
+            "type": "string"
+          },
+          "dev_to": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Dev To",
+            "type": "string"
+          },
+          "stack_overflow": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Stack Overflow",
+            "type": "string"
+          },
+          "others": {
+            "items": {
+              "$ref": "#/$defs/ContactLink"
+            },
+            "maxItems": 20,
+            "title": "Others",
+            "type": "array"
+          }
+        },
+        "title": "ResumeContacts",
+        "type": "object"
+      },
+      "ResumeEducation": {
+        "additionalProperties": false,
+        "properties": {
+          "qualification": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Qualification",
+            "type": "string"
+          },
+          "field_of_study": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Field Of Study",
+            "type": "string"
+          },
+          "institution": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Institution",
+            "type": "string"
+          },
+          "location": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Location",
+            "type": "string"
+          },
+          "start_date": {
+            "default": "",
+            "maxLength": 7,
+            "title": "Start Date",
+            "type": "string"
+          },
+          "end_date": {
+            "default": "",
+            "maxLength": 7,
+            "title": "End Date",
+            "type": "string"
+          },
+          "grade": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Grade",
+            "type": "string"
+          },
+          "description": {
+            "default": "",
+            "maxLength": 5000,
+            "title": "Description",
+            "type": "string"
+          }
+        },
+        "title": "ResumeEducation",
+        "type": "object"
+      },
+      "ResumeExperience": {
+        "additionalProperties": false,
+        "properties": {
+          "job_title": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Job Title",
+            "type": "string"
+          },
+          "company": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Company",
+            "type": "string"
+          },
+          "location": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Location",
+            "type": "string"
+          },
+          "employment_type": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Employment Type",
+            "type": "string"
+          },
+          "start_date": {
+            "default": "",
+            "maxLength": 7,
+            "title": "Start Date",
+            "type": "string"
+          },
+          "end_date": {
+            "default": "",
+            "maxLength": 7,
+            "title": "End Date",
+            "type": "string"
+          },
+          "is_current": {
+            "default": false,
+            "title": "Is Current",
+            "type": "boolean"
+          },
+          "description": {
+            "default": "",
+            "maxLength": 5000,
+            "title": "Description",
+            "type": "string"
+          },
+          "highlights": {
+            "items": {
+              "maxLength": 5000,
+              "type": "string"
+            },
+            "maxItems": 40,
+            "title": "Highlights",
+            "type": "array"
+          },
+          "skills_used": {
+            "items": {
+              "maxLength": 300,
+              "type": "string"
+            },
+            "maxItems": 60,
+            "title": "Skills Used",
+            "type": "array"
+          }
+        },
+        "title": "ResumeExperience",
+        "type": "object"
+      },
+      "ResumeLanguage": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Name",
+            "type": "string"
+          },
+          "proficiency": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Proficiency",
+            "type": "string"
+          }
+        },
+        "title": "ResumeLanguage",
+        "type": "object"
+      },
+      "ResumeOtherSection": {
+        "additionalProperties": false,
+        "properties": {
+          "heading": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Heading",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "maxLength": 5000,
+              "type": "string"
+            },
+            "maxItems": 60,
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "title": "ResumeOtherSection",
+        "type": "object"
+      },
+      "ResumeProject": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Name",
+            "type": "string"
+          },
+          "role": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Role",
+            "type": "string"
+          },
+          "description": {
+            "default": "",
+            "maxLength": 5000,
+            "title": "Description",
+            "type": "string"
+          },
+          "technologies": {
+            "items": {
+              "maxLength": 300,
+              "type": "string"
+            },
+            "maxItems": 60,
+            "title": "Technologies",
+            "type": "array"
+          },
+          "url": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Url",
+            "type": "string"
+          },
+          "start_date": {
+            "default": "",
+            "maxLength": 7,
+            "title": "Start Date",
+            "type": "string"
+          },
+          "end_date": {
+            "default": "",
+            "maxLength": 7,
+            "title": "End Date",
+            "type": "string"
+          }
+        },
+        "title": "ResumeProject",
+        "type": "object"
+      }
+    },
+    "additionalProperties": false,
+    "description": "Everything a CV states, sorted into fields. Facts only, never a rating.",
+    "properties": {
+      "full_name": {
+        "default": "",
+        "maxLength": 300,
+        "title": "Full Name",
+        "type": "string"
+      },
+      "headline": {
+        "default": "",
+        "maxLength": 300,
+        "title": "Headline",
+        "type": "string"
+      },
+      "location": {
+        "default": "",
+        "maxLength": 300,
+        "title": "Location",
+        "type": "string"
+      },
+      "summary": {
+        "default": "",
+        "maxLength": 5000,
+        "title": "Summary",
+        "type": "string"
+      },
+      "contacts": {
+        "$ref": "#/$defs/ResumeContacts"
+      },
+      "experience": {
+        "items": {
+          "$ref": "#/$defs/ResumeExperience"
+        },
+        "maxItems": 40,
+        "title": "Experience",
+        "type": "array"
+      },
+      "education": {
+        "items": {
+          "$ref": "#/$defs/ResumeEducation"
+        },
+        "maxItems": 20,
+        "title": "Education",
+        "type": "array"
+      },
+      "skills": {
+        "items": {
+          "maxLength": 300,
+          "type": "string"
+        },
+        "maxItems": 150,
+        "title": "Skills",
+        "type": "array"
+      },
+      "projects": {
+        "items": {
+          "$ref": "#/$defs/ResumeProject"
+        },
+        "maxItems": 40,
+        "title": "Projects",
+        "type": "array"
+      },
+      "certifications": {
+        "items": {
+          "$ref": "#/$defs/ResumeCertification"
+        },
+        "maxItems": 40,
+        "title": "Certifications",
+        "type": "array"
+      },
+      "languages": {
+        "items": {
+          "$ref": "#/$defs/ResumeLanguage"
+        },
+        "maxItems": 20,
+        "title": "Languages",
+        "type": "array"
+      },
+      "achievements": {
+        "items": {
+          "maxLength": 5000,
+          "type": "string"
+        },
+        "maxItems": 60,
+        "title": "Achievements",
+        "type": "array"
+      },
+      "interests": {
+        "items": {
+          "maxLength": 300,
+          "type": "string"
+        },
+        "maxItems": 40,
+        "title": "Interests",
+        "type": "array"
+      },
+      "other_sections": {
+        "items": {
+          "$ref": "#/$defs/ResumeOtherSection"
+        },
+        "maxItems": 20,
+        "title": "Other Sections",
+        "type": "array"
+      }
+    },
+    "title": "StructuredResume",
+    "type": "object"
+  }
+}

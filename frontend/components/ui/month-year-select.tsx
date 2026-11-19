@@ -1,5 +1,6 @@
 "use client";
 
+import { monthYearOptions } from "@/lib/ui/month-year-options";
 import { useState } from "react";
 
 import { AppSelect } from "./app-select";
@@ -22,6 +23,8 @@ interface MonthYearSelectProps {
   invalid?: boolean;
   describedBy?: string;
   compact?: boolean;
+  after?: string;
+  disabled?: boolean;
 }
 
 export function MonthYearSelect({
@@ -32,26 +35,23 @@ export function MonthYearSelect({
   invalid = false,
   describedBy,
   compact = false,
+  after = "",
+  disabled = false,
 }: Readonly<MonthYearSelectProps>) {
-  const [selection, setSelection] = useState(() => ({ baseValue: value, ...partsFromValue(value) }));
-  const { month, year } = selection.baseValue === value ? selection : partsFromValue(value);
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth() + 1;
-
+  const [selection, setSelection] = useState(() => ({ baseValue: value, baseAfter: after, ...partsFromValue(value) }));
+  const { month, year } = selection.baseValue === value && selection.baseAfter === after ? selection : partsFromValue(value);
+  const choices = monthYearOptions(year, after);
   const commit = (nextMonth: string, nextYear: string) => {
-    const nextValue = nextMonth && nextYear ? `${nextYear}-${nextMonth}` : "";
-    setSelection({ baseValue: nextValue, month: nextMonth, year: nextYear });
+    const validMonths = monthYearOptions(nextYear, after).months;
+    const month = validMonths.includes(nextMonth) ? nextMonth : "";
+    const nextValue = month && nextYear ? `${nextYear}-${month}` : "";
+    setSelection({ baseValue: nextValue, baseAfter: after, month, year: nextYear });
     if (nextValue !== value) onChange(nextValue);
   };
-
   const monthOptions = monthNames
-    .map((name, index) => ({ value: String(index + 1).padStart(2, "0"), label: name }))
-    .filter((option) => year !== String(currentYear) || Number(option.value) <= currentMonth);
-  const yearOptions = Array.from({ length: currentYear - 1899 }, (_, index) => {
-    const option = String(currentYear - index);
-    return { value: option, label: option };
-  });
+    .map((name, index) => ({value: String(index + 1).padStart(2, "0"), label: name}))
+    .filter((option) => choices.months.includes(option.value));
+  const yearOptions = choices.years.map((year) => ({value: year, label: year}));
   const selectClass = `[&>button]:h-[54px] [&>button]:rounded-[16px] [&>button]:border-[1.5px] [&>button]:px-4 [&>button>span]:font-medium ${compact ? "[&>button]:!h-10 [&>button]:!rounded-lg [&>button]:!border [&>button]:!px-3" : ""} ${invalid ? "[&>button]:!border-[#993A22]" : ""}`;
 
   return (
@@ -59,6 +59,7 @@ export function MonthYearSelect({
       <div className="grid grid-cols-2 gap-3">
         <AppSelect
           id={id}
+          disabled={disabled || !choices.years.length}
           value={month}
           onChange={(nextMonth) => commit(nextMonth, year)}
           options={monthOptions}
@@ -73,8 +74,9 @@ export function MonthYearSelect({
         />
         <AppSelect
           id={`${id}-year`}
+          disabled={disabled || !choices.years.length}
           value={year}
-          onChange={(nextYear) => commit(nextYear === String(currentYear) && Number(month) > currentMonth ? "" : month, nextYear)}
+          onChange={(nextYear) => commit(month, nextYear)}
           options={yearOptions}
           placeholder="Year"
           ariaLabel={`${label} year`}

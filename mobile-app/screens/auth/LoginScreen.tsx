@@ -25,6 +25,7 @@ import { Colors, Radii, Spacing } from '@/theme/tokens';
 import { signInWithEmail, AuthSession, CandidateProfileResponse } from '@/services/api/auth';
 import { ApiError } from '@/services/api/client';
 import { useAuthContext } from '@/context/AuthContext';
+import { logger } from '@/utils/logger';
 
 export interface LoginFormData {
   email: string;
@@ -89,7 +90,11 @@ export function LoginScreen({
   };
 
   const handleSubmit = async () => {
-    if (!validate()) return;
+    logger.step('LoginScreen', 'Sign-in button pressed', { email: email.trim().toLowerCase() });
+    if (!validate()) {
+      logger.warn('LoginScreen', 'Client-side validation failed', { email: email.trim().toLowerCase() });
+      return;
+    }
 
     setIsLoading(true);
     setErrorMsg(null);
@@ -105,7 +110,7 @@ export function LoginScreen({
         onSubmit(result);
       }
     } catch (err: any) {
-      console.error('[Login Error]:', err);
+      logger.error('LoginScreen', 'Sign-in failed', err, { email: email.trim().toLowerCase() });
       if (err instanceof ApiError) {
         if (err.code === 'account_inactive') {
           setErrorMsg('This account is suspended or has been deleted.');

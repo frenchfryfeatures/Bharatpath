@@ -29,6 +29,7 @@ import {
 } from 'phosphor-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Radii } from '@/theme/tokens';
+import { logger } from '@/utils/logger';
 import {
   CheckoutResponse,
   SubscriptionResponse,
@@ -144,8 +145,12 @@ export function PaymentSheet({ checkout, planLabel, onPaid, onClose }: PaymentSh
   const handleStubOutcome = async (outcome: 'SUCCEEDED' | 'FAILED') => {
     setStatus('settling');
     setMessage(null);
+    logger.step('PaymentSheet', `Simulating stub payment outcome: ${outcome}`, {
+      paymentId: checkout.payment_id,
+    });
     try {
       const payment = await settleStubPayment(checkout.payment_id, outcome);
+      logger.info('PaymentSheet', `Stub payment settled: ${payment.status}`, payment);
       if (payment.status === 'SUCCEEDED') {
         await grantAccess();
       } else {
@@ -154,6 +159,7 @@ export function PaymentSheet({ checkout, planLabel, onPaid, onClose }: PaymentSh
         setMessage(paymentFailureMessage(payment.failure_code));
       }
     } catch (error) {
+      logger.error('PaymentSheet', `Stub payment simulation failed for ${checkout.payment_id}`, error);
       setStatus('waiting');
       setMessage(billingErrorMessage(error, 'The stub gateway could not settle this payment.'));
     }

@@ -38,7 +38,7 @@ function tokenClaims(token: string): Record<string, unknown> | null {
 }
 
 /** Which Cognito pool minted this token, read from its `iss` claim. */
-function poolOfToken(token: string): CognitoPoolType | null {
+export function poolOfToken(token: string): CognitoPoolType | null {
   const issuer = tokenClaims(token)?.iss;
   if (typeof issuer !== "string") return null;
   if (issuer.endsWith(`/${COGNITO_CONFIG.candidatePoolId}`)) return "CANDIDATE";

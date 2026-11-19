@@ -6,6 +6,7 @@ import {
   ApiError,
   getBaseUrl,
 } from './client';
+import { logger, sanitizeForLog } from '@/utils/logger';
 import { UserProfile } from '@/types/user';
 import { rememberUnsavedName } from '@/services/profile/pendingName';
 import {
@@ -13,6 +14,7 @@ import {
   getStoredSession,
   clearAllAuthData,
 } from '@/services/storage/authStorage';
+import { clearPendingResume } from '@/services/storage/pendingResume';
 
 export interface AuthSession {
   accessToken: string;
@@ -119,6 +121,12 @@ function shouldUseDevToken(): boolean {
 
 async function cognitoRequest<T>(action: string, payload: Record<string, any>): Promise<T> {
   const url = `https://cognito-idp.${COGNITO_REGION}.amazonaws.com/`;
+  const startedAt = Date.now();
+  logger.step('Cognito', `--> ${action}`, {
+    region: COGNITO_REGION,
+    clientId: COGNITO_CLIENT_ID,
+    payload: sanitizeForLog(payload),
+  });
   let response: Response;
   try {
     response = await fetch(url, {
@@ -130,6 +138,7 @@ async function cognitoRequest<T>(action: string, payload: Record<string, any>): 
       body: JSON.stringify(payload),
     });
   } catch (err: any) {
+    logger.error('Cognito', `<-- NETWORK FAILURE on ${action} (${Date.now() - startedAt}ms)`, err, { url });
     throw new ApiError({
       type: 'https://bharatpath.example/problems/network_error',
       title: 'Cannot connect to authentication service. Please check your internet connection.',
@@ -139,9 +148,11 @@ async function cognitoRequest<T>(action: string, payload: Record<string, any>): 
   }
 
   const data = await response.json();
+  const durationMs = Date.now() - startedAt;
   if (!response.ok) {
     const errorType = (data.__type || data.code || '').split('#').pop() || 'CognitoError';
     const message = data.message || 'Authentication request failed';
+    logger.error('Cognito', `<-- ${action} FAILED (${response.status} ${errorType}, ${durationMs}ms): ${message}`, undefined, data);
 
     if (errorType === 'NotAuthorizedException' || errorType === 'UserNotFoundException') {
       throw new ApiError({
@@ -216,6 +227,7 @@ async function cognitoRequest<T>(action: string, payload: Record<string, any>): 
     });
   }
 
+  logger.info('Cognito', `<-- ${action} OK (${durationMs}ms)`, sanitizeForLog(data));
   return data as T;
 }
 
@@ -455,6 +467,10 @@ export type SignUpResult = AuthSession | { unconfirmed: true; email: string };
  */
 export async function signUpWithEmail(params: SignUpParams): Promise<SignUpResult> {
   const normalizedEmail = params.email.trim().toLowerCase();
+  logger.step('Auth', `signUpWithEmail starting for ${normalizedEmail}`, {
+    devTokenMode: shouldUseDevToken(),
+    fullName: params.fullName.trim(),
+  });
 
   if (shouldUseDevToken()) {
     const devSubject = emailToDevSubject(normalizedEmail);
@@ -568,6 +584,9 @@ export async function signInWithEmail(params: SignInParams): Promise<{
   profile: CandidateProfileResponse | null;
 }> {
   const normalizedEmail = params.email.trim().toLowerCase();
+  logger.step('Auth', `signInWithEmail starting for ${normalizedEmail}`, {
+    devTokenMode: shouldUseDevToken(),
+  });
   let accessToken: string;
   let refreshToken: string | undefined;
   let idToken: string | undefined;
@@ -650,6 +669,12 @@ export async function signInWithEmail(params: SignInParams): Promise<{
   currentSession = session;
   await saveStoredSession(session);
   notifySessionListeners(session);
+  logger.step('Auth', `signInWithEmail succeeded for ${normalizedEmail}`, {
+    userId: session.userId,
+    role: session.role,
+    pool: session.pool,
+    hasProfile: Boolean(profile),
+  });
   return { session, profile };
 }
 
@@ -812,7 +837,10 @@ export { getProfileViews } from './profile';
 export async function signOut(): Promise<void> {
   setAccessToken(null);
   currentSession = null;
-  await clearAllAuthData();
+  await Promise.all([
+    clearAllAuthData(),
+    clearPendingResume().catch(() => undefined),
+  ]);
   notifySessionListeners(null);
 }
 

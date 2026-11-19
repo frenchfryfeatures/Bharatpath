@@ -1,7 +1,8 @@
 "use client";
+import { focusFormError } from "@/lib/ui/focus-form-error";
 import { useStudentHasAccess } from "@/features/student/onboarding/use-student-access";
 import { Fragment, useEffect, useRef, useState } from "react";
-import { AlertCircle, CheckCircle2, Mail, Plus, User, X } from "lucide-react";
+import { AlertCircle, CheckCircle2, ListChecks, MessageCircle, Mail, Plus, User, X } from "lucide-react";
 import { StudentBackButton } from "@/features/student/components/student-back-button";
 import { ConversationPrompt } from "./conversation-prompt";
 import { conversationQuestion, type ConversationAnswer } from "./conversation-questions";
@@ -10,9 +11,11 @@ import { clearOnboardingDraft, readOnboardingDraft, writeOnboardingDraft, type O
 import { EducationField, useEducationAutoNA } from "./education-field";
 import { isEducationKey, educationErrors } from "./education-state";
 import { TaxonomyField } from "./taxonomy-field";
+import { ExperienceFields } from "./experience-fields";
 import { isTaxonomyKey, taxonomyErrors } from "./taxonomy-state";
 import { AppSelect } from "@/components/ui/app-select";
 import { MonthYearSelect } from "@/components/ui/month-year-select";
+import { formatSalaryInput, salaryCaretPosition } from "../salary-input";
 import { formatSalaryLpaFromRupees, isProfileSalary, parseSalaryLpa, profileFieldLabel, salaryInputFromRupees } from "../salary";
 import { PhoneNumberInput } from "@/components/ui/phone-number-input";
 import { FormSkeleton } from "@/components/common/loading";
@@ -53,7 +56,7 @@ const sections = [
 ] as const;
 
 function incompleteCareerFields(error: unknown): string[] {
-  if (!["career_profile_incomplete", "taxonomy_invalid", "taxonomy_use_existing", "education_taxonomy_invalid"].includes(getApiErrorCode(error) || "")) return [];
+  if (!["career_profile_incomplete", "taxonomy_invalid", "taxonomy_use_existing", "education_taxonomy_invalid", "employment_dates_invalid", "education_years_invalid"].includes(getApiErrorCode(error) || "")) return [];
   if (typeof error !== "object" || error === null || !("data" in error))
     return [];
   const data = error.data;
@@ -143,12 +146,7 @@ export function CareerForm({
   }, [finishReadyConversation]);
   useEffect(() => {
     if (!errorScroll?.length) return;
-    const ids = new Set(errorScroll);
-    const target = Array.from(formRef.current?.querySelectorAll<HTMLElement>("[id]") ?? [])
-      .find((element) => ids.has(element.id));
-    if (!target) return;
-    target.scrollIntoView({ behavior: "smooth", block: "center" });
-    target.focus({ preventScroll: true });
+    focusFormError(formRef.current, errorScroll);
   }, [errorScroll]);
   const [conversationHistory, setConversationHistory] = useState<ConversationAnswer[]>([]);
   const [conversationInput, setConversationInput] = useState<string | null>(null);
@@ -176,7 +174,7 @@ export function CareerForm({
           onConversationModeChange?.(restored.draft.mode === "conversation");
           setConversationInput(restored.draft.input);
         } else {
-          setMode(null);
+          setMode(restored.draft.mode);
           setStep(0);
         }
       }
@@ -267,16 +265,17 @@ export function CareerForm({
   const updateEmploymentFields = !editing || editingAll || editSection === "employment";
   const showIdentityFields = section.key === "basic" && (!editing || editingAll);
   const modalFieldClass = editing ? "!rounded-lg !border !px-3 !py-2.5 !text-[13px] !leading-5" : "";
-  const maxPassingYear = draft.starting_year ? Math.min(2100, Number(draft.starting_year) + 5) : 2100;
+  const educationYearSpan = fields.data.find((field) => field.key === "passing_year")?.rules?.education_max_years ?? 7;
+  const maxPassingYear = draft.starting_year ? Math.min(2100, Number(draft.starting_year) + educationYearSpan) : 2100;
   const sectionFields = fields.data.filter(
     (field) => !(field.key === "specialization" && hideEducationSpecialization) &&
       (editingAll ||
         (editing && editSection === "headline"
           ? field.key === "headline"
           : field.section === section.key &&
-            (!editing || field.key !== "headline"))) &&
+          (!editing || field.key !== "headline"))) &&
       (visibleCareerField(field, draft) ||
-        (serverRequiresSkills && field.key === "key_skills")),
+        ((editing || serverRequiresSkills) && field.key === "key_skills")),
   );
   const conversational = !editing && step > 0 && mode === "conversation";
   const currentQuestionIndex = Math.min(questionIndex, Math.max(0, sectionFields.length - 1));
@@ -297,9 +296,19 @@ export function CareerForm({
   const answerText = conversationInput ?? (currentField?.options.find((option) => option.value === currentValue)?.label ??
     (currentField && isProfileSalary(currentField.key) ? salaryInputFromRupees(currentValue) :
       Array.isArray(currentValue) ? currentValue.join(", ") : String(currentValue ?? "")));
+  const formatSalaryChange = (input: HTMLInputElement, key: string, onChange: (raw: string) => void) => {
+    const raw = input.value;
+    const formatted = formatSalaryInput(raw, draft[key === "annual_salary" ? "annual_salary_currency" : "preferred_salary_currency"]);
+    const caret = salaryCaretPosition(raw, formatted, input.selectionStart ?? raw.length);
+    onChange(formatted);
+    requestAnimationFrame(() => {
+      if (document.activeElement === input) input.setSelectionRange(caret, caret);
+    });
+  };
   const update = (key: string, value: CareerDetails[string]) => {
     setDraft((current) => {
       const next = { ...(current ?? draft), [key]: value };
+      if (key === "employment_start" && (!value || (next.employment_end && String(next.employment_end) <= String(value)))) next.employment_end = "";
       if (key === "work_status" && value === "FRESHER")
         Object.assign(next, {
           experience_years: 0,
@@ -310,38 +319,29 @@ export function CareerForm({
           employment_start: "",
           employment_end: "",
           annual_salary: null,
-          notice_period: "",
+          notice_period: "IMMEDIATE",
           job_role: "",
         });
       if (updateEmploymentFields && key === "currently_employed" && value === "YES") {
         next.employment_end = "";
         if (next.work_status !== "EXPERIENCED") next.work_status = "EXPERIENCED";
       }
-      if (updateEmploymentFields && key === "currently_employed" && value === "NO")
-        Object.assign(next, {
-          company_name: "",
-          job_title: "",
-          employment_start: "",
-          employment_end: "",
-          annual_salary: null,
-          notice_period: "",
-          job_role: "",
-        });
+      if (key === 'currently_employed' && value === 'NO') next.notice_period = 'IMMEDIATE';
       return next;
     });
     setErrors((current) =>
       key === "currently_employed"
         ? {
-            ...current,
-            [key]: "",
-            company_name: "",
-            job_title: "",
-            employment_start: "",
-            annual_salary: "",
-            notice_period: "",
-            employment_end: "",
-            job_role: "",
-          }
+          ...current,
+          [key]: "",
+          company_name: "",
+          job_title: "",
+          employment_start: "",
+          annual_salary: "",
+          notice_period: "",
+          employment_end: "",
+          job_role: "",
+        }
         : { ...current, [key]: "" },
     );
   };
@@ -417,8 +417,8 @@ export function CareerForm({
         const value = details[field.key];
         const previousSkip = history.find((item) => item.key === field.key && item.answer === "Skipped for now");
         return {
-          key: field.key, step: nextStep, questionIndex: position, question: conversationQuestion(field),
-          answer: previousSkip && !fieldRequired(field, details) ? previousSkip.answer : isProfileSalary(field.key) ? formatSalaryLpaFromRupees(value) : field.options.find((option) => option.value === value)?.label ??
+          key: field.key, step: nextStep, questionIndex: position, question: conversationQuestion(field, draft),
+          answer: previousSkip && !fieldRequired(field, details) ? previousSkip.answer : isProfileSalary(field.key) ? formatSalaryLpaFromRupees(value, draft[field.key === "annual_salary" ? "annual_salary_currency" : "preferred_salary_currency"]) : field.options.find((option) => option.value === value)?.label ??
             (Array.isArray(value) ? value.join(", ") : String(value)),
         };
       });
@@ -461,7 +461,7 @@ export function CareerForm({
         } else onBack();
       }} />}
     <PillButton type="submit" isLoading={busy} className={`flex-1 ${editing ? "!h-9 !rounded-lg !py-2 !text-[13px]" : ""}`}>
-      {editing ? "Save profile" : conversational ? finishing ? "Send answer and finish" : "Send answer" : finishing ? hasAccess ? "Save and continue" : "Save and continue to membership" : "Continue"}
+      {editing ? "Save profile" : conversational ? finishing ? "Send answer and finish" : "Send answer" : finishing ? "Save" : "Continue"}
     </PillButton>
   </div>;
 
@@ -485,6 +485,7 @@ export function CareerForm({
           } else if (option === "conversation") startConversationStep(1, []);
           resumeCheckpoint.current = null;
         }} className="rounded-2xl border border-[#C9BEEB] bg-white p-5 text-left hover:border-[#5F4DB2] hover:bg-[#F8F5FF]">
+        {option === "manual" ? <ListChecks className="mb-3 h-6 w-6 text-[#5F4DB2]" aria-hidden="true" /> : <MessageCircle className="mb-3 h-6 w-6 text-[#5F4DB2]" aria-hidden="true" />}
         <span className="block font-semibold text-[#5F4DB2]">{option === "manual" ? "Manual Form" : "Conversational Mode"}</span>
         <span className="mt-2 block text-sm text-[#5F6B80]">{option === "manual" ? "Fill in your details in the familiar form." : "Answer one question at a time. Type or choose a suggestion."}</span>
       </button>)}
@@ -506,10 +507,10 @@ export function CareerForm({
           : [];
         const locationDraft =
           pendingLocation &&
-          savedLocations.length < 5 &&
-          !savedLocations.some(
-            (location) => location.toLowerCase() === pendingLocation.toLowerCase(),
-          )
+            savedLocations.length < 5 &&
+            !savedLocations.some(
+              (location) => location.toLowerCase() === pendingLocation.toLowerCase(),
+            )
             ? { ...draft, preferred_locations: [...savedLocations, pendingLocation] }
             : draft;
         const submittedDraft = { ...locationDraft };
@@ -521,7 +522,7 @@ export function CareerForm({
               submittedDraft[key] = null;
               continue;
             }
-            const parsed = parseSalaryLpa(raw);
+            const parsed = parseSalaryLpa(raw, draft[key === "annual_salary" ? "annual_salary_currency" : "preferred_salary_currency"]);
             if (parsed.error) {
               setErrors((current) => ({ ...current, [key]: parsed.error }));
               setErrorScroll([`career-${key}`]);
@@ -641,12 +642,14 @@ export function CareerForm({
         let acceptedHistory = conversationHistory;
         if (conversational && currentField) {
           const value = employmentDetails[currentField.key];
-          const answer = isProfileSalary(currentField.key) ? formatSalaryLpaFromRupees(value) : currentField.options.find((option) => option.value === value)?.label ??
+          const answer = isProfileSalary(currentField.key) ? formatSalaryLpaFromRupees(value, draft[currentField.key === "annual_salary" ? "annual_salary_currency" : "preferred_salary_currency"]) : currentField.options.find((option) => option.value === value)?.label ??
             (Array.isArray(value) ? value.join(", ") : String(value ?? ""));
           acceptedHistory = [
             ...conversationHistory.filter((item) => item.key !== currentField.key),
-            { key: currentField.key, step, questionIndex: currentQuestionIndex,
-              question: conversationQuestion(currentField), answer: skipping ? "Skipped for now" : answer || "Skipped for now" },
+            {
+              key: currentField.key, step, questionIndex: currentQuestionIndex,
+              question: conversationQuestion(currentField, draft), answer: skipping ? "Skipped for now" : answer || "Skipped for now"
+            },
           ].sort((left, right) => left.step - right.step || left.questionIndex - right.questionIndex);
           setConversationHistory(acceptedHistory);
         }
@@ -679,18 +682,18 @@ export function CareerForm({
           const detailsToSave =
             editing && !editingAll
               ? {
-                  ...saved.data?.details,
-                  ...Object.fromEntries(
-                    fields.data
-                      .filter((field) =>
-                        editSection === "headline"
-                          ? field.key === "headline"
-                          : field.section === section.key &&
-                            field.key !== "headline"
-                      )
-                      .map((field) => [field.key, employmentDetails[field.key]]),
-                  ),
-                }
+                ...saved.data?.details,
+                ...Object.fromEntries(
+                  fields.data
+                    .filter((field) =>
+                      editSection === "headline"
+                        ? field.key === "headline"
+                        : field.section === section.key &&
+                        field.key !== "headline"
+                    )
+                    .map((field) => [field.key, employmentDetails[field.key]]),
+                ),
+              }
               : employmentDetails;
           const cleanedDetails = careerDetailsForSave(detailsToSave);
           if (serverRequiresSkills)
@@ -743,8 +746,8 @@ export function CareerForm({
           fields.data.some((field) => field.key === item.key && visibleCareerField(field, draft)))
           .sort((left, right) => left.step - right.step || left.questionIndex - right.questionIndex)
           .map((item) => isProfileSalary(item.key) && /^\d+$/.test(item.answer)
-          ? { ...item, answer: formatSalaryLpaFromRupees(Number(item.answer)) }
-          : item)}
+            ? { ...item, answer: formatSalaryLpaFromRupees(Number(item.answer)) }
+            : item)}
         disabled={busy}
         retryMessage={conversationError}
         attempts={attempts.filter((item) => item.key === currentField?.key)}
@@ -775,18 +778,27 @@ export function CareerForm({
                 className={`rounded-full border px-4 py-2.5 text-sm font-medium ${answerText === option.label ? "border-[#5F4DB2] bg-[#F1EAF7] text-[#4A3E8F]" : "border-[#C9BEEB] bg-white text-[#3A4761] hover:border-[#5F4DB2]"}`}
               >{option.label}</button>)}
             </div>}
-            <label htmlFor="conversation-answer" className="sr-only">{profileFieldLabel(currentField.key, currentField.label)}</label>
+            {isProfileSalary(currentField.key) && <select aria-label="Salary currency"
+              value={String(draft[currentField.key === 'annual_salary' ? 'annual_salary_currency' : 'preferred_salary_currency'] ?? 'INR')}
+              onChange={(event) => update(currentField.key === 'annual_salary' ? 'annual_salary_currency' : 'preferred_salary_currency', event.target.value)}
+              className="rounded-xl border border-[#C9BEEB] bg-white p-3">
+              <option value="INR">₹ INR</option><option value="USD">$ USD</option>
+            </select>}
+            <label htmlFor="conversation-answer" className="sr-only">{profileFieldLabel(currentField.key, currentField.label, draft)}</label>
             {isEducationKey(currentField.key) ? (
-              <EducationField fieldKey={currentField.key} id="conversation-answer" label={currentField.label} details={draft} invalid={Boolean(conversationError)} onChange={(next) => {setDraft(next); setConversationInput(String(next[currentField.key] || "")); setConversationError("");}} />
+              <EducationField fieldKey={currentField.key} id="conversation-answer" label={currentField.label} details={draft} invalid={Boolean(conversationError)}
+                onChange={(next) => {setDraft(next); setConversationInput(String(next[currentField.key] || "")); setConversationError("");}} />
             ) : isTaxonomyKey(currentField.key) ? (
               <TaxonomyField fieldKey={currentField.key} id="conversation-answer" label={currentField.label} details={draft} invalid={Boolean(conversationError)}
-                onChange={(next) => {setDraft(next); setConversationInput(String(next[currentField.key] || "")); setConversationError("");}} />
+                onChange={(next) => { setDraft(next); setConversationInput(String(next[currentField.key] || "")); setConversationError(""); }} />
             ) : currentField.type === "month" ? (
               <MonthYearSelect
                 key={currentField.key}
                 id="conversation-answer"
                 label={currentField.label}
                 value={answerText}
+                after={currentField.key === "employment_end" ? String(draft.employment_start || "") : undefined}
+                disabled={currentField.key === "employment_end" && !draft.employment_start}
                 onChange={setConversationInput}
                 invalid={Boolean(conversationError)}
                 describedBy={conversationError ? "conversation-retry" : undefined}
@@ -803,12 +815,12 @@ export function CareerForm({
                 inputClassName={`${fieldClass} bg-white ${fieldBorder(Boolean(conversationError))}`}
               />
             ) : (
-              <input id="conversation-answer" type="text" value={answerText}
+              <input id="conversation-answer" type="text" value={isProfileSalary(currentField.key) ? formatSalaryInput(answerText, draft[currentField.key === "annual_salary" ? "annual_salary_currency" : "preferred_salary_currency"]) : answerText}
                 inputMode={isProfileSalary(currentField.key) ? "decimal" : currentField.type === "number" ? "numeric" : "text"}
-                placeholder={isProfileSalary(currentField.key) ? "e.g. 4.5 LPA" : currentField.type === "list" ? "Type answers separated by commas" : "Type your answer here…"}
+                placeholder={isProfileSalary(currentField.key) ? "Enter the full annual amount" : currentField.type === "list" ? "Type answers separated by commas" : "Type your answer here…"}
                 aria-invalid={Boolean(conversationError)} aria-describedby={conversationError ? "conversation-retry" : undefined}
                 className={`${fieldClass} bg-white ${fieldBorder(Boolean(conversationError))}`}
-                onChange={(event) => setConversationInput(event.target.value)} />
+                onChange={(event) => isProfileSalary(currentField.key) ? formatSalaryChange(event.currentTarget, currentField.key, setConversationInput) : setConversationInput(event.target.value)} />
             )}
             {!fieldRequired(currentField, draft) && <div className="flex justify-end">
               <button type="button" disabled={busy} className="text-xs text-[#5F6B80] underline underline-offset-4 hover:text-[#5F4DB2] disabled:opacity-50"
@@ -834,59 +846,77 @@ export function CareerForm({
             label="Upload your resume"
             hint="Read your PDF or DOCX to fill the fields below, or enter your details yourself."
           >
-            <input
-              id="career-resume"
-              type="file"
-              accept=".pdf,.docx"
-              disabled={busy}
-              className={`${fieldClass} text-[13px]`}
-              onChange={async (event) => {
-                const file = event.target.files?.[0];
-                if (!file) return;
-                setError("");
-                try {
-                  const preview = await previewSelectedResume(file).unwrap();
-                  const version = await intakeSelectedResume(file).unwrap();
-                  const filled = {
-                    ...draft,
-                    ...Object.fromEntries(
-                      Object.entries(preview.details).filter(
-                        ([, value]) =>
-                          value !== "" &&
-                          value !== null &&
-                          (!Array.isArray(value) || value.length),
+            <div className="flex items-center gap-2">
+              <input
+                id="career-resume"
+                type="file"
+                accept=".pdf,.docx"
+                disabled={busy}
+                className={`${fieldClass} flex-1 text-[13px]`}
+                onChange={async (event) => {
+                  const file = event.target.files?.[0];
+                  if (!file) return;
+                  setError("");
+                  try {
+                    const preview = await previewSelectedResume(file).unwrap();
+                    const version = await intakeSelectedResume(file).unwrap();
+                    const filled = {
+                      ...draft,
+                      ...Object.fromEntries(
+                        Object.entries(preview.details).filter(
+                          ([, value]) =>
+                            value !== "" &&
+                            value !== null &&
+                            (!Array.isArray(value) || value.length),
+                        ),
                       ),
-                    ),
-                  };
-                  setDraft(filled);
-                  setSelectedVersionId(version.resume_version_id);
-                  setSelectedFilename(file.name);
-                  if (!fullName && preview.full_name)
-                    setFullName(preview.full_name);
-                  setListText({});
-                  setSalaryText({});
-                  await save({
-                    details: careerDetailsForSave(filled),
-                    resume_version_id: version.resume_version_id,
-                    resume_filename: file.name,
-                    complete: false,
-                  }).unwrap();
-                } catch (failure) {
-                  setError(
-                    getApiErrorMessage(
-                      failure,
-                      "Your resume could not be read. Try again or enter your details.",
-                    ),
-                  );
-                }
-              }}
-            />
+                    };
+                    setDraft(filled);
+                    setSelectedVersionId(version.resume_version_id);
+                    setSelectedFilename(file.name);
+                    if (!fullName && preview.full_name)
+                      setFullName(preview.full_name);
+                    setListText({});
+                    setSalaryText({});
+                    await save({
+                      details: careerDetailsForSave(filled),
+                      resume_version_id: version.resume_version_id,
+                      resume_filename: file.name,
+                      complete: false,
+                    }).unwrap();
+                  } catch (failure) {
+                    setError(
+                      getApiErrorMessage(
+                        failure,
+                        "Your resume could not be read. Try again or enter your details.",
+                      ),
+                    );
+                  }
+                }}
+              />
+              {(selectedFilename || resumeFilename || saved.data?.resume_filename) && (
+                <button
+                  type="button"
+                  aria-label="Remove resume"
+                  disabled={busy}
+                  onClick={() => {
+                    setSelectedVersionId(undefined);
+                    setSelectedFilename(undefined);
+                    const fileEl = document.getElementById("career-resume") as HTMLInputElement | null;
+                    if (fileEl) fileEl.value = "";
+                  }}
+                  className="grid h-[52px] w-[52px] shrink-0 place-items-center rounded-[16px] border-[1.5px] border-[#E7E0D4] bg-white text-[#0A1931] hover:bg-[#F7F4EC] disabled:opacity-50"
+                >
+                  <X size={18} />
+                </button>
+              )}
+            </div>
             {(selectedPreviewState.isLoading ||
               selectedIntakeState.isLoading) && (
-              <p role="status" className="text-[13px] text-[#5F4DB2]">
-                Reading your resume and filling your details…
-              </p>
-            )}
+                <p role="status" className="text-[13px] text-[#5F4DB2]">
+                  Reading your resume and filling your details…
+                </p>
+              )}
           </Field>
         )}
         {editingAll && (
@@ -932,13 +962,18 @@ export function CareerForm({
                   type="email"
                   readOnly
                   value={email || account.data?.email || ""}
-                  className={`${fieldClass} ${modalFieldClass} border-[#E7E0D4] !pl-12`}
+                  className={`${fieldClass} ${modalFieldClass} border-[#E7E0D4] !pl-12 !bg-[#F3F4F6] !text-[#6B7280] cursor-not-allowed`}
                 />
               </div>
             </Field>
           </>
         )}
         {activeFields.map((field, index) => {
+          if (field.key === "experience_months") return null;
+          if (field.key === "experience_years") return (
+            <ExperienceFields key={field.key} details={draft} errors={errors} compact={editing}
+              onChange={(key, value) => update(key, value)} />
+          );
           const value = draft[field.key];
           const id = `career-${field.key}`;
           return (
@@ -951,183 +986,237 @@ export function CareerForm({
                   </h3>
                 )}
               <Field
-              id={id}
-              label={`${profileFieldLabel(field.key, field.label)}${fieldRequired(field, draft) ? " *" : ""}`}
-              error={errors[field.key]}
-              optional={!fieldRequired(field, draft)}
-              hint={
-                field.type === "list"
-                  ? field.key === "preferred_locations"
-                    ? "Add up to five preferred work locations."
-                    : "Separate skills with commas."
-                  : field.type === "month"
-                    ? "Month and year"
-                    : field.key === "passing_year" && draft.starting_year
-                      ? `Graduation must be by ${maxPassingYear}, within 5 years of your starting year.`
-                    : undefined
-              }
-            >
-              {isEducationKey(field.key) ? (
-                <EducationField compact={editing} fieldKey={field.key} id={id} label={field.label} details={draft} invalid={Boolean(errors[field.key])} onChange={(next) => {setDraft(next); setErrors((current) => ({...current, [field.key]: ""}));}} />
-              ) : isTaxonomyKey(field.key) ? (
-                <TaxonomyField fieldKey={field.key} id={id} label={field.label} details={draft} invalid={Boolean(errors[field.key])}
-                  onChange={(next) => {setDraft(next); setErrors((current) => ({...current, [field.key]: ""}));}} />
-              ) : field.type === "select" ? (
-                <AppSelect
-                  id={id}
-                  value={String(value || (field.key === "currently_employed" ? "NO" : ""))}
-                  onChange={(v) => update(field.key, v)}
-                  options={[{ value: "", label: "Select" }, ...field.options]}
-                  ariaLabel={field.label}
-                  ariaInvalid={Boolean(errors[field.key])}
-                  ariaDescribedBy={errors[field.key] ? `${id}-error` : undefined}
-                  menuPlacement="auto"
-                  portal
-                  variant={editing ? "student-compact" : "student"}
-                  className={`[&>button]:h-[54px] [&>button]:rounded-[16px] [&>button]:border-[1.5px] [&>button]:px-4 [&>button>span]:font-medium ${editing ? "[&>button]:!h-10 [&>button]:!rounded-lg [&>button]:!border [&>button]:!px-3" : ""}`}
-                />
-              ) : field.key === "preferred_locations" ? (
-                <div className="space-y-3">
+                id={id}
+                label={`${field.key === "notice_period" ? "Notice Period" : profileFieldLabel(field.key, field.label, draft)}${fieldRequired(field, draft) ? " *" : ""}`}
+                error={errors[field.key]}
+                optional={false}
+                hint={
+                  field.type === "list"
+                    ? field.key === "preferred_locations"
+                      ? "Add up to five preferred work locations."
+                      : "Separate skills with commas."
+                    : field.type === "month"
+                      ? "Month and year"
+                      : field.key === "passing_year" && draft.starting_year
+                        ? `Graduation must be by ${maxPassingYear}, within ${educationYearSpan} years of your starting year.`
+                        : undefined
+                }
+              >
+                {field.key === "notice_period" && draft.currently_employed === "NO" ? (
+                  <AppSelect id={id} disabled value="IMMEDIATE" ariaLabel="Notice Period" options={[{value: "IMMEDIATE", label: "Immediate"}]} onChange={() => {}} variant="student"
+                    className="[&>button]:h-[54px] [&>button]:rounded-[16px] [&>button]:border-[1.5px] [&>button]:px-4" />
+                ) : isEducationKey(field.key) ? (
+                  <EducationField compact={editing} fieldKey={field.key} id={id} label={field.label} details={draft} invalid={Boolean(errors[field.key])} onChange={(next) => {setDraft(next); setErrors((current) => ({...current, [field.key]: ""}));}} />
+                ) : isTaxonomyKey(field.key) ? (
+                  <TaxonomyField compact={editing} fieldKey={field.key} id={id} label={profileFieldLabel(field.key, field.label, draft)} details={draft} invalid={Boolean(errors[field.key])}
+                    onChange={(next) => { setDraft(next); setErrors((current) => ({ ...current, [field.key]: "" })); }} />
+                ) : field.type === "select" ? (
+                  <AppSelect
+                    id={id}
+                    value={String(value || (field.key === "currently_employed" ? "NO" : ""))}
+                    onChange={(v) => update(field.key, v)}
+                    options={[{ value: "", label: "Select" }, ...field.options]}
+                    ariaLabel={field.label}
+                    ariaInvalid={Boolean(errors[field.key])}
+                    ariaDescribedBy={errors[field.key] ? `${id}-error` : undefined}
+                    menuPlacement="auto"
+                    portal
+                    variant={editing ? "student-compact" : "student"}
+                    className={`[&>button]:h-[54px] [&>button]:rounded-[16px] [&>button]:border-[1.5px] [&>button]:px-4 [&>button>span]:font-medium ${editing ? "[&>button]:!h-10 [&>button]:!rounded-lg [&>button]:!border [&>button]:!px-3" : ""}`}
+                  />
+                ) : field.key === "preferred_locations" ? (
+                  <div className="space-y-3">
+                    <div className="relative">
+                      <input
+                        id={id}
+                        type="text"
+                        value={locationInput}
+                        maxLength={100}
+                        disabled={Array.isArray(value) && value.length >= 5}
+                        placeholder="Enter a work location"
+                        aria-invalid={Boolean(errors[field.key])}
+                        aria-describedby={errors[field.key] ? `${id}-error` : `${id}-hint`}
+                        className={`${fieldClass} ${modalFieldClass} ${fieldBorder(Boolean(errors[field.key]))} pr-14`}
+                        onChange={(event) => setLocationInput(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            addPreferredLocation();
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={addPreferredLocation}
+                        disabled={!locationInput.trim() || (Array.isArray(value) && value.length >= 5)}
+                        aria-label="Add work location"
+                        className="absolute right-2 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-xl text-[#5F4DB2] hover:bg-[#F1EAF7] disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <Plus size={20} />
+                      </button>
+                    </div>
+                    {Array.isArray(value) && value.length > 0 && (
+                      <ul className="flex flex-wrap gap-2" aria-label="Selected work locations">
+                        {value.map((location, index) => (
+                          <li key={`${location}-${index}`} className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-[#C9BEEB] bg-[#F1EAF7] px-3 py-1.5 text-[13px] font-medium text-[#4A3E8F]">
+                            <span className="truncate">{location}</span>
+                            <button
+                              type="button"
+                              onClick={() => update(field.key, value.filter((_, itemIndex) => itemIndex !== index))}
+                              aria-label={`Remove ${location}`}
+                              className="shrink-0 rounded-full p-0.5 hover:bg-[#E5DCF5]"
+                            >
+                              <X size={14} />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ) : field.type === "month" ? (
+                  <MonthYearSelect
+                    id={id}
+                    label={field.label}
+                    value={String(value ?? "")}
+                    after={field.key === "employment_end" ? String(draft.employment_start || "") : undefined}
+                    disabled={field.key === "employment_end" && !draft.employment_start}
+                    onChange={(next) => update(field.key, next)}
+                    invalid={Boolean(errors[field.key])}
+                    describedBy={errors[field.key] ? `${id}-error` : `${id}-hint`}
+                    compact={editing}
+                  />
+                ) : field.key === "phone" ? (
+                  <PhoneNumberInput
+                    id={id}
+                    variant={editing ? "student-compact" : "student"}
+                    value={String(value ?? "")}
+                    onChange={(next) => update(field.key, next)}
+                    ariaInvalid={Boolean(errors[field.key])}
+                    ariaDescribedBy={errors[field.key] ? `${id}-error` : undefined}
+                    inputClassName={`${fieldClass} ${editing ? "!px-3 !py-2.5 !text-[13px] !leading-5" : ""} ${fieldBorder(Boolean(errors[field.key]))}`}
+                  />
+                ) : field.key === "starting_year" ? (
+                  <AppSelect
+                    id={id}
+                    value={value != null && value !== "" ? String(value) : ""}
+                    onChange={(v) => update(field.key, v ? Number(v) : null)}
+                    options={[
+                      { value: "", label: "Select year" },
+                      ...Array.from({ length: 101 }, (_, i) => {
+                        const yr = String(new Date().getFullYear() - i);
+                        return { value: yr, label: yr };
+                      }),
+                    ]}
+                    ariaLabel={field.label}
+                    ariaInvalid={Boolean(errors[field.key])}
+                    ariaDescribedBy={errors[field.key] ? `${id}-error` : undefined}
+                    menuPlacement="auto"
+                    portal
+                    scrollToSelectedOnOpen
+                    variant={editing ? "student-compact" : "student"}
+                    className={`[&>button]:h-[54px] [&>button]:rounded-[16px] [&>button]:border-[1.5px] [&>button]:px-4 [&>button>span]:font-medium ${editing ? "[&>button]:!h-10 [&>button]:!rounded-lg [&>button]:!border [&>button]:!px-3" : ""}`}
+                  />
+                ) : field.key === "passing_year" ? (
+                  <AppSelect
+                    id={id}
+                    value={value != null && value !== "" ? String(value) : ""}
+                    onChange={(v) => update(field.key, v ? Number(v) : null)}
+                    options={(() => {
+                      const currentYear = new Date().getFullYear();
+                      const topYear = draft.starting_year
+                        ? Math.min(currentYear + 7, Number(draft.starting_year) + educationYearSpan)
+                        : currentYear + 7;
+                      const bottomYear = draft.starting_year
+                        ? Number(draft.starting_year)
+                        : currentYear - 100;
+                      const opts = [{ value: "", label: "Select year" }];
+                      for (let y = topYear; y >= bottomYear; y--) {
+                        opts.push({ value: String(y), label: String(y) });
+                      }
+                      return opts;
+                    })()}
+                    ariaLabel={field.label}
+                    ariaInvalid={Boolean(errors[field.key])}
+                    ariaDescribedBy={errors[field.key] ? `${id}-error` : undefined}
+                    menuPlacement="auto"
+                    portal
+                    scrollToSelectedOnOpen
+                    variant={editing ? "student-compact" : "student"}
+                    className={`[&>button]:h-[54px] [&>button]:rounded-[16px] [&>button]:border-[1.5px] [&>button]:px-4 [&>button>span]:font-medium ${editing ? "[&>button]:!h-10 [&>button]:!rounded-lg [&>button]:!border [&>button]:!px-3" : ""}`}
+                  />
+                ) : isProfileSalary(field.key) ? (
+                  <input
+                    id={id}
+                    type="text"
+                    inputMode="decimal"
+                    value={formatSalaryInput(salaryText[field.key] ?? salaryInputFromRupees(value), draft[field.key === "annual_salary" ? "annual_salary_currency" : "preferred_salary_currency"])}
+                    placeholder="Enter annual amount"
+                    aria-invalid={Boolean(errors[field.key])}
+                    aria-describedby={errors[field.key] ? `${id}-error` : undefined}
+                    className={`${fieldClass} ${modalFieldClass} ${fieldBorder(Boolean(errors[field.key]))}`}
+                    onChange={(event) => formatSalaryChange(event.currentTarget, field.key, (raw) => {
+                      setSalaryText((current) => ({ ...current, [field.key]: raw }));
+                      if (!raw.trim()) update(field.key, null);
+                      else {
+                        const parsed = parseSalaryLpa(raw, draft[field.key === "annual_salary" ? "annual_salary_currency" : "preferred_salary_currency"]);
+                        if (!parsed.error) update(field.key, parsed.value!);
+                      }
+                    })}
+                  />
+                ) : (
                   <div className="relative">
                     <input
                       id={id}
-                      type="text"
-                      value={locationInput}
-                      maxLength={100}
-                      disabled={Array.isArray(value) && value.length >= 5}
-                      placeholder="Enter a work location"
+                      type={field.type === "list" ? "text" : field.type}
+                      placeholder={profileFieldLabel(field.key, field.label, draft)}
+                      value={field.type === "list" ? (listText[field.key] ?? (Array.isArray(value) ? value.join(", ") : "")) : String(value ?? "")}
+                      min={field.key === "passing_year" && draft.starting_year ? Number(draft.starting_year) : field.key === "experience_years" ? 0 : field.key.endsWith("year") ? 1950 : 0}
+                      max={
+                        field.key === "experience_months"
+                          ? 11
+                          : field.key === "experience_years"
+                            ? 60
+                            : field.key === "starting_year"
+                              ? new Date().getFullYear()
+                              : field.key === "passing_year"
+                                ? maxPassingYear
+                                : undefined
+                      }
+                      step={field.key.startsWith("experience_") ? 1 : undefined}
                       aria-invalid={Boolean(errors[field.key])}
-                      aria-describedby={errors[field.key] ? `${id}-error` : `${id}-hint`}
-                      className={`${fieldClass} ${modalFieldClass} ${fieldBorder(Boolean(errors[field.key]))} pr-14`}
-                      onChange={(event) => setLocationInput(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          addPreferredLocation();
-                        }
+                      aria-describedby={
+                        errors[field.key] ? `${id}-error` : undefined
+                      }
+                      className={`${fieldClass} ${modalFieldClass} ${fieldBorder(Boolean(errors[field.key]))}`}
+                      onChange={(event) => {
+                        const raw = event.target.value;
+                        if (field.type === "list") {
+                          setListText((current) => ({
+                            ...current,
+                            [field.key]: raw,
+                          }));
+                          update(
+                            field.key,
+                            raw
+                              .split(",")
+                              .map((item) => item.trim())
+                              .filter(Boolean),
+                          );
+                        } else
+                          update(
+                            field.key,
+                            field.type === "number"
+                              ? raw === ""
+                                ? field.key.startsWith("experience_")
+                                  ? 0
+                                  : null
+                                : Number(raw)
+                              : raw,
+                          );
                       }}
                     />
-                    <button
-                      type="button"
-                      onClick={addPreferredLocation}
-                      disabled={!locationInput.trim() || (Array.isArray(value) && value.length >= 5)}
-                      aria-label="Add work location"
-                      className="absolute right-2 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-xl text-[#5F4DB2] hover:bg-[#F1EAF7] disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      <Plus size={20} />
-                    </button>
                   </div>
-                  {Array.isArray(value) && value.length > 0 && (
-                    <ul className="flex flex-wrap gap-2" aria-label="Selected work locations">
-                      {value.map((location, index) => (
-                        <li key={`${location}-${index}`} className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-[#C9BEEB] bg-[#F1EAF7] px-3 py-1.5 text-[13px] font-medium text-[#4A3E8F]">
-                          <span className="truncate">{location}</span>
-                          <button
-                            type="button"
-                            onClick={() => update(field.key, value.filter((_, itemIndex) => itemIndex !== index))}
-                            aria-label={`Remove ${location}`}
-                            className="shrink-0 rounded-full p-0.5 hover:bg-[#E5DCF5]"
-                          >
-                            <X size={14} />
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              ) : field.type === "month" ? (
-                <MonthYearSelect
-                  id={id}
-                  label={field.label}
-                  value={String(value ?? "")}
-                  onChange={(next) => update(field.key, next)}
-                  invalid={Boolean(errors[field.key])}
-                  describedBy={errors[field.key] ? `${id}-error` : `${id}-hint`}
-                  compact={editing}
-                />
-              ) : field.key === "phone" ? (
-                <PhoneNumberInput
-                  id={id}
-                  variant={editing ? "student-compact" : "student"}
-                  value={String(value ?? "")}
-                  onChange={(next) => update(field.key, next)}
-                  ariaInvalid={Boolean(errors[field.key])}
-                  ariaDescribedBy={errors[field.key] ? `${id}-error` : undefined}
-                  inputClassName={`${fieldClass} ${editing ? "!px-3 !py-2.5 !text-[13px] !leading-5" : ""} ${fieldBorder(Boolean(errors[field.key]))}`}
-                />
-              ) : isProfileSalary(field.key) ? (
-                <input
-                  id={id}
-                  type="text"
-                  inputMode="decimal"
-                  value={salaryText[field.key] ?? salaryInputFromRupees(value)}
-                  placeholder="e.g. 4.5 LPA"
-                  aria-invalid={Boolean(errors[field.key])}
-                  aria-describedby={errors[field.key] ? `${id}-error` : undefined}
-                  className={`${fieldClass} ${modalFieldClass} ${fieldBorder(Boolean(errors[field.key]))}`}
-                  onChange={(event) => {
-                    const raw = event.target.value;
-                    setSalaryText((current) => ({ ...current, [field.key]: raw }));
-                    if (!raw.trim()) update(field.key, null);
-                    else {
-                      const parsed = parseSalaryLpa(raw);
-                      if (!parsed.error) update(field.key, parsed.value!);
-                    }
-                  }}
-                />
-              ) : (
-                <div className="relative">
-                  <input
-                    id={id}
-                    type={field.type === "list" ? "text" : field.type}
-                    value={field.type === "list" ? (listText[field.key] ?? (Array.isArray(value) ? value.join(", ") : "")) : String(value ?? "")}
-                    min={field.key === "passing_year" && draft.starting_year ? Number(draft.starting_year) : field.key === "experience_years" ? 0 : field.key.endsWith("year") ? 1950 : 0}
-                    max={
-                      field.key === "experience_months"
-                        ? 11
-                        : field.key === "experience_years"
-                          ? 60
-                        : field.key === "starting_year"
-                          ? new Date().getFullYear()
-                          : field.key === "passing_year"
-                            ? maxPassingYear
-                          : undefined
-                    }
-                    step={field.key.startsWith("experience_") ? 1 : undefined}
-                    aria-invalid={Boolean(errors[field.key])}
-                    aria-describedby={
-                      errors[field.key] ? `${id}-error` : undefined
-                    }
-                    className={`${fieldClass} ${modalFieldClass} ${fieldBorder(Boolean(errors[field.key]))}`}
-                    onChange={(event) => {
-                      const raw = event.target.value;
-                      if (field.type === "list") {
-                        setListText((current) => ({
-                          ...current,
-                          [field.key]: raw,
-                        }));
-                        update(
-                          field.key,
-                          raw
-                            .split(",")
-                            .map((item) => item.trim())
-                            .filter(Boolean),
-                        );
-                      } else
-                        update(
-                          field.key,
-                          field.type === "number"
-                            ? raw === ""
-                              ? field.key.startsWith("experience_")
-                                ? 0
-                                : null
-                              : Number(raw)
-                            : raw,
-                        );
-                    }}
-                  />
-                </div>
-              )}
+                )}
               </Field>
             </Fragment>
           );
@@ -1136,7 +1225,7 @@ export function CareerForm({
       {(editingAll || activeFields.some((field) => field.key === "gender")) && (
         <p className="flex items-center gap-2 text-xs text-[#5F6B80]">
           <CheckCircle2 size={16} />
-          Salary and gender are optional. Gender does not affect your score.
+          Gender does not affect your score.
         </p>
       )}
       {!conversational && actionRow}

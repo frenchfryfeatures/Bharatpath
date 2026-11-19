@@ -8,19 +8,21 @@ from contextlib import suppress
 from fastapi import status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import AppError
+from app.core.errors import AppError, ValidationError
 from app.core.tenant import TenantContext
 from app.modules.candidate import repository
 from app.modules.candidate.career import (
     CareerDetails,
     CareerResponse,
     CareerSaveRequest,
+    employment_dates_ordered,
     match_terms,
     missing_required,
 )
 from app.modules.candidate.domain import normalise_city
 from app.modules.candidate.extraction import extract_career
 from app.modules.candidate.models import CandidateProfile
+from app.modules.candidate.onboarding_policy import EDUCATION_MAX_YEARS
 from app.modules.candidate.schemas import NameRequest
 from app.modules.candidate.service import _candidate, set_full_name
 from app.modules.jobs import service as jobs_service
@@ -80,6 +82,11 @@ async def save_details(
     old = await get_details(session, ctx=ctx)
     from app.modules.taxonomy.service import validate_profile
 
+    if (payload.details.starting_year and payload.details.passing_year
+            and payload.details.passing_year > payload.details.starting_year + EDUCATION_MAX_YEARS):
+        raise ValidationError(code="education_years_invalid", title="Graduation must be within seven years of the starting year.", params={"fields": ["passing_year"]})
+    if not employment_dates_ordered(payload.details):
+        raise ValidationError(code="employment_dates_invalid", title="The ending month must be after the starting month.", params={"fields": ["employment_end"]})
     await validate_profile(session, payload.details, old.details, ctx.user_id)
     from app.modules.education_taxonomy.domain import missing_custom_fields
     from app.modules.education_taxonomy.service import validate_profile as validate_education
@@ -131,10 +138,8 @@ async def attach_resume(
 ) -> CareerResponse:
     """Link the profile to a resume the candidate made in the resume builder.
 
-    Only the link moves: the answers, and whether the profile is complete,
-    stay as they were. Not `save_details`, which would append the answers to
-    the version as reviewed facts -- a built resume is already the
-    candidate's own words, and the builder is where it is edited.
+    Only the resume link moves. Profile answers and completion stay unchanged;
+    resume content is edited exclusively in the resume editor.
     """
     _candidate(ctx)
     old = await get_details(session, ctx=ctx)

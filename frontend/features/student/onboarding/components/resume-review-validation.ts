@@ -3,7 +3,7 @@ import type { StructuredResume } from "@/components/resume/structured-resume";
 export type ReviewPath = Array<string | number>;
 export interface ReviewIssue { path: ReviewPath; message: string }
 
-const datePattern = /^\d{4}(?:-(0[1-9]|1[0-2]))?$/;
+const datePattern = /^(?:19|20)\d{2}(?:-(0[1-9]|1[0-2]))?$/;
 const required = (value: string, path: ReviewPath, label: string, issues: ReviewIssue[]) => {
   if (!value.trim()) issues.push({ path, message: `Enter ${label}.` });
 };

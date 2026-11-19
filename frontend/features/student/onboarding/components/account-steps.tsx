@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
+import { focusFormError } from "@/lib/ui/focus-form-error";
 import {
   Check,
   Eye,
@@ -91,6 +92,8 @@ export function AccountStep({
   const [phone, setPhone] = useState("");
   const [city, setCity] = useState("");
   const [workStatus, setWorkStatus] = useState("");
+  const [selectedResumeFile, setSelectedResumeFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const touched = useRef(new Set<string>());
   const previewRequest = useRef(0);
   const basicDetails = (): CareerDetails => ({
@@ -107,6 +110,8 @@ export function AccountStep({
     email?: string;
     password?: string;
     city?: string;
+    phone?: string;
+    workStatus?: string;
   }>({});
   const passwordRequirements = [
     {
@@ -135,28 +140,12 @@ export function AccountStep({
 
   const submitDetails = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!existingAccount) {
-      const cityProblem = cityError(city, true);
-      setErrors((current) => ({ ...current, city: cityProblem }));
-      const phoneValid = /^\+[1-9]\d{7,14}$/.test(phone);
-      if (!phoneValid || !workStatus || cityProblem) {
-        setDetailsError(
-          !workStatus
-            ? "Choose experienced or fresher."
-            : !phoneValid
-              ? "Enter a valid mobile number for the selected country."
-              : undefined,
-        );
-        return;
-      }
-      setDetailsError(undefined);
-    }
     if (previewState.isLoading) return;
 
     if (existingAccount) {
       const problem = nameError(fullName);
       setErrors({ fullName: problem });
-      if (problem) return;
+      if (problem) { focusFormError(); return; }
       const normalized = fullName.split(/\s+/).join(" ").trim();
       setDetailsError(undefined);
       void saveName(normalized)
@@ -176,6 +165,9 @@ export function AccountStep({
     }
 
     const next = {
+      city: cityError(city, true),
+      phone: /^\+[1-9]\d{7,14}$/.test(phone) ? undefined : "Enter a valid mobile number for the selected country.",
+      workStatus: workStatus ? undefined : "Choose experienced or fresher.",
       fullName: nameError(fullName),
       email: EMAIL_PATTERN.test(email.trim())
         ? undefined
@@ -184,7 +176,10 @@ export function AccountStep({
     };
     setErrors(next);
     setConfirmTouched(true);
-    if (next.fullName || next.email || next.password || !passwordsMatch) return;
+    if (Object.values(next).some(Boolean) || !passwordsMatch) {
+      focusFormError();
+      return;
+    }
 
     void flow.register(email.trim(), password);
   };
@@ -299,45 +294,65 @@ export function AccountStep({
           label="Upload your resume"
           hint="PDF or DOCX. Your resume is read now; scoring starts only after payment."
         >
-          <input
-            id="signup-resume"
-            type="file"
-            accept=".pdf,.docx"
-            className={`${fieldClass} text-sm`}
-            onChange={async (event) => {
-              const file = event.target.files?.[0] ?? null;
-              onResumeSelected(file);
-              const requestId = ++previewRequest.current;
-              if (!file) return;
-              setDetailsError(undefined);
-              try {
-                const result = await previewResume(file).unwrap();
-                if (requestId !== previewRequest.current) return;
-                setResumeDetails(result.details);
-                onResumeParsed?.(result);
-                if (!touched.current.has("fullName") && result.full_name)
-                  setFullName(result.full_name);
-                if (!touched.current.has("email") && result.email)
-                  setEmail(result.email);
-                if (!touched.current.has("phone") && result.details.phone)
-                  setPhone(String(result.details.phone));
-                if (!touched.current.has("city") && result.details.current_city)
-                  setCity(String(result.details.current_city));
-                if (
-                  !touched.current.has("workStatus") &&
-                  result.details.work_status
-                )
-                  setWorkStatus(String(result.details.work_status));
-              } catch (failure) {
-                setDetailsError(
-                  getApiErrorMessage(
-                    failure,
-                    "Your resume could not be read. Try another file or enter your details.",
-                  ),
-                );
-              }
-            }}
-          />
+          <div className="flex items-center gap-2">
+            <input
+              ref={fileInputRef}
+              id="signup-resume"
+              type="file"
+              accept=".pdf,.docx"
+              className={`${fieldClass} flex-1 text-sm`}
+              onChange={async (event) => {
+                const file = event.target.files?.[0] ?? null;
+                setSelectedResumeFile(file);
+                onResumeSelected(file);
+                const requestId = ++previewRequest.current;
+                if (!file) return;
+                setDetailsError(undefined);
+                try {
+                  const result = await previewResume(file).unwrap();
+                  if (requestId !== previewRequest.current) return;
+                  setResumeDetails(result.details);
+                  onResumeParsed?.(result);
+                  if (!touched.current.has("fullName") && result.full_name)
+                    setFullName(result.full_name);
+                  if (!touched.current.has("email") && result.email)
+                    setEmail(result.email);
+                  if (!touched.current.has("phone") && result.details.phone)
+                    setPhone(String(result.details.phone));
+                  if (!touched.current.has("city") && result.details.current_city)
+                    setCity(String(result.details.current_city));
+                  if (
+                    !touched.current.has("workStatus") &&
+                    result.details.work_status
+                  )
+                    setWorkStatus(String(result.details.work_status));
+                } catch (failure) {
+                  setDetailsError(
+                    getApiErrorMessage(
+                      failure,
+                      "Your resume could not be read. Try another file or enter your details.",
+                    ),
+                  );
+                }
+              }}
+            />
+            {selectedResumeFile && (
+              <button
+                type="button"
+                aria-label="Remove resume"
+                onClick={() => {
+                  previewRequest.current++;
+                  setSelectedResumeFile(null);
+                  setResumeDetails({});
+                  onResumeSelected(null);
+                  if (fileInputRef.current) fileInputRef.current.value = "";
+                }}
+                className="grid h-[52px] w-[52px] shrink-0 place-items-center rounded-[16px] border-[1.5px] border-[#E7E0D4] bg-white text-[#0A1931] hover:bg-[#F7F4EC]"
+              >
+                <X size={18} />
+              </button>
+            )}
+          </div>
           {previewState.isLoading && (
             <p role="status" className="text-[13px] text-[#5F4DB2]">
               Reading your resume and filling your details…
@@ -398,7 +413,9 @@ export function AccountStep({
               setEmail(event.target.value);
               setErrors((current) => ({ ...current, email: undefined }));
             }}
-            className={`${fieldClass} ${fieldBorder(Boolean(errors.email))} pl-12 text-[17px] font-semibold`}
+            className={`${fieldClass} ${fieldBorder(Boolean(errors.email))} pl-12 text-[17px] font-semibold ${
+              existingAccount ? "!bg-[#F3F4F6] !text-[#6B7280] cursor-not-allowed" : ""
+            }`}
           />
         </div>
       </Field>
@@ -407,6 +424,7 @@ export function AccountStep({
         <>
           <Field
             id="signup-mobile"
+            error={errors.phone}
             label="Mobile number *"
             hint="Select your country code, then enter your mobile number."
           >
@@ -418,7 +436,8 @@ export function AccountStep({
                 touched.current.add("phone");
                 setPhone(next);
               }}
-              inputClassName={`${fieldClass} ${fieldBorder(false)}`}
+              inputClassName={`${fieldClass} ${fieldBorder(Boolean(errors.phone))}`}
+              ariaInvalid={Boolean(errors.phone)}
             />
           </Field>
           <Field
@@ -449,8 +468,9 @@ export function AccountStep({
               />
             </div>
           </Field>
-          <Field id="signup-work-status" label="Work status *">
+          <Field id="signup-work-status" label="Work status *" error={errors.workStatus}>
             <AppSelect
+              ariaInvalid={Boolean(errors.workStatus)}
               value={workStatus}
               onChange={(value) => {
                 touched.current.add("workStatus");
@@ -629,7 +649,7 @@ export function AccountStep({
 
       <Field
         id="signup-referral-code"
-        label="College referral code (optional)"
+        label="College referral code"
         hint="If your college gave you a code, enter it here. This is separate from a payment discount code."
       >
         <div className="relative">
@@ -656,11 +676,7 @@ export function AccountStep({
           <PillButton
             type="submit"
             isLoading={existingAccount ? nameState.isLoading : flow.busy}
-            disabled={
-              previewState.isLoading ||
-              !fullName.trim() ||
-              (!existingAccount && password !== confirmPassword)
-            }
+            disabled={previewState.isLoading}
             className="flex-1"
           >
             {existingAccount
@@ -738,7 +754,7 @@ export function LocationStep({
 
     const nextErrors = { city: cityError(city) };
     setErrors(nextErrors);
-    if (nextErrors.city) return;
+    if (nextErrors.city) { focusFormError(); return; }
 
     try {
       const trimmedCity = city.split(/\s+/).join(" ").trim();
@@ -803,7 +819,7 @@ export function LocationStep({
         <div className="flex flex-col gap-1.5">
           <span className="text-[13px] font-semibold text-[#0A1931]">
             State
-            <span className="ml-1.5 font-normal text-[#5F6B80]">Optional</span>
+
           </span>
           <AppSelect
             value={stateCode}

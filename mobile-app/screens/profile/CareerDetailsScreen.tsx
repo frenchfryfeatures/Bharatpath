@@ -1,3 +1,6 @@
+import { profileValueText } from "@/services/profile/profileDisplay";
+import { formatSalaryInput } from '@/utils/salaryInput';
+import { ResumePickerLabel } from '@/components/inputs/ResumePickerLabel';
 import { EducationField, useEducationAutoNA } from "@/components/inputs/EducationField";
 import { isEducationKey, educationErrors } from "@/services/api/educationState";
 import { TaxonomyField } from "@/components/inputs/TaxonomyField";
@@ -16,15 +19,20 @@ import {
   KeyboardAvoidingView,
   Keyboard,
   Platform,
+  BackHandler,
   type LayoutChangeEvent,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, FileText, PencilSimple, X } from 'phosphor-react-native';
+import { ArrowLeft, ArrowRight, EnvelopeSimple, FileText, PencilSimple, Wallet, X } from 'phosphor-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { WebView } from 'react-native-webview';
 import { useRouter } from 'expo-router';
 import { OnboardingProgress } from '@/screens/onboarding/OnboardingProgress';
 import { ConversationPrompt } from '@/screens/onboarding/ConversationPrompt';
 import { PhoneNumberInput } from '@/components/inputs/PhoneNumberInput';
+import { DropdownSelect } from '@/components/inputs/DropdownSelect';
+import { MonthYearPicker, YearDropdownPicker } from '@/components/inputs/MonthYearPicker';
+import { clearPendingResume } from '@/services/storage/pendingResume';
 import {
   conversationQuestion,
   type ConversationAnswer,
@@ -35,7 +43,8 @@ import {
   parseConversationAnswer,
 } from '@/screens/onboarding/conversationValidation';
 import { AppAlert } from '@/components/feedback/AppAlert';
-import { ChatCircleDots, ListBullets } from 'phosphor-react-native';
+import { ListChecks, MessageCircle, LogOut } from 'lucide-react-native';
+import { getOnboardingMode, saveOnboardingMode, shouldOfferOnboardingMode, type OnboardingMode } from '@/services/storage/onboardingMode';
 import { useAuthContext } from '@/context/AuthContext';
 import { updateCandidateName } from '@/services/api/auth';
 import { ApiError } from '@/services/api/client';
@@ -65,6 +74,7 @@ import {
   type CareerDetails,
   type CareerProfile,
 } from '@/services/api/career';
+import { logger } from '@/utils/logger';
 
 const groups = [
   { key: 'basic', title: 'Basic details' },
@@ -99,12 +109,13 @@ export function CareerDetailsScreen({
   initialSection?: number;
 }) {
   const router = useRouter();
-  const { candidateFullName, session, rememberCandidate } = useAuthContext();
+  const { candidateFullName, session, rememberCandidate, signOut } = useAuthContext();
   const [fullName, setFullName] = useState(candidateFullName ?? '');
   useEffect(() => {
     if (candidateFullName) setFullName((current) => current || candidateFullName);
   }, [candidateFullName]);
   const [fields, setFields] = useState<CareerField[]>([]);
+  const educationYearSpan = fields.find((field) => field.key === "passing_year")?.rules?.education_max_years ?? 7;
   const [profile, setProfile] = useState<CareerProfile | null>(null);
   const [activeVersionId, setActiveVersionId] = useState<string | null>(
     versionId ?? null,
@@ -121,10 +132,51 @@ export function CareerDetailsScreen({
   const [selectedFilename, setSelectedFilename] = useState(resumeFilename);
   const scrollRef = useRef<ScrollView>(null);
   const fieldOffsets = useRef<Record<string, number>>({});
+  const fieldViews = useRef<Record<string, View | null>>({});
+  const scrollOffset = useRef(0);
+  const inputRefs = useRef<Record<string, TextInput | null>>({});
+  const phoneRef = useRef<TextInput>(null);
+  const [invalidTarget, setInvalidTarget] = useState<{ key: string } | null>(null);
+  useEffect(() => {
+    if (!invalidTarget) return;
+    const frame = requestAnimationFrame(() => {
+      if (invalidTarget.key === 'phone') phoneRef.current?.focus();
+      else inputRefs.current[invalidTarget.key]?.focus();
+      scrollToField(invalidTarget.key);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [invalidTarget, step, editing]);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
-  // Conversational Onboarding Mode State
-  const [onboardingMode, setOnboardingMode] = useState<'manual' | 'conversation' | null>(null);
+  // Conversational Onboarding Mode State (defaults to 'manual'; toggled in top header bar)
+  const [onboardingMode, setOnboardingMode] = useState<OnboardingMode | null>(null);
+  const [modeRestored, setModeRestored] = useState(false);
+  const modeAccount = session?.userId || session?.subject || session?.email?.toLowerCase() || '';
+  useEffect(() => {
+    let active = true;
+    setModeRestored(false);
+    setOnboardingMode(null);
+    void getOnboardingMode(modeAccount).then((savedMode) => {
+      if (!active) return;
+      setOnboardingMode(savedMode);
+      setModeRestored(true);
+    });
+    return () => { active = false; };
+  }, [modeAccount]);
+  const chooseMode = (mode: OnboardingMode) => {
+    setOnboardingMode(mode);
+    void saveOnboardingMode(modeAccount, mode);
+  };
+  useEffect(() => {
+    if (!onboarding || !modeRestored || !profile) return;
+    const details = profile.details;
+    if (!fullName.trim() || !details.phone || !details.current_city || !details.work_status) {
+      setStep(0);
+    } else if (profile.completed && onboardingMode === null) {
+      setOnboardingMode('manual');
+    }
+  }, [onboarding, modeRestored, profile, fullName, onboardingMode]);
+
   const [questionIndex, setQuestionIndex] = useState(0);
   const [thinking, setThinking] = useState(false);
   const [stepDone, setStepDone] = useState(false);
@@ -171,6 +223,18 @@ export function CareerDetailsScreen({
   const scrollToField = (key: string) => {
     activeFieldKey.current = key;
     const performScroll = () => {
+      const target = fieldViews.current[key];
+      if (target && scrollRef.current) {
+        target.measureInWindow((_x, fieldY, _width, height) => {
+          if (!height) return;
+          scrollRef.current?.getNativeScrollRef()?.measureInWindow((_scrollX, viewportY) => {
+            scrollRef.current?.scrollTo({
+              y: Math.max(0, scrollOffset.current + fieldY - viewportY - 70), animated: true,
+            });
+          });
+        });
+        return;
+      }
       const y = fieldOffsets.current[key];
       if (y !== undefined && scrollRef.current) {
         scrollRef.current.scrollTo({ y: Math.max(0, y - 70), animated: true });
@@ -188,6 +252,7 @@ export function CareerDetailsScreen({
   } | null>(null);
 
   const goBack = () => {
+    if (onboarding && step === 0) return;
     if (onboarding && step > 0 && onboardingMode === 'conversation') {
       if (stepDone) {
         setStepDone(false);
@@ -207,14 +272,10 @@ export function CareerDetailsScreen({
         setConversationError('');
         return;
       }
-      setOnboardingMode(null);
+      setStep(0);
       return;
     }
     if (editing && step > 0) {
-      if (onboarding && step === 1 && onboardingMode === 'manual') {
-        setOnboardingMode(null);
-        return;
-      }
       setStep(step - 1);
     } else if (onboarding || !editing) {
       onBack();
@@ -222,6 +283,15 @@ export function CareerDetailsScreen({
       setEditing(false);
     }
   };
+
+  useEffect(() => {
+    if (!onboarding) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (!busy) goBack();
+      return true;
+    });
+    return () => subscription.remove();
+  });
 
   const fieldRequired = (field: CareerField, details: CareerDetails) =>
     baseFieldRequired(field, details) ||
@@ -236,14 +306,7 @@ export function CareerDetailsScreen({
   ): boolean => {
     if (field.key === 'specialization' && hideEducationSpecialization) return false;
     if (!fieldVisible(field, details) && !(serverRequiresSkills && field.key === 'key_skills')) return false;
-    // In conversational mode, only required fields are asked in non-preferences sections
-    // (e.g. employment, education) to keep conversational onboarding concise, relevant,
-    // and matching the website flow, skipping optional fields like industry and department.
-    return isEducationKey(field.key) || field.section === 'preferences' ||
-      baseFieldRequired(field, details) ||
-      (serverRequiresSkills && field.key === 'key_skills') ||
-      (details.work_status === 'EXPERIENCED' &&
-        (field.key === 'experience_years' || field.key === 'experience_months'));
+    return true;
   };
 
   // Basic contact details belong to the first form section, but the API still
@@ -259,13 +322,37 @@ export function CareerDetailsScreen({
     (field) => conversationalFieldVisible(field, details),
   );
 
+  const manualFieldsForStep = (
+    stepIndex: number,
+    details: CareerDetails,
+  ): CareerField[] =>
+    fields.filter(
+      (field) =>
+        (field.section === groups[stepIndex]?.key ||
+          (onboarding &&
+            stepIndex === 1 &&
+            (field.key === 'phone' || field.key === 'current_city'))) &&
+        (fieldVisible(field, details) || (!onboarding && field.key === "key_skills")) && !(field.key === "specialization" && hideEducationSpecialization),
+    );
+
   // Conversational questions for current step (evaluates visible branching)
+  const careerLabel = (key: string, label: string) => {
+    const previous = draft.work_status === 'EXPERIENCED' && draft.currently_employed === 'NO';
+    if (previous && key === 'industry') return 'Previous Industry';
+    if (previous && key === 'department') return 'Previous Department';
+    if (previous && key === 'role_category') return 'Previous Role Category';
+    if (previous && key === 'job_role') return 'Previous Job Role';
+    if (key === 'notice_period') return 'Notice Period';
+    if (key === 'company_name') return previous ? 'Previous Company' : 'Current Company';
+    if (key === 'job_title') return previous ? 'Previous Job Title' : 'Current Job Title';
+    if (key === 'annual_salary') return previous ? 'Previous Annual Salary' : 'Annual Salary';
+    if (previous && key === 'employment_start') return 'Previous employment starting month';
+    if (previous && key === 'employment_end') return 'Previous employment ending month';
+    return label;
+  };
   const currentStepFields = onboardingMode === 'conversation'
     ? conversationFieldsForStep(step, draft)
-    : fields.filter(
-        (field) =>
-          field.section === groups[step]?.key && fieldVisible(field, draft) && !(field.key === "specialization" && hideEducationSpecialization),
-      );
+    : manualFieldsForStep(step, draft);
   const currentQuestionIdx = Math.min(
     questionIndex,
     Math.max(0, currentStepFields.length - 1),
@@ -285,7 +372,7 @@ export function CareerDetailsScreen({
       return skipped.answer;
     }
     if (field.key === 'annual_salary' || field.key === 'preferred_salary') {
-      return formatSalaryDisplay(typeof value === 'number' ? value : null);
+      return formatSalaryDisplay(typeof value === 'number' ? value : null, draft[field.key === 'annual_salary' ? 'annual_salary_currency' : 'preferred_salary_currency']);
     }
     if (field.options && field.options.length > 0) {
       const match = field.options.find(
@@ -306,13 +393,6 @@ export function CareerDetailsScreen({
     details: CareerDetails,
     history: ConversationAnswer[],
   ): boolean => {
-    if (
-      onboardingMode === 'conversation' &&
-      field.section !== 'preferences' &&
-      !fieldRequired(field, details)
-    ) {
-      return false;
-    }
     const value = details[field.key];
     const skipped = history.some(
       (item) => item.key === field.key && item.answer === 'Skipped for now',
@@ -329,7 +409,7 @@ export function CareerDetailsScreen({
     const answer =
       field.key === 'annual_salary' || field.key === 'preferred_salary'
         ? typeof value === 'number'
-          ? formatSalaryDisplay(value)
+          ? formatSalaryDisplay(value, draft[field.key === 'annual_salary' ? 'annual_salary_currency' : 'preferred_salary_currency'])
           : String(value)
         : Array.isArray(value)
           ? value.join(', ')
@@ -366,7 +446,7 @@ export function CareerDetailsScreen({
           key: field.key,
           step: priorStep,
           questionIndex: pos,
-          question: conversationQuestion(field),
+          question: conversationQuestion(field, draft),
           answer: formatFieldAnswer(field, val, details, history) || 'Provided',
         };
       });
@@ -412,7 +492,7 @@ export function CareerDetailsScreen({
             key: field.key,
             step: nextStep,
             questionIndex: position,
-            question: conversationQuestion(field),
+            question: conversationQuestion(field, draft),
             answer:
               formatFieldAnswer(field, value, details, history) || 'Provided',
           };
@@ -463,7 +543,7 @@ export function CareerDetailsScreen({
         key: currentField.key,
         step,
         questionIndex: currentQuestionIdx,
-        question: conversationQuestion(currentField),
+        question: conversationQuestion(currentField, draft),
         answer: 'Skipped for now',
       };
       const nextHistory = [
@@ -495,6 +575,7 @@ export function CareerDetailsScreen({
     );
     if (parsed.error || parsed.value === undefined) {
       setConversationError(parsed.error || 'Invalid answer');
+      setInvalidTarget({ key: 'conversation-answer' });
       setAttempts((prev) => [
         ...prev,
         { answer: rawAnswer, message: `Sorry, ${parsed.error || 'Invalid answer'}` },
@@ -513,7 +594,7 @@ export function CareerDetailsScreen({
     const displayAnswer =
       currentField.options?.find((o) => o.value === parsed.value)?.label ??
       (currentField.key === 'annual_salary' || currentField.key === 'preferred_salary'
-        ? formatSalaryDisplay(typeof parsed.value === 'number' ? parsed.value : null)
+        ? formatSalaryDisplay(typeof parsed.value === 'number' ? parsed.value : null, draft[currentField.key === 'annual_salary' ? 'annual_salary_currency' : 'preferred_salary_currency'])
         : Array.isArray(parsed.value)
           ? parsed.value.join(', ')
           : String(parsed.value ?? ''));
@@ -522,7 +603,7 @@ export function CareerDetailsScreen({
       key: currentField.key,
       step,
       questionIndex: currentQuestionIdx,
-      question: conversationQuestion(currentField),
+      question: conversationQuestion(currentField, draft),
       answer: displayAnswer || 'Provided',
     };
     const nextHistory = [
@@ -579,8 +660,12 @@ export function CareerDetailsScreen({
         ? 'basic'
         : fields.find((f) => f.key === first)?.section;
     const sectionStep = groups.findIndex((g) => g.key === sectionKey);
-    const targetStep = onboardingMode === 'conversation' && sectionStep === 0 &&
-      (first === 'phone' || first === 'current_city') ? 1 : sectionStep;
+    const targetStep =
+      onboarding &&
+      sectionStep === 0 &&
+      (first === 'phone' || first === 'current_city')
+        ? 1
+        : sectionStep;
 
     setErrors(
       Object.fromEntries(
@@ -596,6 +681,7 @@ export function CareerDetailsScreen({
     if (targetStep >= 0 && targetStep !== step) {
       setStep(targetStep);
     }
+    setInvalidTarget({ key: onboardingMode === 'conversation' && targetStep > 0 ? 'conversation-answer' : first === 'full_name' ? 'fullName' : first });
     setStepDone(false);
     if (onboardingMode === 'conversation' && targetStep >= 0) {
       const asked = conversationFieldsForStep(targetStep, draft);
@@ -658,6 +744,7 @@ export function CareerDetailsScreen({
         startConversationStep(nextStep, conversationHistory, draft);
       }
     } catch (failure) {
+      logger.error('CareerDetailsScreen', `Save failed on section "${groups[step].key}"`, failure);
       if (handleIncompleteError(failure)) return;
       setError(
         failure instanceof Error
@@ -758,6 +845,7 @@ export function CareerDetailsScreen({
   useEffect(() => {
     let alive = true;
     setBusy(true);
+    logger.step('CareerDetailsScreen', 'Loading career fields & profile', { versionId, onboarding });
     Promise.all([getCareerFields(), getCareerProfile()])
       .then(async ([specs, saved]) => {
         const shouldPrefill =
@@ -766,6 +854,7 @@ export function CareerDetailsScreen({
             ? saved.resume_version_id !== versionId
             : !saved.resume_version_id);
         if (shouldPrefill) {
+          logger.step('CareerDetailsScreen', `Prefilling career profile from resume version: ${versionId}`);
           try {
             // React development remounts effects. Reuse the mutation so a
             // single resume is never prefetched twice concurrently.
@@ -775,7 +864,8 @@ export function CareerDetailsScreen({
                 promise: prefillCareerProfile(versionId),
               };
             saved = await prefillRequest.current.promise;
-          } catch {
+          } catch (prefillErr) {
+            logger.error('CareerDetailsScreen', `Resume prefill failed for version ${versionId}`, prefillErr);
             if (alive)
               setError(
                 'Resume prefill could not finish. Please enter or correct your details below.',
@@ -789,7 +879,8 @@ export function CareerDetailsScreen({
           setActiveVersionId(versionId ?? saved.resume_version_id);
         }
       })
-      .catch(() => {
+      .catch((loadErr) => {
+        logger.error('CareerDetailsScreen', 'Failed to load career fields or profile', loadErr);
         if (alive)
           setError(
             'Profile details could not be loaded. Please try again when the updated backend is available.',
@@ -806,6 +897,7 @@ export function CareerDetailsScreen({
   const update = (key: string, value: CareerDetails[string]) => {
     setDraft((current) => {
       const next = { ...current, [key]: value };
+      if (key === "employment_start" && (!value || (next.employment_end && String(next.employment_end) <= String(value)))) next.employment_end = "";
       if (key === 'work_status' && value === 'FRESHER')
         Object.assign(next, {
           experience_years: 0,
@@ -816,26 +908,14 @@ export function CareerDetailsScreen({
           employment_start: '',
           employment_end: '',
           annual_salary: null,
-          notice_period: '',
+          notice_period: 'IMMEDIATE',
           job_role: '',
         });
       if (key === 'currently_employed' && value === 'YES') {
         next.employment_end = '';
         if (next.work_status !== 'EXPERIENCED') next.work_status = 'EXPERIENCED';
       }
-      if (key === 'currently_employed' && value === 'NO')
-        Object.assign(next, {
-          company_name: '',
-          job_title: '',
-          employment_start: '',
-          employment_end: '',
-          annual_salary: null,
-          notice_period: '',
-          industry: '',
-          department: '',
-          role_category: '',
-          job_role: '',
-        });
+      if (key === 'currently_employed' && value === 'NO') next.notice_period = 'IMMEDIATE';
       return next;
     });
     setErrors((current) => ({ ...current, [key]: '' }));
@@ -843,12 +923,11 @@ export function CareerDetailsScreen({
 
   const save = async (finishNow: boolean = false) => {
     const nextErrors: Record<string, string> = {...taxonomyErrors(draft), ...educationErrors(draft)};
-    for (const field of fields.filter(
-      (f) => f.section === groups[step].key && fieldVisible(f, draft) && !(f.key === "specialization" && hideEducationSpecialization),
-    )) {
+    const stepFields = manualFieldsForStep(step, draft);
+    for (const field of stepFields) {
       if (
         fieldRequired(field, draft) &&
-        (!draft[field.key] ||
+        ((field.key === 'annual_salary' ? draft[field.key] == null || draft[field.key] === '' : !draft[field.key]) ||
           (Array.isArray(draft[field.key]) &&
             !(draft[field.key] as string[]).length))
       )
@@ -863,7 +942,7 @@ export function CareerDetailsScreen({
       setDraft((prev) => ({ ...prev, phone: phoneVal }));
     }
     if (
-      groups[step].key === 'basic' &&
+      (groups[step].key === 'basic' || (onboarding && step === 1)) &&
       phoneVal &&
       !/^\+[1-9]\d{7,14}$/.test(phoneVal)
     )
@@ -892,13 +971,34 @@ export function CareerDetailsScreen({
       draft.currently_employed === 'NO' &&
       draft.employment_start &&
       draft.employment_end &&
-      String(draft.employment_end) < String(draft.employment_start)
+      String(draft.employment_end) <= String(draft.employment_start)
     ) {
       nextErrors.employment_end =
-        'Employment end date cannot precede start date.';
+        'The ending month must be after the starting month.';
     }
     setErrors(nextErrors);
-    if (Object.keys(nextErrors).length) return;
+    if (Object.keys(nextErrors).length) {
+      const first = (nextErrors.full_name ? 'full_name' : manualFieldsForStep(step, draft).find((field) => nextErrors[field.key])?.key) ?? Object.keys(nextErrors)[0];
+      setInvalidTarget({ key: first === 'full_name' ? 'fullName' : first });
+      logger.warn('CareerDetailsScreen', `Validation failed on section "${groups[step].key}"`, nextErrors);
+      return;
+    }
+    const isLastStep = step === groups.length - 1;
+    if (isLastStep) {
+      const missing = missingRequiredCareerFields(
+        careerDetailsForSave({ ...draft, ...(phoneVal ? { phone: phoneVal } : {}) }),
+      );
+      if (!fullName.trim()) missing.push('full_name');
+      if (focusMissingFields(missing)) {
+        logger.warn('CareerDetailsScreen', 'Missing required fields across earlier steps before final save', missing);
+        return;
+      }
+    }
+    logger.step('CareerDetailsScreen', `Saving section "${groups[step].key}" (step ${step + 1}/${groups.length})`, {
+      finishNow,
+      activeVersionId,
+      selectedFilename,
+    });
     setBusy(true);
     setError('');
     try {
@@ -931,6 +1031,7 @@ export function CareerDetailsScreen({
         scrollRef.current?.scrollTo({ y: 0, animated: true });
       }
     } catch (failure) {
+      logger.error('CareerDetailsScreen', `Save failed on section "${groups[step].key}"`, failure);
       if (handleIncompleteError(failure)) return;
       setError(
         failure instanceof Error
@@ -958,7 +1059,7 @@ export function CareerDetailsScreen({
     }
   };
 
-  if (fields.length === 0 && busy) {
+  if ((fields.length === 0 && busy) || (onboarding && !modeRestored)) {
     return (
       <SafeAreaView style={styles.screen}>
         <View style={styles.header}>
@@ -966,13 +1067,14 @@ export function CareerDetailsScreen({
             accessibilityLabel="Back"
             disabled={true}
             onPress={goBack}
-            style={[styles.back, styles.backDisabled]}
+            style={[styles.headerBackBtn, styles.backDisabled]}
           >
-            <ArrowLeft size={22} color="#9AA1AE" />
+            <ArrowLeft size={18} color="#9AA1AE" weight="bold" />
           </Pressable>
-          <Text style={styles.title}>
-            {onboarding ? 'Create your profile' : 'Profile details'}
+          <Text style={[styles.title, { flex: 1 }, onboarding && styles.onboardingTitle, onboarding && step === 0 && styles.completeProfileTitle]} numberOfLines={1} ellipsizeMode="tail" accessibilityRole="header">
+            {onboarding ? (step === 0 ? 'Complete your profile' : 'Profile') : 'Profile details'}
           </Text>
+          <View style={styles.headerRightPlaceholder} />
         </View>
         <View style={styles.centerLoading}>
           <ActivityIndicator size="large" color="#5F4DB2" />
@@ -982,98 +1084,295 @@ export function CareerDetailsScreen({
     );
   }
 
-  if (onboarding && step > 0 && onboardingMode === null) {
-    return (
-      <SafeAreaView style={styles.screen}>
-        <View style={styles.header}>
+  if (shouldOfferOnboardingMode({ onboarding, editing, step, restored: modeRestored, mode: onboardingMode,
+    basicComplete: Boolean(fullName.trim() && draft.phone && draft.current_city && draft.work_status),
+    completed: Boolean(profile?.completed) })) {
+    return <SafeAreaView style={styles.screen}>
+      <View style={styles.header}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Back to basic details"
+          style={styles.headerBackBtn} onPress={() => setStep(0)}>
+          <ArrowLeft size={18} color="#0A1931" />
+        </Pressable>
+        <Text style={[styles.title, styles.onboardingTitle, { flex: 1 }]} numberOfLines={1} ellipsizeMode="tail" accessibilityRole="header" accessibilityLabel="Profile">Profile</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Sign out" onPress={() => void signOut()} style={styles.headerSignOutBtn}><LogOut size={20} color="#0A1931" strokeWidth={1.8} /></Pressable>
+      </View>
+      <View style={styles.modeContent}>
+        <OnboardingProgress step={1} />
+        <Text accessibilityRole="header" style={styles.modeHeading}>How would you like to complete your profile?</Text>
+        <Text style={styles.modeDescription}>Choose a form or a guided conversation for the remaining steps.</Text>
+        {(['manual', 'conversation'] as const).map((option) => {
+          const Icon = option === 'manual' ? ListChecks : MessageCircle;
+          return <Pressable key={option} accessibilityRole="button"
+            style={({ pressed }) => [styles.modeCard, pressed && { backgroundColor: '#F8F5FF' }]}
+            onPress={() => {
+              chooseMode(option);
+              if (option === 'conversation') startConversationStep(step, conversationHistory, draft);
+            }}>
+            <Icon size={24} color="#5F4DB2" strokeWidth={1.8} />
+            <View style={{ flex: 1, gap: 6 }}>
+              <Text style={styles.modeLabel}>{option === 'manual' ? 'Manual Form' : 'Conversational Mode'}</Text>
+              <Text style={styles.modeDescription}>{option === 'manual'
+                ? 'Fill in your details in the familiar form.'
+                : 'Answer one question at a time. Type or choose a suggestion.'}</Text>
+            </View>
+          </Pressable>;
+        })}
+      </View>
+    </SafeAreaView>;
+  }
+  const isConversation = editing && onboarding && step > 0 && onboardingMode === 'conversation';
+  const conversationScreen = <View style={styles.chatScreen}>
+    {!!error && <Text accessibilityRole="alert" style={[styles.error, {margin: 16}]}>{error}</Text>}
+    <ConversationPrompt
+      thinking={thinking || busy}
+      question={currentField ? conversationQuestion(currentField, draft) : ''}
+      closing={stepDone ? 'Thanks! That covers your profile details. Ready to save and continue?' : undefined}
+      history={conversationHistory}
+      disabled={busy || thinking}
+      retryMessage={conversationError}
+      attempts={attempts}
+      onEdit={handleEditConversationAnswer}
+      footer={<View style={styles.convActionRow}>
+        <Pressable accessibilityRole="button" disabled={busy || thinking}
+          onPress={() => {if (stepDone) {setStepDone(false); setConversationError('');} else goBack();}}
+          style={[styles.convBackBtn, (busy || thinking) && styles.primaryDisabled]}>
+          <Text style={styles.convBackText}>Back</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" disabled={busy || thinking}
+          onPress={() => stepDone ? void handleContinueConversationStep() : void handleSendConversationAnswer()}
+          style={[styles.convContinueBtn, (busy || thinking) && styles.primaryDisabled]}>
+          <LinearGradient colors={['#643AC5', '#5131A7']} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={styles.convContinueFill}>
+            {busy || thinking ? <ActivityIndicator size="small" color="#FFFFFF" /> : <>
+              <Text style={styles.convContinueText}>{stepDone ? 'Save & Continue' : 'Send answer'}</Text>
+              <ArrowRight size={22} color="#FFFFFF" />
+            </>}
+          </LinearGradient>
+        </Pressable>
+      </View>}
+    >
+      {!stepDone && currentField ? <>
+                  {currentField && ['annual_salary', 'preferred_salary'].includes(currentField.key) &&
+                    <View style={styles.convChipsRow}>{['INR', 'USD'].map((currency) => {
+                      const key = currentField.key === 'annual_salary' ? 'annual_salary_currency' : 'preferred_salary_currency';
+                      return <Pressable key={currency} accessibilityRole="button" accessibilityLabel={`Salary currency ${currency}`}
+                        accessibilityState={{ selected: (draft[key] ?? 'INR') === currency }}
+                        style={[styles.convChip, (draft[key] ?? 'INR') === currency && styles.convChipActive]}
+                        onPress={() => update(key, currency)}><Text style={[styles.convChipText, (draft[key] ?? 'INR') === currency && styles.convChipTextActive]}>{currency === 'INR' ? '₹ INR' : '$ USD'}</Text></Pressable>;
+                    })}</View>}
+                  <View ref={(view) => { fieldViews.current['conversation-answer'] = view; }} collapsable={false} style={styles.convInputWrap} onLayout={(event) => onFieldLayout('conversation-answer', event)}>
+                    {/* Option Chips for select fields */}
+                    {currentField.options && currentField.options.length > 0 && (
+                      <View style={styles.convChipsRow}>
+                        {currentField.options.map((opt) => (
+                          <Pressable
+                            key={opt.value}
+                            onPress={() => {
+                              setConversationInput(opt.label);
+                              setConversationError('');
+                              void handleSendConversationAnswer(opt.label);
+                            }}
+                            style={[
+                              styles.convChip,
+                              conversationInput === opt.label &&
+                                styles.convChipActive,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.convChipText,
+                                conversationInput === opt.label &&
+                                  styles.convChipTextActive,
+                              ]}
+                            >
+                              {opt.label}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    )}
+
+                    {/* Input for conversation mode */}
+                    {isEducationKey(currentField.key) ? (
+                      <EducationField fieldKey={currentField.key} label={currentField.label} details={draft} invalid={!!conversationError} onChange={(next) => {setDraft(next); setConversationInput(String(next[currentField.key] || '')); setConversationError('');}} />
+                    ) : isTaxonomyKey(currentField.key) ? (
+                      <TaxonomyField fieldKey={currentField.key} label={currentField.label} details={draft} invalid={!!conversationError}
+                        onChange={(next) => {setDraft(next); setConversationInput(String(next[currentField.key] || '')); setConversationError('');}} />
+                    ) : currentField.type === 'tel' ? (
+                      <PhoneNumberInput
+                        value={conversationInput}
+                        onChange={(next) => {
+                          setConversationInput(next);
+                          setConversationError('');
+                        }}
+                        error={conversationError}
+                        hint="Select your country code, then enter your mobile number."
+                      />
+                    ) : currentField.type === 'month' ? (
+                      <MonthYearPicker
+                        key={currentField.key}
+                        dateKind={currentField.key === "employment_end" ? "ending" : "starting"}
+                        after={currentField.key === "employment_end" ? String(draft.employment_start || "") : undefined}
+                        disabled={currentField.key === "employment_end" && !draft.employment_start}
+                        value={conversationInput}
+                        invalid={!!conversationError}
+                        onChange={(next) => {
+                          setConversationInput(next);
+                          setConversationError('');
+                        }}
+                      />
+                    ) : currentField.key === 'starting_year' ? (
+                      <YearDropdownPicker
+                        value={conversationInput || null}
+                        pastYears={100}
+                        invalid={!!conversationError}
+                        onChange={(yr) => {
+                          const str = yr ? String(yr) : '';
+                          setConversationInput(str);
+                          setConversationError('');
+                        }}
+                      />
+                    ) : currentField.key === 'passing_year' ? (
+                      <YearDropdownPicker
+                        value={conversationInput || null}
+                        minYear={
+                          draft.starting_year
+                            ? Number(draft.starting_year)
+                            : new Date().getFullYear() - 100
+                        }
+                        maxYear={
+                          draft.starting_year
+                            ? Math.min(
+                                new Date().getFullYear() + 7,
+                                Number(draft.starting_year) + educationYearSpan,
+                              )
+                            : new Date().getFullYear() + 7
+                        }
+                        modalTitle="Select passing year"
+                        invalid={!!conversationError}
+                        onChange={(yr) => {
+                          const str = yr ? String(yr) : '';
+                          setConversationInput(str);
+                          setConversationError('');
+                        }}
+                      />
+                    ) : (
+                      <View style={[styles.convAmountWrap, ['annual_salary', 'preferred_salary'].includes(currentField.key) && styles.convSalaryWrap, !!conversationError && styles.convTextInputError]}>
+                      {['annual_salary', 'preferred_salary'].includes(currentField.key) && <Wallet size={21} color="#5F6B80" />}
+                      <TextInput
+                        ref={(input) => { inputRefs.current['conversation-answer'] = input; }}
+                        style={[
+                          styles.convTextInput,
+                          ['annual_salary', 'preferred_salary'].includes(currentField.key) && styles.convAmountInput,
+                          !!conversationError && styles.convTextInputError,
+                        ]}
+                        value={currentField.key === "annual_salary" || currentField.key === "preferred_salary" ? formatSalaryInput(conversationInput, draft[currentField.key === "annual_salary" ? "annual_salary_currency" : "preferred_salary_currency"]) : conversationInput}
+                        onChangeText={(t) => {
+                          setConversationInput(currentField.key === "annual_salary" || currentField.key === "preferred_salary" ? formatSalaryInput(t, draft[currentField.key === "annual_salary" ? "annual_salary_currency" : "preferred_salary_currency"]) : t);
+                          setConversationError('');
+                        }}
+                        placeholder={
+                          currentField.key === 'annual_salary' || currentField.key === 'preferred_salary'
+                            ? 'Enter the full annual amount'
+                            : currentField.type === 'list'
+                              ? 'Type skills separated by commas'
+                              : 'Type your answer here…'
+                        }
+                        placeholderTextColor="#9AA1AE"
+                        keyboardType={
+                          currentField.key === 'annual_salary' || currentField.key === 'preferred_salary'
+                            ? 'default'
+                            : currentField.type === 'number'
+                              ? 'numeric'
+                              : 'default'
+                        }
+                        returnKeyType="send"
+                        onSubmitEditing={() =>
+                          void handleSendConversationAnswer()
+                        }
+                      />
+                      </View>
+                    )}
+
+                    {/* Skip button for non-required fields */}
+                    {!fieldRequired(currentField, draft) && (
+                      <Pressable
+                        disabled={busy || thinking}
+                        onPress={() =>
+                          void handleSendConversationAnswer(undefined, true)
+                        }
+                        style={styles.convSkipBtn}
+                      >
+                        <Text style={styles.convSkipText}>
+                          Skip this question
+                        </Text>
+                      </Pressable>
+                    )}
+
+                  </View>
+      </> : null}
+    </ConversationPrompt>
+  </View>;
+  return (
+    <SafeAreaView style={[styles.screen, isConversation && styles.chatScreen]}>
+      <View style={[styles.header, isConversation && styles.chatHeader]}>
+        {!(onboarding && step === 0) && (
           <Pressable
             accessibilityLabel="Back"
             disabled={busy}
-            onPress={() => {
-              setStep(0);
-            }}
-            style={styles.back}
+            onPress={goBack}
+            style={[styles.headerBackBtn, isConversation && styles.chatBackBtn, busy && styles.backDisabled]}
           >
-            <ArrowLeft size={22} color="#0A1931" />
+            <ArrowLeft size={18} color={busy ? '#9AA1AE' : '#0A1931'} weight="bold" />
           </Pressable>
-          <Text style={styles.title}>Create your profile</Text>
-        </View>
-        <ScrollView
-          contentContainerStyle={styles.modeSelectContent}
-          showsVerticalScrollIndicator={false}
-        >
-          <OnboardingProgress step={step} />
-          <Text style={styles.modeSelectTitle}>
-            How would you like to complete your profile?
-          </Text>
-          <Text style={styles.modeSelectSubtitle}>
-            Choose a familiar form or an interactive conversation for the remaining steps.
-          </Text>
-
-          <View style={styles.modeOptionsWrap}>
+        )}
+        <Text style={[styles.title, { flex: 1 }, onboarding && styles.onboardingTitle, onboarding && step === 0 && styles.completeProfileTitle]} numberOfLines={1} ellipsizeMode="tail" accessibilityRole="header" accessibilityLabel={onboarding ? (step === 0 ? "Complete your profile" : "Profile") : "Profile details"}>
+          {onboarding ? (step === 0 ? 'Complete your profile' : 'Profile') : 'Profile details'}
+        </Text>
+        {onboarding && step > 0 ? (
+          <><View style={styles.headerModeToggle}>
+            <Pressable
+              onPress={() => chooseMode('manual')}
+              accessibilityRole="button"
+              accessibilityLabel="Manual Form"
+              style={[
+                styles.headerModeSegment,
+                onboardingMode === 'manual' && styles.headerModeSegmentActive,
+              ]}
+            >
+              <ListChecks
+                size={16}
+                color={onboardingMode === 'manual' ? '#FFFFFF' : '#5F4DB2'} strokeWidth={1.8}
+              />
+            </Pressable>
             <Pressable
               onPress={() => {
-                setOnboardingMode('conversation');
+                chooseMode('conversation');
                 startConversationStep(step > 0 ? step : 1, conversationHistory, draft);
               }}
-              style={({ pressed }) => [
-                styles.modeOptionCard,
-                styles.modeOptionFeatured,
-                pressed && styles.cardPressed,
+              accessibilityRole="button"
+              accessibilityLabel="Conversational Mode"
+              style={[
+                styles.headerModeSegment,
+                onboardingMode === 'conversation' && styles.headerModeSegmentActive,
               ]}
             >
-              <View style={styles.modeIconRow}>
-                <View style={[styles.modeIconBox, styles.modeIconBoxFeatured]}>
-                  <ChatCircleDots size={24} color="#FFFFFF" weight="fill" />
-                </View>
-                <View style={styles.modeBadge}>
-                  <Text style={styles.modeBadgeText}>Interactive & Fast</Text>
-                </View>
-              </View>
-              <Text style={styles.modeCardTitle}>Conversational Mode</Text>
-              <Text style={styles.modeCardDesc}>
-                Answer one question at a time. Tap suggested quick answers or type your responses with live guided guidance.
-              </Text>
+              <MessageCircle
+                size={16}
+                color={onboardingMode === 'conversation' ? '#FFFFFF' : '#5F4DB2'} strokeWidth={1.8}
+              />
             </Pressable>
-
-            <Pressable
-              onPress={() => setOnboardingMode('manual')}
-              style={({ pressed }) => [
-                styles.modeOptionCard,
-                pressed && styles.cardPressed,
-              ]}
-            >
-              <View style={styles.modeIconRow}>
-                <View style={styles.modeIconBox}>
-                  <ListBullets size={24} color="#0A1931" weight="bold" />
-                </View>
-              </View>
-              <Text style={styles.modeCardTitle}>Manual Form</Text>
-              <Text style={styles.modeCardDesc}>
-                Fill in all your details in the familiar step-by-step form view.
-              </Text>
-            </Pressable>
-          </View>
-        </ScrollView>
-      </SafeAreaView>
-    );
-  }
-
-  return (
-    <SafeAreaView style={styles.screen}>
-      <View style={styles.header}>
-        <Pressable
-          accessibilityLabel="Back"
-          disabled={busy}
-          onPress={goBack}
-          style={[styles.back, busy && styles.backDisabled]}
-        >
-          <ArrowLeft size={22} color={busy ? '#9AA1AE' : '#0A1931'} />
-        </Pressable>
-        <Text style={styles.title}>
-          {onboarding ? 'Create your profile' : 'Profile details'}
-        </Text>
-        {editing && !onboarding && (
+          </View><Pressable disabled={busy} onPress={() => void signOut()} accessibilityRole="button" accessibilityLabel="Sign out" style={styles.headerSignOutBtn}><LogOut size={20} color="#0A1931" strokeWidth={1.8} /></Pressable></>
+        ) : onboarding && step === 0 ? (
+          <Pressable
+            disabled={busy}
+            onPress={() => void signOut()}
+            style={styles.headerSignOutBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Sign out"
+          >
+            <LogOut size={20} color="#0A1931" strokeWidth={1.8} />
+          </Pressable>
+        ) : editing && !onboarding ? (
           <Pressable
             disabled={busy}
             onPress={() => void save(true)}
@@ -1087,20 +1386,26 @@ export function CareerDetailsScreen({
               <Text style={styles.headerSaveText}>Save</Text>
             )}
           </Pressable>
+        ) : (
+          <View style={styles.headerRightPlaceholder} />
         )}
       </View>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
       >
+        {isConversation ? conversationScreen : (
         <ScrollView
           ref={scrollRef}
+          onScroll={(event) => { scrollOffset.current = event.nativeEvent.contentOffset.y; }}
+          scrollEventThrottle={16}
           key={`${editing}-${step}`}
           pointerEvents={busy ? 'none' : 'auto'}
           contentContainerStyle={[
             styles.content,
-            { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 120 : 60 },
+            // SafeAreaView and KeyboardAvoidingView already provide system clearance.
+            { paddingBottom: keyboardHeight > 0 ? 20 : 12 },
           ]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
@@ -1153,7 +1458,7 @@ export function CareerDetailsScreen({
         )}
         {editing ? (
           <>
-            {onboarding && <OnboardingProgress step={step} />}
+            {onboarding && <OnboardingProgress step={step} bottomSpacing={0} />}
             {!onboarding && (
               <ScrollView
                 horizontal
@@ -1188,234 +1493,20 @@ export function CareerDetailsScreen({
                 ))}
               </ScrollView>
             )}
-            {onboarding && step > 0 && (
-              <View style={styles.modeToggleRow}>
-                <Pressable
-                  onPress={() => setOnboardingMode('manual')}
-                  style={[
-                    styles.modeToggleTab,
-                    onboardingMode === 'manual' && styles.modeToggleTabActive,
-                  ]}
-                >
-                  <ListBullets
-                    size={14}
-                    color={onboardingMode === 'manual' ? '#FFFFFF' : '#5F4DB2'}
-                    weight="bold"
-                  />
-                  <Text
-                    style={[
-                      styles.modeToggleText,
-                      onboardingMode === 'manual' && styles.modeToggleTextActive,
-                    ]}
-                  >
-                    Manual Form
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => {
-                    setOnboardingMode('conversation');
-                    startConversationStep(step > 0 ? step : 1, conversationHistory, draft);
-                  }}
-                  style={[
-                    styles.modeToggleTab,
-                    onboardingMode === 'conversation' &&
-                      styles.modeToggleTabActive,
-                  ]}
-                >
-                  <ChatCircleDots
-                    size={14}
-                    color={
-                      onboardingMode === 'conversation' ? '#FFFFFF' : '#5F4DB2'
-                    }
-                    weight="bold"
-                  />
-                  <Text
-                    style={[
-                      styles.modeToggleText,
-                      onboardingMode === 'conversation' &&
-                        styles.modeToggleTextActive,
-                    ]}
-                  >
-                    Conversational Mode
-                  </Text>
-                </Pressable>
-              </View>
-            )}
 
-            {onboarding && onboardingMode === 'conversation' ? (
-              <ConversationPrompt
-                thinking={thinking || busy}
-                question={currentField ? conversationQuestion(currentField) : ''}
-                closing={
-                  stepDone
-                    ? `Thanks! That covers your profile details. Ready to save and continue?`
-                    : undefined
-                }
-                history={conversationHistory}
-                stepTitles={groups.map((g) => g.title)}
-                disabled={busy || thinking}
-                retryMessage={conversationError}
-                attempts={attempts}
-                onEdit={handleEditConversationAnswer}
-              >
-                {stepDone ? (
-                  <View style={styles.convActionRow}>
-                    <Pressable
-                      disabled={busy}
-                      onPress={() => {
-                        setStepDone(false);
-                        setConversationError('');
-                      }}
-                      style={styles.convBackBtn}
-                    >
-                      <Text style={styles.convBackText}>Back</Text>
-                    </Pressable>
-                    <Pressable
-                      disabled={busy}
-                      onPress={handleContinueConversationStep}
-                      style={styles.convContinueBtn}
-                    >
-                      {busy ? (
-                        <ActivityIndicator size="small" color="#FFFFFF" />
-                      ) : (
-                        <Text style={styles.convContinueText}>
-                          {step === groups.length - 1 || stepDone
-                            ? 'Save & Continue'
-                            : 'Continue to Next Step'}
-                        </Text>
-                      )}
-                    </Pressable>
-                  </View>
-                ) : currentField ? (
-                  <View style={styles.convInputWrap}>
-                    {/* Option Chips for select fields */}
-                    {currentField.options && currentField.options.length > 0 && (
-                      <View style={styles.convChipsRow}>
-                        {currentField.options.map((opt) => (
-                          <Pressable
-                            key={opt.value}
-                            onPress={() => {
-                              setConversationInput(opt.label);
-                              setConversationError('');
-                              void handleSendConversationAnswer(opt.label);
-                            }}
-                            style={[
-                              styles.convChip,
-                              conversationInput === opt.label &&
-                                styles.convChipActive,
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.convChipText,
-                                conversationInput === opt.label &&
-                                  styles.convChipTextActive,
-                              ]}
-                            >
-                              {opt.label}
-                            </Text>
-                          </Pressable>
-                        ))}
-                      </View>
-                    )}
-
-                    {/* Input for conversation mode */}
-                    {isEducationKey(currentField.key) ? (
-                      <EducationField fieldKey={currentField.key} label={currentField.label} details={draft} invalid={!!conversationError} onChange={(next) => {setDraft(next); setConversationInput(String(next[currentField.key] || '')); setConversationError('');}} />
-                    ) : isTaxonomyKey(currentField.key) ? (
-                      <TaxonomyField fieldKey={currentField.key} label={currentField.label} details={draft} invalid={!!conversationError}
-                        onChange={(next) => {setDraft(next); setConversationInput(String(next[currentField.key] || '')); setConversationError('');}} />
-                    ) : currentField.type === 'tel' ? (
-                      <PhoneNumberInput
-                        value={conversationInput}
-                        onChange={(next) => {
-                          setConversationInput(next);
-                          setConversationError('');
-                        }}
-                        error={conversationError}
-                        hint="Select your country code, then enter your mobile number."
-                      />
-                    ) : (
-                      <TextInput
-                        style={[
-                          styles.convTextInput,
-                          !!conversationError && styles.convTextInputError,
-                        ]}
-                        value={conversationInput}
-                        onChangeText={(t) => {
-                          setConversationInput(t);
-                          setConversationError('');
-                        }}
-                        placeholder={
-                          currentField.key === 'annual_salary' || currentField.key === 'preferred_salary'
-                            ? 'e.g. 12 LPA, 50k/month, or ₹6,00,000'
-                            : currentField.type === 'month'
-                              ? 'Type a month, e.g. 2024-06'
-                              : currentField.type === 'list'
-                                ? 'Type skills separated by commas'
-                                : 'Type your answer here…'
-                        }
-                        placeholderTextColor="#9AA1AE"
-                        keyboardType={
-                          currentField.key === 'annual_salary' || currentField.key === 'preferred_salary'
-                            ? 'default'
-                            : currentField.type === 'number'
-                              ? 'numeric'
-                              : 'default'
-                        }
-                        returnKeyType="send"
-                        onSubmitEditing={() =>
-                          void handleSendConversationAnswer()
-                        }
-                      />
-                    )}
-
-                    {/* Skip button for non-required fields */}
-                    {!fieldRequired(currentField, draft) && (
-                      <Pressable
-                        disabled={busy || thinking}
-                        onPress={() =>
-                          void handleSendConversationAnswer(undefined, true)
-                        }
-                        style={styles.convSkipBtn}
-                      >
-                        <Text style={styles.convSkipText}>
-                          Skip this question
-                        </Text>
-                      </Pressable>
-                    )}
-
-                    {/* Action Buttons */}
-                    <View style={styles.convActionRow}>
-                      <Pressable
-                        disabled={busy || thinking}
-                        onPress={goBack}
-                        style={styles.convBackBtn}
-                      >
-                        <Text style={styles.convBackText}>Back</Text>
-                      </Pressable>
-                      <Pressable
-                        disabled={busy || thinking}
-                        onPress={() => void handleSendConversationAnswer()}
-                        style={styles.convContinueBtn}
-                      >
-                        <Text style={styles.convContinueText}>Send answer</Text>
-                      </Pressable>
-                    </View>
-                  </View>
-                ) : null}
-              </ConversationPrompt>
-            ) : (
+            {isConversation ? null : (
               <>
+                <View style={{gap: 8}}>
                 <Text
                   style={
                     onboarding
                       ? {
-                          fontFamily: 'GeneralSans-Bold',
+                          fontFamily: 'GeneralSans-Semibold',
                           fontSize: 26,
                           lineHeight: 32,
-                          letterSpacing: -0.4,
+                          letterSpacing: -0.5,
                           color: '#0A1931',
+                          textAlign: 'left',
                         }
                       : styles.sectionTitle
                   }
@@ -1423,31 +1514,56 @@ export function CareerDetailsScreen({
                   {groups[step].title}
                 </Text>
                 <Text style={styles.help}>
-                  Required fields are marked *. Salary and gender are optional.
+                  Required fields are marked *.
                 </Text>
+                </View>
                 {step === 0 && (
                   <>
                     {onboarding && (
                       <View style={styles.field}>
                         <Text style={styles.label}>Start with your resume/CV</Text>
-                        <Pressable
-                          disabled={busy}
-                          onPress={() =>
-                            void uploadResume().catch(() =>
-                              setError(
-                                'The file picker could not open. Please try again.',
-                              ),
-                            )
-                          }
-                          style={styles.back}
-                        >
-                          <FileText size={20} color="#5F4DB2" />
-                          <Text style={styles.label}>
-                            {selectedFilename ||
-                              profile?.resume_filename ||
-                              'Choose PDF or DOCX'}
-                          </Text>
-                        </Pressable>
+                        <View style={styles.row}>
+                          <Pressable
+                            disabled={busy}
+                            onPress={() =>
+                              void uploadResume().catch(() =>
+                                setError(
+                                  'The file picker could not open. Please try again.',
+                                ),
+                              )
+                            }
+                            style={[styles.back, { flex: 1, borderRadius: 14 }]}
+                          >
+                            <ResumePickerLabel filename={selectedFilename || profile?.resume_filename} />
+                          </Pressable>
+                          {(selectedFilename || profile?.resume_filename) ? (
+                            <Pressable
+                              disabled={busy}
+                              accessibilityRole="button"
+                              accessibilityLabel="Remove resume"
+                              onPress={async () => {
+                                logger.step('CareerDetailsScreen', 'User removed resume from onboarding step 0');
+                                setSelectedFilename(undefined);
+                                setActiveVersionId(null);
+                                setProfile((curr) =>
+                                  curr
+                                    ? {
+                                        ...curr,
+                                        resume_version_id: null,
+                                        resume_file_id: null,
+                                        resume_filename: null,
+                                      }
+                                    : curr,
+                                );
+                                await clearPendingResume().catch(() => undefined);
+                              }}
+                              style={styles.removeResumeIconBtn}
+                              hitSlop={8}
+                            >
+                              <X size={18} color="#0A1931" weight="bold" />
+                            </Pressable>
+                          ) : null}
+                        </View>
                         <Text style={styles.help}>
                           We fill your details from your resume/CV. Review them below. Scoring starts after payment.
                         </Text>
@@ -1455,11 +1571,14 @@ export function CareerDetailsScreen({
                     )}
                     <View
                       style={styles.field}
+                      ref={(view) => { fieldViews.current.fullName = view; }}
+                      collapsable={false}
                       onLayout={(e) => onFieldLayout('fullName', e)}
                     >
                       <Text style={styles.label}>Full name *</Text>
                       <TextInput
                         style={styles.input}
+                        ref={(input) => { inputRefs.current.fullName = input; }}
                         accessibilityLabel="Full name"
                         value={fullName}
                         onChangeText={setFullName}
@@ -1472,33 +1591,46 @@ export function CareerDetailsScreen({
                     </View>
                     <View style={styles.field}>
                       <Text style={styles.label}>Email ID</Text>
-                      <Text style={styles.help}>{session?.email}</Text>
-                      <Text style={styles.help}>Your verified account email</Text>
+                      <View style={styles.disabledInputWrapper} accessibilityLabel="Verified email address" accessibilityState={{disabled: true}}>
+                        <EnvelopeSimple size={18} color="#9AA1AE" />
+                        <Text style={styles.disabledInputText} numberOfLines={1}>
+                          {session?.email || ''}
+                        </Text>
+                      </View>
+                      <Text style={styles.help}>Your verified account email.</Text>
                     </View>
                   </>
                 )}
-                {fields
-                  .filter(
-                    (field) =>
-                      field.section === groups[step].key &&
-                      fieldVisible(field, draft) && !(field.key === "specialization" && hideEducationSpecialization),
-                  )
+                {manualFieldsForStep(step, draft)
                   .map((field) => {
+                    if (field.key === 'experience_months') return null;
+                    if (field.key === 'experience_years') return <View key={field.key} style={{flexDirection: 'row', gap: 12}}>
+                      {(['experience_years', 'experience_months'] as const).map((key) => <View key={key} style={[styles.field, {flex: 1}]} ref={(view) => {fieldViews.current[key] = view;}} collapsable={false} onLayout={(event) => onFieldLayout(key, event)}>
+                        <Text style={styles.label}>{key === 'experience_years' ? 'Experience — years' : 'Months'}</Text>
+                        <DropdownSelect value={String(draft[key] ?? 0)} modalTitle={key === 'experience_years' ? 'Years of experience' : 'Additional months'} invalid={!!errors[key]} onChange={(value) => update(key, Number(value))}
+                          options={Array.from({length: key === 'experience_years' ? 51 : 12}, (_, value) => ({value: String(value), label: key === 'experience_years' && value === 50 ? '50+ years' : `${value} ${key === 'experience_years' ? (value === 1 ? 'year' : 'years') : (value === 1 ? 'month' : 'months')}`}))} />
+                        {!!errors[key] && <Text style={styles.error}>{errors[key]}</Text>}
+                      </View>)}
+                    </View>;
                     const value = draft[field.key];
                     return (
                       <View
                         key={field.key}
                         style={styles.field}
+                        ref={(view) => { fieldViews.current[field.key] = view; }}
+                        collapsable={false}
                         onLayout={(e) => onFieldLayout(field.key, e)}
                       >
                         <Text style={styles.label}>
-                          {field.label}
-                          {fieldRequired(field, draft) ? ' *' : ' (optional)'}
+                          {careerLabel(field.key, field.label)}
+                          {fieldRequired(field, draft) ? ' *' : ''}
                         </Text>
-                        {isEducationKey(field.key) ? (
+                        {field.key === 'notice_period' && draft.currently_employed === 'NO' ? (
+                          <DropdownSelect disabled value="IMMEDIATE" modalTitle="Notice Period" options={[{value: 'IMMEDIATE', label: 'Immediate'}]} onChange={() => {}} />
+                        ) : isEducationKey(field.key) ? (
                           <EducationField fieldKey={field.key} label={field.label} details={draft} invalid={!!errors[field.key]} onChange={(next) => {setDraft(next); setErrors((current) => ({...current, [field.key]: ''}));}} />
                         ) : isTaxonomyKey(field.key) ? (
-                          <TaxonomyField fieldKey={field.key} label={field.label} details={draft} invalid={!!errors[field.key]}
+                          <TaxonomyField fieldKey={field.key} label={careerLabel(field.key, field.label)} details={draft} invalid={!!errors[field.key]}
                             onChange={(next) => {setDraft(next); setErrors((current) => ({...current, [field.key]: ''}));}} />
                         ) : field.type === 'select' ? (
                           <View style={styles.options}>
@@ -1534,28 +1666,71 @@ export function CareerDetailsScreen({
                           </View>
                         ) : field.key === 'phone' ? (
                           <PhoneNumberInput
+                            inputRef={phoneRef}
                             value={String(value ?? '')}
                             onChange={(next) => update(field.key, next)}
                             onFocus={() => scrollToField(field.key)}
                             error={errors[field.key]}
                             hint="Select your country code, then enter your mobile number."
                           />
+                        ) : field.type === 'month' ? (
+                          <MonthYearPicker
+                            dateKind={field.key === 'employment_end' ? 'ending' : 'starting'}
+                            after={field.key === 'employment_end' ? String(draft.employment_start || '') : undefined}
+                            value={String(value ?? '')}
+                            invalid={!!errors[field.key]}
+                            disabled={busy || (field.key === 'employment_end' && !draft.employment_start)}
+                            onOpen={() => scrollToField(field.key)}
+                            onChange={(next) => update(field.key, next)}
+                          />
+                        ) : field.key === 'starting_year' ? (
+                          <YearDropdownPicker
+                            value={value as number | null}
+                            pastYears={100}
+                            invalid={!!errors[field.key]}
+                            disabled={busy}
+                            onOpen={() => scrollToField(field.key)}
+                            onChange={(yr) => update(field.key, yr)}
+                          />
+                        ) : field.key === 'passing_year' ? (
+                          <YearDropdownPicker
+                            value={value as number | null}
+                            minYear={
+                              draft.starting_year
+                                ? Number(draft.starting_year)
+                                : new Date().getFullYear() - 100
+                            }
+                            maxYear={
+                              draft.starting_year
+                                ? Math.min(
+                                    new Date().getFullYear() + 7,
+                                    Number(draft.starting_year) + educationYearSpan,
+                                  )
+                                : new Date().getFullYear() + 7
+                            }
+                            modalTitle="Select passing year"
+                            invalid={!!errors[field.key]}
+                            disabled={busy}
+                            onOpen={() => scrollToField(field.key)}
+                            onChange={(yr) => update(field.key, yr)}
+                          />
                         ) : (
                           <TextInput
-                            accessibilityLabel={field.label}
+                            ref={(input) => { inputRefs.current[field.key] = input; }}
+                            accessibilityLabel={careerLabel(field.key, field.label)}
                             onFocus={() => scrollToField(field.key)}
                             value={
-                              field.type === 'list'
+                              field.key === 'annual_salary' || field.key === 'preferred_salary'
+                                ? formatSalaryInput(value, draft[field.key === 'annual_salary' ? 'annual_salary_currency' : 'preferred_salary_currency'])
+                                : field.type === 'list'
                                 ? lists[field.key] ??
                                   (Array.isArray(value) ? value.join(', ') : '')
                                 : String(value ?? '')
                             }
                             placeholder={
-                              field.type === 'month'
-                                ? 'YYYY-MM'
-                                : field.type === 'list'
-                                  ? 'Separate with commas'
-                                  : field.label
+                              field.type === 'list'
+                                ? 'Separate with commas'
+                                : careerLabel(field.key, field.label)
                             }
                             placeholderTextColor="#9AA1AE"
                             keyboardType={
@@ -1568,7 +1743,11 @@ export function CareerDetailsScreen({
                               !!errors[field.key] && styles.invalid,
                             ]}
                             onChangeText={(raw) => {
-                              if (field.type === 'list') {
+                              if (field.key === 'annual_salary' || field.key === 'preferred_salary') {
+                                const amount = raw.replace(/,/g, '');
+                                if (!amount) update(field.key, null);
+                                else if (/^\d+$/.test(amount) && Number.isSafeInteger(Number(amount))) update(field.key, Number(amount));
+                              } else if (field.type === 'list') {
                                 setLists((current) => ({
                                   ...current,
                                   [field.key]: raw,
@@ -1601,7 +1780,7 @@ export function CareerDetailsScreen({
                     );
                   })}
                 <View style={styles.row}>
-                  <Pressable
+                  {!(onboarding && step === 0) && <Pressable
                     disabled={busy}
                     onPress={goBack}
                     style={[styles.back, busy && styles.backDisabled]}
@@ -1610,7 +1789,7 @@ export function CareerDetailsScreen({
                     <Text style={[styles.label, busy && styles.labelDisabled]}>
                       Back
                     </Text>
-                  </Pressable>
+                  </Pressable>}
                   <Pressable
                     disabled={busy}
                     onPress={() => void save()}
@@ -1636,9 +1815,7 @@ export function CareerDetailsScreen({
                     ) : (
                       <Text style={styles.primaryText}>
                         {step === groups.length - 1
-                          ? onboarding
-                            ? 'Save and continue to membership'
-                            : 'Save'
+                          ? 'Save'
                           : 'Save and continue'}
                       </Text>
                     )}
@@ -1668,22 +1845,18 @@ export function CareerDetailsScreen({
               {fields
                 .filter(
                   (field) =>
-                    field.section === group.key && fieldVisible(field, draft) && !(field.key === "specialization" && hideEducationSpecialization),
+                    field.section === group.key && field.key !== "specialization_name",
                 )
                 .map((field) => {
                   const value = draft[field.key];
-                  const display =
-                    field.options.find((option) => option.value === value)
-                      ?.label ??
-                    (Array.isArray(value)
-                      ? value.join(', ')
-                      : value == null || value === ''
-                        ? 'Not added'
-                        : String(value));
+                  const text = profileValueText(value, field.options);
+                  const display = ['annual_salary', 'preferred_salary'].includes(field.key) && text !== 'N/A'
+                    ? formatSalaryDisplay(typeof value === 'number' ? value : null, draft[field.key === 'annual_salary' ? 'annual_salary_currency' : 'preferred_salary_currency'])
+                    : text;
                   return (
                     <View key={field.key} style={styles.field}>
-                      <Text style={styles.help}>{field.label}</Text>
-                      <Text style={styles.label}>{display || 'Not added'}</Text>
+                      <Text style={styles.help}>{careerLabel(field.key, field.label)}</Text>
+                      <Text style={styles.label}>{display}</Text>
                     </View>
                   );
                 })}
@@ -1691,6 +1864,7 @@ export function CareerDetailsScreen({
           ))
         )}
       </ScrollView>
+      )}
       </KeyboardAvoidingView>
       <Modal
         visible={documentHtml !== null}
@@ -1719,17 +1893,61 @@ export function CareerDetailsScreen({
 }
 
 const styles = StyleSheet.create({
+  modeContent: { padding: 20, gap: 16, width: '100%', maxWidth: 600, alignSelf: 'center' },
+  modeHeading: { fontFamily: 'GeneralSans-Bold', fontSize: 26, lineHeight: 32, letterSpacing: -0.4, color: '#0A1931' },
+  modeDescription: { fontFamily: 'GeneralSans-Regular', fontSize: 14, lineHeight: 21, color: '#5F6B80' },
+  modeCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, padding: 20, borderRadius: 16, borderWidth: 1, borderColor: '#C9BEEB', backgroundColor: '#FFFFFF' },
+  modeLabel: { fontFamily: 'GeneralSans-Semibold', fontSize: 16, lineHeight: 22, color: '#5F4DB2' },
   screen: { flex: 1, backgroundColor: '#FFFCF7' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    padding: 16,
+    justifyContent: 'space-between',
+    gap: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#E7E0D4',
   },
-  title: { fontFamily: 'GeneralSans-Bold', fontSize: 20, color: '#0A1931' },
-  content: { padding: 20, gap: 20, paddingBottom: 48 },
+  headerBackBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E7E0D4',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerRightPlaceholder: {
+    width: 40,
+  },
+  headerLeftPlaceholder: {
+    width: 40,
+    height: 40,
+  },
+  headerSignOutBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#DDD6C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerSignOutText: {
+    fontFamily: 'GeneralSans-Semibold',
+    fontSize: 13,
+    color: '#0A1931',
+  },
+  title: {
+    fontFamily: 'GeneralSans-Semibold',
+    fontSize: 16,
+    color: '#0A1931',
+    textAlign: 'left',
+  },
+  content: { paddingHorizontal: 20, paddingTop: 20, gap: 20 },
   loading: { gap: 12, alignItems: 'center', padding: 16 },
   card: {
     padding: 16,
@@ -1763,6 +1981,23 @@ const styles = StyleSheet.create({
     fontFamily: 'GeneralSans-Medium',
     fontSize: 16,
     color: '#0A1931',
+  },
+  disabledInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    minHeight: 52,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E7E0D4',
+    backgroundColor: '#F3F4F6',
+  },
+  disabledInputText: {
+    flex: 1,
+    fontFamily: 'GeneralSans-Medium',
+    fontSize: 16,
+    color: '#6B7280',
   },
   invalid: { borderColor: '#A33A2B' },
   error: {
@@ -1871,6 +2106,34 @@ const styles = StyleSheet.create({
     fontFamily: 'GeneralSans-Semibold',
     fontSize: 14,
     color: '#FFFFFF',
+  },
+  headerModeToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EDE8F8',
+    borderRadius: 20,
+    padding: 3,
+    gap: 2,
+  },
+  headerModeSegment: {
+    width: 34,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerModeSegmentActive: {
+    backgroundColor: '#5F4DB2',
+  },
+  removeResumeIconBtn: {
+    width: 48,
+    height: 50,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#DDD6C7',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   sectionTabs: {
     flexDirection: 'row',
@@ -2019,89 +2282,29 @@ const styles = StyleSheet.create({
   modeToggleTextActive: {
     color: '#FFFFFF',
   },
-  // Conversational controls inside prompt
-  convActionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginTop: 10,
-  },
-  convBackBtn: {
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: '#C9BEEB',
-    backgroundColor: '#FFFFFF',
-  },
-  convBackText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#5F4DB2',
-  },
-  convContinueBtn: {
-    flex: 1,
-    backgroundColor: '#5F4DB2',
-    borderRadius: 24,
-    paddingVertical: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  convContinueText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  convInputWrap: {
-    gap: 10,
-  },
-  convChipsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 4,
-  },
-  convChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#C9BEEB',
-  },
-  convChipActive: {
-    backgroundColor: '#EDE8F8',
-    borderColor: '#5F4DB2',
-  },
-  convChipText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#3A4761',
-  },
-  convChipTextActive: {
-    color: '#5F4DB2',
-    fontWeight: '700',
-  },
-  convTextInput: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: '#C9BEEB',
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 14,
-    color: '#0A1931',
-  },
-  convTextInputError: {
-    borderColor: '#C93B2B',
-  },
-  convSkipBtn: {
-    alignSelf: 'flex-end',
-    paddingVertical: 2,
-  },
-  convSkipText: {
-    fontSize: 12,
-    color: '#5F6B80',
-    textDecorationLine: 'underline',
-  },
+  // Full-height conversation: composer scrolls with messages, actions stay above the keyboard.
+  chatScreen: { flex: 1, backgroundColor: '#FFFFFF' },
+  chatHeader: { paddingHorizontal: 12, gap: 6, borderBottomColor: '#EFF0F4' },
+  chatBackBtn: { width: 32, borderWidth: 0, backgroundColor: 'transparent' },
+  onboardingTitle: { fontFamily: 'GeneralSans-Semibold', fontSize: 24, lineHeight: 30, letterSpacing: -0.3, color: '#0A1931', minWidth: 0, flexShrink: 1, textAlign: 'left' },
+  completeProfileTitle: { fontFamily: 'GeneralSans-Semibold', fontSize: 24, lineHeight: 30, letterSpacing: -0.3, color: '#0A1931', textAlign: 'left' },
+  convActionRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  convBackBtn: { minHeight: 48, minWidth: 96, paddingHorizontal: 20, borderRadius: 25, borderWidth: 1, borderColor: '#D0C4ED', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  convBackText: { fontFamily: 'GeneralSans-Semibold', fontSize: 15, color: '#5F35B5' },
+  convContinueBtn: { flex: 1, borderRadius: 25, overflow: 'hidden' },
+  convContinueFill: { minHeight: 48, paddingHorizontal: 20, flexDirection: 'row', gap: 12, alignItems: 'center', justifyContent: 'center' },
+  convContinueText: { fontFamily: 'GeneralSans-Semibold', fontSize: 15, color: '#FFFFFF' },
+  convInputWrap: { gap: 12 },
+  convChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  convChip: { minHeight: 44, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 24, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E4DEED' },
+  convChipActive: { backgroundColor: '#F0EBFA', borderColor: '#5F35B5' },
+  convChipText: { fontFamily: 'GeneralSans-Medium', fontSize: 14, color: '#3A4761' },
+  convChipTextActive: { color: '#5F35B5' },
+  convAmountWrap: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  convSalaryWrap: { minHeight: 52, borderWidth: 1, borderColor: '#CFC2EC', borderRadius: 12, paddingLeft: 14 },
+  convAmountInput: { flex: 1, minWidth: 0, borderWidth: 0, backgroundColor: 'transparent' },
+  convTextInput: { flex: 1, minWidth: 0, minHeight: 52, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#CFC2EC', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontFamily: 'GeneralSans-Regular', fontSize: 16, color: '#0A1931' },
+  convTextInputError: { borderColor: '#C93B2B' },
+  convSkipBtn: { alignSelf: 'flex-end', paddingVertical: 4 },
+  convSkipText: { fontFamily: 'GeneralSans-Regular', fontSize: 12, color: '#5F6B80', textDecorationLine: 'underline' },
 });

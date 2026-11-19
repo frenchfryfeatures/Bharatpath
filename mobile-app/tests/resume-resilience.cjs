@@ -25,7 +25,9 @@ assert.match(resumeFileError({ name: 'resume.pdf', size: 2048 }), /unavailable/)
 const { normalizeResumeVersionDetails } = load('services/api/resume.ts', {
   'react-native': { Platform: { OS: 'web' } },
   'expo-file-system/legacy': {},
+  'expo-sharing': {},
   './client': {},
+  '@/utils/logger': { sanitizeForLog: value => value, logger: { error: () => {}, step: () => {}, warn: () => {}, info: () => {} } },
 });
 assert.throws(() => normalizeResumeVersionDetails(null), /incomplete resume details/);
 assert.throws(() => normalizeResumeVersionDetails({ parsed: {} }), /incomplete resume details/);
@@ -42,10 +44,13 @@ assert.equal(safe.sections[0].body, '');
 assert.deepEqual(safe.sections[0].items, [{ text: 'React', unclear: true, suggestion: null }]);
 console.log('Resume file and malformed API response resilience checks passed.');
 
+const errorMessages = load('services/api/errorMessages.ts');
 const apiClient = load('services/api/client.ts', {
   'react-native': { Platform: { OS: 'web' } },
   'expo-constants': { default: { expoConfig: null } },
-  'expo/fetch': { fetch: () => {} },
+  'expo/fetch': { fetch: () => { } },
+  '@/utils/logger': { sanitizeForLog: value => value, logger: { error: () => {}, step: () => {}, warn: () => {}, info: () => {} } },
+  './errorMessages': errorMessages,
 });
 const originalFetch = global.fetch;
 process.env.EXPO_PUBLIC_API_BASE_URL = 'https://example.test/api/v1';
@@ -58,6 +63,9 @@ process.env.EXPO_PUBLIC_API_BASE_URL = 'https://example.test/api/v1';
     });
     await assert.rejects(apiClient.apiRequest('/candidate/resume/versions/v1'),
       (error) => error.code === 'invalid_response');
+    const pdf = new Uint8Array([37,80,68,70]).buffer;
+    global.fetch = async () => ({status:200,ok:true,headers:{get:()=> 'application/pdf'},arrayBuffer:async()=>pdf});
+    assert.equal(await apiClient.apiRequest('/candidate/resume/versions/v1/render',{responseType:'arrayBuffer'}),pdf);
     global.fetch = async () => { throw new Error('offline'); };
     await assert.rejects(apiClient.apiRequest('/candidate/resume/versions/v1'),
       (error) => error.code === 'network_error' && /Check your connection/.test(error.message));

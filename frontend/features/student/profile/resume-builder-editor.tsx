@@ -6,7 +6,7 @@ import { Loader2 } from "lucide-react";
 import { ResumeBuilderStep } from "@/features/student/onboarding/components/resume-builder-step";
 import { getApiErrorCode, getApiErrorMessage, getApiErrorParams } from "@/lib/api/error-message";
 import { showErrorFeedback, showSuccessFeedback } from "@/lib/feedback/success-feedback";
-import { useConfirmResumeVersionMutation, useGetBuilderDraftQuery, useGetResumeScoringWindowQuery, type BuilderTemplateKey } from "@/store/student";
+import { useConfirmResumeVersionMutation, useGetBuilderDraftQuery, useGetResumeVersionQuery, useGetResumeScoringWindowQuery, type BuilderTemplateKey } from "@/store/student";
 
 function nextScoringMessage(nextScoringAt: string | null | undefined): string {
   if (!nextScoringAt) return "You can apply this resume when your scoring window reopens.";
@@ -20,9 +20,10 @@ function nextScoringMessage(nextScoringAt: string | null | undefined): string {
   return `You can apply this resume on ${formatted} IST (${relative}).`;
 }
 
-export function ResumeBuilderEditor({ templateKey, section, returnTo = "profile" }: { templateKey?: BuilderTemplateKey; section?: string; returnTo?: "profile" | "resume-details" }) {
+export function ResumeBuilderEditor({ templateKey, section, resumeVersionId, returnTo = "profile" }: { templateKey?: BuilderTemplateKey; section?: string; resumeVersionId?: string; returnTo?: "profile" | "resume-details" }) {
   const router = useRouter();
   const draft = useGetBuilderDraftQuery();
+  const selectedVersion = useGetResumeVersionQuery(resumeVersionId || "", {skip:!resumeVersionId});
   const scoringWindow = useGetResumeScoringWindowQuery();
   const [confirmVersion] = useConfirmResumeVersionMutation();
   const scoreWindow = scoringWindow.data;
@@ -61,12 +62,12 @@ export function ResumeBuilderEditor({ templateKey, section, returnTo = "profile"
     router.replace("/student/profile/resume");
   };
 
-  if (draft.isLoading || !draft.data && !draft.isError) {
+  if ((resumeVersionId && selectedVersion.isLoading) || draft.isLoading || !draft.data && !draft.isError) {
     return <div className="grid min-h-full place-items-center text-sm text-[#5F4DB2]"><span className="inline-flex items-center gap-2"><Loader2 size={18} className="animate-spin" aria-hidden="true" /> Loading your resume…</span></div>;
   }
 
-  if (draft.isError) {
-    return <div className="mx-auto max-w-lg p-8 text-center" role="alert"><p className="text-sm text-red-700">Your resume details could not be loaded.</p><button type="button" onClick={() => void draft.refetch()} className="mt-3 rounded-full bg-[#5F4DB2] px-4 py-2 text-sm font-semibold text-white">Try again</button><button type="button" onClick={() => router.replace("/student/profile#profile-reports")} className="ml-3 text-sm underline">Back to profile</button></div>;
+  if (draft.isError || (resumeVersionId && (selectedVersion.isError || selectedVersion.data?.structuredStatus !== "READY"))) {
+    return <div className="mx-auto max-w-lg p-8 text-center" role="alert"><p className="text-sm text-red-700">Your resume details could not be loaded.</p><button type="button" onClick={() => { void draft.refetch(); if (resumeVersionId) void selectedVersion.refetch(); }} className="mt-3 rounded-full bg-[#5F4DB2] px-4 py-2 text-sm font-semibold text-white">Try again</button><button type="button" onClick={() => router.replace("/student/profile#profile-reports")} className="ml-3 text-sm underline">Back to profile</button></div>;
   }
 
   const selectedTemplate = templateKey ?? draft.data?.template_key ?? "classic";
@@ -75,6 +76,7 @@ export function ResumeBuilderEditor({ templateKey, section, returnTo = "profile"
       <ResumeBuilderStep
         key={selectedTemplate}
         initialTemplate={selectedTemplate}
+        initialContent={resumeVersionId ? selectedVersion.data?.structuredResume ?? undefined : undefined}
         focusSection={section}
         profileMode
         profileSubmissionLabel="Save & update score"

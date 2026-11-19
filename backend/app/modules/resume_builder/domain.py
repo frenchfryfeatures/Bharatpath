@@ -249,7 +249,7 @@ def _from_answers(*, full_name: str, email: str, details: Mapping[str, Any]) -> 
     locations. A resume goes to employers; none of those belong on one, and
     gender is exactly what masked search exists to keep out of a decision.
     """
-    current_job = _text(details.get("currently_employed")) == "YES" and _text(
+    current_job = (details.get("currently_employed") == "YES" or details.get("work_status") == "EXPERIENCED") and _text(
         details.get("company_name")
     )
     experience = (
@@ -258,8 +258,8 @@ def _from_answers(*, full_name: str, email: str, details: Mapping[str, Any]) -> 
                 "job_title": _text(details.get("job_title")),
                 "company": _text(details.get("company_name")),
                 "start_date": _text(details.get("employment_start")),
-                "end_date": "",
-                "is_current": True,
+                "end_date": _text(details.get("employment_end")),
+                "is_current": details.get("currently_employed") == "YES",
             }
         ]
         if current_job
@@ -271,8 +271,8 @@ def _from_answers(*, full_name: str, email: str, details: Mapping[str, Any]) -> 
         [
             {
                 "qualification": qualification,
-                "field_of_study": _text(details.get("specialization_name"))
-                or _text(details.get("specialization")),
+                "field_of_study": _text(details.get("specialization"))
+                or _text(details.get("specialization_name")),
                 "institution": institution,
                 "start_date": _year(details.get("starting_year")),
                 "end_date": _year(details.get("passing_year")),

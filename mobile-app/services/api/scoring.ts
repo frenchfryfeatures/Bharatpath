@@ -21,8 +21,26 @@ export interface CandidateScoreResponse {
   computed_at: string | null;
 }
 
+export interface ScoreBandResponse {
+  band: ScoreBand | string;
+  lowest: number;
+  highest: number;
+}
+
+export interface ScoreScaleResponse {
+  lowest: number;
+  highest: number;
+  bands: ScoreBandResponse[];
+}
+
+export const UI_SCORE_MAX = 1000;
+
 export async function getMyScore(): Promise<CandidateScoreResponse> {
   return apiRequest<CandidateScoreResponse>('/candidate/score/me');
+}
+
+export async function getScoreScale(): Promise<ScoreScaleResponse> {
+  return apiRequest<ScoreScaleResponse>('/candidate/score/scale');
 }
 
 const BAND_LABELS: Record<string, string> = {
@@ -36,7 +54,7 @@ export const SCORE_BANDS: { code: ScoreBand; label: string; low: number; high: n
   { code: 'ENTRY', label: 'Entry', low: 700, high: 769 },
   { code: 'DEVELOPING', label: 'Developing', low: 770, high: 819 },
   { code: 'SOLID', label: 'Solid', low: 820, high: 864 },
-  { code: 'STRONG', label: 'Strong', low: 865, high: 990 },
+  { code: 'STRONG', label: 'Strong', low: 865, high: 1000 },
 ];
 
 export function bandLabel(band: string | null | undefined): string {

@@ -6,6 +6,7 @@ export interface CareerField {
   label: string;
   type: "text" | "tel" | "number" | "month" | "list" | "select";
   required: boolean;
+  rules?: {required_when: string; visible_when: string; education_max_years: number};
   section: "basic" | "employment" | "education" | "preferences";
   options: { value: string; label: string }[];
 }
@@ -115,12 +116,11 @@ const inactiveEmploymentFields = [
   "job_role",
 ];
 
-// Describe the current job, so they are hidden when there is none. Unlike
-// inactiveEmploymentFields they are not stripped on save.
-const jobDescribingFields = ["industry", "department", "role_category"];
 
 export function careerDetailsForSave(details: CareerDetails): CareerDetails {
   const result = { ...details };
+  result.specialization = result.specialization || result.specialization_name || "";
+  delete result.specialization_name;
   if (result.work_status === "FRESHER") {
     result.currently_employed = "NO";
     result.experience_years = 0;
@@ -132,55 +132,44 @@ export function careerDetailsForSave(details: CareerDetails): CareerDetails {
   if (!keySkills || (Array.isArray(keySkills) && keySkills.length === 0)) {
     result.key_skills = details.work_status === "FRESHER" ? ["Fresher"] : ["General"];
   }
-  if (result.currently_employed === "NO") {
+  if (result.work_status === "FRESHER") {
     for (const key of inactiveEmploymentFields) delete result[key];
   } else if (result.currently_employed === "YES") {
     delete result.employment_end;
   }
+  if (result.currently_employed === "NO" || result.work_status === "FRESHER") result.notice_period = "IMMEDIATE";
+  result.annual_salary_currency ??= "INR";
+  result.preferred_salary_currency ??= "INR";
   return result;
 }
 
-export function careerFieldRequired(
-  field: CareerField,
-  details: CareerDetails,
-) {
-  if (field.key === "key_skills") return false;
-  if (field.required) return true;
-  if (details.work_status !== "EXPERIENCED") return false;
-  if (field.key === "currently_employed") return true;
-  return details.currently_employed === "YES" &&
-    ["company_name", "job_title", "employment_start"].includes(field.key);
+function matchesRule(condition: string, details: CareerDetails): boolean {
+  return condition === "ALWAYS" || (condition === "EMPLOYMENT_CHOSEN" && ["YES", "NO"].includes(String(details.currently_employed))) || (condition === "EMPLOYED" && details.currently_employed === "YES") ||
+    (condition === "EXPERIENCED" && (details.work_status === "EXPERIENCED" || details.currently_employed === "YES")) ||
+    (condition === "PREVIOUS" && details.work_status === "EXPERIENCED" && details.currently_employed === "NO");
+}
+
+export function careerFieldRequired(field: CareerField, details: CareerDetails) {
+  if (field.rules) return matchesRule(field.rules.required_when, details);
+  if (field.key === "preferred_salary") return false;
+  if (field.key.endsWith('_salary_currency')) return true;
+  if (field.key === 'annual_salary') return details.work_status === 'EXPERIENCED' || details.currently_employed === 'YES';
+  if (field.key === 'key_skills') return false;
+  if (field.key === 'notice_period') return details.currently_employed === 'YES';
+  if (field.required || field.key === 'gender') return true;
+  if (details.work_status !== 'EXPERIENCED') return false;
+  return ['currently_employed', 'company_name', 'job_title', 'employment_start'].includes(field.key) ||
+    (field.key === 'employment_end' && details.currently_employed === 'NO');
 }
 export function visibleCareerField(field: CareerField, details: CareerDetails) {
-  if (field.key === "employment_end") return false;
-  if (field.key === "key_skills") return false;
-  // The employed question is always asked; "Yes" opens the rest, even for a
-  // fresher, who becomes experienced by answering it (see the form's update).
-  if (field.key === "currently_employed") return true;
-  if (details.currently_employed === "YES") return true;
-  const experiencedOnly = [
-    "currently_employed",
-    "experience_years",
-    "experience_months",
-    "company_name",
-    "job_title",
-    "employment_start",
-    "employment_end",
-    "annual_salary",
-    "notice_period",
-    "industry",
-    "department",
-    "role_category",
-    "job_role",
-  ];
-  return (
-    !(
-      details.work_status === "FRESHER" && experiencedOnly.includes(field.key)
-    ) &&
-    !(
-      details.currently_employed === "NO" &&
-      (inactiveEmploymentFields.includes(field.key) ||
-        jobDescribingFields.includes(field.key))
-    )
-  );
+  if (field.key === "notice_period" && details.currently_employed === "NO") return true;
+  if (field.key === "specialization_name") return false;
+  if (field.rules) return matchesRule(field.rules.visible_when, details);
+  if (field.key === 'key_skills') return false;
+  if (field.key === 'currently_employed') return true;
+  if (field.key === 'employment_end') return details.work_status === 'EXPERIENCED' && details.currently_employed === 'NO';
+  if (field.key === 'notice_period') return details.currently_employed === 'YES';
+  const history = ['experience_years','experience_months','company_name','job_title','employment_start',
+    'annual_salary','annual_salary_currency','industry','department','role_category','job_role'];
+  return !history.includes(field.key) || details.work_status === 'EXPERIENCED' || details.currently_employed === 'YES';
 }

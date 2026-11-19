@@ -1,6 +1,8 @@
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { fetch as expoFetch } from 'expo/fetch';
+import { logger, sanitizeForLog } from '@/utils/logger';
+import { httpErrorMessage, validationErrorMessage } from './errorMessages';
 
 export interface ProblemDetails {
   type: string;
@@ -87,6 +89,7 @@ export interface ApiRequestOptions {
   headers?: Record<string, string>;
   token?: string;
   skipAuthRefresh?: boolean;
+  responseType?: 'arrayBuffer';
   _isRetry?: boolean;
 }
 
@@ -149,9 +152,20 @@ export async function apiRequest<T>(
       options.body instanceof FormData ? options.body : JSON.stringify(options.body);
   }
 
+  const method = options.method || 'GET';
+  const startedAt = Date.now();
   let response: Response;
   try {
-    console.log(`[API Request] ${options.method || 'GET'} ${url}`);
+    logger.info(
+      'API',
+      `--> ${method} ${cleanEndpoint} [${requestId}]`,
+      {
+        url,
+        hasAuth: Boolean(token),
+        isRetry: Boolean(options._isRetry),
+        body: options.body ? sanitizeForLog(options.body) : undefined,
+      },
+    );
     response =
       Platform.OS !== 'web' && options.body instanceof FormData
         ? ((await expoFetch(
@@ -160,7 +174,13 @@ export async function apiRequest<T>(
           )) as unknown as Response)
         : await fetch(url, fetchOptions);
   } catch (netErr: any) {
-    console.warn(`[API Network Error] ${options.method || 'GET'} ${cleanEndpoint}`);
+    const durationMs = Date.now() - startedAt;
+    logger.error(
+      'API',
+      `<-- NETWORK FAILURE ${method} ${cleanEndpoint} [${requestId}] (${durationMs}ms)`,
+      netErr,
+      { url, timedOut: controller.signal.aborted },
+    );
     throw new ApiError({
       type: 'https://bharatpath.example/problems/network_error',
       title: controller.signal.aborted
@@ -176,11 +196,11 @@ export async function apiRequest<T>(
   // 2. Reactive 401 handling: If server returns 401 Unauthorized (e.g. invalid/expired token),
   // silently refresh via Cognito refresh token and retry the request once.
   if (response.status === 401 && !options._isRetry && !options.skipAuthRefresh && tokenRefreshHandler) {
-    console.log(`[API Client] Received 401 on ${cleanEndpoint}. Refreshing session token and retrying once...`);
+    logger.warn('API', `401 Unauthorized on ${method} ${cleanEndpoint} [${requestId}] — attempting token refresh & retry`);
     try {
       const renewedToken = await tokenRefreshHandler(true);
       if (renewedToken) {
-        console.log(`[API Client] Successfully renewed token. Retrying ${cleanEndpoint}...`);
+        logger.info('API', `Token refreshed successfully. Retrying ${method} ${cleanEndpoint}`);
         return await apiRequest<T>(endpoint, {
           ...options,
           token: renewedToken,
@@ -188,7 +208,7 @@ export async function apiRequest<T>(
         });
       }
     } catch (refreshErr) {
-      console.warn('[API Client] Reactive 401 refresh failed:', refreshErr);
+      logger.error('API', `Reactive 401 token refresh failed on ${cleanEndpoint}`, refreshErr);
     }
   }
 
@@ -197,8 +217,17 @@ export async function apiRequest<T>(
   const isJson = contentType.includes('application/json') || contentType.includes('application/problem+json');
   let data: any;
   try {
-    data = isJson ? await response.json() : await response.text();
-  } catch {
+    data = response.ok && options.responseType === 'arrayBuffer'
+      ? await response.arrayBuffer()
+      : isJson ? await response.json() : await response.text();
+  } catch (parseErr) {
+    const durationMs = Date.now() - startedAt;
+    logger.error(
+      'API',
+      `<-- UNREADABLE RESPONSE ${response.status} ${method} ${cleanEndpoint} [${requestId}] (${durationMs}ms)`,
+      parseErr,
+      { contentType },
+    );
     throw new ApiError({
       type: 'https://bharatpath.example/problems/invalid_response',
       title: 'The service returned an unreadable response. Please try again.',
@@ -207,22 +236,45 @@ export async function apiRequest<T>(
     });
   }
 
+  const durationMs = Date.now() - startedAt;
+
   if (!response.ok) {
-    console.warn(
-      `[API Error ${response.status}] ${options.method || 'GET'} ${cleanEndpoint}`,
-      isJson && data ? JSON.stringify(data) : data,
-    );
+    const isExpectedBusinessState =
+      response.status === 402 ||
+      (response.status === 404 && cleanEndpoint.includes('/profile/photo'));
+    if (isExpectedBusinessState) {
+      logger.warn(
+        'API',
+        `<-- HTTP ${response.status} ${method} ${cleanEndpoint} [${requestId}] (${durationMs}ms)`,
+        {
+          status: response.status,
+          contentType,
+          response: sanitizeForLog(data),
+        },
+      );
+    } else {
+      logger.error(
+        'API',
+        `<-- HTTP ${response.status} ${method} ${cleanEndpoint} [${requestId}] (${durationMs}ms)`,
+        undefined,
+        {
+          status: response.status,
+          contentType,
+          response: sanitizeForLog(data),
+        },
+      );
+    }
     if (isJson && data && typeof data === 'object') {
       const detailMsg = Array.isArray(data.detail)
-        ? data.detail.map((d: any) => `${d.loc ? d.loc.filter((p: any) => p !== 'body').join('.') : 'field'}: ${d.msg}`).join(', ')
+        ? validationErrorMessage(data.detail)
         : typeof data.detail === 'string'
-        ? data.detail
+        ? httpErrorMessage(response.status)
         : undefined;
 
       if (data.code || data.title || detailMsg) {
         throw new ApiError({
           type: data.type || 'https://bharatpath.example/problems/http_error',
-          title: data.title || detailMsg || `Server returned status ${response.status}`,
+          title: detailMsg || data.title || httpErrorMessage(response.status),
           status: response.status,
           code: data.code || `http_${response.status}`,
           params: data.params || { detail: data.detail },
@@ -232,11 +284,17 @@ export async function apiRequest<T>(
 
     throw new ApiError({
       type: 'https://bharatpath.example/problems/http_error',
-      title: `Server returned status ${response.status}`,
+      title: httpErrorMessage(response.status),
       status: response.status,
       code: `http_${response.status}`,
     });
   }
+
+  logger.info(
+    'API',
+    `<-- HTTP ${response.status} ${method} ${cleanEndpoint} [${requestId}] (${durationMs}ms)`,
+    sanitizeForLog(data),
+  );
 
   return data as T;
 }

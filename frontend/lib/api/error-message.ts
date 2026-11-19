@@ -23,6 +23,8 @@ const GENERIC_MESSAGE =
 
 /** Known backend `code`s that benefit from specific copy. */
 const CODE_MESSAGES: Record<string, string> = {
+  education_years_invalid: "Your graduation year must be within seven years of your starting year.",
+  employment_dates_invalid: "The ending month must be after the starting month.",
   education_taxonomy_invalid: "Please check your qualification, course and specialization. Enter a short answer wherever you chose Others.",
   taxonomy_invalid: "Please check your industry, department, role category and job role. Enter a short answer wherever you chose Others.",
   taxonomy_duplicate: "That option already exists under this parent. Choose the existing option or use another name.",
@@ -202,16 +204,18 @@ export function getApiValidationMessages(error: unknown): string[] {
   const data = isFetchBaseQueryError(error) ? error.data : undefined;
   const detail = (data as { detail?: unknown } | undefined)?.detail;
   if (!Array.isArray(detail)) return [];
+  if (detail.some((item) => typeof item === 'object' && item !== null && item.type === 'extra_forbidden')) {
+    return ['We couldn’t save these details because the service needs an update. Your entries are still here. Please try again later.'];
+  }
   return detail.flatMap((item) => {
-    if (typeof item !== "object" || item === null) return [];
-    const { loc, msg } = item as { loc?: unknown[]; msg?: unknown };
-    if (typeof msg !== "string") return [];
-    const field = Array.isArray(loc)
-      ? loc.filter((part) => typeof part === "string" && part !== "body").pop()
-      : undefined;
-    const reason = msg.replace(/^Value error, /, "");
-    const label = typeof field === "string" ? fieldLabel(field) : "";
-    return [label ? `${label}: ${reason}` : reason];
+    if (typeof item !== 'object' || item === null) return [];
+    const { loc, type } = item as { loc?: unknown[]; type?: string };
+    const field = Array.isArray(loc) ? loc.filter((part) => typeof part === 'string' && !['body', 'details'].includes(part)).pop() : undefined;
+    if (typeof field !== 'string') return [];
+    const label = fieldLabel(field).toLowerCase();
+    if (type === 'missing') return [`Please enter your ${label}.`];
+    if (type === 'literal_error' || type === 'enum') return [`Please choose a valid ${label}.`];
+    return [`Please check your ${label} and try again.`];
   });
 }
 

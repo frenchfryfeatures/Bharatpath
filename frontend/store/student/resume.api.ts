@@ -147,6 +147,7 @@ export interface ResumeScoringWindow {
 }
 
 export type ResumeEdit =
+  | { structured_resume: StructuredResume }
   | { sections: Array<Pick<ResumeSection, "kind" | "heading" | "body">> }
   | { structured: ManualResume }
   | { text: string };
@@ -317,6 +318,19 @@ export const studentResumeApi = baseApi.injectEndpoints({
       invalidatesTags: [{ type: "Student", id: "RESUME_VERSIONS" }],
     }),
 
+    renderResumeDocument: builder.mutation<{url:string;filename:string}, string>({
+      queryFn: async (id, _api, _extra, baseQuery) => {
+        const result=await baseQuery({url:`/candidate/resume/versions/${id}/render`,responseHandler:(response:Response)=>response.blob()});
+        if(result.error)return {error:result.error};
+        return {data:{url:URL.createObjectURL(result.data as Blob),filename:"Resume.pdf"}};
+      },
+    }),
+    submitResumeDocument: builder.mutation<ResumeVersionCreated, StructuredResume>({
+      query: document=>({url:"/candidate/resume/document",method:"POST",body:document}),
+      transformResponse:mapCreated,
+      invalidatesTags:[{type:"Student",id:"RESUME_VERSIONS"},{type:"Student",id:"BUILDER_DRAFT"}],
+    }),
+
     getResumeVersions: builder.query<ResumeVersionSummary[], void>({
       query: () => "/candidate/resume/versions",
       transformResponse: (response: VersionSummaryResponse[]) =>
@@ -420,10 +434,13 @@ export const {
   useGetResumeFileStatusQuery,
   useSubmitResumeTextMutation,
   useSubmitManualResumeMutation,
+  useSubmitResumeDocumentMutation,
+  useRenderResumeDocumentMutation,
   useGetResumeVersionsQuery,
   useLazyGetResumeVersionsQuery,
   useGetResumeFilesQuery,
   useGetResumeVersionQuery,
+  useLazyGetResumeVersionQuery,
   useGetResumeScoringWindowQuery,
   useEditResumeVersionMutation,
   useConfirmResumeVersionMutation,

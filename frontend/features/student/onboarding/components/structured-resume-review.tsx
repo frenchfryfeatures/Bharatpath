@@ -1,18 +1,18 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
-import { Award, BriefcaseBusiness, Check, ContactRound, FolderKanban, GraduationCap, Heart, Languages, List, PencilLine, Plus, Trash2, Trophy, UserRound, Wrench, X, type LucideIcon } from "lucide-react";
+import { Eye, Download, Loader2, Award, BriefcaseBusiness, Check, ContactRound, FolderKanban, GraduationCap, Heart, Languages, List, PencilLine, Plus, Trash2, Trophy, UserRound, Wrench, X, type LucideIcon } from "lucide-react";
 import { StructuredResumeSectionView, resumeLabel, type StructuredResume } from "@/components/resume/structured-resume";
 import { languageProficiencyOptions } from "@/components/resume/language-proficiency";
 import { PartialDateSelect } from "@/components/resume/partial-date-select";
-import { structuredResumeToText } from "@/components/resume/structured-resume-text";
+import contract from "@/lib/resume/editor-contract.json";
 import { AppSelect } from "@/components/ui/app-select";
 import { getApiErrorCode, getApiErrorMessage, getApiErrorParams } from "@/lib/api/error-message";
 import { useScrollLock } from "@/hooks/use-scroll-lock";
 import { PhoneNumberInput } from "@/components/ui/phone-number-input";
-import { useConfirmResumeVersionMutation, useEditResumeVersionMutation, useSubmitResumeTextMutation, type ResumeScoringWindow, type ResumeVersionDetail } from "@/store/student";
+import { useConfirmResumeVersionMutation, useEditResumeVersionMutation, useSubmitResumeDocumentMutation, useRenderResumeDocumentMutation, useLazyGetResumeVersionQuery, type ResumeScoringWindow, type ResumeVersionDetail } from "@/store/student";
+import {ResumeBuilderStep} from "./resume-builder-step";
 import { Card, DoneDot, ErrorNote, fieldBorder, fieldClass, PillButton } from "./ui";
 import { validateReviewedResume, type ReviewIssue, type ReviewPath } from "./resume-review-validation";
 
@@ -31,15 +31,7 @@ const sections: Array<{ key: SectionKey; label: string; icon: LucideIcon }> = [
   { key: "interests", label: "Interests", icon: Heart },
   { key: "other_sections", label: "Other sections", icon: List },
 ];
-const blankItems: Record<string, unknown> = {
-  others: { label: "", url: "" },
-  experience: { job_title: "", company: "", location: "", employment_type: "", start_date: "", end_date: "", is_current: false, description: "", highlights: [], skills_used: [] },
-  education: { qualification: "", field_of_study: "", institution: "", location: "", start_date: "", end_date: "", grade: "", description: "" },
-  projects: { name: "", role: "", description: "", technologies: [], url: "", start_date: "", end_date: "" },
-  certifications: { name: "", issuer: "", issue_date: "", expiry_date: "", credential_id: "", url: "" },
-  languages: { name: "", proficiency: "" },
-  other_sections: { heading: "", items: [] },
-};
+const blankItems: Record<string, unknown> = contract.entries;
 const multiline = new Set(["summary", "description"]);
 const longListItem = new Set(["highlight", "achievement", "item"]);
 const chipLists = new Set(["skills", "skills_used", "technologies", "interests"]);
@@ -231,7 +223,7 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
   title: string; subtitle: string; confirmLabel: string; startOverLabel: string; restoreFromHistory?: boolean;
   scoringWindow?: ResumeScoringWindow; scoringWindowKnown: boolean; scoringWindowError: boolean; onRefreshScoringWindow: () => void;
 }) {
-  const router = useRouter();
+  const [builderSection,setBuilderSection]=useState<string|null>(null);
   const [draft, setDraft] = useState<StructuredResume>(() => structuredClone(version.structuredResume!));
   const [editing, setEditing] = useState<SectionKey | null>(null);
   const [drawerDraft, setDrawerDraft] = useState<StructuredResume | null>(null);
@@ -241,8 +233,21 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
   const [error, setError] = useState<string | null>(null);
   const [cooldownNextScoringAt, setCooldownNextScoringAt] = useState<string | null>(null);
   const [savedWithoutScoring, setSavedWithoutScoring] = useState(false);
+  const [loadEditedVersion]=useLazyGetResumeVersionQuery();
+  const [renderDocument, renderState] = useRenderResumeDocumentMutation();
+  const previewCloseRef = useRef<HTMLButtonElement>(null);
+  const previewTriggerRef = useRef<HTMLElement|null>(null);
+  const [previewUrl,setPreviewUrl] = useState<string|null>(null);
+  useEffect(()=>()=>{if(previewUrl)URL.revokeObjectURL(previewUrl);},[previewUrl]);
+  useEffect(()=>{
+    if(!previewUrl)return;
+    previewCloseRef.current?.focus();
+    const close=(event:KeyboardEvent)=>{if(event.key==="Escape")setPreviewUrl(null);};
+    document.addEventListener("keydown",close);
+    return ()=>{document.removeEventListener("keydown",close);previewTriggerRef.current?.focus();};
+  },[previewUrl]);
   const [editVersion, editState] = useEditResumeVersionMutation();
-  const [submitResumeText, submitTextState] = useSubmitResumeTextMutation();
+  const [submitResumeDocument, submitTextState] = useSubmitResumeDocumentMutation();
   const [confirmVersion, confirmState] = useConfirmResumeVersionMutation();
   const drawerRef = useRef<HTMLElement>(null);
   const errorRef = useRef<HTMLDivElement>(null);
@@ -265,11 +270,12 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
   const drawerIssues = showValidation && drawerDraft && editing
     ? validateReviewedResume(drawerDraft).filter((issue) => sectionForPath(issue.path) === editing)
     : [];
-  useScrollLock(editing !== null);
+  useScrollLock(editing !== null || previewUrl !== null || builderSection !== null);
 
   useEffect(() => {
     if (editing === null) return;
     const panel = drawerRef.current;
+    const previousTrigger=drawerTriggerRef.current;
     const firstField = panel?.querySelector<HTMLElement>("input, textarea");
     (firstField ?? panel)?.focus();
     const onKey = (event: KeyboardEvent) => {
@@ -287,7 +293,7 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
     document.addEventListener("keydown", onKey);
     return () => {
       document.removeEventListener("keydown", onKey);
-      drawerTriggerRef.current?.focus();
+      previousTrigger?.focus();
     };
   }, [editing]);
 
@@ -299,20 +305,10 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
     if (error && !editing) errorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [error, editing]);
 
-  const openDrawer = (section: SectionKey, validate = false) => {
-    if (isBuilderResume) return;
-    drawerTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setDrawerDraft(structuredClone(draft));
-    setShowValidation(validate);
-    setEditing(section);
+  const openDrawer = (section: SectionKey) => {
+    setBuilderSection(builderSectionByReviewSection[section]);
   };
-  const editSection = (section: SectionKey) => {
-    if (isBuilderResume) {
-      router.push(`/student/profile/resume/edit?from=resume-details&section=${encodeURIComponent(builderSectionByReviewSection[section])}`);
-      return;
-    }
-    openDrawer(section);
-  };
+  const editSection = (section: SectionKey) => openDrawer(section);
   const closeDrawer = () => { setEditing(null); setDrawerDraft(null); setShowValidation(false); };
   const changeDrawer = (path: Path, value: unknown) => setDrawerDraft((current) => current ? setPath(current, path, value) : current);
   const applyDrawer = () => {
@@ -337,26 +333,22 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
     const firstIssue = draftIssues[0];
     if (firstIssue) {
       setError("Complete or remove the highlighted entries before saving.");
-      openDrawer(sectionForPath(firstIssue.path), true);
+      openDrawer(sectionForPath(firstIssue.path));
       return null;
     }
     try {
       let target = createdId ?? version.resumeVersionId;
       let savedNewVersion = false;
       if (restoreFromHistory && !createdId) {
-        const text = structuredResumeToText(draft);
-        if (text.length < 50) { setError("Add at least 50 characters of resume details before saving."); return null; }
         const created = version.source === "BUILDER"
-          ? await submitResumeText(text).unwrap()
-          : await editVersion({ resumeVersionId: version.resumeVersionId, edit: { text }, __suppressSuccessFeedback: true }).unwrap();
+          ? await submitResumeDocument(draft).unwrap()
+          : await editVersion({ resumeVersionId: version.resumeVersionId, edit: { structured_resume: draft }, __suppressSuccessFeedback: true }).unwrap();
         target = created.resumeVersionId;
         setCreatedId(target);
         setDirty(false);
         savedNewVersion = true;
       } else if (dirty) {
-        const text = structuredResumeToText(draft);
-        if (text.length < 50) { setError("Add at least 50 characters of resume details before saving."); return null; }
-        const created = await editVersion({ resumeVersionId: target, edit: { text }, __suppressSuccessFeedback: true }).unwrap();
+        const created = await editVersion({ resumeVersionId: target, edit: { structured_resume: draft }, __suppressSuccessFeedback: true }).unwrap();
         target = created.resumeVersionId;
         setCreatedId(target);
         setDirty(false);
@@ -395,15 +387,39 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
       }
     }
   };
+  const openDocument = async (download: boolean) => {
+    try {
+      const result=await renderDocument(createdId ?? version.resumeVersionId).unwrap();
+      if(download){
+        const link=document.createElement("a");link.href=result.url;link.download=result.filename;link.click();
+        window.setTimeout(()=>URL.revokeObjectURL(result.url),60_000);
+      }else {previewTriggerRef.current=document.activeElement instanceof HTMLElement?document.activeElement:null;setPreviewUrl(result.url);}
+    }catch(failure){setError(getApiErrorMessage(failure,"Your resume could not be opened. Please try again."));}
+  };
   return (
     <div className="flex flex-col gap-5">
       <header className="flex flex-col gap-1">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-[24px] font-bold leading-8 tracking-[-0.02em] text-[#0A1931] lg:text-[22px] lg:leading-7">{title}</h1>
+          <div className="ml-auto flex shrink-0 gap-2">
+            {[{download:false,label:"Preview resume",Icon:Eye},{download:true,label:"Download resume",Icon:Download}].map(({download,label,Icon})=><button key={label} type="button" aria-label={label} title={dirty?"Save your changes before previewing or downloading":label} disabled={dirty||renderState.isLoading} onClick={()=>void openDocument(download)} className="grid h-10 w-10 cursor-pointer place-items-center rounded-full border border-[#E7E0D4] text-[#5F4DB2] hover:bg-[#F1EAF7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2] disabled:cursor-not-allowed disabled:opacity-50">{renderState.isLoading?<Loader2 size={18} className="animate-spin"/>:<Icon size={18} aria-hidden="true"/>}</button>)}
+          </div>
           {dirty && <span className="rounded-full bg-[#F7EFD6] px-3 py-1 text-[11px] font-bold text-[#85650F]">Unsaved changes</span>}
         </div>
         <p className="text-[14px] leading-5 text-[#3A4761] lg:text-[13px]">{subtitle}</p>
       </header>
+      {builderSection!==null&&typeof document!=="undefined"&&createPortal(
+        <div role="dialog" aria-modal="true" aria-label="Edit resume in builder" className="fixed inset-0 z-[100] flex min-h-0 flex-col bg-[#FFFCF7] p-3 sm:p-5">
+          <ResumeBuilderStep key={createdId??version.resumeVersionId} initialContent={draft} focusSection={builderSection} profileMode profileSubmissionLabel="Save resume changes" onBack={()=>setBuilderSection(null)} onSubmitted={async result=>{
+            const edited=await loadEditedVersion(result.resume_version_id).unwrap();
+            if(!edited.structuredResume)throw new Error("The saved resume could not be loaded. Please retry.");
+            setDraft(edited.structuredResume);setCreatedId(result.resume_version_id);setDirty(false);setSaved(false);setBuilderSection(null);
+          }}/>
+        </div>,document.body)}
+      {previewUrl && <div role="dialog" aria-modal="true" aria-label="Resume preview" className="fixed inset-0 z-[100] flex flex-col bg-[#FFFCF7] p-4 sm:p-6">
+        <div className="mb-3 flex items-center justify-between"><h2 className="text-xl font-semibold text-[#0A1931]">Resume preview</h2><button ref={previewCloseRef} type="button" aria-label="Close resume preview" onClick={()=>setPreviewUrl(null)} className="grid h-11 w-11 place-items-center rounded-full border border-[#E7E0D4]"><X size={22}/></button></div>
+        <iframe title="Resume preview" src={previewUrl} className="min-h-0 flex-1 rounded-xl border border-[#E7E0D4]"/>
+      </div>}
       {error && <div ref={errorRef}><ErrorNote>{error}</ErrorNote></div>}
       <div className="grid gap-3 xl:grid-cols-2">
         {sections.map(({ key, label, icon: Icon }) => {

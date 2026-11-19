@@ -104,7 +104,7 @@ export function HomeScreen({
   // No default score. It comes from `GET /candidate/score/me`, and the card
   // shows a dash until there is a real one - see the note above.
   score,
-  maxScore = 990,
+  maxScore = 1000,
   bandName,
   bandNumber = 1,
   bandTotal = 4,
