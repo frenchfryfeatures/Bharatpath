@@ -199,8 +199,9 @@ it. Deploying code is the same `deploy/ship.sh`, given the UAT address.
 from the `uat` workspace, with the model and speech keys
 (`OPENAI_API_KEY`, `SARVAM_API_KEY`) and the provider switches copied from
 production's, and its **own** `PAYMENTS_WEBHOOK_SECRET`. Both environments
-spend on the same OpenAI and Sarvam accounts. UAT starts with no staff and
-no users: `create_platform_staff.py` (§3.8) against UAT's host.
+spend on the same OpenAI and Sarvam accounts. UAT has its own Cognito pools:
+production's users cannot sign in there. Its one staff account mirrors production's:
+`bharatpath63@gmail.com`, PLATFORM_ADMIN (2026-11-19, §3.8).
 
 ---
 

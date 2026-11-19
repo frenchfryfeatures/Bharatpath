@@ -42,7 +42,9 @@ full mirror of it. Branch `infra/uat-environment`. `aws-deployment.md` §0.5.
   catalogue, 9 config keys and 156 filter options. Health 200, 230 paths as
   production, `/auth/me` 401, worker ready, beat sending.
 - The home IP had changed again; the SSH rule was updated and applied in both workspaces.
-- **Still open:** no staff account on UAT yet.
+- **Staff:** `bharatpath63@gmail.com` as PLATFORM_ADMIN, as on production --
+  `create_platform_staff.py` as the migrator, then `admin-create-user` in
+  UAT's business pool (Cognito emailed a temporary password).
 
 ---
 
