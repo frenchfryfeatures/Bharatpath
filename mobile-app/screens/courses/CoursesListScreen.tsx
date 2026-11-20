@@ -84,7 +84,7 @@ export function CoursesListScreen({ onBack }: Props) {
         <View style={styles.headerTextGroup}>
           <Text style={styles.headerTitle}>Skill Courses</Text>
           <Text style={styles.headerSubtitle}>
-            Boost your readiness score with certified courses
+            Boost your Bharatpath Score with certified courses
           </Text>
         </View>
       </View>
@@ -97,12 +97,12 @@ export function CoursesListScreen({ onBack }: Props) {
         <View style={styles.promoBanner}>
           <View style={styles.promoBadge}>
             <Sparkle size={13} color="#92400E" weight="fill" />
-            <Text style={styles.promoBadgeText}>SCORE ADVANTAGE</Text>
+            <Text style={styles.promoBadgeText}>Bharatpath Score advantage</Text>
           </View>
           <Text style={styles.promoTitle}>Earn up to +30 points</Text>
           <Text style={styles.promoBody}>
             Complete certified video courses to strengthen your CV, unlock top
-            matching jobs, and increase your score.
+            matching jobs, and increase your Bharatpath Score.
           </Text>
         </View>
 
@@ -287,7 +287,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 18,
     color: Colors.navy,
   },
@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
     color: '#92400E',
   },
   promoTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 17,
     color: Colors.navy,
     marginBottom: 4,
@@ -366,7 +366,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   subscriptionTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 16,
     color: Colors.navy,
     textAlign: 'center',
@@ -426,7 +426,7 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
   },
   emptyTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 16,
     color: Colors.navy,
     marginTop: 6,
@@ -500,12 +500,12 @@ const styles = StyleSheet.create({
     borderRadius: Radii.pill,
   },
   pricePillText: {
-    fontFamily: 'SpaceMono-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 12,
     color: '#1D4ED8',
   },
   cardTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 17,
     color: Colors.navy,
     lineHeight: 22,

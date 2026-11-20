@@ -280,7 +280,7 @@ export function CollegePage() {
               <span className="inline-flex items-center gap-2 rounded-full bg-[#F3F0FB] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-[#5F4DB2]">
                 <GraduationCap size={14} aria-hidden="true" /> Campus link
               </span>
-              <h1 className="mt-4 text-[30px] font-extrabold leading-[1.08] tracking-[-0.035em] text-[#0A1931] sm:text-[38px]">
+              <h1 className="mt-4 text-[30px] font-semibold leading-[1.08] tracking-[-0.035em] text-[#0A1931] sm:text-[38px]">
                 Connect with your college
                 <br />
                 <span className="text-[#5F4DB2]">and choose what it sees.</span>
@@ -316,7 +316,7 @@ export function CollegePage() {
         {/* Disconnect prompt */}
         {disconnecting ? (
           <Dialog labelledBy="college-disconnect-title" role="alertdialog" onClose={() => (busy ? undefined : setDisconnecting(null))}>
-            <h2 id="college-disconnect-title" className="text-[18px] font-extrabold tracking-[-0.02em] text-[#0A1931]">
+            <h2 id="college-disconnect-title" className="text-[18px] font-semibold tracking-[-0.02em] text-[#0A1931]">
               Disconnect from {disconnecting.name}?
             </h2>
             <p className="mt-3 text-sm leading-6 text-[#3A4761]">
@@ -355,7 +355,7 @@ export function CollegePage() {
         {/* Consent prompt */}
         {pending ? (
           <Dialog labelledBy="college-consent-title" onClose={() => (busy ? undefined : setPending(null))}>
-            <h2 id="college-consent-title" className="text-[18px] font-extrabold tracking-[-0.02em] text-[#0A1931]">
+            <h2 id="college-consent-title" className="text-[18px] font-semibold tracking-[-0.02em] text-[#0A1931]">
               {title}
             </h2>
             <p className="mt-1 text-[12px] font-semibold uppercase tracking-[0.1em] text-[#8A8472]">
@@ -383,7 +383,7 @@ export function CollegePage() {
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
           {/* Linked colleges */}
           <section className="flex min-w-0 flex-col gap-4" aria-labelledby="linked-colleges">
-            <h2 id="linked-colleges" className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.16em] text-[#68758A]">
+            <h2 id="linked-colleges" className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#68758A]">
               <Building2 size={15} aria-hidden="true" /> Linked colleges
             </h2>
 
@@ -418,7 +418,7 @@ export function CollegePage() {
                         </span>
                       )}
                       <div className="min-w-0 flex-1">
-                        <h3 className="truncate text-[20px] font-extrabold tracking-[-0.025em] text-[#0A1931]">
+                        <h3 className="truncate text-[20px] font-semibold tracking-[-0.025em] text-[#0A1931]">
                           {college.name}
                         </h3>
                         <p className="text-[12px] text-[#68758A]">Linked since {day(college.since)}</p>
@@ -480,7 +480,7 @@ export function CollegePage() {
           {/* Link + invitations */}
           <div className="flex min-w-0 flex-col gap-6">
             <section aria-labelledby="link-code" className="rounded-[28px] border border-[#E7E0D4] bg-white p-5 sm:p-6">
-              <h2 id="link-code" className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.16em] text-[#68758A]">
+              <h2 id="link-code" className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#68758A]">
                 <Link2 size={15} aria-hidden="true" /> Link with a code
               </h2>
               <p className="mt-2 text-[13px] leading-5 text-[#68758A]">
@@ -500,7 +500,7 @@ export function CollegePage() {
             </section>
 
             <section aria-labelledby="college-invitations" className="rounded-[28px] border border-[#E7E0D4] bg-white p-5 sm:p-6">
-              <h2 id="college-invitations" className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.16em] text-[#68758A]">
+              <h2 id="college-invitations" className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#68758A]">
                 <Users size={15} aria-hidden="true" /> Invitations
               </h2>
               {invitations.isLoading ? (

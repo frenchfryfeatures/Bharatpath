@@ -27,15 +27,23 @@ import { Colors, Spacing } from '@/theme/tokens';
 
 export interface ApplicationSentScreenProps {
   companyName?: string;
+  jobTitle?: string;
+  sentAt?: string;
+  onViewApplication?: () => void;
   onSeeBoard?: () => void;
   onKeepLooking?: () => void;
 }
 
 export function ApplicationSentScreen({
-  companyName = 'Sterling Diagnostics',
+  companyName = 'the employer',
+  jobTitle,
+  sentAt,
+  onViewApplication,
   onSeeBoard,
   onKeepLooking,
 }: ApplicationSentScreenProps) {
+  const sentDate = sentAt ? new Date(sentAt) : null;
+  const sentLabel = sentDate && !Number.isNaN(sentDate.getTime()) ? sentDate.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : 'Just now';
   return (
     <View style={styles.root}>
       <StatusBar style="dark" animated />
@@ -55,9 +63,9 @@ export function ApplicationSentScreen({
             <View style={styles.titleBlock}>
               <Text style={styles.mainTitle}>Application sent</Text>
               <Text style={styles.mainSubtitle}>
-                {companyName} can now see your masked profile: skills, score band
-                and area.
+                Your application to {companyName} has been sent. Track updates and next steps in your applications.
               </Text>
+              {!!jobTitle && <View style={styles.roleCard}><Text style={styles.roleLabel}>APPLIED FOR</Text><Text style={styles.roleTitle}>{jobTitle}</Text><Text style={styles.mainSubtitle}>{companyName}</Text></View>}
             </View>
 
             {/* Summary Information Card */}
@@ -65,23 +73,23 @@ export function ApplicationSentScreen({
               <View style={styles.infoRow}>
                 <Clock size={18} color="#5E4DB2" weight="duotone" />
                 <Text style={styles.infoLabel}>Sent</Text>
-                <Text style={styles.infoValue}>Today, 4:12 pm</Text>
+                <Text style={styles.infoValue}>{sentLabel}</Text>
               </View>
 
               <View style={styles.divider} />
 
               <View style={styles.infoRow}>
                 <HourglassMedium size={18} color="#0A1931" weight="duotone" />
-                <Text style={styles.infoLabel}>Closes if silent</Text>
-                <Text style={styles.infoValue}>In 30 days</Text>
+                <Text style={styles.infoLabel}>Next step</Text>
+                <Text style={styles.infoValue}>Employer review</Text>
               </View>
 
               <View style={styles.divider} />
 
               <View style={styles.infoRow}>
                 <ArrowUUpLeft size={18} color="#0A1931" weight="duotone" />
-                <Text style={styles.infoLabel}>You can withdraw</Text>
-                <Text style={styles.infoValue}>Any time</Text>
+                <Text style={styles.infoLabel}>Manage application</Text>
+                <Text style={styles.infoValue}>Application board</Text>
               </View>
             </View>
           </View>
@@ -93,10 +101,10 @@ export function ApplicationSentScreen({
                 styles.primaryBtn,
                 pressed && styles.buttonPressed,
               ]}
-              onPress={onSeeBoard}
+              onPress={onViewApplication || onSeeBoard}
               accessibilityRole="button"
             >
-              <Text style={styles.primaryBtnText}>See my board</Text>
+              <Text style={styles.primaryBtnText}>{onViewApplication ? 'View application' : 'View my applications'}</Text>
             </Pressable>
 
             <Pressable
@@ -133,7 +141,8 @@ const styles = StyleSheet.create({
   },
   centerSection: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: 32,
     gap: 18,
   },
   planeBadge: {
@@ -148,10 +157,10 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   mainTitle: {
-    fontFamily: 'GeneralSans-Bold',
-    fontSize: 28,
+    fontFamily: 'GeneralSans-Semibold',
+    fontSize: 26,
     lineHeight: 32,
-    letterSpacing: -0.8,
+    letterSpacing: -0.5,
     color: Colors.navy,
   },
   mainSubtitle: {
@@ -183,6 +192,8 @@ const styles = StyleSheet.create({
     color: '#3A4761',
   },
   infoValue: {
+    flex: 1,
+    textAlign: 'right',
     fontFamily: 'GeneralSans-Semibold',
     fontSize: 14,
     lineHeight: 20,
@@ -192,6 +203,9 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#F0EBDF',
   },
+  roleCard: { marginTop: 16, padding: 18, borderWidth: 1, borderColor: '#E7E0D4', borderRadius: 16, backgroundColor: '#FFFFFF', gap: 6 },
+  roleLabel: { fontFamily: 'GeneralSans-Medium', fontSize: 11, lineHeight: 16, letterSpacing: 0.8, color: '#5F6B80' },
+  roleTitle: { fontFamily: 'GeneralSans-Semibold', fontSize: 18, lineHeight: 24, color: '#0A1931' },
   bottomActions: {
     gap: 8,
     marginTop: 24,

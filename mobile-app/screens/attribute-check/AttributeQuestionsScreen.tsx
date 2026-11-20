@@ -221,7 +221,7 @@ export function AttributeQuestionsScreen({
           {error && <View style={styles.errorCard}><Text style={styles.errorText}>{error}</Text></View>}
           <View style={styles.reassurance}>
             <Info size={18} color="#3A4761" />
-            <Text style={styles.reassuranceText}>These answers never change your resume score.</Text>
+            <Text style={styles.reassuranceText}>These answers never change your Bharatpath Score.</Text>
           </View>
         </ScrollView>
 
@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
   counter: { minWidth: 28, fontFamily: 'GeneralSans-Bold', fontSize: 12, color: '#3A4761' },
   scrollContent: { padding: 20, paddingBottom: 30, gap: 14 },
   eyebrow: { fontFamily: 'GeneralSans-Bold', fontSize: 11, letterSpacing: 1.3, color: '#A87C17' },
-  title: { fontFamily: 'GeneralSans-Bold', fontSize: 28, color: '#0A1931' },
+  title: { fontFamily: 'GeneralSans-Semibold', fontSize: 28, color: '#0A1931' },
   subtitle: { fontFamily: 'GeneralSans-Regular', fontSize: 14, lineHeight: 20, color: '#5F6B80', marginBottom: 8 },
   questionCard: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E7E0D4', borderRadius: 20, padding: 17, gap: 10 },
   prompt: { fontFamily: 'GeneralSans-Semibold', fontSize: 17, lineHeight: 23, color: '#0A1931' },

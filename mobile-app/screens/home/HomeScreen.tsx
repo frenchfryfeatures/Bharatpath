@@ -6,7 +6,6 @@ import {
   Pressable,
   ScrollView,
   Image,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -17,10 +16,6 @@ import {
   TrendUp,
   TrendDown,
   RocketLaunch,
-  Briefcase,
-  CaretRight,
-  CheckCircle,
-  GraduationCap,
   Sparkle,
 } from 'phosphor-react-native';
 import { Colors, Radii, Spacing } from '@/theme/tokens';
@@ -35,19 +30,8 @@ import {
 } from '@/services/profile/display';
 import { resolveCandidateFullName } from '@/services/profile/name';
 import { useAuthContext } from '@/context/AuthContext';
-import { getQuestionnaire } from '@/services/api/questionnaire';
-import { searchJobs } from '@/services/api/jobs';
+import { RecommendedJobsSection } from '@/components/jobs/RecommendedJobsSection';
 import { getInbox } from '@/services/api/notifications';
-import { BoardJobSummary } from '@/types/job';
-import {
-  formatSalaryRangePaise,
-  getInitials,
-  pickFromString,
-} from '@/utils/helpers';
-
-// Monogram background palette (deterministic from employer name).
-const MONOGRAM_BG = ['#F1EAF7', '#F7EFD6', '#E6F1EA', '#E7E0D4', '#F8E6E0'];
-const MONOGRAM_FG = ['#4A3E8F', '#7A5C0E', '#1F6B45', '#5F6B80', '#993A22'];
 
 /**
  * PARTLY MOCK. `score` and `bandName` are real when the caller has read
@@ -137,12 +121,7 @@ export function HomeScreen({
   const [profileName, setProfileName] = useState<string | null>(
     candidateFullName || candidateName || emailName || null,
   );
-  const [questionnaireSubmitted, setQuestionnaireSubmitted] = useState(false);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
-  // 2–3 jobs the candidate is eligible for, from
-  // `GET /candidate/jobs?eligible_only=true&limit=3`. Shown on the home
-  // dashboard as "Jobs you qualify for". Never tagged with a score delta.
-  const [eligibleJobs, setEligibleJobs] = useState<BoardJobSummary[]>([]);
 
   useEffect(() => {
     const seed = candidateFullName || candidateName || emailName;
@@ -189,28 +168,6 @@ export function HomeScreen({
       };
     }, []),
   );
-
-  useEffect(() => {
-    getQuestionnaire()
-      .then((questionnaire) =>
-        setQuestionnaireSubmitted(questionnaire.submitted),
-      )
-      .catch(() => undefined);
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    // Only ELIGIBLE jobs are shown here - the home dashboard never surfaces a
-    // "short of the bar" card (R11: the score is never explained).
-    searchJobs({ eligible_only: true, limit: 3 })
-      .then((page) => {
-        if (!cancelled) setEligibleJobs(page.items);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const firstName = greetingFirstName(profileName) || 'Priya';
   const initials = candidateInitials || initialsFromName(profileName) || 'PD';
@@ -314,7 +271,7 @@ export function HomeScreen({
           >
             {/* Score Top Row */}
             <View style={styles.scoreTopRow}>
-              <Text style={styles.scoreEyebrow} numberOfLines={1}>RESUME SCORE</Text>
+              <Text style={styles.scoreEyebrow} numberOfLines={1}>Bharatpath Score</Text>
               <View style={styles.bandBadge}>
                 <Text style={styles.bandBadgeText} numberOfLines={1}>
                   {bandName || 'Emerging'}
@@ -518,7 +475,7 @@ export function HomeScreen({
                 </View>
                 <Text style={styles.coursePromoTitle}>Certified Skill Courses</Text>
                 <Text style={styles.coursePromoBody}>
-                  Complete video modules to boost your score & stand out to employers
+                  Complete video modules to boost your Bharatpath Score & stand out to employers
                 </Text>
               </View>
               <View style={styles.coursePromoCaret}>
@@ -528,91 +485,8 @@ export function HomeScreen({
             */}
           </View>
 
-          {/* "JOBS YOU QUALIFY FOR" Section */}
-          <View style={styles.sectionContainer}>
-            <View style={styles.jobsHeaderRow}>
-              <View style={styles.sectionEyebrowRow}>
-                <Briefcase size={12} color="#A87C17" weight="bold" />
-                <Text style={styles.sectionEyebrowText}>
-                  JOBS YOU QUALIFY FOR
-                </Text>
-              </View>
-
-              <Pressable style={styles.allJobsButton} onPress={onAllJobsPress}>
-                <Text style={styles.allJobsText}>See all</Text>
-                <CaretRight size={12} color={Colors.navy} weight="bold" />
-              </Pressable>
-            </View>
-
-            {eligibleJobs.length === 0 ? (
-              <View style={styles.jobsEmptyState}>
-                <Text style={styles.jobsEmptyTitle}>
-                  No eligible jobs right now
-                </Text>
-                <Text style={styles.jobsEmptyBody}>
-                  Keep your profile and resume up to date - new roles that fit
-                  you will show up here.
-                </Text>
-              </View>
-            ) : (
-              eligibleJobs.map((job) => {
-                const employer = job.employer_name || 'Employer';
-                const monogram = getInitials(employer);
-                const bg = pickFromString(employer, MONOGRAM_BG);
-                const fg = pickFromString(employer, MONOGRAM_FG);
-                return (
-                  <Pressable
-                    key={job.id}
-                    style={({ pressed }) => [
-                      styles.jobCard,
-                      pressed && styles.cardPressed,
-                    ]}
-                    onPress={() => onJobPress?.(job.id)}
-                  >
-                    <View
-                      style={[styles.companyMonogram, { backgroundColor: bg }]}
-                    >
-                      {job.employer_logo_url ? (
-                        <Image
-                          source={{ uri: job.employer_logo_url }}
-                          style={styles.companyLogoImage}
-                          resizeMode="cover"
-                        />
-                      ) : (
-                        <Text style={[styles.monogramText, { color: fg }]}>
-                          {monogram}
-                        </Text>
-                      )}
-                    </View>
-
-                    <View style={styles.jobInfoCol}>
-                      <Text style={styles.jobTitleText} numberOfLines={1}>
-                        {job.title}
-                      </Text>
-                      <Text style={styles.jobCompanyText} numberOfLines={1}>
-                        {employer}
-                        {job.location ? ` · ${job.location}` : ''}
-                      </Text>
-                      <Text style={styles.jobSalaryText}>
-                        {formatSalaryRangePaise(
-                          job.salary_min_minor,
-                          job.salary_max_minor,
-                        )}
-                        /mo
-                      </Text>
-                    </View>
-
-                    {/* "Eligible" tag - never "MATCH" with a number, never a
-                       "short by N" badge (R11). */}
-                    <View style={styles.eligibleBadge}>
-                      <CheckCircle size={12} color="#1F6B45" weight="fill" />
-                      <Text style={styles.eligibleBadgeText}>Eligible</Text>
-                    </View>
-                  </Pressable>
-                );
-              })
-            )}
-          </View>
+          <RecommendedJobsSection kind="similar-to-applied" onJobPress={onJobPress} onBrowseJobs={onAllJobsPress}/>
+          <RecommendedJobsSection kind="matching-profile" onJobPress={onJobPress} onBrowseJobs={onAllJobsPress}/>
         </ScrollView>
       </SafeAreaView>
 
@@ -657,7 +531,7 @@ const styles = StyleSheet.create({
     color: '#5F6B80',
   },
   greetingText: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 24,
     lineHeight: 28,
     letterSpacing: -0.6,
@@ -741,7 +615,7 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   heroTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 20,
     lineHeight: 23,
     letterSpacing: -0.6,
@@ -1008,7 +882,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   featureTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 16,
     lineHeight: 20,
     letterSpacing: -0.3,
@@ -1084,7 +958,7 @@ const styles = StyleSheet.create({
     color: '#5F6B80',
   },
   jobSalaryText: {
-    fontFamily: 'SpaceMono-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 12,
     lineHeight: 16,
     color: Colors.navy,
@@ -1202,7 +1076,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   coursePromoTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 15,
     lineHeight: 20,
     color: Colors.navy,

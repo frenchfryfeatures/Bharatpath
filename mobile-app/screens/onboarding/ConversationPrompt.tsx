@@ -1,3 +1,4 @@
+import { BrandWordmark } from "@/components/BrandWordmark";
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import * as Speech from 'expo-speech';
@@ -62,7 +63,7 @@ export function ConversationPrompt({
         <Briefcase size={22} color="#FFFFFF" />
       </LinearGradient>
       <View style={styles.headerText}>
-        <Text accessibilityRole="header" style={styles.guideTitle}>BharatPath Guide</Text>
+        <BrandWordmark style={styles.guideTitle} suffix=" Saathi" />
         <Text style={styles.guideSubtitle}>Building your profile, one answer at a time.</Text>
       </View>
       <Pressable

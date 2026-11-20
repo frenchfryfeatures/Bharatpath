@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { AppModal as Modal } from '@/components/layout/AppModal';
 import {
   View,
   Text,
   StyleSheet,
-  Modal,
   TextInput,
   Pressable,
   ScrollView,
@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 17,
     color: '#0A1931',
   },
@@ -407,7 +407,7 @@ const styles = StyleSheet.create({
     borderColor: '#EFEAE0',
   },
   tipTitle: {
-    fontFamily: 'GeneralSans-SemiBold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 12,
     color: '#0A1931',
   },

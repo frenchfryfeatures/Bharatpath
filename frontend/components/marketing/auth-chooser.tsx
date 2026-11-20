@@ -11,7 +11,7 @@ export function AuthChooser({ mode }: { mode: "login" | "signup" }) {
   const signIn = mode === "login";
   return (
     <section className="shell pb-10 pt-14 lg:pt-20">
-      <h1 className="text-[clamp(40px,5.6vw,80px)] font-bold leading-[1] tracking-[-0.045em]">
+      <h1 className="text-[clamp(40px,5.6vw,80px)] font-semibold leading-[1] tracking-[-0.045em]">
         {signIn ? "Welcome back" : "Create your account"}
       </h1>
       <p className="mt-5 max-w-[52ch] text-[17px] text-muted">

@@ -37,7 +37,7 @@ function sectionFor(pathname: string): Section {
     return { title: "Jobs for you", subtitle: "Based on your career profile" };
   }
   if (pathname.startsWith("/student/jobs")) {
-    return { title: "Jobs", subtitle: "Roles matched to your score" };
+    return { title: "Jobs", subtitle: "Roles matched to your Bharatpath Score" };
   }
   if (pathname.startsWith("/student/invites")) {
     return { title: "Invites", subtitle: "Job invitations from employers" };
@@ -46,7 +46,7 @@ function sectionFor(pathname: string): Section {
     return { title: "Board", subtitle: "Where your applications stand" };
   }
   if (pathname.startsWith("/student/score")) {
-    return { title: "Your score", subtitle: "How your resume reads to employers" };
+    return { title: "Your Bharatpath Score", subtitle: "How your resume reads to employers" };
   }
   if (pathname.startsWith("/student/streak")) {
     return { title: "Daily streak", subtitle: "Your consistency and engagement points" };
@@ -104,7 +104,7 @@ export function StudentHeader({
 
       {/* Title */}
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <h1 className="truncate text-[18px] font-bold leading-[23px] tracking-[-0.01em] text-[#0A1931]">
+        <h1 className="truncate text-[18px] font-semibold leading-[23px] tracking-[-0.01em] text-[#0A1931]">
           {title}
         </h1>
         {subtitle ? (

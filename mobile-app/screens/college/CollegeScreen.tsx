@@ -10,6 +10,7 @@
  * - Consent terms dialog before linking, accepting invitations, or sharing by name
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { AppModal as Modal } from '@/components/layout/AppModal';
 import {
   View,
   Text,
@@ -17,7 +18,6 @@ import {
   ScrollView,
   Pressable,
   TextInput,
-  Modal,
   ActivityIndicator,
   Platform,
   Image,
@@ -952,7 +952,7 @@ const styles = StyleSheet.create({
     color: '#5F4DB2',
   },
   heroHeadline: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 24,
     lineHeight: 30,
     letterSpacing: -0.5,
@@ -1015,7 +1015,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   sectionHeaderTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 12,
     lineHeight: 16,
     letterSpacing: 1.2,
@@ -1107,7 +1107,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   invitationTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 14,
     lineHeight: 18,
     color: Colors.navy,
@@ -1175,7 +1175,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   emptyTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 17,
     lineHeight: 22,
     letterSpacing: -0.3,
@@ -1418,7 +1418,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     flex: 1,
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 18,
     lineHeight: 24,
     letterSpacing: -0.3,

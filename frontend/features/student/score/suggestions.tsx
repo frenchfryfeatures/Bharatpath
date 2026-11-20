@@ -12,7 +12,7 @@ export function Suggestions() {
     <StudentPage>
       <StudentTopBar title="Update your resume" />
       <div className="flex flex-col gap-4">
-        <h1 className="text-[26px] font-bold text-[#0A1931]">
+        <h1 className="text-[26px] font-semibold text-[#0A1931]">
           Keep your resume accurate
         </h1>
         <NoteStrip icon={<FileText size={16} />}>

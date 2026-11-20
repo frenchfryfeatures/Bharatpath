@@ -140,7 +140,7 @@ export function CreateAccountScreen({
                   adjustsFontSizeToFit
                   minimumFontScale={0.85}
                 >
-                  Verify to keep this score.
+                  Verify to keep this Bharatpath Score.
                 </Text>
               </View>
             </View>
@@ -310,7 +310,7 @@ const styles = StyleSheet.create({
     flexWrap: 'nowrap',
   },
   bandTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 14,
     lineHeight: 16,
     color: '#FFFFFF',
@@ -339,7 +339,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   title: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 28,
     lineHeight: 32,
     letterSpacing: -0.7,

@@ -39,6 +39,9 @@ export type EligibilityStatus =
  * send the threshold to candidates (R11). `eligibility` is the only signal.
  */
 export interface BoardJobSummary {
+  /** Absent on older APIs; null means no previous application. */
+  application_id?: string | null;
+  application_stage?: import('./application').ApplicationStage | null;
   id: string;
   title: string;
   /** Resolved employer display name. `null` if the employer has no public name. */

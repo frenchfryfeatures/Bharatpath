@@ -43,7 +43,7 @@ function humanise(value: string) {
 
 function Section({ title, detail, headerAction, children, className = "", scrollable = false }: { title: string; detail?: string; headerAction?: React.ReactNode; children: React.ReactNode; className?: string; scrollable?: boolean }) {
   return <section className={`${panel} ${className}`}>
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-2"><h2 className="text-[14px] font-bold text-[#172033]">{title}</h2><div className="flex flex-wrap items-center gap-3">{detail && <span className={muted}>{detail}</span>}{headerAction}</div></div>
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-2"><h2 className="text-[14px] font-semibold text-[#172033]">{title}</h2><div className="flex flex-wrap items-center gap-3">{detail && <span className={muted}>{detail}</span>}{headerAction}</div></div>
     {scrollable ? (
       <div className="max-h-[560px] overflow-y-auto overscroll-contain pr-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#315c9f]" role="region" aria-label={`${title} content`} tabIndex={0}>{children}</div>
     ) : children}
@@ -102,12 +102,12 @@ export default function AdminCandidatePage() {
 
     <header className="flex flex-wrap items-center gap-3">
       <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#eaf0f9] text-[16px] font-bold text-[#315c9f]">{initials}</div>
-      <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h1 className="text-[21px] font-bold tracking-tight">{student.full_name ?? "Student"}</h1><span className="rounded-full bg-[#eef3fb] px-2.5 py-1 text-[10px] font-bold text-[#315c9f]">{humanise(student.status)}</span></div><p className={muted}>Joined {formatDate(student.created_at)} · {student.city ?? "Location not provided"}{student.state_code ? `, ${student.state_code}` : ""}</p></div>
+      <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h1 className="text-[21px] font-semibold tracking-tight">{student.full_name ?? "Student"}</h1><span className="rounded-full bg-[#eef3fb] px-2.5 py-1 text-[10px] font-bold text-[#315c9f]">{humanise(student.status)}</span></div><p className={muted}>Joined {formatDate(student.created_at)} · {student.city ?? "Location not provided"}{student.state_code ? `, ${student.state_code}` : ""}</p></div>
     </header>
 
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {[
-        { label: "Current score", value: student.score?.display_value ?? "-", detail: student.score?.band ?? "Not scored", icon: TrendingUp },
+        { label: "Current Bharatpath Score", value: student.score?.display_value ?? "-", detail: student.score?.band ?? "Not scored", icon: TrendingUp },
         { label: "Practice interviews", value: interviews.data?.length ?? (interviews.isLoading ? "…" : "-"), detail: "Sessions", icon: Mic2 },
         { label: "Courses", value: courses.data?.filter((course) => course.purchased).length ?? (courses.isLoading ? "…" : "-"), detail: "Purchased", icon: BookOpen },
         { label: "Applications", value: applications.data?.analytics.total ?? (applications.isLoading ? "…" : "-"), detail: `${applications.data?.analytics.open ?? 0} open`, icon: BriefcaseBusiness },
@@ -119,13 +119,13 @@ export default function AdminCandidatePage() {
         {onboarding.isLoading ? <SectionSkeleton /> : <Section title="Onboarding details" detail={onboarding.data?.questionnaire.length ? `${onboarding.data.questionnaire.length} answers` : undefined} scrollable>
           {onboarding.error ? <Empty>Onboarding details are unavailable for this account.</Empty> : onboarding.data && <>
             <CandidateOnboardingDetails onboarding={onboarding.data} />
-            <div className="mt-5 border-t border-[#edf0f3] pt-4"><h3 className="mb-3 text-[12px] font-bold">Onboarding answers</h3>{onboarding.data.questionnaire.length ? <dl className="space-y-3">{onboarding.data.questionnaire.map((answer) => <div key={answer.code}><dt className="text-[11px] text-[#7b8494]">{answer.question}</dt><dd className="mt-0.5 text-[12px] font-medium text-[#172033]">{answer.answer}</dd></div>)}</dl> : <Empty>No questionnaire answers submitted.</Empty>}</div>
-            {onboarding.data.college_links.length > 0 && <div className="mt-5 border-t border-[#edf0f3] pt-4"><h3 className="mb-3 text-[12px] font-bold">College links</h3><div className="space-y-2">{onboarding.data.college_links.map((link) => <div key={link.tenant_id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#f8f9fb] px-3 py-2 text-[12px]"><span className="font-semibold">{link.college}</span><span className="text-[#7b8494]">{humanise(link.scope)} · {formatDate(link.granted_at)}</span></div>)}</div></div>}
+            <div className="mt-5 border-t border-[#edf0f3] pt-4"><h3 className="mb-3 text-[12px] font-semibold">Onboarding answers</h3>{onboarding.data.questionnaire.length ? <dl className="space-y-3">{onboarding.data.questionnaire.map((answer) => <div key={answer.code}><dt className="text-[11px] text-[#7b8494]">{answer.question}</dt><dd className="mt-0.5 text-[12px] font-medium text-[#172033]">{answer.answer}</dd></div>)}</dl> : <Empty>No questionnaire answers submitted.</Empty>}</div>
+            {onboarding.data.college_links.length > 0 && <div className="mt-5 border-t border-[#edf0f3] pt-4"><h3 className="mb-3 text-[12px] font-semibold">College links</h3><div className="space-y-2">{onboarding.data.college_links.map((link) => <div key={link.tenant_id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#f8f9fb] px-3 py-2 text-[12px]"><span className="font-semibold">{link.college}</span><span className="text-[#7b8494]">{humanise(link.scope)} · {formatDate(link.granted_at)}</span></div>)}</div></div>}
           </>}
         </Section>}
 
-        {scores.isLoading ? <SectionSkeleton /> : <Section title="Score timeline" detail={scores.data?.points.length ? `${scores.data.points.length} changes` : undefined} className="xl:flex-1">
-          {scores.error ? <Empty>Score timeline is unavailable.</Empty> : scores.data?.points.length ? <ol className="space-y-0">{scores.data.points.map((point, index) => <li key={`${point.computed_at}-${index}`} className="relative border-l-2 border-[#dce5f2] pb-5 pl-5 last:pb-0"><span className="absolute -left-[6px] top-1 h-2.5 w-2.5 rounded-full bg-[#315c9f]" /><div className="flex flex-wrap items-center justify-between gap-2"><span className="text-[13px] font-bold">{point.display_value} <span className="font-medium text-[#687182]">· {humanise(point.band)}</span></span><span className={muted}>{formatDateTime(point.computed_at)}</span></div><p className="mt-1 text-[11px] text-[#7b8494]">{humanise(point.cause)}{point.change === null ? "" : ` · ${point.change > 0 ? "+" : ""}${point.change} points`}</p></li>)}</ol> : <Empty>No score history yet.</Empty>}
+        {scores.isLoading ? <SectionSkeleton /> : <Section title="Bharatpath Score timeline" detail={scores.data?.points.length ? `${scores.data.points.length} changes` : undefined} className="xl:flex-1">
+          {scores.error ? <Empty>Bharatpath Score timeline is unavailable.</Empty> : scores.data?.points.length ? <ol className="space-y-0">{scores.data.points.map((point, index) => <li key={`${point.computed_at}-${index}`} className="relative border-l-2 border-[#dce5f2] pb-5 pl-5 last:pb-0"><span className="absolute -left-[6px] top-1 h-2.5 w-2.5 rounded-full bg-[#315c9f]" /><div className="flex flex-wrap items-center justify-between gap-2"><span className="text-[13px] font-bold">{point.display_value} <span className="font-medium text-[#687182]">· {humanise(point.band)}</span></span><span className={muted}>{formatDateTime(point.computed_at)}</span></div><p className="mt-1 text-[11px] text-[#7b8494]">{humanise(point.cause)}{point.change === null ? "" : ` · ${point.change > 0 ? "+" : ""}${point.change} points`}</p></li>)}</ol> : <Empty>No Bharatpath Score history yet.</Empty>}
         </Section>}
       </div>
 
@@ -141,7 +141,7 @@ export default function AdminCandidatePage() {
                 <ResumeContent version={latestResume} showFileLink={false} />
                 {confirmedResume && confirmedResume.id !== latestResume.id ? (
                   <div className="border-t border-[#edf0f3] pt-4">
-                    <h3 className="mb-3 text-[12px] font-bold">Scored from this version</h3>
+                    <h3 className="mb-3 text-[12px] font-semibold">Scored from this version</h3>
                     <ResumeContent version={confirmedResume} />
                   </div>
                 ) : null}

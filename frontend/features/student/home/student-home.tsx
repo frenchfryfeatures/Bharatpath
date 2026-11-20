@@ -62,7 +62,7 @@ export function StudentHome() {
       ? `${purchasedCourses} enrolled`
       : (courses.data?.length ?? 0) > 0
         ? `${courses.data?.length} available`
-        : "Improve your score";
+        : "Improve your Bharatpath Score";
 
   return (
     <StudentPage>
@@ -94,8 +94,8 @@ export function StudentHome() {
               className="relative flex h-full min-h-48 flex-col justify-between gap-4 overflow-hidden rounded-[24px] bg-[#5F4DB2] p-5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:bg-[#5646A6] hover:shadow-[0_14px_30px_rgba(95,77,178,0.28)] active:translate-y-0 active:scale-[.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/40 focus-visible:ring-offset-2 sm:p-6"
             >
               <span className="flex items-center justify-between gap-3">
-                <span className="text-[11px] font-bold uppercase leading-3 tracking-[0.14em] text-[#E0DBF4]">
-                  Your resume score
+                <span className="text-[18px] font-semibold leading-6 tracking-[-0.01em] text-white">
+                  Your Bharatpath Score
                 </span>
                 <span className="flex items-center gap-2">
                   {score.data?.status === "READY" && score.data.band ? (
@@ -144,14 +144,14 @@ export function StudentHome() {
                     <ScoreScaleUnavailable
                       message={getApiErrorMessage(
                         scale.error,
-                        "Open your score to try again.",
+                        "Open your Bharatpath Score to try again.",
                       )}
                     />
                   ) : null}
                 </>
               ) : (
                 <span className="text-[18px] font-semibold text-white">
-                  Your score is being prepared
+                  Your Bharatpath Score is being prepared
                 </span>
               )}
             </button>
@@ -197,7 +197,7 @@ function ScoreCardSkeleton() {
       aria-busy="true"
       className="flex h-full min-h-48 flex-col justify-between gap-4 rounded-[24px] bg-[#5F4DB2] p-5 sm:p-6"
     >
-      <span className="sr-only">Loading score</span>
+      <span className="sr-only">Loading Bharatpath Score</span>
       <div className="flex items-center justify-between">
         <Skeleton className="opacity-55" width={138} height={11} radius={5} />
         <Skeleton className="opacity-55" width={16} height={16} radius={5} />

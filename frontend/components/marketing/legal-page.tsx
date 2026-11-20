@@ -1,7 +1,7 @@
 export function LegalPage({ title, updated, children }: { title: string; updated: string; children: React.ReactNode }) {
   return (
     <article className="mx-auto max-w-[760px] px-4 pb-10 pt-14 sm:px-6 lg:pt-20">
-      <h1 className="text-[clamp(36px,4.6vw,60px)] font-bold leading-[1.02] tracking-[-0.04em]">{title}</h1>
+      <h1 className="text-[clamp(36px,4.6vw,60px)] font-semibold leading-[1.02] tracking-[-0.04em]">{title}</h1>
       <p className="mt-3 text-[15px] text-muted">Last updated {updated}</p>
       <p className="mt-6 rounded-full bg-gold-soft px-4 py-3 text-[15px]">
         This is a plain-language summary prepared ahead of launch. The full policy is being finalised with legal counsel and will replace this page.

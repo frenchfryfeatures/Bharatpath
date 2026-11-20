@@ -237,7 +237,8 @@ export default function YouRoute() {
       }}
       onChangePasswordPress={() => setChangePasswordVisible(true)}
       onWhoHasSeenMePress={() => router.push('/who-has-seen-me' as any)}
-      onDownloadDataPress={() => router.push('/who-has-seen-me' as any)}
+      onDownloadDataPress={() => router.push({ pathname: '/privacy-policy', params: { section: 'your-data' } } as any)}
+      onPrivacyPolicyPress={() => router.push('/privacy-policy' as any)}
       onLogoutPress={() => {
         AppAlert.alert(
           'Logout',

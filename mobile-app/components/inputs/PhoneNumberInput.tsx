@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { AppModal as Modal } from '@/components/layout/AppModal';
 import {
   View,
   Text,
   TextInput,
   Pressable,
-  Modal,
   FlatList,
   StyleSheet,
   StyleProp,
@@ -521,7 +521,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 18,
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     color: '#0F172A',
   },
   closeButton: {

@@ -45,14 +45,14 @@ export function CandidateUnlockDialog({
         {/* Title */}
         <h2
           id="unlock-candidate-title"
-          className="text-[15px] font-bold leading-[20px] text-[#111827]"
+          className="text-[15px] font-semibold leading-[20px] text-[#111827]"
         >
           Unlock this candidate?
         </h2>
 
         {/* Description */}
         <p className="mt-4 text-[12px] leading-[17px] text-[#647083]">
-          This reveals their name, phone, email and exact score,
+          This reveals their name, phone, email and exact Bharatpath Score,
           and is logged to your audit trail.
         </p>
 

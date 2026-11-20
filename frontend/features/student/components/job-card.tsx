@@ -13,6 +13,7 @@ import {
   formatDate,
   formatSalary,
   workModeLabel,
+  stageLabel as applicationStageLabel,
 } from "@/features/student/formatters";
 
 import { interactiveCardClass, MonogramTile, StatusChip } from "./primitives";
@@ -39,7 +40,7 @@ export function JobCard({ job, matchedSkills }: { job: JobListing; matchedSkills
           {employerMonogram(job.employerName)}
         </MonogramTile>
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className="truncate text-[16px] font-bold leading-5 tracking-[-0.02em] text-[#0A1931]">
+          <span className="truncate text-[16px] font-semibold leading-5 tracking-[-0.02em] text-[#0A1931]">
             {job.title}
           </span>
           <span className="truncate text-[13px] leading-4 text-[#5F6B80]">
@@ -73,14 +74,18 @@ export function JobCard({ job, matchedSkills }: { job: JobListing; matchedSkills
         <span className="flex-1 text-[12px] leading-4 text-[#5F6B80]">
           Posted {formatDate(job.publishedAt)}
         </span>
-        {job.eligibility === "ELIGIBLE" ? (
+        {job.applicationStage ? (
+          <StatusChip tone={job.applicationStage === "HIRED" ? "match" : "waiting"} icon={<CheckCircle2 size={12} />}>
+            {job.applicationStage === "SUBMITTED" ? "Applied" : applicationStageLabel(job.applicationStage)}
+          </StatusChip>
+        ) : job.eligibility === "ELIGIBLE" ? (
           <StatusChip tone="match" icon={<CheckCircle2 size={12} />}>
             Eligible
           </StatusChip>
         ) : (
           <StatusChip tone="waiting">
             {job.eligibility === "SCORE_PENDING"
-              ? "Score pending"
+              ? "Bharatpath Score pending"
               : "Not eligible"}
           </StatusChip>
         )}

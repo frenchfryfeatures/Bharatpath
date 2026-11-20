@@ -101,7 +101,7 @@ export function StudentDetailDrawer({
           <div className="min-w-0 flex-1">
             <h3
               id="student-detail-drawer-title"
-              className="truncate text-[16px] font-bold text-[#151b2b]"
+              className="truncate text-[16px] font-semibold text-[#151b2b]"
             >
               {data?.fullName ?? "Student"}
             </h3>
@@ -153,7 +153,7 @@ export function StudentDetailDrawer({
               <div className="flex items-center justify-between rounded-xl border border-[#e7e9ee] bg-[#f8f9fb] px-5 py-4">
                 <div>
                   <p className="text-[12px] font-semibold text-[#777f90]">
-                    BharatPath score
+                    Bharatpath Score
                   </p>
                   {data.score !== null ? (
                     <p className="mt-0.5 text-[26px] font-bold leading-none text-[#151b2b]">

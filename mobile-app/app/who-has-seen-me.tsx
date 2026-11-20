@@ -12,7 +12,6 @@ export default function WhoHasSeenMeRoute() {
   return (
     <WhoHasSeenMeScreen
       onBack={() => router.back()}
-      defaultLetEmployersFindMe={true}
     />
   );
 }

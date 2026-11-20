@@ -20,7 +20,7 @@ export function CareerAssistantNavButton({ style }: CareerAssistantNavButtonProp
           pressed && styles.buttonPressed,
         ]}
         accessibilityRole="button"
-        accessibilityLabel="Open AI Career Assistant"
+        accessibilityLabel="Open BharatPath Saathi"
         testID="career-assistant-nav-btn"
       >
         <Sparkle size={20} color="#5F4DB2" weight="fill" />

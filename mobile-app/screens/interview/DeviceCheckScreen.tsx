@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
   back: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: '#E7E0D4', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontFamily: 'GeneralSans-Semibold', fontSize: 16, color: '#0A1931' },
   content: { padding: 20, paddingTop: 12, paddingBottom: 36, gap: 14 },
-  title: { fontFamily: 'GeneralSans-Bold', fontSize: 27, color: '#0A1931' },
+  title: { fontFamily: 'GeneralSans-Semibold', fontSize: 27, color: '#0A1931' },
   subtitle: { fontFamily: 'GeneralSans-Regular', fontSize: 14, lineHeight: 21, color: '#3A4761', marginBottom: 6 },
   list: { gap: 10 },
   checkRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, padding: 16, borderRadius: 17, borderWidth: 1, borderColor: '#E7E0D4', backgroundColor: '#FFFFFF' },

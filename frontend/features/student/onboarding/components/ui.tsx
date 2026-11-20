@@ -1,4 +1,6 @@
 "use client";
+import { BrandWordmark } from "@/components/common/brand-wordmark";
+
 
 import Link from "next/link";
 import { BrandIcon } from "@/components/common/brand-icon";
@@ -109,7 +111,7 @@ export function Wordmark() {
     >
       <BrandIcon className="h-8 w-8" />
       <span className="text-[20px] font-extrabold tracking-[-0.03em] text-[#05255C]">
-        Bharat<span className="text-[#FF8A26]">Path</span>
+        <BrandWordmark />
       </span>
     </Link>
   );
@@ -221,7 +223,7 @@ function JourneyAside({ phase }: { phase: SignupPhase }) {
  * ---------------------------------------------------------------------- */
 const PROMISES = [
   "Nothing is scored until you confirm what we read.",
-  "Verified employers can see your CV and contact details when they open your profile. You can see who did under Who has seen me.",
+  "Verified employers can see your CV and contact details when they open your profile. You can see who did under Profile views.",
   "We never ask your age or date of birth.",
 ] as const;
 
@@ -296,7 +298,7 @@ export function StepHeader({
       )}
       <div className={`flex flex-col ${index >= 0 ? "mt-1" : ""}`}>
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="m-0 text-[28px] font-bold leading-8 tracking-[-0.025em] text-[#0A1931] sm:text-[30px] sm:leading-[34px]">
+          <h1 className="m-0 text-[28px] font-semibold leading-8 tracking-[-0.025em] text-[#0A1931] sm:text-[30px] sm:leading-[34px]">
             {title}
           </h1>
           {badge}

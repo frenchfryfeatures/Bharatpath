@@ -11,8 +11,8 @@
  * Calls AWS Cognito `ChangePassword` API via `changePassword()`.
  */
 import React, { useState, useCallback } from 'react';
+import { AppModal as Modal } from '@/components/layout/AppModal';
 import {
-  Modal,
   View,
   Text,
   TextInput,
@@ -383,7 +383,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   modalTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 18,
     lineHeight: 22,
     color: Colors.navy,

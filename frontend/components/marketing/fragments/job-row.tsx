@@ -44,7 +44,7 @@ export function JobCard({ job, href }: { job: ExampleJob; href?: string }) {
       <div className="flex items-start gap-4">
         <OrgMark job={job} />
         <div className="min-w-0 flex-1">
-          <h3 className="text-[17px] font-bold leading-snug tracking-[-0.015em] text-ink">
+          <h3 className="text-[17px] font-semibold leading-snug tracking-[-0.015em] text-ink">
             <Link href={href ?? `/jobs/${job.id}/`} className="after:absolute after:inset-0 after:rounded-[20px] focus-visible:outline-none">
               {job.title}
             </Link>

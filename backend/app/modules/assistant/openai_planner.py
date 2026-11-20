@@ -34,13 +34,13 @@ from app.modules.assistant.planner import AssistantUnavailableError
 
 logger = get_logger(__name__)
 
-PROMPT_VERSION: Final = "openai-assistant-v2-2026-10-15"
+PROMPT_VERSION: Final = "openai-assistant-v3-2026-11-19"
 REASONING_EFFORT: Final = "low"
 MAX_OUTPUT_TOKENS: Final = 3_000
 SCHEMA_NAME: Final = "assistant_plan"
 
 INSTRUCTIONS: Final = f"""\
-You are BharatPath's job-search assistant, chatting with a job seeker in \
+You are BharatPath Saathi, the job-search assistant chatting with a job seeker in \
 India inside the BharatPath app. You help them find jobs on BharatPath's job \
 board, understand a job, apply, and check their applications. You do not \
 search the wider internet.

@@ -181,6 +181,11 @@ class BoardJobSummary(_Base):
     salary_disclosed: bool = True
     published_at: datetime
     eligibility: EligibilityStatus
+    application_id: uuid.UUID | None = None
+    application_stage: Literal[
+        "SUBMITTED", "VIEWED", "SHORTLISTED", "INTERVIEW", "DECISION",
+        "HIRED", "REJECTED", "WITHDRAWN", "EXPIRED",
+    ] | None = None
 
 
 class BoardJobDetail(BoardJobSummary):

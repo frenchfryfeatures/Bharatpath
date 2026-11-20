@@ -31,7 +31,7 @@ export function LinkStatesSummary({
     >
       <div>
         {/* TITLE & DESCRIPTION */}
-        <h3 className="text-[16px] font-bold text-[#151b2b] tracking-[-0.01em]">
+        <h3 className="text-[16px] font-semibold text-[#151b2b] tracking-[-0.01em]">
           Link states
         </h3>
         <p className="mt-1 text-[13px] text-[#777f90] leading-relaxed">
@@ -77,7 +77,7 @@ export function LinkStatesSummary({
                       {linkedCount}
                     </span>
                   </div>
-                  <h4 className="mt-3 text-[14px] font-bold text-[#23805d]">
+                  <h4 className="mt-3 text-[14px] font-semibold text-[#23805d]">
                     Linked
                   </h4>
                 </div>
@@ -99,7 +99,7 @@ export function LinkStatesSummary({
                       {invitedCount}
                     </span>
                   </div>
-                  <h4 className="mt-3 text-[14px] font-bold text-[#3566b8]">
+                  <h4 className="mt-3 text-[14px] font-semibold text-[#3566b8]">
                     Invited
                   </h4>
                 </div>
@@ -121,7 +121,7 @@ export function LinkStatesSummary({
                       {consentPendingCount}
                     </span>
                   </div>
-                  <h4 className="mt-3 text-[14px] font-bold text-[#8c681d]">
+                  <h4 className="mt-3 text-[14px] font-semibold text-[#8c681d]">
                     Consent pending
                   </h4>
                 </div>

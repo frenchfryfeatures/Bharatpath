@@ -1,5 +1,6 @@
 import React,{useEffect,useState} from 'react';
-import {View,Text,Modal,Pressable,StyleSheet,ScrollView,KeyboardAvoidingView,Platform,ActivityIndicator} from 'react-native';
+import { AppModal as Modal } from '@/components/layout/AppModal';
+import {View,Text,Pressable,StyleSheet,ScrollView,KeyboardAvoidingView,Platform,ActivityIndicator} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {X} from 'phosphor-react-native';
 import {BuilderField,BuilderRepeater,BuilderScroll} from './BuilderFields';

@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
   noticeText: { fontFamily: 'GeneralSans-Regular', fontSize: 13, lineHeight: 18, color: '#315E48' },
   section: { gap: 10 },
   sectionHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 },
-  sectionTitle: { flex: 1, fontFamily: 'GeneralSans-Bold', fontSize: 19, color: '#0A1931' },
+  sectionTitle: { flex: 1, fontFamily: 'GeneralSans-Semibold', fontSize: 19, color: '#0A1931' },
   sectionCount: { fontFamily: 'GeneralSans-Regular', fontSize: 11, color: '#5F6B80' },
   itemsCard: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E7E0D4', borderRadius: 20, overflow: 'hidden' },
   item: { padding: 16, gap: 6 },

@@ -37,7 +37,7 @@ export function ScoreDistribution({
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-sm font-semibold text-[#252b3b]">
-            Cohort score distribution
+            Cohort Bharatpath Score distribution
           </h2>
 
           <p className="mt-1 text-xs text-[#8a91a0]">

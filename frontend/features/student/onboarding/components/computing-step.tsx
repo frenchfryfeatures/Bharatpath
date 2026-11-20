@@ -72,7 +72,7 @@ export function ComputingStep({ confirmedAt, onShowScore, onGoHome }: Readonly<C
   const slow = !ready && !locked && timedOut;
   const current = ticks % SCORE_CATEGORIES.length;
   const status = ready
-    ? "Your score is ready"
+    ? "Your Bharatpath Score is ready"
     : locked
       ? "Your resume is confirmed"
       : COMPUTE_STATUS[ticks % COMPUTE_STATUS.length];
@@ -138,13 +138,13 @@ export function ComputingStep({ confirmedAt, onShowScore, onGoHome }: Readonly<C
       {slow && (
         <p className="m-0 rounded-[16px] bg-[#F7F4EC] px-4 py-3 text-[13px] leading-5 text-[#3A4761]">
           This is taking longer than usual. Your resume is confirmed and saved -
-          your score will appear on your home screen as soon as it is ready.
+          your Bharatpath Score will appear on your home screen as soon as it is ready.
         </p>
       )}
 
       {locked && (
         <p className="m-0 rounded-[16px] bg-[#F7EFD6] px-4 py-3 text-[13px] leading-5 text-[#7A5C0E]">
-          Your resume is confirmed and saved. Seeing your score needs an active
+          Your resume is confirmed and saved. Seeing your Bharatpath Score needs an active
           subscription or a college seat - once you have one, it will be on
           your home screen.
         </p>
@@ -153,7 +153,7 @@ export function ComputingStep({ confirmedAt, onShowScore, onGoHome }: Readonly<C
       <div className="sticky bottom-0 flex flex-col gap-3 bg-[#FFFCF7] pb-3.5 pt-3">
         {ready ? (
           <PillButton onClick={onShowScore} className="w-full py-[18px]">
-            Check your score on the dashboard
+            Check your Bharatpath Score on the dashboard
           </PillButton>
         ) : locked ? (
           <PillButton onClick={onGoHome} className="w-full py-[18px]">

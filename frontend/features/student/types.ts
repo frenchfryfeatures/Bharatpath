@@ -145,6 +145,8 @@ export interface JobListing {
   canApplyExternally: boolean;
   publishedAt: string;
   eligibility: JobEligibility;
+  applicationId?: string | null;
+  applicationStage?: ApplicationStatus | null;
 }
 
 export interface RecommendedJob extends JobListing {

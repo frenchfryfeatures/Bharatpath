@@ -63,11 +63,11 @@ const sections: Array<{ key: keyof StructuredResume; title: string }> = [
 export function StructuredResumeView({ resume }: { resume: StructuredResume }) {
   return <div className="space-y-4">
     <section className="rounded-xl border border-[#e7e9ee] bg-white p-4">
-      <h3 className="text-[17px] font-bold text-[#172033]">{resume.full_name || "Name not provided"}</h3>
+      <h3 className="text-[17px] font-semibold text-[#172033]">{resume.full_name || "Name not provided"}</h3>
       {[resume.headline, resume.location, resume.summary].filter(Boolean).map((line, index) => <p key={index} className="mt-2 whitespace-pre-wrap break-words text-[13px] leading-5 text-[#344054]">{line}</p>)}
     </section>
     {sections.filter(({ key }) => isVisible(resume[key]) && (key !== "contacts" || Object.values(resume.contacts).some(isVisible))).map(({ key, title }) => <section key={key} className="rounded-xl border border-[#e7e9ee] bg-white p-4">
-      <h3 className="mb-3 text-[13px] font-bold text-[#172033]">{title}</h3>
+      <h3 className="mb-3 text-[13px] font-semibold text-[#172033]">{title}</h3>
       {key === "skills" ? <SkillBadges skills={resume.skills} /> : <Value value={resume[key]} />}
     </section>)}
   </div>;

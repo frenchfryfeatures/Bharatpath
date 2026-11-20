@@ -44,7 +44,7 @@ export interface UseJobsResult {
   /** Reset filters and search to defaults and reload. */
   reset: () => void;
   /** Reload from page 1 with current search + filters. */
-  reload: () => void;
+  reload: () => Promise<void>;
 }
 
 /** Map the UI filter state to the backend query params. */
@@ -177,7 +177,7 @@ export function useJobs(): UseJobsResult {
   }, []);
 
   const reload = useCallback(() => {
-    loadFirstPage(search, filters);
+    return loadFirstPage(search, filters);
   }, [loadFirstPage, search, filters]);
 
   return {

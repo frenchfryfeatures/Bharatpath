@@ -38,11 +38,11 @@ export function WelcomeStep({ onStart }: { onStart: () => void }) {
         <span className="w-fit rounded-full bg-[#F1EAF7] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-[#4A3E8F]">
           Free for every candidate
         </span>
-        <h1 className="m-0 text-[34px] font-extrabold leading-[38px] tracking-[-0.03em] text-[#0A1931] sm:text-[44px] sm:leading-[48px]">
+        <h1 className="m-0 text-[34px] font-semibold leading-[38px] tracking-[-0.03em] text-[#0A1931] sm:text-[44px] sm:leading-[48px]">
           Find out how strong your resume is!
         </h1>
         <p className="m-0 max-w-[480px] text-[16px] leading-[24px] text-[#3A4761]">
-          Get a score that shows how your resume stands out to recruiters and
+          Get a Bharatpath Score that shows how your resume stands out to recruiters and
           where you can improve.
         </p>
       </div>
@@ -128,7 +128,7 @@ export function ResumeHero() {
 
       <div className="relative -mt-6 ml-auto w-[240px] rotate-[3deg] rounded-[20px] bg-[#5F4DB2] p-4 text-white shadow-[0_24px_50px_-24px_rgba(95,77,178,0.8)]">
         <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#E0DBF4]">
-          Your score
+          Your Bharatpath Score
         </span>
         {scale.data ? (
           <>
@@ -144,7 +144,7 @@ export function ResumeHero() {
           </>
         ) : (
           <span className="mt-1 block text-[15px] font-bold leading-5">
-            One score and one band, from your confirmed resume.
+            One Bharatpath Score and one band, from your confirmed resume.
           </span>
         )}
       </div>
@@ -247,7 +247,7 @@ const HOW_STEPS = [
     icon: ClipboardCheck,
   },
   {
-    title: "Get your score and gaps",
+    title: "Get your Bharatpath Score and gaps",
     body: "Five categories, each explained, with the fixes worth the most points.",
     icon: Sparkles,
   },
@@ -266,7 +266,7 @@ export function HowItWorksStep({
     <div className="flex flex-col gap-6">
       <StepHeader
         title="Three steps, that's all"
-        subtitle="Give us your resume, check what we read, then see your score."
+        subtitle="Give us your resume, check what we read, then see your Bharatpath Score."
       />
 
       <div className="flex flex-col gap-3">

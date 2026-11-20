@@ -213,7 +213,7 @@ export function CourseDetailScreen({ courseId, onBack }: Props) {
             {course?.title || 'Certified Course'}
           </Text>
           <Text style={styles.headerSubtitle} numberOfLines={1}>
-            {course ? `${course.lessons_total} Lessons • +${course.contribution_points || 30} Readiness Score` : 'BharatPath Learning'}
+            {course ? `${course.lessons_total} Lessons • +${course.contribution_points || 30} Bharatpath Score` : 'BharatPath Learning'}
           </Text>
         </View>
       </View>
@@ -228,7 +228,7 @@ export function CourseDetailScreen({ courseId, onBack }: Props) {
             </View>
             <Text style={styles.lockedHeadline}>Unlock to Stream All Lessons</Text>
             <Text style={styles.lockedSub}>
-              Includes HD video lessons, DAR frameworks, and +30 readiness score boost.
+              Includes HD video lessons, DAR frameworks, and +30 Bharatpath Score boost.
             </Text>
             <Pressable
               style={({ pressed }) => [
@@ -363,7 +363,7 @@ export function CourseDetailScreen({ courseId, onBack }: Props) {
               <View style={styles.heroBadgeRow}>
                 <View style={styles.scoreBadge}>
                   <Sparkle size={13} color="#92400E" weight="fill" />
-                  <Text style={styles.scoreBadgeText}>+30 SCORE BOOST</Text>
+                  <Text style={styles.scoreBadgeText}>+30 Bharatpath Score boost</Text>
                 </View>
                 {course.completed && (
                   <View style={styles.completedPill}>
@@ -561,7 +561,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 15,
     lineHeight: 18,
     color: Colors.navy,
@@ -624,7 +624,7 @@ const styles = StyleSheet.create({
     color: '#F4D685',
   },
   lockedHeadline: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 16,
     color: '#FFFFFF',
     textAlign: 'center',
@@ -828,7 +828,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   courseTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 17,
     lineHeight: 22,
     color: Colors.navy,
@@ -888,7 +888,7 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   sectionHeading: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 12,
     letterSpacing: 1.2,
     color: '#64748B',
@@ -902,7 +902,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   moduleTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 14,
     color: Colors.navy,
   },
@@ -938,7 +938,7 @@ const styles = StyleSheet.create({
   },
   lessonTitle: {
     flex: 1,
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 13,
     lineHeight: 18,
     color: Colors.navy,

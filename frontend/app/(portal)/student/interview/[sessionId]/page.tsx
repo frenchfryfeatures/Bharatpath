@@ -135,7 +135,7 @@ export default function InterviewSessionPage() {
       </StudentCard>
 
       {busy ? <NextQuestionWait /> : current ? <StudentCard className="!p-5 sm:!p-6">
-        <h2 className="text-[20px] font-bold leading-[28px] text-[#0A1931] sm:text-[22px] sm:leading-[30px]">{current.prompt}</h2>
+        <h2 className="text-[20px] font-semibold leading-[28px] text-[#0A1931] sm:text-[22px] sm:leading-[30px]">{current.prompt}</h2>
         <QuestionAudio key={`${id}-${current.index}`} sessionId={id} index={current.index} />
         <div className="mt-4 flex flex-wrap gap-2">
           <StatusChip tone="neutral" icon={<Clock size={12} />}>{current.preparation_seconds}s to prepare</StatusChip>
@@ -160,11 +160,11 @@ export default function InterviewSessionPage() {
           <PillButton onClick={send} disabled={busy} className="w-full !py-3.5 !text-[14px]">Keep and send answer</PillButton>
         </div> : null}
       </StudentCard> : done ? <StudentCard className="!p-6 text-center">
-        <h2 className="text-[20px] font-bold text-[#0A1931]">Interview completed</h2>
+        <h2 className="text-[20px] font-semibold text-[#0A1931]">Interview completed</h2>
         <p className="mt-1 text-[13px] text-[#5F6B80]">Nice work. Your report appears in your interview history.</p>
         <Link href="/student/interview" className="mt-4 inline-block text-[13px] font-semibold text-[#5F4DB2] hover:underline">View interview history</Link>
       </StudentCard> : allStored ? <StudentCard className="!p-6 text-center">
-        <h2 className="text-[20px] font-bold text-[#0A1931]">All answers saved</h2>
+        <h2 className="text-[20px] font-semibold text-[#0A1931]">All answers saved</h2>
         <p className="mt-1 text-[13px] text-[#5F6B80]">Finish to complete the session.</p>
         <PillButton onClick={finish} disabled={completeState.isLoading} className="mt-4 !px-8 !py-3 !text-[14px]">{completeState.isLoading ? "Finishing…" : "Finish interview"}</PillButton>
       </StudentCard> : <StudentCard className="!p-6 text-center">

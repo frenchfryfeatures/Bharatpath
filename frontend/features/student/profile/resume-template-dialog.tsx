@@ -70,7 +70,7 @@ export function ResumeTemplateDialog({
         <section className="relative rounded-[26px] border border-[#E7E0D4] bg-white p-6 shadow-[0_22px_55px_rgba(10,25,49,.16)] sm:p-9">
           <button type="button" onClick={close} aria-label="Close resume template dialog" className="absolute right-5 top-5 grid size-9 place-items-center rounded-full border border-[#E7E0D4] bg-white text-[#3A4761] transition hover:bg-[#F7F4EC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]"><X size={18} aria-hidden="true" /></button>
           <span className="grid size-14 place-items-center rounded-2xl bg-[#F1EAF7] text-[#5F4DB2]"><LayoutTemplate size={25} aria-hidden="true" /></span>
-          <h2 ref={titleRef} id="resume-template-dialog-title" tabIndex={-1} className="mt-6 text-[25px] font-bold leading-8 text-[#0A1931] outline-none">{step === "question" ? "Change your resume template?" : "Choose a resume template"}</h2>
+          <h2 ref={titleRef} id="resume-template-dialog-title" tabIndex={-1} className="mt-6 text-[25px] font-semibold leading-8 text-[#0A1931] outline-none">{step === "question" ? "Change your resume template?" : "Choose a resume template"}</h2>
           <p className="mt-2 text-[14px] leading-6 text-[#52617B]">{step === "question" ? "Keep your current template or choose one before editing your resume. Your choice is saved when the editor opens." : "Select a template, then continue to edit your details and preview."}</p>
 
           {step === "question" ? (

@@ -141,7 +141,7 @@ export function CareerOverview({
           </span>
         </div>
         <div>
-          <h1 className="text-[18px] font-bold leading-7 tracking-[-0.02em] text-[#0A1931] sm:text-[22px]">
+          <h1 className="text-[18px] font-semibold leading-7 tracking-[-0.02em] text-[#0A1931] sm:text-[22px]">
             {fullName || "Your profile"}
           </h1>
           <p className="mt-1 text-[14px] font-medium leading-5 text-[#3A4761]">
@@ -231,7 +231,7 @@ export function CareerOverview({
       )}
       {prefillState.isLoading && (
         <p className="rounded-xl bg-[#F1EAF7] p-4 text-[13px] leading-5 text-[#5F4DB2]">
-          Importing your existing resume into your profile. Your score is
+          Importing your existing resume into your profile. Your Bharatpath Score is
           unchanged.
         </p>
       )}

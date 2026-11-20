@@ -41,7 +41,7 @@ export function SectionHeading({ title, lead, action, id }: { title: string; lea
   return (
     <div className="mb-8 flex flex-col gap-4 sm:mb-10 sm:flex-row sm:items-end sm:justify-between">
       <div className="max-w-[640px]">
-        <h2 id={id} className="text-[28px] font-bold leading-[1.1] tracking-[-0.03em] sm:text-[36px] 2xl:text-[42px]">
+        <h2 id={id} className="text-[28px] font-semibold leading-[1.1] tracking-[-0.03em] sm:text-[36px] 2xl:text-[42px]">
           {title}
         </h2>
         {lead && <p className="mt-3 text-[16px] text-muted sm:text-[17px]">{lead}</p>}

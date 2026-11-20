@@ -156,7 +156,7 @@ class NoScoreIncreaseUnacknowledgedError(ConflictError):
     retry with the acknowledgement."""
 
     code = "interview_no_score_increase_unacknowledged"
-    title = "This session will not increase your score"
+    title = "This session will not increase your Bharatpath Score"
 
 
 class InterviewPurchaseRequiredError(ConflictError):
@@ -403,7 +403,23 @@ async def _questions_of(session: AsyncSession, row: InterviewSession) -> Questio
     rows and asked its bank set.
     """
     stored = await repository.questions_for(session, session_id=row.id)
-    if not stored:
+    if row.question_set_code != ADAPTIVE_SET_CODE:
+        # Fixed-bank sessions always have six questions. Some older fixtures
+        # persisted only the answered questions; returning that partial list
+        # leaves old clients retrying next-question forever. Preserve stored
+        # wording while filling the missing positions from the same bank.
+        bank = bank_questions_for(
+            question_set_code=row.question_set_code, session_number=row.session_number
+        )
+        by_index = {q.question_index: q for q in stored}
+        questions = tuple(
+            InterviewQuestion(
+                by_index[i].code, by_index[i].key or "", by_index[i].prompt,
+                by_index[i].looking_for,
+            ) if i in by_index else question
+            for i, question in enumerate(bank)
+        )
+    elif not stored:
         questions = bank_questions_for(
             question_set_code=row.question_set_code, session_number=row.session_number
         )

@@ -174,7 +174,7 @@ export function CreateCodeDrawer({ onClose }: { onClose: () => void }) {
       >
         <header className="flex items-start justify-between gap-3 border-b border-[#e5e7eb] px-5 py-4">
           <div>
-            <h2 className="text-[18px] font-bold text-[#172033]">Create discount code</h2>
+            <h2 className="text-[18px] font-semibold text-[#172033]">Create discount code</h2>
             <p className="mt-1 text-[12px] text-[#7b8494]">
               A code&apos;s terms can&apos;t be edited afterwards. To change one, disable it and make another.
             </p>

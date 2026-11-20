@@ -1,5 +1,7 @@
+import { ZoomableResumePages } from '@/components/resume-builder/ZoomableResumePages';
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Modal, Image, KeyboardAvoidingView, Platform, BackHandler, Keyboard, useWindowDimensions } from 'react-native';
+import { AppModal as Modal } from '@/components/layout/AppModal';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, KeyboardAvoidingView, Platform, BackHandler, Keyboard } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, ArrowRight, Eye, DownloadSimple, Cloud, CloudWarning, Check, Plus, X, UploadSimple, ArrowsClockwise } from 'phosphor-react-native';
 import { BuilderField, BuilderRepeater, BuilderScroll } from '@/components/resume-builder/BuilderFields';
@@ -30,7 +32,6 @@ export function ResumeBuilderScreen({ onDone, onBack, onUploadCv, api = defaultA
     pages: string[];
     mime: string;
   } | null>(null);
-  const { width } = useWindowDimensions();
   const tabs = useRef<ScrollView>(null);
   const tabPositions = useRef<Record<number, number>>({});
   const leaving = useRef(false);
@@ -292,9 +293,7 @@ export function ResumeBuilderScreen({ onDone, onBack, onUploadCv, api = defaultA
       if (!active)
         builder.update({ ...builder.getLatest()!, template_key });
     }} /></View></ScrollView><View style={styles.footer}><Pressable accessibilityRole="button" style={styles.primary} onPress={() => setTemplateModal(false)}><Text style={styles.primaryText}>Keep {templateName}</Text></Pressable></View></SafeAreaView></Modal>
-    <Modal visible={preview !== null} animationType="slide" onRequestClose={() => setPreview(null)}><SafeAreaView style={styles.screen}><View style={styles.modalHeader}><Text style={styles.headerTitle}>Resume preview</Text><View style={styles.inline}><Pressable accessibilityRole="button" accessibilityLabel="Download preview as PDF" disabled={active} onPress={() => void output('download')} style={styles.icon}><DownloadSimple size={22} color="#5F4DB2" /></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Close resume preview" onPress={() => setPreview(null)} style={styles.icon}><X size={23} color="#0A1931" /></Pressable></View></View><>{!!errors.length && <View style={styles.notice}><Text style={styles.error}>{errors[0]}</Text></View>}<ScrollView contentContainerStyle={styles.previewContent} maximumZoomScale={3} minimumZoomScale={1} centerContent>{preview?.pages.map((page, index) => <View key={index} style={{ gap: 8 }}><Text style={styles.muted}>Page {index + 1} of {preview.pages.length}</Text><Image source={{ uri: `data:${preview.mime};base64,${page}` }} resizeMode="contain" style={{
-      width: width - 32, height: (width - 32) * 297 / 210, backgroundColor: '#fff'
-    }} /></View>)}</ScrollView></></SafeAreaView></Modal>
+    <Modal visible={preview !== null} animationType="slide" onRequestClose={() => setPreview(null)}><SafeAreaView style={styles.screen}><View style={styles.modalHeader}><Text style={styles.headerTitle}>Resume preview</Text><View style={styles.inline}><Pressable accessibilityRole="button" accessibilityLabel="Download preview as PDF" disabled={active} onPress={() => void output('download')} style={styles.icon}><DownloadSimple size={22} color="#5F4DB2" /></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Close resume preview" onPress={() => setPreview(null)} style={styles.icon}><X size={23} color="#0A1931" /></Pressable></View></View><>{!!errors.length && <View style={styles.notice}><Text style={styles.error}>{errors[0]}</Text></View>}<ZoomableResumePages pages={preview?.pages ?? []} mime={preview?.mime ?? "image/png"}/></></SafeAreaView></Modal>
   </SafeAreaView>;
 }
 const styles = StyleSheet.create({

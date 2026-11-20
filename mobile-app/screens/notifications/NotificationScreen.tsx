@@ -688,7 +688,7 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   onboardingTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 24,
     lineHeight: 28,
     letterSpacing: -0.5,
@@ -827,7 +827,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   centerTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 20,
     color: Colors.navy,
     textAlign: 'center',

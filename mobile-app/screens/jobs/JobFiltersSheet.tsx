@@ -15,12 +15,12 @@
  * No distance slider - the API has no geo search.
  */
 import React, { useState, useEffect } from 'react';
+import { AppModal as Modal } from '@/components/layout/AppModal';
 import {
   View,
   Text,
   StyleSheet,
   Pressable,
-  Modal,
   Platform,
   TextInput,
   KeyboardAvoidingView,
@@ -315,7 +315,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   sheetTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 20,
     lineHeight: 24,
     letterSpacing: -0.4,
@@ -411,11 +411,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F7EFD6',
   },
   salaryPillText: {
-    fontFamily: Platform.select({
-      ios: 'SpaceMono-Regular',
-      android: 'SpaceMono-Regular',
-      default: 'monospace',
-    }),
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 13,
     lineHeight: 16,
     color: '#3A4761',

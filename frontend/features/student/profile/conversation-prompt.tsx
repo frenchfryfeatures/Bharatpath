@@ -1,4 +1,5 @@
 "use client";
+import { BrandWordmark } from "@/components/common/brand-wordmark";
 
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { MessageCircle, Volume2, VolumeX } from "lucide-react";
@@ -85,7 +86,7 @@ export function ConversationPrompt({ question, thinking, history, onEdit, disabl
     <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#C9BEEB] bg-[#F8F5FF]">
     <div className="flex items-center gap-3 border-b border-[#E7DFF5] bg-white px-5 py-4">
       <span className="grid h-10 w-10 place-items-center rounded-full bg-[#5F4DB2] text-white"><MessageCircle size={20} aria-hidden="true" /></span>
-      <div><p className="font-semibold text-[#0A1931]">Your BharatPath guide</p><p className="text-xs text-[#5F6B80]">Let&apos;s build your profile, one answer at a time.</p></div>
+      <div><p className="font-semibold text-[#0A1931]"><BrandWordmark /> Saathi</p><p className="text-xs text-[#5F6B80]">Let&apos;s build your profile, one answer at a time.</p></div>
     </div>
     <div className="flex items-center justify-end gap-3 px-5 pt-4">
         {supported && <button type="button" onClick={() => setVoice(!voice)} aria-pressed={voice} className="flex items-center gap-2 text-xs text-[#5F4DB2]">

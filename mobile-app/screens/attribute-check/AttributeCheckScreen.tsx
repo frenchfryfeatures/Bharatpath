@@ -58,7 +58,7 @@ export function AttributeCheckScreen({ onBack, onStartQuiz, onViewReport }: Attr
         <View style={styles.infoCard}>
           <InfoRow icon={<Clock size={20} color="#5F4DB2" />} text="Four short sections. Save and return whenever you like." />
           <InfoRow icon={<EyeSlash size={20} color="#0A1931" />} text="Your answers stay private for now." />
-          <InfoRow icon={<LockSimple size={20} color="#0A1931" />} text="Your resume score does not change." />
+          <InfoRow icon={<LockSimple size={20} color="#0A1931" />} text="Your Bharatpath Score does not change." />
         </View>
 
         {error && (
@@ -110,7 +110,7 @@ const styles = StyleSheet.create({
   heroCard: { height: 180, borderRadius: 24, backgroundColor: '#DDD6F2', alignItems: 'center', justifyContent: 'center', marginTop: 12 },
   heroImage: { width: '68%', height: '68%' },
   titleSection: { gap: 8 },
-  screenTitle: { fontFamily: 'GeneralSans-Bold', fontSize: 28, lineHeight: 34, color: '#0A1931' },
+  screenTitle: { fontFamily: 'GeneralSans-Semibold', fontSize: 28, lineHeight: 34, color: '#0A1931' },
   screenSubtitle: { fontFamily: 'GeneralSans-Regular', fontSize: 15, lineHeight: 22, color: '#5F6B80' },
   infoCard: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E7E0D4', borderRadius: 20, overflow: 'hidden' },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderBottomWidth: 1, borderBottomColor: '#EFE9DE' },

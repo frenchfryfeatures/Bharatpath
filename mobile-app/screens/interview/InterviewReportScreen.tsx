@@ -293,7 +293,7 @@ export function InterviewReportScreen({ sessionId }: Props) {
               <CheckCircle size={34} color="#FFFFFF" weight="fill" />
               <Text style={styles.heroTitle}>Your practice feedback</Text>
               <Text style={styles.heroBody}>
-                Levels describe this recording only. They do not change your score.
+                Levels describe this recording only. They do not change your Bharatpath Score.
               </Text>
             </View>
 
@@ -414,10 +414,10 @@ const styles = StyleSheet.create({
   headerTitle: { fontFamily: 'GeneralSans-Semibold', fontSize: 16, color: '#0A1931' },
   content: { flexGrow: 1, padding: 20, paddingTop: 12, paddingBottom: 40, gap: 14 },
   state: { flex: 1, minHeight: 500, alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 10 },
-  stateTitle: { fontFamily: 'GeneralSans-Bold', fontSize: 25, color: '#0A1931', textAlign: 'center' },
+  stateTitle: { fontFamily: 'GeneralSans-Semibold', fontSize: 25, color: '#0A1931', textAlign: 'center' },
   stateBody: { fontFamily: 'GeneralSans-Regular', fontSize: 14, lineHeight: 21, color: '#3A4761', textAlign: 'center' },
   hero: { gap: 10, padding: 21, borderRadius: 22, backgroundColor: '#5F4DB2' },
-  heroTitle: { fontFamily: 'GeneralSans-Bold', fontSize: 25, color: '#FFFFFF' },
+  heroTitle: { fontFamily: 'GeneralSans-Semibold', fontSize: 25, color: '#FFFFFF' },
   heroBody: { fontFamily: 'GeneralSans-Regular', fontSize: 14, lineHeight: 20, color: '#E8E3FA' },
   sectionLabel: { marginTop: 8, fontFamily: 'SpaceMono-Bold', fontSize: 11, letterSpacing: 1.1, color: '#5F6B80' },
   card: { borderWidth: 1, borderColor: '#E7E0D4', borderRadius: 20, paddingHorizontal: 16, backgroundColor: '#FFFFFF' },

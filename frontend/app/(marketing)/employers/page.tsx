@@ -268,7 +268,7 @@ export default function EmployersPage() {
                   <span className="inline-flex rounded-full bg-lavender px-3 py-1 text-[13px] font-semibold text-purple-deep">
                     {s.step}
                   </span>
-                  <h3 className="mt-4 text-[20px] font-bold leading-snug tracking-[-0.02em]">{s.title}</h3>
+                  <h3 className="mt-4 text-[20px] font-semibold leading-snug tracking-[-0.02em]">{s.title}</h3>
                   <p className="mt-2.5 text-[15px] leading-relaxed text-muted">{s.body}</p>
                 </div>
               </li>

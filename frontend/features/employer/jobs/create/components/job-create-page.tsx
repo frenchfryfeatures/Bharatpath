@@ -1080,7 +1080,7 @@ export function JobCreatePage({
 
             {/* MINIMUM SCORE - unchanged from the original composer */}
             <Field
-              label="Minimum score threshold"
+              label="Minimum Bharatpath Score threshold"
               trailing={
                 <span className="text-[15px] font-bold text-[#151b2b]">
                   {hasThreshold(values.minScore) ? values.minScore : "No minimum"}
@@ -1095,8 +1095,8 @@ export function JobCreatePage({
                 step={THRESHOLD_STEP}
                 value={values.minScore}
                 disabled={disabled}
-                aria-label="Minimum score threshold"
-                aria-valuetext={hasThreshold(values.minScore) ? `Selected score ${values.minScore}` : "No minimum score"}
+                aria-label="Minimum Bharatpath Score threshold"
+                aria-valuetext={hasThreshold(values.minScore) ? `Selected Bharatpath Score ${values.minScore}` : "No minimum Bharatpath Score"}
                 onChange={(event) =>
                   setValue(
                     "minScore",
@@ -1125,7 +1125,7 @@ export function JobCreatePage({
                 {isThresholdPreviewLoading ? (
                   <span className="flex items-center gap-2 text-[13px] font-medium leading-[17px] text-[#28578f]">
                     <Loader2 size={15} className="shrink-0 animate-spin" aria-hidden="true" />
-                    Fetching candidates that meet this score…
+                    Fetching candidates that meet this Bharatpath Score…
                   </span>
                 ) : (
                   <span className="text-[13px] font-medium leading-[17px] text-[#28578f]">

@@ -3,11 +3,11 @@
  * Features 4 core product tabs: Home, Jobs, Board, You.
  * Active tab has full rounded highlight container (#F1EAF7) with filled icon.
  */
-import { useState } from 'react';
-import { Pressable, View, Text, StyleSheet, Platform, ViewStyle } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Keyboard, Pressable, View, Text, StyleSheet, Platform, ViewStyle } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { House, Briefcase, ListChecks, User, Sparkle } from 'phosphor-react-native';
-import { Colors, Radii, Spacing, Layout, Shadows } from '@/theme/tokens';
+import { Colors, Layout, Shadows } from '@/theme/tokens';
 import type { IconWeight } from 'phosphor-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CareerAssistantModal } from '@/components/assistant/CareerAssistantModal';
@@ -38,6 +38,12 @@ interface BottomTabBarProps {
 export function BottomTabBar({ activeTab, onTabPress, onAssistantPress, style }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const [assistantVisible, setAssistantVisible] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(() => Keyboard.isVisible?.() ?? false);
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
 
   const handleOpenAssistant = () => {
     if (onAssistantPress) {
@@ -65,7 +71,7 @@ export function BottomTabBar({ activeTab, onTabPress, onAssistantPress, style }:
         <Pressable
           onPress={handleOpenAssistant}
           accessibilityRole="button"
-          accessibilityLabel="Open AI Career Assistant"
+          accessibilityLabel="Open BharatPath Saathi"
           testID="career-assistant-center-tab-btn"
           style={({ pressed }) => [
             styles.assistantCenterBtn,
@@ -91,7 +97,7 @@ export function BottomTabBar({ activeTab, onTabPress, onAssistantPress, style }:
 
   return (
     <>
-      <View
+      {!keyboardVisible && <View
         style={[styles.wrapper, { bottom: Math.max(insets.bottom + 8, 12) }, style]}
         pointerEvents="box-none"
       >
@@ -106,7 +112,7 @@ export function BottomTabBar({ activeTab, onTabPress, onAssistantPress, style }:
             </BlurView>
           )}
         </View>
-      </View>
+      </View>}
 
       <CareerAssistantModal
         visible={assistantVisible}
@@ -163,7 +169,7 @@ const styles = StyleSheet.create({
     ...Shadows.bottomNav,
     borderRadius: 22,
     overflow: 'hidden',
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E7E0D4',
   },

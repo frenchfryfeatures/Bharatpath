@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xs,
   },
   title: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 28,
     lineHeight: 34,
     letterSpacing: -0.5,

@@ -47,7 +47,6 @@ export default function ProfileDetailsRoute() {
       onBack={() =>
         router.canGoBack() ? router.back() : router.replace('/you')
       }
-      onUpdateResume={() => router.push('/resume-details' as any)}
       onDone={handleDone}
     />
   );

@@ -1,3 +1,4 @@
+import { BrandWordmark } from "@/components/BrandWordmark";
 import React, { useState } from 'react';
 import {
   View,
@@ -7,7 +8,6 @@ import {
   ScrollView,
   Image,
   Switch,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -102,7 +102,7 @@ export function ShareResultScreen({
                 style={styles.logoMark}
                 resizeMode="contain"
               />
-              <Text style={styles.brandName}>BharatPath</Text>
+              <BrandWordmark style={styles.brandName} light />
             </View>
 
             {/* Main Result Content: Reveals score when toggled */}

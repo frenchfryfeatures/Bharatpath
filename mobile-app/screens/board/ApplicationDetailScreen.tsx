@@ -984,7 +984,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   companyTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 18,
     lineHeight: 22,
     letterSpacing: -0.4,
@@ -1035,7 +1035,7 @@ const styles = StyleSheet.create({
     color: '#5E4DB2',
   },
   interviewTitleText: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 20,
     lineHeight: 24,
     letterSpacing: -0.4,

@@ -300,7 +300,7 @@ export default function ResumeDetailsRoute() {
           refreshScore();
           AppAlert.alert(
             'Resume Saved',
-            'Your updated resume is confirmed. Your score is being updated in the background.',
+            'Your updated resume is confirmed. Your Bharatpath Score is being updated in the background.',
             [{ text: 'Return to Profile', onPress: handleBack }]
           );
         }}
@@ -322,8 +322,8 @@ export default function ResumeDetailsRoute() {
           }
           refreshScore();
           AppAlert.alert(
-            'Score Updated',
-            `Your score of ${candidateScore?.value ?? '—'} has been saved to your profile.`,
+            'Bharatpath Score updated',
+            `Your Bharatpath Score of ${candidateScore?.value ?? '—'} has been saved to your profile.`,
             [{ text: 'Return to Profile', onPress: handleBack }]
           );
         }}
@@ -379,7 +379,7 @@ export default function ResumeDetailsRoute() {
         onBack={handleBack}
         title="Resume details"
         subtitle="Review and edit the details extracted from your resume."
-        confirmButtonText="Save & update score"
+        confirmButtonText="Update Bharatpath Score"
         requireEditToSave={true}
         initialHasEdited={hasEdited}
         showReadyBadge={false}

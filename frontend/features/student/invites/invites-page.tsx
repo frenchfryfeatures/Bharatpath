@@ -96,7 +96,7 @@ export function InvitesPage() {
             <div className="flex items-start gap-3">
               <MonogramTile size={40} logoUrl={invitation.employer_logo_url}>{employerMonogram(invitation.employer_name)}</MonogramTile>
               <div className="min-w-0 flex-1 pt-0.5">
-                <h2 className="text-[15px] font-bold leading-5 tracking-[-0.025em] text-[#0A1931]">{invitation.job_title ?? "Job no longer available"}</h2>
+                <h2 className="text-[15px] font-semibold leading-5 tracking-[-0.025em] text-[#0A1931]">{invitation.job_title ?? "Job no longer available"}</h2>
                 <p className="mt-1 truncate text-[12px] leading-4 text-[#657187]">{invitation.employer_name ?? "Employer"}</p>
               </div>
               <StatusChip tone={statusTones[invitation.status]}>{statusLabels[invitation.status]}</StatusChip>

@@ -20,7 +20,7 @@ export default function GovernmentJobsPage() {
     <div className="shell pb-10 pt-8 sm:pt-12">
       <div className="grid gap-8 lg:grid-cols-[1fr_380px] lg:items-end">
         <div>
-          <h1 className="text-[clamp(36px,4.6vw,64px)] font-bold leading-[1.02] tracking-[-0.045em]">
+          <h1 className="text-[clamp(36px,4.6vw,64px)] font-semibold leading-[1.02] tracking-[-0.045em]">
             Government jobs <span className="text-purple">bulletin</span>
           </h1>
           <p className="mt-4 max-w-[60ch] text-[17px] text-body">
@@ -44,7 +44,7 @@ export default function GovernmentJobsPage() {
 
       {GOV_BULLETIN.sources.length > 0 && (
         <section aria-labelledby="sources" className="mt-14">
-          <h2 id="sources" className="text-[22px] font-bold tracking-[-0.02em]">
+          <h2 id="sources" className="text-[22px] font-semibold tracking-[-0.02em]">
             Where these come from
           </h2>
           <ul className="mt-4 flex flex-wrap gap-2">

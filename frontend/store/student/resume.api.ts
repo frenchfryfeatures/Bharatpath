@@ -318,6 +318,9 @@ export const studentResumeApi = baseApi.injectEndpoints({
       invalidatesTags: [{ type: "Student", id: "RESUME_VERSIONS" }],
     }),
 
+    previewResumeDocument: builder.mutation<{pages:string[];truncated:boolean}, string>({
+      query: id => `/candidate/resume/versions/${encodeURIComponent(id)}/render?format=png`,
+    }),
     renderResumeDocument: builder.mutation<{url:string;filename:string}, string>({
       queryFn: async (id, _api, _extra, baseQuery) => {
         const result=await baseQuery({url:`/candidate/resume/versions/${id}/render`,responseHandler:(response:Response)=>response.blob()});
@@ -436,6 +439,7 @@ export const {
   useSubmitManualResumeMutation,
   useSubmitResumeDocumentMutation,
   useRenderResumeDocumentMutation,
+  usePreviewResumeDocumentMutation,
   useGetResumeVersionsQuery,
   useLazyGetResumeVersionsQuery,
   useGetResumeFilesQuery,

@@ -34,3 +34,7 @@ coverage/
 # archives and uv
 *.zip
 uv.lock
+
+# local scratch / temporary directories
+tmp/
+temp/

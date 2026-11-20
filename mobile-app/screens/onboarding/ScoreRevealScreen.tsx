@@ -99,7 +99,7 @@ export function ScoreRevealScreen({
             <View style={styles.headerRow}>
               <View style={styles.headerTitleCol}>
                 <Text style={[styles.title, isRecalculated && styles.titleRecalculated]}>
-                  {isRecalculated ? 'Your score went up' : 'Your resume score'}
+                  {isRecalculated ? 'Your Bharatpath Score went up' : 'Your Bharatpath Score'}
                 </Text>
                 <Text style={[styles.subtitle, isRecalculated && styles.subtitleRecalculated]}>
                   {isRecalculated
@@ -115,7 +115,7 @@ export function ScoreRevealScreen({
                 ]}
                 onPress={onShare}
                 accessibilityRole="button"
-                accessibilityLabel="Share score"
+                accessibilityLabel="Share Bharatpath Score"
               >
                 <ShareNetwork size={16} color={isRecalculated ? '#0A1931' : '#FFFFFF'} weight="bold" />
               </Pressable>
@@ -211,9 +211,9 @@ export function ScoreRevealScreen({
                 {isRecalculated
                   ? 'WHAT THIS FIX CHANGED'
                   : isPending
-                    ? 'SCORE PENDING'
+                    ? 'Bharatpath Score pending'
                     : isLive
-                      ? 'YOUR SCORE'
+                      ? 'Your Bharatpath Score'
                       : 'WHERE YOUR POINTS COME FROM'}
               </Text>
               {!isLive && !isPending && (
@@ -265,13 +265,13 @@ export function ScoreRevealScreen({
               <View style={styles.liveNoteCard}>
                 <Text style={styles.liveNoteText}>
                   This is the number employers see, with your band. There is no
-                  category breakdown - the score is shown as a single value.
+                  category breakdown - the Bharatpath Score is shown as a single value.
                 </Text>
               </View>
             ) : isPending ? (
               <View style={styles.liveNoteCard}>
                 <Text style={styles.liveNoteText}>
-                  Your resume is confirmed, but no score has been computed yet.
+                  Your resume is confirmed, but no Bharatpath Score has been computed yet.
                   Nothing is shown here until there is a real one.
                 </Text>
               </View>
@@ -406,7 +406,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   title: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 26,
     lineHeight: 30,
     letterSpacing: -0.8,
@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   bandTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 24,
     lineHeight: 28,
     letterSpacing: -0.7,

@@ -18,7 +18,7 @@ export function Steps({ heading = "Three steps to your next job" }: { heading?: 
           <li key={s.title} data-reveal className="flex flex-col overflow-hidden rounded-[24px] bg-lavender md:last:col-span-2 xl:last:col-span-1">
             <div className="p-6 sm:p-7">
               <p className="text-[14px] font-semibold text-purple">{s.n}</p>
-              <h3 className="mt-1 text-[22px] font-bold tracking-[-0.025em]">{s.title}</h3>
+              <h3 className="mt-1 text-[22px] font-semibold tracking-[-0.025em]">{s.title}</h3>
               <p className="mt-2 text-[15px] text-body">{s.body}</p>
             </div>
             <div className="mt-auto flex justify-center px-4 pb-6 sm:px-6">{s.fragment}</div>

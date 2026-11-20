@@ -13,7 +13,8 @@
  * not their data). A 402 here is therefore unexpected; we surface it as a
  * generic error rather than a membership prompt.
  */
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { listMyApplications } from '@/services/api/applications';
 import { ApiError } from '@/services/api/client';
 import { ApplicationResponse } from '@/types/application';
@@ -59,6 +60,7 @@ export function useApplications(): UseApplicationsResult {
   const loadFirstPage = useCallback(async () => {
     const token = ++loadTokenRef.current;
     setLoading(true);
+    setLoadingMore(false);
     setError(null);
     try {
       const page = await listMyApplications({ limit: 50 });
@@ -78,9 +80,10 @@ export function useApplications(): UseApplicationsResult {
   }, []);
 
   // Initial load.
-  useEffect(() => {
-    loadFirstPage();
-  }, [loadFirstPage]);
+  useFocusEffect(useCallback(() => {
+    void loadFirstPage();
+    return () => { loadTokenRef.current += 1; };
+  }, [loadFirstPage]));
 
   const loadMore = useCallback(async () => {
     if (loadingMore || hasReachedEnd || loading) return;

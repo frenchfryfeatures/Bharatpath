@@ -480,10 +480,16 @@ async def search_board(
     tenant_ids = list({job.tenant_id for job in page})
     names = await employer_service.public_names(session, tenant_ids=tenant_ids)
     logos = await profile_images_service.logo_urls(session, tenant_ids=tenant_ids)
+    from app.modules.applications import service as applications_service
+
+    application_states = await applications_service.states_for_jobs(
+        session, ctx=ctx, job_ids=[job.id for job in page]
+    )
     return Page[BoardJobSummary](
         items=[
             BoardJobSummary(
-                **_summary(job, employer_name=names.get(job.tenant_id), score=score, logos=logos)
+                **_summary(job, employer_name=names.get(job.tenant_id), score=score, logos=logos),
+                **application_states.get(job.id, {}),
             )
             for job in page
         ],
@@ -508,8 +514,14 @@ async def get_board_job(
         session, candidate_id=user_id
     )
     details = for_candidate(parse_stored(job.details), may_apply=may_apply)
+    from app.modules.applications import service as applications_service
+
+    application_states = await applications_service.states_for_jobs(
+        session, ctx=ctx, job_ids=[job.id]
+    )
     return BoardJobDetail(
         **_summary(job, employer_name=names.get(job.tenant_id), score=score, logos=logos),
+        **application_states.get(job.id, {}),
         description=job.description,
         details=details,
         can_apply_externally=bool(details.application.external_url or details.application.email),
@@ -690,6 +702,11 @@ async def board_jobs(
     names = await employer_service.public_names(session, tenant_ids=tenant_ids)
     logos = await profile_images_service.logo_urls(session, tenant_ids=tenant_ids)
     visible = await discovery_service.is_candidate_visible(session, candidate_id=user_id)
+    from app.modules.applications import service as applications_service
+
+    application_states = await applications_service.states_for_jobs(
+        session, ctx=ctx, job_ids=job_ids
+    )
     out = []
     for job in jobs:
         # The same two conditions as `get_board_job`, for the same reason.
@@ -698,6 +715,7 @@ async def board_jobs(
         out.append(
             BoardJobDetail(
                 **_summary(job, employer_name=names.get(job.tenant_id), score=score, logos=logos),
+                **application_states.get(job.id, {}),
                 description=job.description,
                 details=details,
                 can_apply_externally=bool(

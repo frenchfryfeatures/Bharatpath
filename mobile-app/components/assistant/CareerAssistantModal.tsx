@@ -1,9 +1,10 @@
+import { BrandWordmark } from "@/components/BrandWordmark";
 import React, { useEffect, useRef, useState } from 'react';
+import { AppModal as Modal } from '@/components/layout/AppModal';
 import {
   View,
   Text,
   StyleSheet,
-  Modal,
   TextInput,
   Pressable,
   ScrollView,
@@ -133,7 +134,7 @@ export function CareerAssistantModal({
         { id: ++nextId.current, kind: 'assistant', response },
       ]);
     } catch (caught) {
-      const msg = caught instanceof Error ? caught.message : 'Could not reach assistant.';
+      const msg = caught instanceof Error ? caught.message : 'Could not reach BharatPath Saathi.';
       setError({ text, message: msg });
     } finally {
       setBusy(false);
@@ -194,8 +195,7 @@ export function CareerAssistantModal({
             <Sparkle size={20} color="#FFFFFF" weight="fill" />
           </View>
           <View style={styles.headerText}>
-            <Text style={styles.brandTitle}>BharatPath</Text>
-            <Text style={styles.headerTitle}>Career Assistant</Text>
+            <BrandWordmark style={styles.headerTitle} suffix=" Saathi" />
             <View style={styles.statusRow}>
               <View style={styles.onlineDot} />
               <Text style={styles.statusText}>Here to help you move forward</Text>
@@ -208,7 +208,7 @@ export function CareerAssistantModal({
           >
             <ArrowCounterClockwise size={18} color="#5F4DB2" />
           </Pressable>
-          <Pressable onPress={onClose} style={styles.headerActionBtn} accessibilityLabel="Close assistant">
+          <Pressable onPress={onClose} style={styles.headerActionBtn} accessibilityLabel="Close BharatPath Saathi">
             <X size={20} color="#0A1931" />
           </Pressable>
         </View>
@@ -235,7 +235,7 @@ export function CareerAssistantModal({
                   </View>
                   <Text style={styles.heroTitle}>Let&apos;s find what&apos;s next for you.</Text>
                   <Text style={styles.heroDesc}>
-                    Discover roles tailored to your score, explore new opportunities, and apply in seconds.
+                    Discover roles tailored to your Bharatpath Score, explore new opportunities, and apply in seconds.
                   </Text>
                   <View style={styles.trustBadge}>
                     <ShieldCheck size={14} color="#EDE8F8" weight="bold" />
@@ -304,7 +304,7 @@ export function CareerAssistantModal({
                     <View style={styles.botAvatarSmall}>
                       <Sparkle size={13} color="#FFFFFF" weight="fill" />
                     </View>
-                    <Text style={styles.botName}>BharatPath Assistant</Text>
+                    <BrandWordmark style={styles.botName} suffix=" Saathi" />
                   </View>
 
                   {/* Reply text with Typewriter animation */}
@@ -440,7 +440,7 @@ export function CareerAssistantModal({
             {/* Thinking status */}
             {busy && (
               <View style={styles.thinkingRow}>
-                <HeartbeatThinking message="Career assistant is searching & planning…" />
+                <HeartbeatThinking message="BharatPath Saathi is searching & planning…" />
               </View>
             )}
 
@@ -465,7 +465,7 @@ export function CareerAssistantModal({
                 style={styles.composerInput}
                 value={draft}
                 onChangeText={setDraft}
-                placeholder="Ask about jobs, skills, or applications…"
+                placeholder="Ask BharatPath Saathi about jobs or applications…"
                 placeholderTextColor="#9AA1AE"
                 multiline={false}
                 returnKeyType="send"
@@ -553,7 +553,7 @@ function AssistantJobCard({
               isEligible ? styles.eligibilityGreenText : isPending ? styles.eligibilityYellowText : styles.eligibilityGrayText,
             ]}
           >
-            {isEligible ? 'Eligible' : isPending ? 'Score Pending' : 'Open'}
+            {isEligible ? 'Eligible' : isPending ? 'Bharatpath Score pending' : 'Open'}
           </Text>
         </View>
       </View>
@@ -628,14 +628,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   brandTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 10,
     color: '#8675AE',
     letterSpacing: 1.8,
     textTransform: 'uppercase',
   },
   headerTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 17,
     lineHeight: 22,
     letterSpacing: -0.4,
@@ -710,7 +710,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   heroTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 23,
     lineHeight: 28,
     letterSpacing: -0.6,
@@ -747,14 +747,14 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   startersHeading: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 10,
     color: '#9B87BD',
     letterSpacing: 1.5,
     textTransform: 'uppercase',
   },
   startersSubheading: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 16,
     lineHeight: 20,
     letterSpacing: -0.3,
@@ -800,7 +800,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   starterTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 13,
     lineHeight: 17,
     color: '#16243A',
@@ -941,7 +941,7 @@ const styles = StyleSheet.create({
     color: '#5F4DB2',
   },
   jobCardTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 13,
     lineHeight: 17,
     color: '#0A1931',
@@ -1090,7 +1090,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   appCardTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 12,
     color: '#0A1931',
   },

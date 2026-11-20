@@ -13,11 +13,11 @@
  * The photo uploaded here appears identically on web and vice-versa.
  */
 import React, { useState } from 'react';
+import { AppModal as Modal } from '@/components/layout/AppModal';
 import {
   View,
   Text,
   StyleSheet,
-  Modal,
   Pressable,
   Image,
   ActivityIndicator,
@@ -383,9 +383,9 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   title: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 18,
-    fontWeight: '700',
+
     color: Colors.navy,
   },
   closeButton: {

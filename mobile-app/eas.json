@@ -7,6 +7,22 @@
       "developmentClient": true,
       "distribution": "internal"
     },
+    "uat": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": false
+      },
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://bharatpath-uat.duckdns.org/api/v1",
+        "EXPO_PUBLIC_COGNITO_REGION": "ap-south-1",
+        "EXPO_PUBLIC_COGNITO_USER_POOL_ID": "ap-south-1_vs9gJDKGM",
+        "EXPO_PUBLIC_COGNITO_CLIENT_ID": "49t6cbjpg685d2b88ppsfjed98",
+        "EXPO_PUBLIC_AUTH_USE_DEV_TOKEN": "false"
+      }
+    },
     "preview": {
       "distribution": "internal",
       "android": {

@@ -117,6 +117,8 @@ export interface JobResponse {
   can_apply_externally?: boolean;
   published_at: string;
   eligibility: JobListing["eligibility"];
+  application_id?: string | null;
+  application_stage?: JobListing["applicationStage"];
 }
 
 interface RecommendedJobsResponse {
@@ -286,6 +288,8 @@ export function mapJob(response: JobResponse): JobListing {
     canApplyExternally: response.can_apply_externally ?? false,
     publishedAt: response.published_at,
     eligibility: response.eligibility,
+    applicationId: response.application_id,
+    applicationStage: response.application_stage,
   };
 }
 
@@ -504,7 +508,7 @@ export const studentApi = baseApi.injectEndpoints({
         nextCursor: response.next_cursor,
         total: response.total,
       }),
-      providesTags: [{ type: "Job", id: "STUDENT_LIST" }],
+      providesTags: [{ type: "Job", id: "STUDENT_LIST" }, { type: "Application", id: "STUDENT_LIST" }],
     }),
     getJobsSimilarToApplied: builder.query<RecommendedJobs, { limit: number; eligibleOnly?: boolean }>({
       query: ({ limit, eligibleOnly }) => ({
@@ -534,6 +538,7 @@ export const studentApi = baseApi.injectEndpoints({
       transformResponse: mapJob,
       providesTags: (_result, _error, jobId) => [
         { type: "Job", id: jobId },
+        { type: "Application", id: "STUDENT_LIST" },
       ],
     }),
     getStudentApplications: builder.query<

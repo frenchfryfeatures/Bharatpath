@@ -10,10 +10,10 @@
  * offers the two outcomes the stub can produce instead.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { AppModal as Modal } from '@/components/layout/AppModal';
 import {
   ActivityIndicator,
   Linking,
-  Modal,
   Pressable,
   StyleSheet,
   Text,

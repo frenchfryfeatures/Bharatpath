@@ -76,7 +76,7 @@ export function ApplicationDetail() {
               </MonogramTile>
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.09em] text-[#778197]">Employer</p>
-                <h2 className="mt-1 truncate text-[17px] font-bold text-[#0A1931]">{item.employerName ?? "Employer"}</h2>
+                <h2 className="mt-1 truncate text-[17px] font-semibold text-[#0A1931]">{item.employerName ?? "Employer"}</h2>
                 <p className="mt-1 text-[12px] text-[#5F6B80]">Applied {formatDate(item.createdAt)}</p>
               </div>
               <StatusChip tone={closed ? "neutral" : "advanced"}>{stageLabel(item.stage)}</StatusChip>

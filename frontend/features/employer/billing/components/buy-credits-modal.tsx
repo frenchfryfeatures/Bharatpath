@@ -69,7 +69,7 @@ export function BuyCreditsModal({
             id="buy-credits-title"
             className="
               text-[16px]
-              font-[700]
+              font-[600]
               leading-[22px]
               text-[#111827]
             "

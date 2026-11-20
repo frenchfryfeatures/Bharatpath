@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   title: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 30,
     lineHeight: 34,
     letterSpacing: -0.75, // -.025em

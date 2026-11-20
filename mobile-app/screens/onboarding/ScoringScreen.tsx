@@ -33,7 +33,7 @@ import { logger } from '@/utils/logger';
 const STATUS_MESSAGES = [
   'Reading your resume',
   'Turning it into facts',
-  'Computing your score',
+  'Computing your Bharatpath Score',
 ];
 
 const POLL_INTERVAL_MS = 2000;
@@ -140,7 +140,7 @@ export function ScoringScreen({
       } catch (err) {
         settledRef.current = true;
         setIsPolling(false);
-        setError(scoringErrorMessage(err, 'Could not read your score.'));
+        setError(scoringErrorMessage(err, 'Could not read your Bharatpath Score.'));
         return;
       }
       setPollCount((count) => count + 1);
@@ -152,7 +152,7 @@ export function ScoringScreen({
     if (pollCount >= MAX_POLLS && !settledRef.current) {
       setIsPolling(false);
       setError(
-        'Your resume is saved and confirmed, but no score has been computed for it yet.'
+        'Your resume is saved and confirmed, but no Bharatpath Score has been computed for it yet.'
       );
     }
   }, [pollCount]);
@@ -199,7 +199,7 @@ export function ScoringScreen({
               <Text style={styles.workingEyebrow}>{error ? 'NOT READY' : 'WORKING'}</Text>
               <View style={styles.statusTextWrapper}>
                 <Text style={styles.statusText} numberOfLines={3}>
-                  {error ? 'Score still pending' : STATUS_MESSAGES[statusIdx]}
+                  {error ? 'Bharatpath Score is being prepared' : STATUS_MESSAGES[statusIdx]}
                 </Text>
               </View>
 
@@ -249,7 +249,7 @@ export function ScoringScreen({
                   onPress={handleContinue}
                   accessibilityRole="button"
                 >
-                  <Text style={styles.ghostButtonText}>Continue without score</Text>
+                  <Text style={styles.ghostButtonText}>Continue without Bharatpath Score</Text>
                 </Pressable>
               )}
             </>
@@ -257,7 +257,7 @@ export function ScoringScreen({
             <>
               <View style={styles.waitingButton}>
                 <ActivityIndicator size="small" color="#FFFFFF" />
-                <Text style={styles.showScoreButtonText}>Computing your score</Text>
+                <Text style={styles.showScoreButtonText}>Computing your Bharatpath Score</Text>
               </View>
               {onContinueWithoutScore && (
                 <Pressable
@@ -265,7 +265,7 @@ export function ScoringScreen({
                   onPress={handleContinue}
                   accessibilityRole="button"
                 >
-                  <Text style={styles.ghostButtonText}>Continue without score</Text>
+                  <Text style={styles.ghostButtonText}>Continue without Bharatpath Score</Text>
                 </Pressable>
               )}
             </>
@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   title: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 28,
     lineHeight: 32,
     letterSpacing: -0.7,

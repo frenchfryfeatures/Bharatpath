@@ -121,7 +121,7 @@ export default function ShareResultRoute() {
       const bandStr = band ? ` (${band})` : '';
       const scoreStr = scoreNum ? `${scoreNum}/${UI_SCORE_MAX}` : 'Verified';
       await Share.share({
-        message: `I scored ${scoreStr}${bandStr} on BharatPath! Verify your employability score and get discovered by top employers.`,
+        message: `I scored ${scoreStr}${bandStr} on BharatPath! Verify your Bharatpath Score and get discovered by top employers.`,
       });
     } catch {
       // User cancelled share sheet
@@ -131,7 +131,7 @@ export default function ShareResultRoute() {
   const handleSave = () => {
     AppAlert.alert(
       'Result Saved',
-      'Your BharatPath resume score card is saved to your profile.',
+      'Your Bharatpath Score card is saved to your profile.',
       [{ text: 'OK' }]
     );
   };

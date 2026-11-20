@@ -1,4 +1,5 @@
 "use client";
+import { ResumePreviewViewer } from "@/features/student/components/resume-preview-viewer";
 
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, Download, Loader2, Plus, RotateCcw, Save, Send, Trash2, X } from "lucide-react";
@@ -252,7 +253,7 @@ export function ResumeBuilderStep({
 
   const onSave = async () => {
     if (await save()) showSuccessFeedback(profileMode
-      ? "Draft saved. Press Save & update score to use it on your profile."
+      ? "Draft saved. Press Update Bharatpath Score to use it on your profile."
       : "Draft saved.");
   };
 
@@ -293,7 +294,7 @@ export function ResumeBuilderStep({
       setFinalizing(true);
       await onSubmitted(await push().unwrap());
     } catch (failure) {
-      const message = getApiErrorMessage(failure, profileMode ? "The score could not be updated. Your saved draft is still available." : "Your resume could not be submitted. Add your name and at least one job, qualification or skill.");
+      const message = getApiErrorMessage(failure, profileMode ? "The Bharatpath Score could not be updated. Your saved draft is still available." : "Your resume could not be submitted. Add your name and at least one job, qualification or skill.");
       setError(message);
       showErrorFeedback(message);
     } finally {
@@ -363,7 +364,7 @@ export function ResumeBuilderStep({
           <ArrowLeft size={16} aria-hidden="true" /> Back
         </button>
         <div className="mr-auto min-w-0">
-          <h1 className="truncate text-[16px] font-bold leading-5">{profileMode ? "Update your resume" : "Generate your resume"}</h1>
+          <h1 className="truncate text-[16px] font-semibold leading-5">{profileMode ? "Update your resume" : "Generate your resume"}</h1>
           <p className="text-[12px] text-[#5F6B80]">{needsSave ? "Unsaved changes. Save to keep this template and your edits." : "Saved. The preview matches your draft."}</p>
         </div>
         <button type="button" onClick={() => void onSave()} disabled={busy || !needsSave} className="flex items-center gap-2 rounded-full border border-[#5F4DB2] px-4 py-2 text-sm font-semibold text-[#5F4DB2] disabled:opacity-50">
@@ -373,7 +374,7 @@ export function ResumeBuilderStep({
           {downloadState.isLoading ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <Download size={16} aria-hidden="true" />} Download
         </button>
         <button type="button" onClick={() => void onSubmit()} disabled={busy || (profileMode && profileSubmissionDisabled)} className="flex items-center gap-2 rounded-full bg-[#5F4DB2] px-5 py-2 text-sm font-semibold text-white hover:bg-[#4A3E8F] disabled:cursor-not-allowed disabled:opacity-60">
-          {pushState.isLoading || finalizing ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <Send size={16} aria-hidden="true" />} {profileMode ? profileSubmissionLabel ?? "Save & update score" : "Submit"}
+          {pushState.isLoading || finalizing ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <Send size={16} aria-hidden="true" />} {profileMode ? profileSubmissionLabel ?? "Update Bharatpath Score" : "Submit"}
         </button>
       </header>
       {profileMode && profileSubmissionNotice && (
@@ -432,15 +433,9 @@ export function ResumeBuilderStep({
           </div>
         </div>
 
-        <div className={`min-h-0 overflow-y-auto border-l border-[#F0EBDF] bg-[#EFEBE0] p-4 sm:p-6 ${mobileTab === "preview" ? "" : "hidden lg:block"}`} aria-label="Resume preview">
-          <div className="mx-auto flex max-w-[640px] flex-col gap-4">
-            {pages?.pages.map((page, index) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img key={index} src={`data:${pages.mime};base64,${page}`} alt={`Resume page ${index + 1}`} className="w-full rounded-sm bg-white shadow-md" />
-            ))}
-            {!pages && <p className="py-20 text-center text-sm text-[#5F6B80]">Drawing your resume…</p>}
-            {previewState.isLoading && <p className="text-center text-xs text-[#5F6B80]"><Loader2 className="mr-1 inline h-3 w-3 animate-spin" aria-hidden="true" />Updating preview…</p>}
-          </div>
+        <div className={`min-h-0 flex-col border-l border-[#F0EBDF] bg-[#EFEBE0] p-4 sm:p-6 ${mobileTab === "preview" ? "flex" : "hidden lg:flex"}`} aria-label="Resume preview">
+          {pages ? <ResumePreviewViewer pages={pages.pages} mime={pages.mime}/> : <p className="py-20 text-center text-sm text-[#5F6B80]">Drawing your resume…</p>}
+          {previewState.isLoading && <p className="text-center text-xs text-[#5F6B80]">Updating preview…</p>}
         </div>
       </div>
       <ConfirmModal
@@ -462,7 +457,7 @@ export function ResumeBuilderStep({
 function Section({ id, title, action, children }: { id?: string; title: string; action?: ReactNode; children: ReactNode }) {
   return (
     <section id={id} className="flex flex-col gap-3 scroll-mt-4 rounded-2xl border border-[#E7E0D4] bg-white p-4">
-      <div className="flex items-center justify-between gap-3"><h2 className="text-[15px] font-bold">{title}</h2>{action}</div>
+      <div className="flex items-center justify-between gap-3"><h2 className="text-[15px] font-semibold">{title}</h2>{action}</div>
       {children}
     </section>
   );

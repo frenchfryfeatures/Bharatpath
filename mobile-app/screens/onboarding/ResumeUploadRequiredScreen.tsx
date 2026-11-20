@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   uploadCopy: { gap: 4 },
-  uploadTitle: { fontFamily: 'GeneralSans-Bold', fontSize: 21, lineHeight: 27, letterSpacing: -0.3, color: '#FFFFFF' },
+  uploadTitle: { fontFamily: 'GeneralSans-Semibold', fontSize: 21, lineHeight: 27, letterSpacing: -0.3, color: '#FFFFFF' },
   uploadDetail: { fontFamily: 'GeneralSans-Regular', fontSize: 14, lineHeight: 20, color: '#E9E3FA' },
   uploadFooter: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12,
@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
     flexShrink: 0, alignSelf: 'flex-start', alignItems: 'center', justifyContent: 'center',
   },
   buildCopy: { flex: 1, minWidth: 0, gap: 4 },
-  buildTitle: { fontFamily: 'GeneralSans-Bold', fontSize: 16, lineHeight: 22, color: Colors.navy },
+  buildTitle: { fontFamily: 'GeneralSans-Semibold', fontSize: 16, lineHeight: 22, color: Colors.navy },
   buildDetail: { fontFamily: 'GeneralSans-Regular', fontSize: 13, lineHeight: 19, color: Colors.text.primary },
   pressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
 });

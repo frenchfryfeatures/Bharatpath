@@ -94,7 +94,7 @@ export function JobViewPage({ jobId }: { jobId: string }) {
             <>
               <InternalCard title="Hiring team">
                 <Row label="Hiring manager">{details.hiring.hiring_manager || "Not set"}</Row>
-                <Row label="Minimum score">
+                <Row label="Minimum Bharatpath Score">
                   {job.min_score ? `${job.min_score}` : "No threshold"}
                 </Row>
                 <Row label="Created">{formatJobDate(job.created_at)}</Row>
@@ -146,7 +146,7 @@ export function JobViewPage({ jobId }: { jobId: string }) {
 function InternalCard({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="rounded-[14px] border border-[#e1e5ea] bg-white p-5 shadow-[0_4px_12px_rgba(19,26,38,0.025)]">
-      <h2 className="mb-1 text-[11px] font-bold uppercase tracking-[0.06em] text-[#687386]">
+      <h2 className="mb-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#687386]">
         {title}
       </h2>
       <p className="mb-3 text-[11px] text-[#98a1b0]">Only your team sees this.</p>

@@ -69,7 +69,7 @@ export function SubscriptionStep({
             aria-hidden="true"
           />
           <div>
-            <h2 className="text-[15px] font-bold text-[#174C33]">
+            <h2 className="text-[15px] font-semibold text-[#174C33]">
               {seated && !subscription.data?.has_access ? "Access through your college" : "Membership active"}
             </h2>
             <p className="mt-1 text-[13px] leading-5 text-[#35624A]">
@@ -122,7 +122,7 @@ export function SubscriptionStep({
       <StepHeader
         step="subscription"
         title="Choose your membership"
-        subtitle="Membership opens your score, job matches and member pricing. Pick a length and pay once for it."
+        subtitle="Membership opens your Bharatpath Score, job matches and member pricing. Pick a length and pay once for it."
       />
 
       <section
@@ -132,7 +132,7 @@ export function SubscriptionStep({
         {[
           {
             icon: Sparkles,
-            title: "Your score",
+            title: "Your Bharatpath Score",
             detail: "Read as soon as your resume is confirmed",
           },
           {
@@ -167,7 +167,7 @@ export function SubscriptionStep({
         ))}
       </section>
 
-      <h2 className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#5F6B80]">
+      <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#5F6B80]">
         Choose a length
       </h2>
       {isLoading ? (

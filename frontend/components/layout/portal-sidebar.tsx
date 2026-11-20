@@ -1,4 +1,6 @@
 "use client";
+import { BrandWordmark } from "@/components/common/brand-wordmark";
+
 
 import { LoadingImage } from "@/components/common/loading/loading-image";
 import Image from "next/image";
@@ -350,7 +352,7 @@ export function PortalSidebar({
                   color: "#151b2b",
                 }}
               >
-                BharatPath
+                <BrandWordmark />
               </span>
 
               <span

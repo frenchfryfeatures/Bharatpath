@@ -519,7 +519,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   mainTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 26,
     lineHeight: 32,
     letterSpacing: -0.5,
@@ -570,7 +570,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   cardHeaderTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 16,
     lineHeight: 22,
     color: '#0A1931',

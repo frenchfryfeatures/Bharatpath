@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   title: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 30,
     lineHeight: 34,
     letterSpacing: -0.75, // -0.025em tracking
@@ -345,7 +345,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   uploadCardTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 22,
     lineHeight: 26,
     letterSpacing: -0.44, // -0.02em tracking
@@ -398,7 +398,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   secondaryCardTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 16,
     lineHeight: 20,
     color: '#0A1931',

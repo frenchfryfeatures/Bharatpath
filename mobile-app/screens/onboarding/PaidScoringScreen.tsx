@@ -58,10 +58,10 @@ export function PaidScoringScreen({
         <View style={styles.icon}>
           <Sparkle size={30} color="#5F4DB2" weight="fill" />
         </View>
-        <Text style={styles.title}>Start your resume score</Text>
+        <Text style={styles.title}>Get your Bharatpath Score</Text>
         <Text style={styles.subtitle}>
           Membership is active. We are confirming your reviewed resume and
-          starting score computation now.
+          starting Bharatpath Score computation now.
         </Text>
         {busy ? <ActivityIndicator size="large" color="#5F4DB2" /> : null}
         {error ? (
@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   title: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 28,
     lineHeight: 34,
     color: '#0A1931',

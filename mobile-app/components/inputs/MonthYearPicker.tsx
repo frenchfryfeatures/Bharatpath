@@ -274,7 +274,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E7E0D4',
   },
   sheetTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 17,
     color: '#0A1931',
   },

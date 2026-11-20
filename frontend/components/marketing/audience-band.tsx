@@ -30,7 +30,7 @@ export function AudienceBand({
     <section aria-labelledby={id} className="shell py-10 sm:py-14">
       <div className="grid items-center gap-8 lg:grid-cols-2 lg:gap-16">
         <div className={`min-w-0 ${flip ? "lg:order-2" : ""}`}>
-          <h2 id={id} className="text-[28px] font-bold leading-[1.1] tracking-[-0.03em] sm:text-[36px]">
+          <h2 id={id} className="text-[28px] font-semibold leading-[1.1] tracking-[-0.03em] sm:text-[36px]">
             {title}
           </h2>
           <p className="mt-3 max-w-[52ch] text-[16px] text-muted sm:text-[17px]">{lead}</p>

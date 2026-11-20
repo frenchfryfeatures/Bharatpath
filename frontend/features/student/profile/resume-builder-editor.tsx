@@ -39,7 +39,7 @@ export function ResumeBuilderEditor({ templateKey, section, resumeVersionId, ret
       }
       return true;
     } catch (failure) {
-      showErrorFeedback(getApiErrorMessage(failure, "Score availability could not be checked. Try again."));
+      showErrorFeedback(getApiErrorMessage(failure, "Bharatpath Score availability could not be checked. Try again."));
       return false;
     }
   };
@@ -51,7 +51,7 @@ export function ResumeBuilderEditor({ templateKey, section, resumeVersionId, ret
       try {
         await confirmVersion(resumeVersionId).unwrap();
         void scoringWindow.refetch();
-        showSuccessFeedback("Resume saved and score update started.");
+        showSuccessFeedback("Resume saved and Bharatpath Score update started.");
       } catch (failure) {
         void scoringWindow.refetch();
         if (getApiErrorCode(failure) !== "resume_scoring_cooldown") throw failure;
@@ -79,9 +79,9 @@ export function ResumeBuilderEditor({ templateKey, section, resumeVersionId, ret
         initialContent={resumeVersionId ? selectedVersion.data?.structuredResume ?? undefined : undefined}
         focusSection={section}
         profileMode
-        profileSubmissionLabel="Save & update score"
+        profileSubmissionLabel="Update Bharatpath Score"
         profileSubmissionDisabled={scoringCooldown}
-        profileSubmissionNotice={!scoringEligibilityKnown ? "Score availability is checked when you apply this resume." : scoringCooldown ? nextScoringMessage(scoringWindow.data?.nextScoringAt) : undefined}
+        profileSubmissionNotice={!scoringEligibilityKnown ? "Bharatpath Score availability is checked when you apply this resume." : scoringCooldown ? nextScoringMessage(scoringWindow.data?.nextScoringAt) : undefined}
         onBeforeSubmit={checkScoringWindow}
         onBack={() => router.replace(returnTo === "resume-details" ? "/student/profile/resume" : "/student/profile#profile-reports")}
         onSubmitted={(result) => finish(result.resume_version_id, result.confirmed)}

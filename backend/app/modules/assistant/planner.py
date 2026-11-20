@@ -38,7 +38,7 @@ class AssistantUnavailableError(AppError):
 
     status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     code = "assistant_unavailable"
-    title = "The assistant could not answer just now"
+    title = "BharatPath Saathi could not answer just now"
 
 
 class Planner(Protocol):
@@ -74,7 +74,7 @@ class StubPlanner:
             "search": None,
             "job_number": None,
             "applications": None,
-            "reply": "Stub assistant: try 'find python jobs in pune'.",
+            "reply": "BharatPath Saathi: try 'find python jobs in pune'.",
             "reply_if_no_results": "Stub assistant: nothing found.",
             "suggestions": ["find jobs", "match my profile"],
         }

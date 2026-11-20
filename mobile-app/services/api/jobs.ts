@@ -61,6 +61,12 @@ export async function getJobDetail(jobId: string): Promise<BoardJobDetail> {
   return apiRequest<BoardJobDetail>(`/candidate/jobs/${jobId}`);
 }
 
+export type RecommendationKind = 'similar-to-applied' | 'matching-profile';
+export interface RecommendedJob extends BoardJobSummary { matched_skills: string[] }
+export function getRecommendedJobs(kind: RecommendationKind, limit = 12): Promise<{ items: RecommendedJob[]; has_basis: boolean }> {
+  return apiRequest(`/candidate/recommended-jobs/${kind}?limit=${limit}`);
+}
+
 /**
  * Apply to a job - `POST /candidate/applications { job_id }`.
  *
@@ -108,9 +114,9 @@ export function applyErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof ApiError) {
     switch (error.code) {
       case 'eligibility_below_threshold':
-        return 'Your score does not meet this employer’s requirement.';
+        return 'Your Bharatpath Score does not meet this employer’s requirement.';
       case 'score_pending':
-        return 'Your score is still being calculated. Try again shortly.';
+        return 'Your Bharatpath Score is still being calculated. Try again shortly.';
       case 'application_unavailable':
         return 'This job is no longer accepting applications.';
       case 'subscription_required':

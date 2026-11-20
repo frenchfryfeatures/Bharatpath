@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrandWordmark } from "@/components/common/brand-wordmark";
 import { BrandIcon } from "@/components/common/brand-icon";
 import { Check, LogOut } from "lucide-react";
 
@@ -48,7 +49,7 @@ export function SignupShell({
             <BrandIcon className="h-9 w-9" />
             <span className="leading-tight">
               <span className="block text-sm font-semibold text-[#17233a]">
-                BharatPath
+                <BrandWordmark />
               </span>
               <span className="block text-[11px] text-[#687386]">
                 {subtitle}

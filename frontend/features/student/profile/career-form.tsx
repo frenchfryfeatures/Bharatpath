@@ -1225,7 +1225,7 @@ export function CareerForm({
       {(editingAll || activeFields.some((field) => field.key === "gender")) && (
         <p className="flex items-center gap-2 text-xs text-[#5F6B80]">
           <CheckCircle2 size={16} />
-          Gender does not affect your score.
+          Gender does not affect your Bharatpath Score.
         </p>
       )}
       {!conversational && actionRow}

@@ -144,7 +144,7 @@ function StreakHero({ streak }: { streak: StudentStreak }) {
           value={`${streak.longestStreak} ${
             streak.longestStreak === 1 ? "day" : "days"
           }`}
-          detail="Personal best"
+          detail="Longest Streak"
         />
       </div>
     </section>
@@ -237,7 +237,7 @@ function WeeklyActivity({ streak }: { streak: StudentStreak }) {
         {calendar.data ? (
           <span className="text-[11px] font-semibold text-[#5F6B80]">
             {calendar.data.activeDays} opened · {calendar.data.missedDays}{" "}
-            missed · best run {calendar.data.longestRun}
+            missed · Longest Streak {calendar.data.longestRun}
           </span>
         ) : null}
       </div>

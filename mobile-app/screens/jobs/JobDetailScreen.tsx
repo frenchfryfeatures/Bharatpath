@@ -23,6 +23,10 @@
  *      402 → paywall (subscription required)
  */
 import React, { useState, useCallback } from 'react';
+import { useRouter } from 'expo-router';
+import { RecommendedJobsSection } from '@/components/jobs/RecommendedJobsSection';
+import { ApplyResumePreview } from '@/components/jobs/ApplyResumePreview';
+import { isActiveStage, stageLabel, type ApplicationStage } from '@/types/application';
 import { AppAlert } from "@/components/feedback/AppAlert";
 import {
   View,
@@ -32,19 +36,18 @@ import {
   Pressable,
   Platform,
   ActivityIndicator,
+  Image,
   Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import {
   ArrowLeft,
-  SealCheck,
   CheckCircle,
   CurrencyInr,
   Clock,
   MapPin,
   Check,
-  EyeSlash,
   XCircle,
   SpinnerGap,
   Briefcase,
@@ -136,29 +139,31 @@ const TXT_APPLIED_SUB =
   "The employer will see your profile. You'll hear back on the Application Board.";
 const TXT_ELIGIBLE_TITLE = 'You can apply to this job';
 const TXT_ELIGIBLE_SUB =
-  'One tap with your profile - no forms, no cover letter.';
+  'Review your confirmed resume, then send your application.';
 const TXT_BELOW_TITLE = 'Not eligible for this job yet';
 const TXT_BELOW_SUB =
   'Keep building your profile and check back. You can still see the details.';
 const TXT_PENDING_TITLE = "We're still reading your resume";
 const TXT_PENDING_SUB =
-  "Once your score is ready we'll tell you whether you can apply.";
+  "Once your Bharatpath Score is ready we'll tell you whether you can apply.";
 const TXT_APPLIED_CTA_SUB = 'See it on your Application Board';
 const TXT_BELOW_CTA_SUB = 'There are other jobs that fit your profile';
 const TXT_PENDING_CTA_SUB = "We'll notify you";
-const TXT_APPLY_CTA_SUB = 'One tap · no forms, no cover letter';
+const TXT_APPLY_CTA_SUB = 'Preview your resume before sending';
 const TXT_EXTERNAL_CTA_SUB = 'Opens employer application in your browser';
 const TXT_PRIVACY =
-  'Your name and number stay hidden until this employer unlocks your profile. You get told when they do.';
+  'Review your confirmed resume before applying. Track your application and employer updates on your Application Board.';
 
 export interface JobDetailScreenProps {
   /** Full job detail from GET /candidate/jobs/{id}. */
   job: BoardJobDetail;
   /** True if the candidate already has an application for this job. */
   alreadyApplied?: boolean;
+  applicationStage?: ApplicationStage | null;
+  onViewApplication?: () => void;
   onBack?: () => void;
   /** Called after a successful apply, with the employer name. */
-  onApplied?: (employerName: string) => void;
+  onApplied?: (employerName: string, application: { id: string; created_at: string; job_title: string | null }) => void;
   /** Called when the job is gone (404) - usually navigate back. */
   onJobGone?: () => void;
   /** Called when subscription is required (402). */
@@ -174,16 +179,22 @@ type ApplyState =
 export function JobDetailScreen({
   job,
   alreadyApplied = false,
+  applicationStage,
+  onViewApplication,
   onBack,
   onApplied,
   onJobGone,
   onSubscriptionRequired,
 }: JobDetailScreenProps) {
+  const router = useRouter();
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [logoFailed, setLogoFailed] = useState(false);
   // Local eligibility can flip to BELOW_THRESHOLD if the apply returns 403.
   const [eligibility, setEligibility] = useState<EligibilityStatus>(
     job.eligibility,
   );
-  const [applied, setApplied] = useState<boolean>(alreadyApplied);
+  const [submitted, setSubmitted] = useState(false);
+  const applied = submitted || alreadyApplied || !!applicationStage && (isActiveStage(applicationStage) || applicationStage === 'HIRED');
   const [applyState, setApplyState] = useState<ApplyState>({ kind: 'idle' });
 
   const employerName = job.employer_name || 'Employer';
@@ -259,6 +270,7 @@ export function JobDetailScreen({
         const canOpen = await Linking.canOpenURL(job.details.application.external_url);
         if (canOpen) {
           await Linking.openURL(job.details.application.external_url);
+          setPreviewOpen(false);
         } else {
           AppAlert.alert('External Link', 'Could not open the application link.');
         }
@@ -270,10 +282,11 @@ export function JobDetailScreen({
     if (applyState.kind === 'submitting' || applied) return;
     setApplyState({ kind: 'submitting' });
     try {
-      await applyToJob(job.id);
-      setApplied(true);
+      const application = await applyToJob(job.id);
+      setSubmitted(true);
       setApplyState({ kind: 'done' });
-      onApplied?.(employerName);
+      setPreviewOpen(false);
+      onApplied?.(employerName, application);
     } catch (err) {
       if (isJobGoneError(err)) {
         setApplyState({
@@ -294,8 +307,13 @@ export function JobDetailScreen({
       if (isEligibilityError(err)) {
         // 403 → re-render as not eligible.
         setEligibility('BELOW_THRESHOLD');
+        setPreviewOpen(false);
         setApplyState({ kind: 'idle' });
         return;
+      }
+      if (err instanceof ApiError && err.code === 'score_pending') {
+        setEligibility('SCORE_PENDING');
+        setPreviewOpen(false);
       }
       const message = applyErrorMessage(
         err,
@@ -317,13 +335,13 @@ export function JobDetailScreen({
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" animated />
+      <StatusBar style="dark" animated />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Dark Navy Hero Section */}
+        {/* Role and company overview */}
         <View style={styles.navyHero}>
           <SafeAreaView edges={['top']} style={styles.heroSafeArea}>
             {/* Top Bar Actions */}
@@ -337,21 +355,22 @@ export function JobDetailScreen({
                 accessibilityRole="button"
                 accessibilityLabel="Back to jobs"
               >
-                <ArrowLeft size={16} color="#FFFFFF" weight="bold" />
+                <ArrowLeft size={20} color="#0A1931" weight="bold" />
               </Pressable>
+              <Text style={styles.navTitle}>Job details</Text>
             </View>
 
             {/* Role & Company Header */}
             <View style={styles.roleHeaderRow}>
               <View style={styles.companyBadge}>
-                <Text style={styles.companyBadgeText}>{initials}</Text>
+                {job.employer_logo_url && !logoFailed ? (
+                  <Image source={{ uri: job.employer_logo_url }} accessibilityLabel={`${employerName} logo`} resizeMode="contain" onError={() => setLogoFailed(true)} style={{ width: 48, height: 48, borderRadius: 10, backgroundColor: '#FFFFFF' }} />
+                ) : <Text style={styles.companyBadgeText}>{initials}</Text>}
               </View>
               <View style={styles.roleInfo}>
                 <Text style={styles.roleTitleText}>{job.title}</Text>
                 <View style={styles.companySubRow}>
                   <Text style={styles.companyNameText}>{employerName}</Text>
-                  <SealCheck size={14} color="#FFFCF7" weight="fill" />
-                  <Text style={styles.verifiedLabelText}>Verified</Text>
                 </View>
                 {jobTypeLabel || employmentTypeLabel || job.details?.basics?.department ? (
                   <View style={styles.heroTagsRow}>
@@ -379,98 +398,32 @@ export function JobDetailScreen({
 
             {/* Eligibility panel - varies by eligibility */}
             <EligibilityPanel eligibility={eligibility} applied={applied} />
+            {!!applicationStage && <Pressable accessibilityRole="button" onPress={onViewApplication}><Text style={styles.applicationLink}>{applicationStage === 'SUBMITTED' ? 'Applied' : stageLabel(applicationStage)} · View application</Text></Pressable>}
           </SafeAreaView>
         </View>
 
-        {/* White / Off-White Details Section */}
+        {/* Job details */}
         <View style={styles.detailsBody}>
-          {/* Metric cards */}
+          <Text accessibilityRole="header" style={styles.detailsHeading}>Job details</Text>
           <View style={styles.metricsRow}>
-            {/* MONTHLY / SALARY */}
             <View style={styles.metricCard}>
-              <CurrencyInr size={17} color="#5E4DB2" weight="duotone" />
-              <Text style={styles.metricLabel}>
-                {job.details?.compensation?.period &&
-                job.details.compensation.period !== 'MONTHLY'
-                  ? `SALARY (${job.details.compensation.period.replace('_', ' ')})`
-                  : 'MONTHLY'}
-              </Text>
-              <Text
-                style={isSalaryDisclosed ? styles.metricValueMono : styles.metricValueSans}
-                numberOfLines={2}
-              >
-                {isSalaryDisclosed
-                  ? formatSalaryRangePaise(
-                      job.salary_min_minor,
-                      job.salary_max_minor,
-                    )
-                  : 'Not disclosed'}
-              </Text>
-              {isSalaryDisclosed && job.details?.compensation?.negotiable ? (
-                <Text style={styles.metricSubLabel}>Negotiable</Text>
-              ) : null}
+              <Briefcase size={18} color="#5F6B80" />
+              <Text style={styles.metricValueSans}>{jobTypeLabel || 'Employment'}{employmentTypeLabel ? ' · ' + employmentTypeLabel : ''}{job.work_mode ? ' · ' + workModeLabel(job.work_mode) : ''}</Text>
             </View>
-
-            {/* WORK MODE */}
-            {job.work_mode ? (
-              <View style={styles.metricCard}>
-                <Briefcase size={17} color="#5F6B80" weight="duotone" />
-                <Text style={styles.metricLabel}>WORK MODE</Text>
-                <Text style={styles.metricValueSans} numberOfLines={2}>
-                  {workModeLabel(job.work_mode)}
-                </Text>
-              </View>
-            ) : null}
-
-            {/* EXPERIENCE */}
-            {job.experience_min_months ? (
-              <View style={styles.metricCard}>
-                <Clock size={17} color="#5F6B80" weight="duotone" />
-                <Text style={styles.metricLabel}>EXPERIENCE</Text>
-                <Text style={styles.metricValueSans} numberOfLines={2}>
-                  {formatExperienceMonths(job.experience_min_months)}
-                  {job.details?.compensation?.experience_max_months
-                    ? ` – ${formatExperienceMonths(
-                        job.details.compensation.experience_max_months,
-                      )}`
-                    : ''}
-                </Text>
-              </View>
-            ) : null}
-
-            {/* LOCATION */}
-            {job.location ? (
-              <View
-                style={[
-                  styles.metricCard,
-                  !job.experience_min_months &&
-                    !job.details?.basics?.openings &&
-                    styles.metricCardWide,
-                ]}
-              >
-                <MapPin size={17} color="#5F6B80" weight="duotone" />
-                <Text style={styles.metricLabel}>LOCATION</Text>
-                <Text style={styles.metricValueSans} numberOfLines={2}>
-                  {job.location}
-                  {job.details?.location?.additional_locations &&
-                  job.details.location.additional_locations.length > 0
-                    ? ` (+${job.details.location.additional_locations.length})`
-                    : ''}
-                </Text>
-              </View>
-            ) : null}
-
-            {/* OPENINGS */}
-            {job.details?.basics?.openings ? (
-              <View style={styles.metricCard}>
-                <Users size={17} color="#5F6B80" weight="duotone" />
-                <Text style={styles.metricLabel}>OPENINGS</Text>
-                <Text style={styles.metricValueSans} numberOfLines={2}>
-                  {job.details.basics.openings}{' '}
-                  {job.details.basics.openings === 1 ? 'position' : 'positions'}
-                </Text>
-              </View>
-            ) : null}
+            {job.experience_min_months != null && <View style={styles.metricCard}>
+              <Clock size={18} color="#5F6B80" />
+              <Text style={styles.metricValueSans}>{job.experience_min_months === 0 && !job.details?.compensation?.experience_max_months ? 'Freshers welcome' : [formatExperienceMonths(job.experience_min_months), job.details?.compensation?.experience_max_months ? formatExperienceMonths(job.details.compensation.experience_max_months) : null].filter(Boolean).join(' – ') + ' experience'}</Text>
+            </View>}
+            {job.details?.basics?.openings ? <View style={styles.metricCard}>
+              <Users size={18} color="#5F6B80" /><Text style={styles.metricValueSans}>{job.details.basics.openings} {job.details.basics.openings === 1 ? 'opening' : 'openings'}</Text>
+            </View> : null}
+            {job.location && <View style={styles.metricCard}>
+              <MapPin size={18} color="#5F6B80" /><Text style={styles.metricValueSans}>{[job.location, ...(job.details?.location?.additional_locations || [])].join(' · ')}</Text>
+            </View>}
+            <View style={styles.metricCard}>
+              <CurrencyInr size={18} color="#5F6B80" />
+              <Text style={styles.metricValueSans}>{isSalaryDisclosed ? formatSalaryRangePaise(job.salary_min_minor,job.salary_max_minor) + ' / month' : 'Salary not disclosed'}{isSalaryDisclosed && job.details?.compensation?.negotiable ? ' · Negotiable' : ''}</Text>
+            </View>
           </View>
 
           {/* APPLICATION DEADLINE (if set) */}
@@ -487,7 +440,7 @@ export function JobDetailScreen({
           {/* WHAT YOU WOULD DO */}
           {job.description ? (
             <View style={styles.sectionBlock}>
-              <Text style={styles.sectionEyebrow}>WHAT YOU WOULD DO</Text>
+              <Text style={styles.sectionEyebrow}>Job highlights</Text>
               <Text style={styles.bodyDescription}>{job.description}</Text>
             </View>
           ) : null}
@@ -495,7 +448,7 @@ export function JobDetailScreen({
           {/* KEY RESPONSIBILITIES */}
           {responsibilities.length > 0 ? (
             <View style={styles.sectionBlock}>
-              <Text style={styles.sectionEyebrow}>KEY RESPONSIBILITIES</Text>
+              <Text style={styles.sectionEyebrow}>Key responsibilities</Text>
               <View style={styles.bulletList}>
                 {responsibilities.map((resp, idx) => (
                   <View key={idx} style={styles.bulletRow}>
@@ -511,7 +464,7 @@ export function JobDetailScreen({
           {job.skills.length > 0 ? (
             <View style={styles.sectionBlock}>
               <View style={styles.skillsEyebrowRow}>
-                <Text style={styles.sectionEyebrow}>SKILLS THEY ASKED FOR</Text>
+                <Text style={styles.sectionEyebrow}>Must-have skills</Text>
               </View>
               <View style={styles.skillsChipsWrap}>
                 {job.skills.map((skill) => (
@@ -528,7 +481,7 @@ export function JobDetailScreen({
           {preferredSkills.length > 0 ? (
             <View style={styles.sectionBlock}>
               <View style={styles.skillsEyebrowRow}>
-                <Text style={styles.sectionEyebrow}>PREFERRED & ADDITIONAL SKILLS</Text>
+                <Text style={styles.sectionEyebrow}>Additional skills</Text>
               </View>
               <View style={styles.skillsChipsWrap}>
                 {preferredSkills.map((skill) => (
@@ -544,7 +497,7 @@ export function JobDetailScreen({
           {/* REQUIRED QUALIFICATIONS */}
           {reqQualifications.length > 0 ? (
             <View style={styles.sectionBlock}>
-              <Text style={styles.sectionEyebrow}>REQUIRED QUALIFICATIONS</Text>
+              <Text style={styles.sectionEyebrow}>Required qualifications</Text>
               <View style={styles.bulletList}>
                 {reqQualifications.map((item, idx) => (
                   <View key={idx} style={styles.bulletRow}>
@@ -559,7 +512,7 @@ export function JobDetailScreen({
           {/* PREFERRED QUALIFICATIONS */}
           {prefQualifications.length > 0 ? (
             <View style={styles.sectionBlock}>
-              <Text style={styles.sectionEyebrow}>PREFERRED QUALIFICATIONS</Text>
+              <Text style={styles.sectionEyebrow}>Preferred qualifications</Text>
               <View style={styles.bulletList}>
                 {prefQualifications.map((item, idx) => (
                   <View key={idx} style={styles.bulletRow}>
@@ -574,7 +527,7 @@ export function JobDetailScreen({
           {/* EDUCATION & CERTIFICATIONS */}
           {hasEducation ? (
             <View style={styles.sectionBlock}>
-              <Text style={styles.sectionEyebrow}>EDUCATION & CERTIFICATIONS</Text>
+              <Text style={styles.sectionEyebrow}>Education and certifications</Text>
               <View style={styles.cardBlock}>
                 {eduMinimum ? (
                   <View style={styles.factRow}>
@@ -616,7 +569,7 @@ export function JobDetailScreen({
           {/* CANDIDATE REQUIREMENTS */}
           {hasRequirements ? (
             <View style={styles.sectionBlock}>
-              <Text style={styles.sectionEyebrow}>CANDIDATE REQUIREMENTS</Text>
+              <Text style={styles.sectionEyebrow}>Candidate requirements</Text>
               <View style={styles.cardBlock}>
                 {noticePeriod ? (
                   <View style={styles.factRow}>
@@ -653,7 +606,7 @@ export function JobDetailScreen({
           {/* BENEFITS & PERKS */}
           {benefits.length > 0 ? (
             <View style={styles.sectionBlock}>
-              <Text style={styles.sectionEyebrow}>BENEFITS & PERKS</Text>
+              <Text style={styles.sectionEyebrow}>Benefits</Text>
               <View style={styles.skillsChipsWrap}>
                 {benefits.map((benefit, idx) => (
                   <View key={idx} style={styles.benefitChip}>
@@ -665,33 +618,38 @@ export function JobDetailScreen({
             </View>
           ) : null}
 
-          {/* Privacy Protection Notice */}
+          <RecommendedJobsSection kind="matching-profile" limit={5} excludeJobId={job.id} heading="Recommended jobs" onJobPress={id => router.push({ pathname: '/job-detail', params: { id } } as any)} onBrowseJobs={() => router.push('/jobs' as any)} />
+
+          {/* Application information */}
           <View style={styles.privacyNoticeBox}>
-            <EyeSlash size={17} color="#5F6B80" weight="bold" />
+            <CheckCircle size={17} color="#5F6B80" weight="bold" />
             <Text style={styles.privacyNoticeText}>{TXT_PRIVACY}</Text>
           </View>
 
-          {/* Sticky Bottom CTA - varies by eligibility + applied */}
+        </View>
+      </ScrollView>
+          <SafeAreaView edges={['bottom']} style={styles.stickyFooter}>
           <View style={styles.bottomCtaContainer}>
             <BottomCTA
               eligibility={eligibility}
               applied={applied}
               applyState={applyState}
               isExternal={isExternalApply}
-              onApply={handleApply}
+              onApply={() => { setApplyState({ kind: 'idle' }); setPreviewOpen(true); }}
               onBack={onBack}
+              onViewApplication={onViewApplication}
             />
             {applyState.kind === 'error' && (
               <Text style={styles.applyErrorText}>{applyState.message}</Text>
             )}
           </View>
-        </View>
-      </ScrollView>
+          </SafeAreaView>
+      <ApplyResumePreview visible={previewOpen} jobTitle={job.title} companyName={employerName} external={isExternalApply} submitting={applyState.kind === 'submitting'} submitError={applyState.kind === 'error' ? applyState.message : undefined} onClose={() => setPreviewOpen(false)} onConfirm={handleApply} onEditResume={() => { setPreviewOpen(false); router.push('/resume-details' as any); }}/>
     </View>
   );
 }
 
-// ─── Eligibility Panel (top, inside navy hero) ─────────────────
+// ─── Eligibility Panel (top, below the overview) ─────────────────
 
 interface EligibilityPanelProps {
   eligibility: EligibilityStatus;
@@ -765,6 +723,7 @@ interface BottomCTAProps {
   isExternal?: boolean;
   onApply: () => void;
   onBack?: () => void;
+  onViewApplication?: () => void;
 }
 
 function BottomCTA({
@@ -774,14 +733,15 @@ function BottomCTA({
   isExternal,
   onApply,
   onBack,
+  onViewApplication,
 }: BottomCTAProps) {
   if (applied) {
     return (
       <>
-        <View style={styles.appliedBtn}>
+        <Pressable accessibilityRole="button" onPress={onViewApplication} style={styles.appliedBtn}>
           <CheckCircle size={18} color="#FFFFFF" weight="fill" />
-          <Text style={styles.applyBtnText}>Applied</Text>
-        </View>
+          <Text style={styles.applyBtnText}>View application</Text>
+        </Pressable>
         <Text style={styles.applySubtext}>{TXT_APPLIED_CTA_SUB}</Text>
       </>
     );
@@ -811,7 +771,7 @@ function BottomCTA({
         <View style={styles.disabledBtn}>
           <Bell size={17} color="#9DA9BE" weight="bold" />
           <Text style={styles.disabledBtnText}>
-            Apply opens when score is ready
+            Bharatpath Score being prepared
           </Text>
         </View>
         <Text style={styles.applySubtext}>{TXT_PENDING_CTA_SUB}</Text>
@@ -832,7 +792,7 @@ function BottomCTA({
           ]}
           onPress={onApply}
           accessibilityRole="button"
-          accessibilityLabel="Apply on company site"
+          accessibilityLabel="Review resume before applying on company site"
         >
           <Text style={styles.applyBtnText}>Apply on company site</Text>
           <ArrowSquareOut size={16} color="#FFFFFF" weight="bold" />
@@ -853,12 +813,12 @@ function BottomCTA({
         onPress={onApply}
         disabled={submitting}
         accessibilityRole="button"
-        accessibilityLabel="Apply now"
+        accessibilityLabel="Review resume and apply"
       >
         {submitting ? (
           <ActivityIndicator size="small" color="#FFFFFF" />
         ) : (
-          <Text style={styles.applyBtnText}>Apply now</Text>
+          <Text style={styles.applyBtnText}>Review resume & apply</Text>
         )}
       </Pressable>
       <Text style={styles.applySubtext}>{TXT_APPLY_CTA_SUB}</Text>
@@ -869,21 +829,13 @@ function BottomCTA({
 // ─── Styles ────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#FFFCF7',
-  },
+  detailsHeading: { fontFamily: 'GeneralSans-Semibold', fontSize: 17, lineHeight: 23, color: '#0A1931' },
+  root: { flex: 1, backgroundColor: '#FFFFFF' },
   scrollContent: {
     flexGrow: 1,
   },
-  navyHero: {
-    backgroundColor: '#5F4DB2',
-    paddingBottom: 24,
-  },
-  heroSafeArea: {
-    paddingHorizontal: 20,
-    gap: 20,
-  },
+  navyHero: { backgroundColor: '#FFFFFF', paddingBottom: 24 },
+  heroSafeArea: { paddingHorizontal: 20, gap: 20 },
   topNavRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -895,49 +847,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  navCircleBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 252, 247, 0.26)',
-    backgroundColor: 'rgba(255, 252, 247, 0.08)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  roleHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 16,
-  },
+  navCircleBtn: { width: 44, height: 44, justifyContent: 'center', alignItems: 'flex-start' },
+  roleHeaderRow: { alignItems: 'flex-start', gap: 12 },
   companyBadge: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 252, 247, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 252, 247, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: 48, height: 48, borderRadius: 14, backgroundColor: '#F1EAF7', justifyContent: 'center', alignItems: 'center',
   },
   companyBadgeText: {
-    fontFamily: 'GeneralSans-Bold',
-    fontSize: 17,
-    lineHeight: 20,
-    color: '#FFFCF7',
+    fontFamily: 'GeneralSans-Semibold', fontSize: 17, lineHeight: 22, color: '#5F4DB2',
   },
-  roleInfo: {
-    flex: 1,
-    minWidth: 0,
-    gap: 6,
-  },
-  roleTitleText: {
-    fontFamily: 'GeneralSans-Bold',
-    fontSize: 23,
-    lineHeight: 29,
-    letterSpacing: -0.6,
-    color: '#FFFFFF',
-  },
+  roleInfo: { width: '100%', gap: 6 },
+  roleTitleText: { fontFamily: 'GeneralSans-Semibold', fontSize: 24, lineHeight: 30, letterSpacing: -0.3, color: '#0A1931' },
   companySubRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -945,10 +864,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   companyNameText: {
-    fontFamily: 'GeneralSans-Regular',
-    fontSize: 13,
-    lineHeight: 16,
-    color: '#9DA9BE',
+    fontFamily: 'GeneralSans-Regular', fontSize: 14, lineHeight: 20, color: '#5F6B80',
   },
   verifiedLabelText: {
     fontFamily: 'GeneralSans-Regular',
@@ -956,14 +872,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     color: '#9DA9BE',
   },
-  scoreClearanceCard: {
-    padding: 18,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 252, 247, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 252, 247, 0.18)',
-    gap: 8,
-  },
+  scoreClearanceCard: { paddingVertical: 10, gap: 6 },
   clearanceHeaderRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -979,42 +888,14 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   clearanceTitleText: {
-    flex: 1,
-    fontFamily: 'GeneralSans-Semibold',
-    fontSize: 14,
-    lineHeight: 18,
-    color: '#FFFFFF',
+    flex: 1, fontFamily: 'GeneralSans-Semibold', fontSize: 14, lineHeight: 20, color: '#4A3E8F',
   },
   clearanceSubtext: {
-    fontFamily: 'GeneralSans-Regular',
-    fontSize: 13,
-    lineHeight: 18,
-    color: 'rgba(255, 252, 247, 0.78)',
+    fontFamily: 'GeneralSans-Regular', fontSize: 13, lineHeight: 19, color: '#5F6B80',
   },
-  detailsBody: {
-    paddingHorizontal: 20,
-    paddingTop: 28,
-    paddingBottom: 48,
-    gap: 28,
-  },
-  metricsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    columnGap: 12,
-    rowGap: 12,
-  },
-  metricCard: {
-    flexBasis: '47%',
-    flexGrow: 1,
-    minHeight: 118,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: Colors.surface.border,
-    borderRadius: 16,
-    padding: 16,
-    gap: 8,
-    justifyContent: 'flex-start',
-  },
+  detailsBody: { paddingHorizontal: 20, paddingBottom: 24, gap: 20, borderTopWidth: 1, borderTopColor: '#E7E0D4', paddingTop: 20 },
+  metricsRow: { gap: 14 },
+  metricCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   metricCardWide: {
     flexBasis: '100%',
   },
@@ -1031,36 +912,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   metricValueMono: {
-    fontFamily: Platform.select({
-      ios: 'SpaceMono-Bold',
-      android: 'SpaceMono-Bold',
-      default: 'monospace',
-    }),
-    fontSize: 16,
-    lineHeight: 21,
-    color: Colors.navy,
-    fontWeight: '700',
-  },
-  metricValueSans: {
     fontFamily: 'GeneralSans-Semibold',
     fontSize: 16,
     lineHeight: 21,
     color: Colors.navy,
+
   },
-  sectionBlock: {
-    gap: 12,
-  },
+  metricValueSans: { flex: 1, fontFamily: 'GeneralSans-Regular', fontSize: 14, lineHeight: 21, color: '#0A1931' },
+  sectionBlock: { gap: 12, paddingTop: 20, borderTopWidth: 1, borderTopColor: '#EEEAE3' },
   sectionEyebrow: {
-    fontFamily: Platform.select({
-      ios: 'SpaceMono-Bold',
-      android: 'SpaceMono-Bold',
-      default: 'monospace',
-    }),
-    fontSize: 11,
-    lineHeight: 12,
-    letterSpacing: 1.2,
-    color: '#5F6B80',
-    fontWeight: '700',
+    fontFamily: 'GeneralSans-Semibold', fontSize: 15, lineHeight: 21, letterSpacing: 0, color: '#0A1931',
   },
   bodyDescription: {
     fontFamily: 'GeneralSans-Regular',
@@ -1095,16 +956,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     color: Colors.text.primary,
   },
-  privacyNoticeBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    padding: 16,
-    borderRadius: 16,
-    backgroundColor: Colors.surface.tint,
-    borderWidth: 1,
-    borderColor: Colors.surface.hairline,
-  },
+  privacyNoticeBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingTop: 20, borderTopWidth: 1, borderTopColor: '#EEEAE3' },
   privacyNoticeText: {
     flex: 1,
     fontFamily: 'GeneralSans-Regular',
@@ -1118,18 +970,8 @@ const styles = StyleSheet.create({
     gap: 6,
     marginTop: 4,
   },
-  heroTag: {
-    backgroundColor: 'rgba(255, 252, 247, 0.14)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  heroTagText: {
-    fontFamily: 'GeneralSans-Medium',
-    fontSize: 11,
-    lineHeight: 14,
-    color: '#FFFCF7',
-  },
+  heroTag: { paddingVertical: 2, paddingRight: 8 },
+  heroTagText: { fontFamily: 'GeneralSans-Regular', fontSize: 12, lineHeight: 18, color: '#5F6B80' },
   metricSubLabel: {
     fontFamily: 'GeneralSans-Regular',
     fontSize: 11,
@@ -1256,6 +1098,9 @@ const styles = StyleSheet.create({
     fontFamily: 'GeneralSans-Bold',
     color: '#5F4DB2',
   },
+  stickyFooter: { backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E7E0D4', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 },
+  navTitle: { flex: 1, marginLeft: 12, fontFamily: 'GeneralSans-Semibold', fontSize: 18, lineHeight: 24, color: '#0A1931' },
+  applicationLink: { fontFamily: 'GeneralSans-Semibold', fontSize: 14, lineHeight: 20, color: '#5F4DB2' },
   bottomCtaContainer: {
     gap: 8,
     paddingTop: 8,
@@ -1274,6 +1119,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   applyBtnText: {
+    flexShrink: 1,
     fontFamily: 'GeneralSans-Semibold',
     fontSize: 16,
     lineHeight: 20,
@@ -1316,6 +1162,8 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
   },
   disabledBtnText: {
+    flexShrink: 1,
+    textAlign: 'center',
     fontFamily: 'GeneralSans-Semibold',
     fontSize: 15,
     lineHeight: 20,

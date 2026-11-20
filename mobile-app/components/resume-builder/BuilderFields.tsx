@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { View, Text, TextInput, ScrollView, Pressable, StyleSheet, Keyboard, Modal, KeyboardAvoidingView, Platform } from 'react-native';
+import { AppModal as Modal } from '@/components/layout/AppModal';
+import { View, Text, TextInput, ScrollView, Pressable, StyleSheet, Keyboard, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Check, Plus, PencilSimple, Trash, X } from 'phosphor-react-native';
 import { sections, rowErrors, type Field, type Row } from '@/screens/onboarding/resume-builder/model';

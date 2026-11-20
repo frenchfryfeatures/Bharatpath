@@ -31,7 +31,7 @@ export function PageHero({
     <section className="shell pb-10 pt-6 sm:pt-10 lg:pb-16">
       <div className="grid items-center gap-10 lg:grid-cols-[1.05fr_1fr] lg:gap-14">
         <div className="min-w-0">
-          <h1 className="text-[clamp(40px,5.4vw,76px)] font-bold leading-[1.02] tracking-[-0.035em] 2xl:text-[84px]">
+          <h1 className="text-[clamp(40px,5.4vw,76px)] font-semibold leading-[1.02] tracking-[-0.035em] 2xl:text-[84px]">
             <span className="mask-line">
               <span>{lines[0]}</span>
             </span>

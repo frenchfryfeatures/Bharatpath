@@ -180,7 +180,7 @@ export function LoginScreen({
               </View>
               <Text style={styles.title}>Sign in to your account</Text>
               <Text style={styles.subtitle}>
-                Access your resume/CV evaluation, verified score, and employer opportunities.
+                Access your resume/CV evaluation, verified Bharatpath Score, and employer opportunities.
               </Text>
             </View>
 
@@ -407,7 +407,7 @@ const styles = StyleSheet.create({
     color: Colors.brandAccent,
   },
   title: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 26,
     lineHeight: 32,
     letterSpacing: -0.4,

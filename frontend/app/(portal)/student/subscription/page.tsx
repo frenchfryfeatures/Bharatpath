@@ -48,7 +48,7 @@ export default function CandidateSubscriptionPage() {
 
   return <StudentPage><div className="flex flex-col gap-5">
     <section className="rounded-[20px] border border-[#E7E0D4] bg-white p-4 sm:p-5">
-      <h2 className="text-[16px] font-bold text-[#0A1931]">Current subscription</h2>
+      <h2 className="text-[16px] font-semibold text-[#0A1931]">Current subscription</h2>
       {subscriptionLoading ? <div role="status" aria-label="Loading subscription" className="mt-4 flex flex-wrap items-center gap-3"><Skeleton width={86} height={18} radius={6} /><Skeleton width={102} height={16} radius={6} /><Skeleton width={120} height={16} radius={6} /></div> : <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
         <strong className="text-[#0A1931]">{subscription?.state ?? "NONE"}</strong>
         <span className={subscription?.has_access || seated ? "font-semibold text-[#23805d]" : "text-[#5F6B80]"}>{subscription?.has_access ? "Access active" : seated ? "Access through your college seat" : "No active paid access"}</span>

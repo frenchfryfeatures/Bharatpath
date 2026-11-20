@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { AppModal as Modal } from '@/components/layout/AppModal';
 import {
   ActivityIndicator,
-  Modal,
   Pressable,
   StyleSheet,
   Text,
@@ -197,7 +197,7 @@ export function LessonPlayerModal({
               </View>
               <Text style={styles.celebrationBody}>
                 You have watched every lesson in this course. 30 points have been
-                added to your BharatPath readiness score!
+                added to your Bharatpath Score!
               </Text>
             </View>
           )}
@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
     color: Colors.brandAccent,
   },
   headerTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 16,
     color: Colors.navy,
     marginTop: 2,
@@ -373,7 +373,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   celebrationTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 16,
     color: '#92400E',
   },
@@ -403,7 +403,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   nextLessonTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 14,
     color: '#FFFFFF',
     marginTop: 2,

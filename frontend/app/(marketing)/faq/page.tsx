@@ -13,7 +13,7 @@ export default function FaqPage() {
   return (
     <>
       <section className="shell pt-14 lg:pt-20">
-        <h1 className="text-[clamp(40px,5.6vw,80px)] font-bold leading-[1] tracking-[-0.045em]">Questions</h1>
+        <h1 className="text-[clamp(40px,5.6vw,80px)] font-semibold leading-[1] tracking-[-0.045em]">Questions</h1>
       </section>
       <FaqList items={STUDENT_FAQ} heading="For candidates" group="faq-students" />
       <FaqList items={EMPLOYER_FAQ} heading="For employers" group="faq-employers" />

@@ -50,7 +50,7 @@ import { PaymentSheet } from './PaymentSheet';
 import { logger } from '@/utils/logger';
 
 const INCLUDED = [
-  { icon: Sparkle, label: 'Your score', detail: 'Read as soon as your resume is confirmed' },
+  { icon: Sparkle, label: 'Your Bharatpath Score', detail: 'Read as soon as your resume is confirmed' },
   { icon: Briefcase, label: 'Jobs and applying', detail: 'Roles you qualify for, and one board' },
   { icon: Microphone, label: 'Mock interviews', detail: 'Bought per session, at member prices' },
   { icon: GraduationCap, label: 'Courses', detail: 'The catalogue, and what each one adds' },
@@ -283,7 +283,7 @@ export function SubscribeScreen({
                   {candidateName ? `Almost there, ${candidateName.split(' ')[0]}.` : 'Choose your plan'}
                 </Text>
                 <Text style={styles.subtitle}>
-                  Membership opens your score, job matches and everything that builds on them.
+                  Membership opens your Bharatpath Score, job matches and everything that builds on them.
                   Pick a length - you pay once for it.
                 </Text>
               </View>
@@ -522,7 +522,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   title: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 30,
     lineHeight: 34,
     letterSpacing: -0.75,

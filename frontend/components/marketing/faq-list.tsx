@@ -6,7 +6,7 @@ export function FaqList({ items, heading = "Questions, answered", group = "faq" 
     <section aria-labelledby={`${group}-heading`} className="shell py-20 sm:py-24">
       <div className="grid gap-8 lg:grid-cols-12 lg:gap-12">
         <div className="lg:col-span-4">
-          <h2 id={`${group}-heading`} className="text-[28px] font-bold leading-[1.1] tracking-[-0.03em] sm:text-[36px] lg:sticky lg:top-28">
+          <h2 id={`${group}-heading`} className="text-[28px] font-semibold leading-[1.1] tracking-[-0.03em] sm:text-[36px] lg:sticky lg:top-28">
             {heading}
           </h2>
         </div>

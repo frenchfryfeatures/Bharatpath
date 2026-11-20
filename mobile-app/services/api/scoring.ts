@@ -83,10 +83,10 @@ export function nextBandLabel(band: string | null): string | null {
 export function scoringErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof ApiError) {
     if (error.code === 'subscription_required') {
-      return 'Membership is required to see your score.';
+      return 'Membership is required to see your Bharatpath Score.';
     }
     if (error.status === 402) {
-      return 'Membership is required to see your score.';
+      return 'Membership is required to see your Bharatpath Score.';
     }
     return error.problem.title || fallback;
   }

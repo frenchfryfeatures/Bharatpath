@@ -60,7 +60,7 @@ export function SplitRow({
             </div>
           )}
 
-          <h3 className="max-w-[24ch] text-[22px] font-bold leading-[1.14] tracking-[-0.03em] text-ink sm:text-[30px]">
+          <h3 className="max-w-[24ch] text-[22px] font-semibold leading-[1.14] tracking-[-0.03em] text-ink sm:text-[30px]">
             {title}
           </h3>
           <p className="mt-3 max-w-[50ch] text-[15px] leading-relaxed text-body sm:mt-3.5 sm:text-[17px]">
@@ -114,7 +114,7 @@ export function SplitRows({
             {eyebrow}
           </span>
         )}
-        <h2 id={id} className="text-[30px] font-bold leading-[1.08] tracking-[-0.03em] sm:text-[40px]">
+        <h2 id={id} className="text-[30px] font-semibold leading-[1.08] tracking-[-0.03em] sm:text-[40px]">
           {heading}
         </h2>
         {lead && <p className="mt-3.5 text-[17px] leading-relaxed text-muted">{lead}</p>}

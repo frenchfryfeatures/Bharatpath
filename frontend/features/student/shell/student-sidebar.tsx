@@ -1,4 +1,6 @@
 "use client";
+import { BrandWordmark } from "@/components/common/brand-wordmark";
+
 
 import { LoadingImage } from "@/components/common/loading/loading-image";
 import Image from "next/image";
@@ -122,7 +124,7 @@ export function StudentSidebarContent({
               </span>
               <span className="flex min-w-0 flex-col leading-tight">
                 <span className="truncate text-[14px] leading-[17px] font-extrabold tracking-[-0.01em] text-[#0A1931]">
-                  BharatPath
+                  <BrandWordmark />
                 </span>
                 <span className="text-[10px] leading-[13px] font-bold uppercase tracking-[0.14em] text-[#5F6B80]">
                   Student

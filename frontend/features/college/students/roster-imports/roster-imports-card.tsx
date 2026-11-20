@@ -107,7 +107,7 @@ export function RosterImportsCard({
           <FileSpreadsheet size={18} strokeWidth={2.2} />
         </div>
         <div>
-          <h3 className="text-[16px] font-bold text-[#151b2b] tracking-[-0.01em]">
+          <h3 className="text-[16px] font-semibold text-[#151b2b] tracking-[-0.01em]">
             Roster imports
           </h3>
           <p className="text-[12px] text-[#777f90]">

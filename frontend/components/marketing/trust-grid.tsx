@@ -18,7 +18,7 @@ export function TrustGrid() {
           <li key={i.title} data-reveal className={`flex min-w-0 flex-col gap-5 rounded-[24px] bg-sand p-6 sm:p-7 ${i.span}`}>
             <div className="min-w-0">{i.demo}</div>
             <div>
-              <h3 className="text-[19px] font-bold tracking-[-0.02em]">{i.title}</h3>
+              <h3 className="text-[19px] font-semibold tracking-[-0.02em]">{i.title}</h3>
               <p className="mt-2 text-[15px] text-muted">{i.body}</p>
             </div>
           </li>

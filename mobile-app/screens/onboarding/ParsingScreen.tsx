@@ -574,7 +574,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   title: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 28,
     lineHeight: 32,
     letterSpacing: -0.7,
@@ -599,7 +599,7 @@ const styles = StyleSheet.create({
     borderColor: '#F8B4B4',
   },
   errorTitle: {
-    fontFamily: 'GeneralSans-SemiBold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 13,
     color: '#8F3B3B',
   },

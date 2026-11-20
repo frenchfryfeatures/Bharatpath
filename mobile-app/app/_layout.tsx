@@ -10,6 +10,7 @@ import { AppAlertRoot } from '@/components/feedback/AppAlert';
 import { PushNotificationBridge } from '@/components/PushNotificationBridge';
 import { installGlobalErrorLogger, logger } from '@/utils/logger';
 import { getBaseUrl } from '@/services/api/client';
+import { SystemNavigationFrame } from '@/components/layout/SystemNavigationFrame';
 
 installGlobalErrorLogger();
 
@@ -50,35 +51,38 @@ export default function RootLayout() {
     <AuthProvider>
       <PushNotificationBridge />
       <AppProvider>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="home" />
-          <Stack.Screen name="attribute-check" />
-          <Stack.Screen name="attribute-quiz" />
-          <Stack.Screen name="attribute-report" />
-          <Stack.Screen name="mock-interview" />
-          <Stack.Screen name="device-check" />
-          <Stack.Screen name="interview-session" />
-          <Stack.Screen name="interview-sessions" />
-          <Stack.Screen name="interview-report" />
-          <Stack.Screen name="jobs" />
-          <Stack.Screen name="job-detail" />
-          <Stack.Screen name="application-sent" />
-          <Stack.Screen name="board" />
-          <Stack.Screen name="application-detail" />
-          <Stack.Screen name="you" />
-          <Stack.Screen name="resume-details" />
-          <Stack.Screen name="who-has-seen-me" />
-          <Stack.Screen name="notifications" />
-          <Stack.Screen name="streak" />
-          <Stack.Screen name="courses" />
-          <Stack.Screen name="course-detail" />
-          <Stack.Screen name="subscription" />
-          <Stack.Screen name="share-result" />
-          <Stack.Screen name="+not-found" />
-        </Stack>
-        <AppAlertRoot />
-        <StatusBar style="dark" />
+        <SystemNavigationFrame manageNativeBar>
+          <Stack screenOptions={{ headerShown: false, navigationBarHidden: false, autoHideHomeIndicator: false }}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="home" />
+            <Stack.Screen name="attribute-check" />
+            <Stack.Screen name="attribute-quiz" />
+            <Stack.Screen name="attribute-report" />
+            <Stack.Screen name="mock-interview" />
+            <Stack.Screen name="device-check" />
+            <Stack.Screen name="interview-session" />
+            <Stack.Screen name="interview-sessions" />
+            <Stack.Screen name="interview-report" />
+            <Stack.Screen name="jobs" />
+            <Stack.Screen name="job-detail" />
+            <Stack.Screen name="application-sent" />
+            <Stack.Screen name="board" />
+            <Stack.Screen name="application-detail" />
+            <Stack.Screen name="you" />
+            <Stack.Screen name="resume-details" />
+            <Stack.Screen name="who-has-seen-me" />
+            <Stack.Screen name="privacy-policy" />
+            <Stack.Screen name="notifications" />
+            <Stack.Screen name="streak" />
+            <Stack.Screen name="courses" />
+            <Stack.Screen name="course-detail" />
+            <Stack.Screen name="subscription" />
+            <Stack.Screen name="share-result" />
+            <Stack.Screen name="+not-found" />
+          </Stack>
+          <AppAlertRoot />
+          <StatusBar style="dark" />
+        </SystemNavigationFrame>
       </AppProvider>
     </AuthProvider>
   );

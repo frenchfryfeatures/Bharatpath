@@ -685,7 +685,7 @@ const styles = StyleSheet.create({
   },
   recordingStatusTitle: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#0A1931',
   },
   recordingTimerText: {
@@ -794,7 +794,7 @@ const styles = StyleSheet.create({
   },
   busyTitle: {
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#0A1931',
     textAlign: 'center',
   },
@@ -818,7 +818,7 @@ const styles = StyleSheet.create({
   },
   doneTitle: {
     fontSize: 20,
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#0A1931',
     marginTop: 10,
     textAlign: 'center',

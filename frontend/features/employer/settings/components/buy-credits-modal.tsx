@@ -19,7 +19,7 @@ export function BuyCreditsModal() {
       <div className="w-full max-w-[650px] rounded-[13px] border border-[#dfe4ea] bg-white p-5 shadow-[0_20px_50px_rgba(15,23,42,0.18)]">
         <div className="mb-[18px] flex items-start justify-between gap-3">
           <div>
-            <h3 className="m-0 text-[15px] font-bold">Buy credits</h3>
+            <h3 className="m-0 text-[15px] font-semibold">Buy credits</h3>
             <p className="mt-0.5 text-xs leading-4 text-[#718096]">
               Credits never expire and are used when you unlock candidates.
             </p>

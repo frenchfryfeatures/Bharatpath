@@ -278,7 +278,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   title: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 28,
     lineHeight: 32,
     letterSpacing: -0.7,

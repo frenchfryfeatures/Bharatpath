@@ -93,6 +93,7 @@ export interface ProfileScreenProps {
   onWhoHasSeenMePress?: () => void;
   onDownloadDataPress?: () => void;
   onLogoutPress?: () => void;
+  onPrivacyPolicyPress?: () => void;
   /** @deprecated Use onLogoutPress */
   onDeleteAccountPress?: () => void;
 }
@@ -127,6 +128,7 @@ export function ProfileScreen({
   onWhoHasSeenMePress,
   onDownloadDataPress,
   onLogoutPress,
+  onPrivacyPolicyPress,
   onDeleteAccountPress,
 }: ProfileScreenProps) {
   const handleLogout = onLogoutPress || onDeleteAccountPress;
@@ -193,9 +195,7 @@ export function ProfileScreen({
             </View>
           </View>
 
-          {/* 3 Stat Cards: Score, Applied, Add-ons */}
-          <View style={styles.statsRow}>
-            {/* Dark Score Card - real value when READY, dash while PENDING */}
+          <View style={styles.scoreSection}>
             <Pressable
               style={({ pressed }) => [
                 styles.statCardDark,
@@ -203,10 +203,11 @@ export function ProfileScreen({
               ]}
               onPress={onScorePress}
               accessibilityRole="button"
+              accessibilityLabel={`Bharatpath Score: ${scorePending && score == null ? 'being prepared' : scoreDisplay}. View your Bharatpath Score.`}
             >
               <View style={styles.statCardHeader}>
-                <Text style={styles.statLabelDark}>Score</Text>
-                <CaretRight size={11} color="#F1EAF7" weight="bold" />
+                <Text style={styles.statLabelDark}>Bharatpath Score</Text>
+                <CaretRight size={18} color="#F1EAF7" weight="bold" />
               </View>
               {scorePending && score == null ? (
                 <ActivityIndicator
@@ -215,10 +216,15 @@ export function ProfileScreen({
                   style={styles.statSpinner}
                 />
               ) : (
-                <Text style={styles.statValueDark}>{scoreDisplay}</Text>
+                <View style={styles.scoreValueRow}>
+                  <Text style={styles.statValueDark}>{scoreDisplay}</Text>
+                  {score != null && <Text style={styles.scoreMax}>/ 1000</Text>}
+                </View>
               )}
+              <Text style={styles.scoreCaption}>{score == null ? scorePending ? 'Your Bharatpath Score is being prepared' : 'Your Bharatpath Score is not available yet' : 'Explore your readiness band'}</Text>
             </Pressable>
-
+          </View>
+          <View style={styles.statsRow}>
             {/* Applied Card */}
             <Pressable
               style={({ pressed }) => [
@@ -429,7 +435,7 @@ export function ProfileScreen({
               accessibilityRole="button"
             >
               <Eye size={20} color={Colors.indigo} weight="duotone" />
-              <Text style={styles.menuItemTitle}>Who has seen me</Text>
+              <Text style={styles.menuItemTitle}>Profile views</Text>
               <CaretRight size={16} color="#5F6B80" weight="bold" />
             </Pressable>
 
@@ -443,15 +449,8 @@ export function ProfileScreen({
               accessibilityRole="button"
             >
               <DownloadSimple size={20} color="#3A4761" weight="duotone" />
-              <View style={styles.menuItemColumn}>
-                <Text style={styles.menuItemTitle}>Download my data</Text>
-                <Text style={styles.menuItemDate}>
-                  Asked 8 Aug · ready by 15 Aug
-                </Text>
-              </View>
-              <View style={styles.badgePill}>
-                <Text style={styles.badgePillText}>Working</Text>
-              </View>
+              <Text style={styles.menuItemTitle}>Download my data</Text>
+              <CaretRight size={16} color="#5F6B80" weight="bold" />
             </Pressable>
 
             {/* Logout my account */}
@@ -465,6 +464,11 @@ export function ProfileScreen({
             >
               <SignOut size={20} color="#D9383A" weight="bold" />
               <Text style={[styles.menuItemTitle, styles.logoutText]}>Logout my account</Text>
+              <CaretRight size={16} color="#5F6B80" weight="bold" />
+            </Pressable>
+            <Pressable style={({ pressed }) => [styles.menuItem, pressed && styles.cardPressed]} onPress={onPrivacyPolicyPress} accessibilityRole="button" accessibilityLabel="Privacy Policy">
+              <LockKey size={20} color={Colors.navy} weight="duotone" />
+              <Text style={styles.menuItemTitle}>Privacy Policy</Text>
               <CaretRight size={16} color="#5F6B80" weight="bold" />
             </Pressable>
           </View>
@@ -573,15 +577,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
   },
+  scoreSection: { paddingHorizontal: 20 },
+  scoreValueRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
+  scoreMax: { fontFamily: 'GeneralSans-Medium', fontSize: 16, lineHeight: 22, color: '#E0DBF4' },
+  scoreCaption: { fontFamily: 'GeneralSans-Regular', fontSize: 13, lineHeight: 19, color: '#F1EAF7' },
   statCardDark: {
-    flex: 1,
     backgroundColor: '#5F4DB2',
     borderWidth: 1,
     borderColor: '#5F4DB2',
-    borderRadius: 16,
-    padding: 12,
-    gap: 4,
-    minHeight: 70,
+    borderRadius: 20,
+    padding: 20,
+    gap: 10,
+    minHeight: 156,
   },
   statCardLight: {
     flex: 1,
@@ -601,18 +608,20 @@ const styles = StyleSheet.create({
   },
   statLabelDark: {
     fontFamily: 'GeneralSans-Semibold',
-    fontSize: 11,
-    lineHeight: 16,
+    fontSize: 18,
+    lineHeight: 24,
     color: '#F1EAF7',
   },
   statValueDark: {
-    fontFamily: 'GeneralSans-Bold',
-    fontSize: 20,
-    lineHeight: 24,
+    fontFamily: 'GeneralSans-Semibold',
+    fontSize: 44,
+    lineHeight: 50,
+    letterSpacing: -1,
     color: '#FFFFFF',
   },
   statSpinner: {
-    height: 24,
+    height: 50,
+    alignSelf: 'flex-start',
   },
   statLabelLight: {
     fontFamily: 'GeneralSans-Regular',

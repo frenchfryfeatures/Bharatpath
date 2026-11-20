@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
+import { AppModal as Modal } from '@/components/layout/AppModal';
 import {
-  Modal,
   View,
   Text,
   StyleSheet,
@@ -232,7 +232,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   headerTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 20,
     lineHeight: 26,
     color: '#0A1931',

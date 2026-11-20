@@ -674,7 +674,7 @@ function ReferralConsentStep({
         <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#5F4DB2]">
           College referral
         </p>
-        <h1 className="mt-2 text-2xl font-bold text-[#0A1931]">
+        <h1 className="mt-2 text-2xl font-semibold text-[#0A1931]">
           Link your college?
         </h1>
         <p className="mt-2 text-sm leading-6 text-[#5F6B80]">

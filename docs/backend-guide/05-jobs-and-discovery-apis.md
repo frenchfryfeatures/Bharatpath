@@ -308,6 +308,14 @@ score — there's no way to pass a hypothetical score in and probe thresholds.
 
 ### `GET /candidate/jobs/{job_id}` — one job's full detail
 
+The list and detail responses also include `application_id` and
+`application_stage` for the authenticated candidate's latest application to
+each job, or `null` when none exists. These fields include closed application
+history and never reveal another candidate's application. Clients should show
+this stage before eligibility, which only describes score eligibility. After
+withdrawal or reapplication, refetch the job and application list. This is an
+additive response change; no database migration is needed.
+
 **Auth required:** `CANDIDATE` role + active subscription.
 
 **Request:** no body, `job_id` in the path.

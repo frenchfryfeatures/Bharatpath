@@ -135,7 +135,7 @@ export function StudentAppShell({ children }: { children: ReactNode }) {
         confirmLoading={isLoggingOut}
         variant="student"
         title="Log out?"
-        description="You'll need to sign in again to see your score and applications."
+        description="You'll need to sign in again to see your Bharatpath Score and applications."
         confirmLabel="Log out"
         cancelLabel="Stay"
         onConfirm={handleLogout}

@@ -331,7 +331,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   centerTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 22,
     color: '#0A1931',
     textAlign: 'center',

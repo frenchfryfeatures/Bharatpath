@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
+import { AppModal as Modal } from '@/components/layout/AppModal';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Colors, Radii } from '@/theme/tokens';
 import { logger } from '@/utils/logger';
 
@@ -129,7 +130,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   title: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 20,
     lineHeight: 26,
     color: '#0A1931',

@@ -49,7 +49,7 @@ export function StudentStreak() {
     <Link
       href="/student/streak"
       aria-label={`${currentStreak} ${dayLabel} in your current streak`}
-      title={`${currentStreak}-day streak | Longest: ${longestStreak} | ${pointsBalance} streak points`}
+      title={`${currentStreak}-day streak | Longest Streak: ${longestStreak} | ${pointsBalance} streak points`}
       className={`${widgetClassName} border-[#F3DFC2] bg-[#FFF8EC] text-[#B96A12] transition-colors hover:border-[#E8C894] hover:bg-[#FFF1D8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F59E0B]/30`}
     >
       <Flame

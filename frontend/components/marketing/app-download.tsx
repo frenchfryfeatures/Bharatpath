@@ -14,7 +14,7 @@ export function AppDownload() {
     <section aria-labelledby="app-heading" className="shell py-10 sm:py-14">
       <div className="relative grid gap-10 overflow-hidden rounded-[28px] bg-purple px-6 py-12 text-white sm:px-10 lg:grid-cols-2 lg:items-center lg:gap-12 lg:px-14 lg:py-16">
         <div>
-          <h2 id="app-heading" className="text-[32px] font-bold leading-[1.05] tracking-[-0.035em] sm:text-[44px]">
+          <h2 id="app-heading" className="text-[32px] font-semibold leading-[1.05] tracking-[-0.035em] sm:text-[44px]">
             Your job search, in your pocket
           </h2>
           <p className="mt-4 max-w-[46ch] text-[17px] text-white/90">

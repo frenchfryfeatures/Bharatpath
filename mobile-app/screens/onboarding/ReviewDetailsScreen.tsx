@@ -1,6 +1,8 @@
+import { ZoomableResumePages } from '@/components/resume-builder/ZoomableResumePages';
 import {ResumeBuilderScreen} from './ResumeBuilderScreen';
 import {legacyResumeDocument,editorSectionForKind,type ResumeEditorSection} from '@/services/profile/resumeDocument';
 import React, { useEffect, useMemo, useState } from 'react';
+import { AppModal as Modal } from '@/components/layout/AppModal';
 import {
   View,
   Text,
@@ -8,9 +10,6 @@ import {
   Pressable,
   ScrollView,
   ActivityIndicator,
-  Modal,
-  Image,
-  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -138,7 +137,6 @@ export function ReviewDetailsScreen({
   requireEditToSave = false,
   initialHasEdited = false,
 }: ReviewDetailsScreenProps) {
-  const {width: screenWidth} = useWindowDimensions();
   const [documentBusy,setDocumentBusy] = useState(false);
   const [preview,setPreview] = useState<{pages:string[];truncated:boolean}|null>(null);
   const [activeVersionId, setActiveVersionId] = useState(versionId);
@@ -885,7 +883,7 @@ export function ReviewDetailsScreen({
           </Pressable>
           <Text style={styles.bottomSubtext}>
             {requireEditToSave && !canSave
-              ? 'Make changes or edit sections to save and update score'
+              ? 'Make changes or edit sections to Update Bharatpath Score'
               : 'You can edit any of this later'}
           </Text>
         </View>
@@ -896,10 +894,7 @@ export function ReviewDetailsScreen({
               <Text style={{fontFamily:'GeneralSans-Semibold',fontSize:22,color:'#0A1931'}}>Resume preview</Text>
               <Pressable accessibilityRole="button" accessibilityLabel="Close resume preview" onPress={()=>setPreview(null)} style={styles.backButton}><X size={22} color="#0A1931"/></Pressable>
             </View>
-            <ScrollView contentContainerStyle={{padding:12,gap:12}}>
-              {preview?.pages.map((page,index)=><Image key={index} accessibilityLabel={`Resume page ${index+1}`} source={{uri:`data:image/png;base64,${page}`}} style={{width:Math.max(1,screenWidth-24),aspectRatio:210/297}} resizeMode="contain"/>)}
-              {preview?.truncated&&<Text>Showing the first 10 pages. Download to view the complete resume.</Text>}
-            </ScrollView>
+            <ZoomableResumePages pages={preview?.pages ?? []} truncated={preview?.truncated}/>
           </SafeAreaView>
         </Modal>
         <Modal visible={builderOpen} animationType="slide" onRequestClose={()=>setBuilderOpen(false)}>
@@ -955,7 +950,7 @@ const styles = StyleSheet.create({
   },
   title: {
     flexShrink: 1,
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 27,
     lineHeight: 33,
     letterSpacing: -0.6,
@@ -1149,7 +1144,7 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   eduTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 16,
     lineHeight: 22,
     color: '#0A1931',
@@ -1172,7 +1167,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   expTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 16,
     lineHeight: 22,
     color: '#0A1931',

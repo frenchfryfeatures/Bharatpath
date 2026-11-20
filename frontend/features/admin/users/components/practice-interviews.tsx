@@ -28,7 +28,7 @@ function Recordings({ candidateId, session }: { candidateId: string; session: In
 
   return <div className="border-t border-[#e7e9ee] bg-[#fbfcfe] px-4 py-4">
     <div className="mb-3 flex items-center justify-between gap-3">
-      <h4 className="text-[12px] font-bold text-[#172033]">Answers and recordings</h4>
+      <h4 className="text-[12px] font-semibold text-[#172033]">Answers and recordings</h4>
       {recordings.data && <button type="button" onClick={() => void recordings.refetch()} className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#315c9f] hover:underline"><RotateCw size={12} /> Refresh audio links</button>}
     </div>
     {recordings.isLoading ? <div className="space-y-3"><Skeleton height={82} width="100%" /><Skeleton height={82} width="100%" /></div>
