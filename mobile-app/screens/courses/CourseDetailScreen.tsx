@@ -1,3 +1,4 @@
+import { useScreenRefresh } from '@/hooks/useScreenRefresh';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -25,6 +26,7 @@ import {
   Check,
 } from 'phosphor-react-native';
 import { Colors, Radii, Spacing } from '@/theme/tokens';
+import { AppAlert } from '@/components/feedback/AppAlert';
 import { CourseDetail, CourseLesson } from '@/types/course';
 import {
   checkoutCourse,
@@ -102,6 +104,8 @@ export function CourseDetailScreen({ courseId, onBack }: Props) {
       setLoading(false);
     }
   }, [courseId]);
+  // Pull-to-refresh, and a quiet refetch on every return (2026-11-23).
+  const { refreshing: pulling, onRefresh: pullToRefresh } = useScreenRefresh(load);
 
   useEffect(() => {
     load();
@@ -118,6 +122,19 @@ export function CourseDetailScreen({ courseId, onBack }: Props) {
       setActiveLesson(firstIncomplete);
     }
   }, [course, activeLesson, allLessons]);
+
+  // Opening a lesson starts the server's "watched" clock (half the lesson's
+  // length must pass after this first report). Without it the clock started
+  // at the first Complete press, which therefore could never count.
+  const openedLessons = useRef(new Set<string>());
+  useEffect(() => {
+    if (!course || course.locked || !activeLesson || activeLesson.completed) return;
+    if (openedLessons.current.has(activeLesson.id)) return;
+    openedLessons.current.add(activeLesson.id);
+    recordLessonProgress(course.id, activeLesson.id, activeLesson.position_seconds || 0).catch(() => {
+      openedLessons.current.delete(activeLesson.id);
+    });
+  }, [course, activeLesson]);
 
   const goBack = () => {
     if (onBack) onBack();
@@ -151,21 +168,44 @@ export function CourseDetailScreen({ courseId, onBack }: Props) {
     }
   };
 
+  // One lesson at a time, whatever the taps: a ref, not state, so two quick
+  // presses inside one render cannot both send (2026-11-23).
+  const completingRef = useRef<string | null>(null);
   const handleMarkComplete = async () => {
-    if (!course || !activeLesson || markingComplete) return;
+    if (!course || !activeLesson || completingRef.current) return;
+    const lesson = activeLesson;
+    completingRef.current = lesson.id;
     setMarkingComplete(true);
     try {
-      await recordLessonProgress(course.id, activeLesson.id, activeLesson.duration_seconds);
-      // Reload course syllabus to update completion checkmarks & progress
-      await load();
-      const next = getNextLesson(activeLesson.id);
-      if (next) {
-        setActiveLesson(next);
-        setVideoLoading(true);
+      const result = await recordLessonProgress(course.id, lesson.id, lesson.duration_seconds);
+      // The server decides "watched" (most of it, and long enough since it
+      // was opened) because a finished course adds to the Bharatpath Score.
+      // Move on only when it agreed; before, the screen skipped ahead as if
+      // every press counted and nothing was recorded.
+      const fresh = await getCourseDetail(course.id);
+      setCourse(fresh);
+      const refreshed = fresh.modules.flatMap((m) => m.lessons);
+      const current = refreshed.find((l) => l.id === lesson.id) ?? lesson;
+      if (!result.completed) {
+        setActiveLesson(current);
+        AppAlert.alert(
+          'Keep watching',
+          'This lesson counts as complete once you have watched most of it. Keep the video playing and try again.',
+        );
+        return;
       }
+      if (result.course_completed) {
+        AppAlert.alert('Course complete', 'You have finished every lesson in this course.');
+      }
+      const index = refreshed.findIndex((l) => l.id === lesson.id);
+      const next = refreshed.slice(index + 1).find((l) => !l.completed) ?? null;
+      setActiveLesson(next ?? current);
+      if (next) setVideoLoading(true);
     } catch (err) {
-      console.warn('[Courses] Failed to mark lesson complete:', err);
+      console.warn('[Courses] Failed to record lesson progress:', err);
+      AppAlert.alert('Could not save progress', coursesErrorMessage(err, 'Check your connection and try again.'));
     } finally {
+      completingRef.current = null;
       setMarkingComplete(false);
     }
   };
@@ -202,7 +242,7 @@ export function CourseDetailScreen({ courseId, onBack }: Props) {
     : TARGET_FALLBACK_VIDEO_ID;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       {/* Top Header */}
       <View style={styles.header}>
         <Pressable style={styles.backBtn} onPress={goBack}>
@@ -213,7 +253,7 @@ export function CourseDetailScreen({ courseId, onBack }: Props) {
             {course?.title || 'Certified Course'}
           </Text>
           <Text style={styles.headerSubtitle} numberOfLines={1}>
-            {course ? `${course.lessons_total} Lessons • +${course.contribution_points || 30} Readiness Score` : 'BharatPath Learning'}
+            {course ? `${course.lessons_total} Lessons • +${course.contribution_points || 30} Bharatpath Score` : 'BharatPath Learning'}
           </Text>
         </View>
       </View>
@@ -228,7 +268,7 @@ export function CourseDetailScreen({ courseId, onBack }: Props) {
             </View>
             <Text style={styles.lockedHeadline}>Unlock to Stream All Lessons</Text>
             <Text style={styles.lockedSub}>
-              Includes HD video lessons, DAR frameworks, and +30 readiness score boost.
+              Includes HD video lessons, DAR frameworks, and +30 Bharatpath Score.
             </Text>
             <Pressable
               style={({ pressed }) => [
@@ -340,7 +380,7 @@ export function CourseDetailScreen({ courseId, onBack }: Props) {
       {/* Scrollable Course Details & Syllabus */}
       <ScrollView
         contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
+        refreshControl={<RefreshControl refreshing={pulling} onRefresh={pullToRefresh} />}
         showsVerticalScrollIndicator={false}
       >
         {loading && !course ? (
@@ -363,7 +403,7 @@ export function CourseDetailScreen({ courseId, onBack }: Props) {
               <View style={styles.heroBadgeRow}>
                 <View style={styles.scoreBadge}>
                   <Sparkle size={13} color="#92400E" weight="fill" />
-                  <Text style={styles.scoreBadgeText}>+30 SCORE BOOST</Text>
+                  <Text style={styles.scoreBadgeText}>+30 Bharatpath Score</Text>
                 </View>
                 {course.completed && (
                   <View style={styles.completedPill}>
@@ -561,7 +601,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 15,
     lineHeight: 18,
     color: Colors.navy,
@@ -624,7 +664,7 @@ const styles = StyleSheet.create({
     color: '#F4D685',
   },
   lockedHeadline: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 16,
     color: '#FFFFFF',
     textAlign: 'center',
@@ -828,7 +868,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   courseTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 17,
     lineHeight: 22,
     color: Colors.navy,
@@ -888,7 +928,7 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   sectionHeading: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 12,
     letterSpacing: 1.2,
     color: '#64748B',
@@ -902,7 +942,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   moduleTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 14,
     color: Colors.navy,
   },
@@ -938,7 +978,7 @@ const styles = StyleSheet.create({
   },
   lessonTitle: {
     flex: 1,
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 13,
     lineHeight: 18,
     color: Colors.navy,

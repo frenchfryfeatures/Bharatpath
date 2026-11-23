@@ -15,9 +15,9 @@ export function WhoSawMe() {
   return (
     <StudentPage>
       <div className="flex flex-col gap-5 sm:gap-7">
-        <StudentTopBar title="Profile visibility" className="!mb-0" />
+        <StudentTopBar title="Profile views" className="!mb-0" />
         <header className="rounded-[24px] border border-[#E7E0D4] bg-white px-5 py-5 sm:px-7 sm:py-6">
-          <h1 className="text-2xl font-extrabold tracking-[-0.03em] text-[#0A1931] sm:text-3xl">Who has seen me</h1>
+          <h1 className="text-2xl font-semibold tracking-[-0.03em] text-[#0A1931] sm:text-3xl">Employers who viewed your profile</h1>
           <p className="mt-1 text-[14px] leading-6 text-[#5F6B80]">See which employers have opened your profile.</p>
         </header>
 
@@ -25,7 +25,7 @@ export function WhoSawMe() {
           <section className="rounded-[24px] border border-[#E7E0D4] bg-white p-5 sm:p-6">
             <div className="mb-4 flex items-center justify-between gap-3 border-b border-[#F0EBDF] pb-4">
               <div>
-                <h2 className="text-[15px] font-bold text-[#0A1931]">Recent profile views</h2>
+                <h2 className="text-[15px] font-semibold text-[#0A1931]">Recent profile views</h2>
                 <p className="mt-0.5 text-[12px] text-[#5F6B80]">Employers who opened your profile</p>
               </div>
               <span className="shrink-0 rounded-full bg-[#F5F1FA] px-3 py-1 text-[11px] font-semibold text-[#5F4DB2]">Last 90 days</span>
@@ -56,10 +56,10 @@ export function WhoSawMe() {
           </section>
 
           <aside className="flex flex-col gap-4 lg:sticky lg:top-6">
-            <NoteStrip icon={<Info size={16} />}>Verified employers can see your CV and contact details when they open your profile. This list shows which organisations did.</NoteStrip>
+            <NoteStrip icon={<Info size={16} />}>Verified employers can view your CV and contact details when they open your profile. These visits appear here.</NoteStrip>
             <div className="rounded-[20px] border border-[#E7E0D4] bg-white p-5">
               <div className="mb-2 flex items-center gap-2"><ShieldCheck size={17} className="text-[#1F6B45]" aria-hidden="true" /><p className="text-[14px] font-semibold text-[#0A1931]">Your privacy is protected</p></div>
-              <p className="mt-2 text-[12px] leading-5 text-[#5F6B80]">We show the employer organisation, never the individual recruiter or how many times they opened your profile.</p>
+              <p className="mt-2 text-[12px] leading-5 text-[#5F6B80]">This list shows employer organisations and their most recent visit. Individual recruiter names and repeat-view counts are not displayed.</p>
             </div>
           </aside>
         </div>

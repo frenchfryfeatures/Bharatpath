@@ -26,7 +26,7 @@ interface LanguageSelectScreenProps {
 
 export function LanguageSelectScreen({ onSelectLanguage }: LanguageSelectScreenProps) {
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <StatusBar style="dark" animated />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   title: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 30,
     lineHeight: 34,
     letterSpacing: -0.75, // -.025em

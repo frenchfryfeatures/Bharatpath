@@ -61,6 +61,10 @@ const rawBaseQuery = fetchBaseQuery({
 });
 
 export const baseApi = createApi({
+  refetchOnFocus: true,
+  refetchOnReconnect: true,
+  refetchOnMountOrArgChange: 30,
+
   reducerPath: "api",
 
   baseQuery: async (args, api, extraOptions) => {

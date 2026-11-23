@@ -285,7 +285,7 @@ export function PortalHeader({
               m-0
               truncate
               text-[18px]
-              font-[700]
+              font-[600]
               leading-[23px]
               tracking-[-0.01em]
               text-[#151b2b]

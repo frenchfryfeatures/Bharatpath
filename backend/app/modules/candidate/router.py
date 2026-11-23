@@ -27,6 +27,11 @@ from app.core.deps import (
 from app.core.pagination import MAX_PAGE_SIZE, Page
 from app.modules.candidate import career_service, service
 from app.modules.candidate.career import CareerResponse, CareerSaveRequest, form_fields
+from app.modules.candidate.preferences import (
+    PreferenceOptions,
+    PreferencesPayload,
+    PreferencesResponse,
+)
 from app.modules.candidate.schemas import (
     CandidateProfileResponse,
     LocationRequest,
@@ -59,6 +64,37 @@ async def save_career_details(
     payload: CareerSaveRequest, user: CurrentUser, session: DbSession
 ) -> CareerResponse:
     return await career_service.save_details(session, ctx=user, payload=payload)
+
+
+@router.get(
+    "/profile/preferences", response_model=PreferencesResponse, dependencies=[CandidateOnly]
+)
+async def job_preferences(user: CurrentUser, session: DbSession) -> PreferencesResponse:
+    """The profile's Preferences tab: what the candidate wants from a job.
+    `profile_completed: false` until onboarding is finished."""
+    return await career_service.get_preferences(session, ctx=user)
+
+
+@router.put(
+    "/profile/preferences", response_model=PreferencesResponse, dependencies=[CandidateOnly]
+)
+async def save_job_preferences(
+    payload: PreferencesPayload, user: CurrentUser, session: DbSession
+) -> PreferencesResponse:
+    """Replace the preferences the job engine ranks by. 409
+    `profile_incomplete` before the profile is finished."""
+    return await career_service.save_preferences(session, ctx=user, payload=payload)
+
+
+@router.get(
+    "/profile/preferences/options",
+    response_model=PreferenceOptions,
+    dependencies=[CandidateOnly],
+)
+async def job_preference_options(user: CurrentUser, session: DbSession) -> PreferenceOptions:
+    """Every option for the tab's dropdowns: work modes, job types, and the
+    industries and roles of the job taxonomy."""
+    return await career_service.preference_options(session, ctx=user)
 
 
 @router.post(
@@ -182,13 +218,18 @@ async def jobs_matching_profile(
     session: DbSession,
     limit: SectionLength = None,
     eligible_only: bool = False,
+    offset: Annotated[int, Query(ge=0, le=500)] = 0,
 ) -> RecommendedJobs:
-    """Matched on the profile's key skills, desired role, current title,
-    preferred locations and experience (`PUT /candidate/profile/details`).
-    Best match first; jobs already applied to never appear. `has_basis:
-    false` until the profile names a skill or a role."""
+    """Ranked by the job engine on the profile's skills (and the roles they
+    imply), desired role, experience, preferred places, preferred salary,
+    industry and education (`PUT /candidate/profile/details`), against each
+    job's skills, title, description, responsibilities, location and work
+    mode, salary, minimum education, industry and type. Best match first,
+    with `match_reasons`; never a relevance number. Jobs already applied to
+    never appear. `next_offset` pages further. `has_basis: false` until the
+    profile names a skill or a role."""
     return await career_service.jobs_matching_profile(
-        session, ctx=user, limit=limit, eligible_only=eligible_only
+        session, ctx=user, limit=limit, eligible_only=eligible_only, offset=offset
     )
 
 

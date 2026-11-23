@@ -1,12 +1,13 @@
 "use client";
 
+import { OriginalResumeView } from "@/components/resume/original-resume-view";
 import { humanizeCode } from "@/lib/format/labels";
 
 import {useInsightTracking} from "./use-insight-tracking";
 import { useState } from "react";
 import { Download, ExternalLink, FileText, RotateCw } from "lucide-react";
 
-import { StructuredResumeUnavailable, StructuredResumeView, type StructuredResume } from "@/components/resume/structured-resume";
+import { type StructuredResume } from "@/components/resume/structured-resume";
 import type { RevealedCandidateResponse } from "@/store/employer/candidates";
 
 export interface ResumeShowcaseProps {
@@ -94,9 +95,13 @@ export function ResumeShowcase({ resume, currentTime, onRefresh, candidateId, ap
       </div>
       <div className="bg-[#fbfcfe] p-3 sm:p-4">
         {downloadError && <p role="alert" className="mb-3 text-[12px] text-[#b42318]">The download failed. Try again or open the resume.</p>}
-        {structured
-          ? <StructuredResumeView resume={structured} />
-          : <StructuredResumeUnavailable status={resume.structured_status} />}
+        {/* The resume exactly as the candidate provided it (2026-11-23). */}
+        <OriginalResumeView
+          fileUrl={isExpired ? null : resume.file_url}
+          fileMime={resume.file_mime}
+          structured={structured}
+          structuredStatus={resume.structured_status}
+        />
       </div>
     </section>
   );

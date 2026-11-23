@@ -78,14 +78,14 @@ export function SimulatedPaymentDialog({
             <div className="payment-success-ring grid h-24 w-24 place-items-center rounded-full bg-[#dcfce7] text-[#16845b]">
               <Check className="payment-success-check" size={50} strokeWidth={3} />
             </div>
-            <h2 id="simulated-payment-title" className="mt-7 text-2xl font-bold text-[#0A1931]">Payment successful</h2>
+            <h2 id="simulated-payment-title" className="mt-7 text-2xl font-semibold text-[#0A1931]">Payment successful</h2>
             <p className="mt-2 text-sm text-[#5F6B80]">{money(amountMinor, currency)} paid successfully</p>
           </div>
         ) : (
           <div>
             <div className="bg-[#5F4DB2] px-6 pb-7 pt-6 text-white">
               <div className="flex items-center gap-2 text-xs font-semibold text-white/80"><LockKeyhole size={14} /> Secure checkout</div>
-              <h2 id="simulated-payment-title" className="mt-5 text-xl font-bold">{title}</h2>
+              <h2 id="simulated-payment-title" className="mt-5 text-xl font-semibold">{title}</h2>
               <p className="mt-2 text-3xl font-bold">{money(amountMinor, currency)}</p>
             </div>
             <div className="p-6">

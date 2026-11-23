@@ -53,7 +53,7 @@ export function CandidateOnboardingDetails({ onboarding }: { onboarding: Candida
       </div>
 
       <section aria-label="Basic details">
-        <h3 className="mb-3 text-[12px] font-bold text-[#172033]">Basic details</h3>
+        <h3 className="mb-3 text-[12px] font-semibold text-[#172033]">Basic details</h3>
         <dl className="grid gap-4 sm:grid-cols-2">
           <Field label="Full name" value={onboarding.full_name} />
           <Field label="Email ID" value={onboarding.email} />
@@ -76,7 +76,7 @@ export function CandidateOnboardingDetails({ onboarding }: { onboarding: Candida
         if (!sectionFields.length) return null;
         return (
           <section key={section} aria-label={title} className="border-t border-[#edf0f3] pt-4">
-            <h3 className="mb-3 text-[12px] font-bold text-[#172033]">{title}</h3>
+            <h3 className="mb-3 text-[12px] font-semibold text-[#172033]">{title}</h3>
             <dl className="grid gap-4 sm:grid-cols-2">
               {sectionFields.map((field) => <Field key={field.key} label={field.label} value={career ? displayValue(field, career.details) : null} />)}
             </dl>

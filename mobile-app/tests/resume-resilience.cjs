@@ -26,6 +26,7 @@ const { normalizeResumeVersionDetails } = load('services/api/resume.ts', {
   'react-native': { Platform: { OS: 'web' } },
   'expo-file-system/legacy': {},
   'expo-sharing': {},
+  '@/services/files/saveToDevice': { saveFileToDevice: async () => 'saved', describeDownload: () => ({ filename: 'Resume.pdf', mimeType: 'application/pdf' }) },
   './client': {},
   '@/utils/logger': { sanitizeForLog: value => value, logger: { error: () => {}, step: () => {}, warn: () => {}, info: () => {} } },
 });

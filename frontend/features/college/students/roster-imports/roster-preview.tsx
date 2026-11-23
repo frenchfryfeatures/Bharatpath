@@ -151,7 +151,7 @@ export function RosterPreview({ importId }: Readonly<RosterPreviewProps>) {
 
       <section className="overflow-hidden rounded-2xl border border-[#e7e9ee] bg-white shadow-2xs">
         <div className="border-b border-[#e7e9ee] px-6 py-4">
-          <h2 className="text-[16px] font-bold text-[#151b2b]">
+          <h2 className="text-[16px] font-semibold text-[#151b2b]">
             Imported rows
           </h2>
           <p className="mt-0.5 text-[12px] text-[#777f90]">

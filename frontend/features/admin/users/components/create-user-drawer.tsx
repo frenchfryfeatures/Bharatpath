@@ -261,7 +261,7 @@ export function CreateUserDrawer({ segment, mode, onClose }: CreateUserDrawerPro
       >
         <header className="flex items-start justify-between gap-3 border-b border-[#e5e7eb] px-5 py-4">
           <div>
-            <h2 className="text-[18px] font-bold text-[#172033]">{copy.title}</h2>
+            <h2 className="text-[18px] font-semibold text-[#172033]">{copy.title}</h2>
             <p className="mt-1 text-[12px] text-[#7b8494]">{copy.description}</p>
           </div>
           <button
@@ -278,7 +278,7 @@ export function CreateUserDrawer({ segment, mode, onClose }: CreateUserDrawerPro
         <form onSubmit={handleSubmit} noValidate className="flex min-h-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
             {mode === "create" ? <div className="rounded-xl border border-[#e3e7ed] bg-[#f8fafc] p-4">
-              <h3 className="text-[13px] font-bold text-[#26334a]">Account details</h3>
+              <h3 className="text-[13px] font-semibold text-[#26334a]">Account details</h3>
               <p className="mt-1 text-[11px] leading-5 text-[#7b8494]">
                 These details are saved before the invitation is sent.
               </p>
@@ -477,7 +477,7 @@ function AdminPrefillFields({
   return (
     <div className="space-y-5 border-t border-[#e5e7eb] pt-5">
       <div>
-        <h3 className="text-[14px] font-bold text-[#26334a]">Prefill their profile</h3>
+        <h3 className="text-[14px] font-semibold text-[#26334a]">Prefill their profile</h3>
         <p className="mt-1 text-[11px] leading-5 text-[#7b8494]">
           Optional. The user will find these answers filled in as a draft after signing in. They must accept declarations, upload documents, and submit it themselves.
         </p>
@@ -488,7 +488,7 @@ function AdminPrefillFields({
         return (
           <section key={section.code} className="space-y-4 rounded-xl border border-[#e3e7ed] p-4">
             <div>
-              <h4 className="text-[13px] font-bold text-[#344054]">{section.title}</h4>
+              <h4 className="text-[13px] font-semibold text-[#344054]">{section.title}</h4>
               {section.help_text ? <p className="mt-1 text-[11px] text-[#7b8494]">{section.help_text}</p> : null}
             </div>
             {fields.map((field) => (

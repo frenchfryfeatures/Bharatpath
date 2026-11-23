@@ -73,7 +73,7 @@ export function ApplicationMessages({ applicationId }: { applicationId: string }
     <section className="border-t border-[#e7e9ee] pt-5 text-[#151b2b]">
       <div className="flex items-center gap-2">
         <MessageSquareText size={17} className="text-[#315f9b]" />
-        <h3 className="text-[13px] font-bold text-[#151b2b]">Messages to candidate</h3>
+        <h3 className="text-[13px] font-semibold text-[#151b2b]">Messages to candidate</h3>
       </div>
       <p className="mt-1.5 text-[12px] leading-5 text-[#687384]">
         The platform sends your message by email and in-app notification.

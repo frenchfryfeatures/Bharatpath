@@ -32,6 +32,8 @@ export function ApplicationBoard() {
       [fetchApplications, filter],
     ),
     [filter],
+    true,
+    { keepPreviousData: true, refreshOnFocus: true },
   );
   const loadMoreFromObserver = useEffectEvent(applications.loadMore);
   const visibleApplications = applications.items;
@@ -45,6 +47,7 @@ export function ApplicationBoard() {
       !applications.hasMore ||
       applications.isLoading ||
       applications.isLoadingMore ||
+      applications.isRefreshing ||
       applications.error
     ) {
       return;
@@ -66,6 +69,7 @@ export function ApplicationBoard() {
     applications.hasMore,
     applications.isLoading,
     applications.isLoadingMore,
+    applications.isRefreshing,
   ]);
 
   return (
@@ -122,14 +126,14 @@ export function ApplicationBoard() {
               <EmptyState icon={<ListChecks size={22} />} title={`No ${filter} applications${applications.hasMore ? " loaded yet" : ""}`} message={applications.hasMore ? "Checking more applications for this filter." : "Applications in this category will appear here."} />
             ) : null}
 
-            {applications.error && applications.hasMore ? (
+            {applications.error ? (
               <div className="flex flex-col items-center gap-2 pt-1">
                 <span className="text-[13px] text-[#5F6B80]">
                   Could not load more applications.
                 </span>
                 <button
                   type="button"
-                  onClick={applications.loadMore}
+                  onClick={applications.retry}
                   className="rounded-full border border-[#E7E0D4] bg-white px-5 py-2.5 text-[13px] font-semibold text-[#0A1931] transition-colors hover:bg-[#F7F3EC]"
                 >
                   Try again
@@ -143,7 +147,7 @@ export function ApplicationBoard() {
               className="h-px w-full"
             />
           </>
-        ) : (
+        ) : applications.isRefreshing ? <p role="status">Updating applications…</p> : (
           <EmptyState
             icon={<ListChecks size={22} />}
             title="Nothing here yet"

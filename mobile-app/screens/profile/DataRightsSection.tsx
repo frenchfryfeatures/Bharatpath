@@ -10,13 +10,13 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { AppModal as Modal } from '@/components/layout/AppModal';
 import {
   View,
   Text,
   StyleSheet,
   Pressable,
   ActivityIndicator,
-  Modal,
   Linking,
 } from 'react-native';
 import {
@@ -435,7 +435,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   cardTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 16,
     lineHeight: 20,
     color: Colors.navy,
@@ -625,7 +625,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   modalTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 16,
     lineHeight: 20,
     color: Colors.navy,

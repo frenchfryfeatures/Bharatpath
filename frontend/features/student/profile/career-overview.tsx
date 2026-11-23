@@ -15,6 +15,8 @@ import {
   useGetCareerFieldsQuery,
   useGetCareerProfileQuery,
   usePrefillCareerProfileMutation,
+  careerFieldRequired,
+  visibleCareerField,
 } from "./career-api";
 import { profileValueText } from "./profile-display";
 import { CareerForm, type CareerEditSection } from "./career-form";
@@ -97,15 +99,20 @@ export function CareerOverview({
       );
   }, [profile.data, versions.data, prefill]);
   const details = profile.data?.details ?? {};
-  const added =
-    fields.data?.filter((field) => {
-      const value = details[field.key];
-      return Array.isArray(value)
-        ? value.length
-        : value !== null && value !== undefined && value !== "";
-    }).length ?? 0;
-  const completion = fields.data?.length
-    ? Math.round((added / fields.data.length) * 100)
+  // Mandatory, applicable fields only (2026-11-23): optional fields and ones
+  // that do not apply (a fresher's employer) can never hold this below 100%.
+  const mandatory =
+    fields.data?.filter(
+      (field) => visibleCareerField(field, details) && careerFieldRequired(field, details),
+    ) ?? [];
+  const added = mandatory.filter((field) => {
+    const value = details[field.key];
+    return Array.isArray(value)
+      ? value.length
+      : value !== null && value !== undefined && value !== "";
+  }).length;
+  const completion = mandatory.length
+    ? Math.round((added / mandatory.length) * 100)
     : 0;
 
   return (
@@ -141,7 +148,7 @@ export function CareerOverview({
           </span>
         </div>
         <div>
-          <h1 className="text-[18px] font-bold leading-7 tracking-[-0.02em] text-[#0A1931] sm:text-[22px]">
+          <h1 className="text-[18px] font-semibold leading-7 tracking-[-0.02em] text-[#0A1931] sm:text-[22px]">
             {fullName || "Your profile"}
           </h1>
           <p className="mt-1 text-[14px] font-medium leading-5 text-[#3A4761]">
@@ -231,7 +238,7 @@ export function CareerOverview({
       )}
       {prefillState.isLoading && (
         <p className="rounded-xl bg-[#F1EAF7] p-4 text-[13px] leading-5 text-[#5F4DB2]">
-          Importing your existing resume into your profile. Your score is
+          Importing your existing resume into your profile. Your Bharatpath Score is
           unchanged.
         </p>
       )}

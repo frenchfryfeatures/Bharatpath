@@ -39,7 +39,7 @@ export function PaidScoringStep({
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="flex flex-col gap-5">
-      <h1 className="text-2xl font-bold">Start your resume score</h1>
+      <h1 className="text-2xl font-semibold">Get your Bharatpath Score</h1>
       <p>
         Membership access is checked before your reviewed resume is confirmed
         for scoring.

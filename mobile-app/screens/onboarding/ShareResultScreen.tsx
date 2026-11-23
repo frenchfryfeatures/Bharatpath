@@ -1,3 +1,4 @@
+import { BrandWordmark } from "@/components/BrandWordmark";
 import React, { useState } from 'react';
 import {
   View,
@@ -7,11 +8,10 @@ import {
   ScrollView,
   Image,
   Switch,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { ArrowLeft, DownloadSimple, ShareNetwork } from 'phosphor-react-native';
+import { ArrowLeft, ShareNetwork } from 'phosphor-react-native';
 import { Colors, Radii, Spacing } from '@/theme/tokens';
 
 /**
@@ -32,8 +32,9 @@ export interface ShareResultScreenProps {
   candidateCity?: string;
   scoreDate?: string;
   onBack?: () => void;
-  onSave?: () => void;
-  onShare?: () => void;
+  /** Receives the toggle: the exact Bharatpath Score only when it is on. */
+  onSave?: (showExact: boolean) => void;
+  onShare?: (showExact: boolean) => void;
 }
 
 export function ShareResultScreen({
@@ -72,7 +73,7 @@ export function ShareResultScreen({
   return (
     <View style={styles.root}>
       <StatusBar style="dark" animated />
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -90,7 +91,7 @@ export function ShareResultScreen({
             >
               <ArrowLeft size={16} color={Colors.navy} weight="bold" />
             </Pressable>
-            <Text style={styles.navTitle}>Share your result</Text>
+            <Text style={styles.navTitle}>Share your Bharatpath Card</Text>
           </View>
 
           {/* Social Share Card - Solid deep indigo matching screenshot */}
@@ -102,7 +103,7 @@ export function ShareResultScreen({
                 style={styles.logoMark}
                 resizeMode="contain"
               />
-              <Text style={styles.brandName}>BharatPath</Text>
+              <BrandWordmark style={styles.brandName} light />
             </View>
 
             {/* Main Result Content: Reveals score when toggled */}
@@ -164,7 +165,7 @@ export function ShareResultScreen({
             onPress={() => setShowExact((prev) => !prev)}
           >
             <View style={styles.toggleTextContainer}>
-              <Text style={styles.toggleTitle}>Show my exact number</Text>
+              <Text style={styles.toggleTitle}>Show my exact Bharatpath Score</Text>
               <Text style={styles.toggleSubtitle}>
                 Off by default - only your band is shared
               </Text>
@@ -178,26 +179,14 @@ export function ShareResultScreen({
             />
           </Pressable>
 
-          {/* Bottom Actions: Save & Share */}
+          {/* Bottom Action: Share */}
           <View style={styles.actionButtonsRow}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.saveButton,
-                pressed && styles.buttonPressed,
-              ]}
-              onPress={onSave}
-              accessibilityRole="button"
-            >
-              <DownloadSimple size={18} color={Colors.navy} weight="bold" />
-              <Text style={styles.saveButtonText}>Save</Text>
-            </Pressable>
-
             <Pressable
               style={({ pressed }) => [
                 styles.shareButton,
                 pressed && styles.buttonPressed,
               ]}
-              onPress={onShare}
+              onPress={() => onShare?.(showExact)}
               accessibilityRole="button"
             >
               <ShareNetwork size={18} color="#FFFFFF" weight="bold" />
@@ -375,26 +364,8 @@ const styles = StyleSheet.create({
     marginTop: 'auto',
     paddingTop: Spacing.sm,
   },
-  saveButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#DDD6C7',
-    paddingVertical: 16,
-    borderRadius: Radii.pill, // 999
-  },
-  saveButtonText: {
-    fontFamily: 'GeneralSans-Semibold',
-    fontSize: 16,
-    lineHeight: 20,
-    color: Colors.navy, // #0A1931
-  },
   shareButton: {
-    flex: 1.5,
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

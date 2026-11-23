@@ -255,9 +255,9 @@ export function CandidateFilters({
         {/* =================================================
             SCORE BAND
             ================================================= */}
-        <FilterSection title="SCORE BAND">
+        <FilterSection title="Bharatpath Score band">
           {panelLoading ? (
-            <FilterRowsSkeleton label="Loading score bands" count={4} />
+            <FilterRowsSkeleton label="Loading Bharatpath Score bands" count={4} />
           ) : (
             <div className="flex flex-col gap-[2px]">
               {(panel?.bands ?? []).map((item) => (

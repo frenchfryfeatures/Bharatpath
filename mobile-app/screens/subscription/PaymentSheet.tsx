@@ -9,11 +9,12 @@
  * With the stub gateway there is nowhere to send the payer, so the sheet
  * offers the two outcomes the stub can produce instead.
  */
+import { backoffDelay } from '@/utils/backoff';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { AppModal as Modal } from '@/components/layout/AppModal';
 import {
   ActivityIndicator,
   Linking,
-  Modal,
   Pressable,
   StyleSheet,
   Text,
@@ -42,8 +43,11 @@ import {
   settleStubPayment,
 } from '@/services/api/subscription';
 
-const POLL_INTERVAL_MS = 2500;
-const MAX_POLLS = 48; // two minutes
+// After 2.5 s, then less often up to every 10 s, for about two minutes
+// (2026-11-23: was every 2.5 s, 48 times).
+const POLL_START_MS = 2500;
+const POLL_MAX_MS = 10000;
+const MAX_POLLS = 16;
 
 export interface PaymentSheetProps {
   checkout: CheckoutResponse;
@@ -114,7 +118,7 @@ export function PaymentSheet({ checkout, planLabel, onPaid, onClose }: PaymentSh
         console.warn('[Payment poll]', error);
       }
       setPollCount((count) => count + 1);
-    }, POLL_INTERVAL_MS);
+    }, backoffDelay(pollCount, POLL_START_MS, POLL_MAX_MS));
     return () => clearTimeout(timer);
   }, [checkOnce, isStub, pollCount, status]);
 

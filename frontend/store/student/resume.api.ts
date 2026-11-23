@@ -318,9 +318,33 @@ export const studentResumeApi = baseApi.injectEndpoints({
       invalidatesTags: [{ type: "Student", id: "RESUME_VERSIONS" }],
     }),
 
+    // The candidate's own uploaded PDF first (2026-11-23); `/render`
+    // re-typesets into our template, which changed an uploaded CV's format.
+    previewResumeDocument: builder.mutation<{pages:string[];truncated:boolean}, string>({
+      queryFn: async (id, _api, _extra, baseQuery) => {
+        const key=encodeURIComponent(id);
+        const original=await baseQuery(`/candidate/resume/versions/${key}/preview`);
+        const pages=(original.data as {pages?:string[];truncated?:boolean}|undefined)?.pages;
+        if(!original.error&&Array.isArray(pages)&&pages.length)
+          return {data:{pages,truncated:Boolean((original.data as {truncated?:boolean}).truncated)}};
+        const rendered=await baseQuery(`/candidate/resume/versions/${key}/render?format=png`);
+        if(rendered.error)return {error:rendered.error};
+        return {data:rendered.data as {pages:string[];truncated:boolean}};
+      },
+    }),
+    // Download: the exact uploaded file (PDF or Word) when there is one.
     renderResumeDocument: builder.mutation<{url:string;filename:string}, string>({
       queryFn: async (id, _api, _extra, baseQuery) => {
-        const result=await baseQuery({url:`/candidate/resume/versions/${id}/render`,responseHandler:(response:Response)=>response.blob()});
+        const key=encodeURIComponent(id);
+        const original=await baseQuery(`/candidate/resume/versions/${key}/document`);
+        const file=original.data as {url?:string|null;filename?:string|null}|undefined;
+        if(!original.error&&file?.url){
+          try{
+            const fetched=await fetch(file.url);
+            if(fetched.ok)return {data:{url:URL.createObjectURL(await fetched.blob()),filename:file.filename||"Resume"}};
+          }catch{/* bucket CORS or network: fall back to the rendered PDF */}
+        }
+        const result=await baseQuery({url:`/candidate/resume/versions/${key}/render`,responseHandler:(response:Response)=>response.blob()});
         if(result.error)return {error:result.error};
         return {data:{url:URL.createObjectURL(result.data as Blob),filename:"Resume.pdf"}};
       },
@@ -436,6 +460,7 @@ export const {
   useSubmitManualResumeMutation,
   useSubmitResumeDocumentMutation,
   useRenderResumeDocumentMutation,
+  usePreviewResumeDocumentMutation,
   useGetResumeVersionsQuery,
   useLazyGetResumeVersionsQuery,
   useGetResumeFilesQuery,

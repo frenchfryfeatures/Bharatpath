@@ -82,7 +82,7 @@ export function StudentStreakCard() {
               </span>
             </span>
             <span className="mt-2 block text-[12px] text-[#5F6B80]">
-              Personal best: {data.longestStreak}{" "}
+              Longest Streak: {data.longestStreak}{" "}
               {data.longestStreak === 1 ? "day" : "days"}
             </span>
           </span>

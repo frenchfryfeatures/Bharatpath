@@ -1,8 +1,11 @@
 "use client";
 
+import { formatSalary } from "@/features/student/formatters";
+import { candidateDetailsWithDefaults, JobDescriptionView } from "@/features/jobs";
+import { useGetStudentJobQuery } from "@/store/student";
 import { useParams } from "next/navigation";
 import { useGetApplicationMessagesQuery } from "@/store/student/learning.api";
-import { CalendarDays, Check, ExternalLink, Undo2 } from "lucide-react";
+import { CalendarDays, Check, ExternalLink, Undo2, X } from "lucide-react";
 
 import {
   useConfirmStudentHireMutation,
@@ -76,7 +79,7 @@ export function ApplicationDetail() {
               </MonogramTile>
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.09em] text-[#778197]">Employer</p>
-                <h2 className="mt-1 truncate text-[17px] font-bold text-[#0A1931]">{item.employerName ?? "Employer"}</h2>
+                <h2 className="mt-1 truncate text-[17px] font-semibold text-[#0A1931]">{item.employerName ?? "Employer"}</h2>
                 <p className="mt-1 text-[12px] text-[#5F6B80]">Applied {formatDate(item.createdAt)}</p>
               </div>
               <StatusChip tone={closed ? "neutral" : "advanced"}>{stageLabel(item.stage)}</StatusChip>
@@ -92,12 +95,12 @@ export function ApplicationDetail() {
               {timeline.map((step, index) => (
                 <li key={step.label} className="flex gap-3">
                   <div className="flex flex-col items-center">
-                    <span className={["grid h-7 w-7 shrink-0 place-items-center rounded-full", step.reached ? "bg-[#5F4DB2] text-white shadow-[0_2px_6px_rgba(95,77,178,0.22)]" : "border border-[#E7E0D4] bg-white text-[#B5AC96]"].join(" ")}>
-                      {step.reached ? <Check size={13} /> : null}
+                    <span className={["grid h-7 w-7 shrink-0 place-items-center rounded-full", step.state === "done" ? "bg-[#5F4DB2] text-white shadow-[0_2px_6px_rgba(95,77,178,0.22)]" : step.state === "ended" ? "bg-[#F9E2DA] text-[#8A3E2A]" : step.state === "current" ? "border-2 border-dashed border-[#5F4DB2] bg-white" : "border border-[#E7E0D4] bg-white text-[#B5AC96]"].join(" ")}>
+                      {step.state === "done" ? <Check size={13} /> : step.state === "ended" ? <X size={13} /> : null}
                     </span>
                     {index < timeline.length - 1 ? <span className="min-h-6 w-px flex-1 bg-[#E7E0D4]" /> : null}
                   </div>
-                  <span className={`pb-5 pt-1 text-[14px] ${step.reached ? "font-medium text-[#25334D]" : "text-[#8490A3]"}`}>{step.label}</span>
+                  <span className={`pb-5 pt-1 text-[14px] ${step.state === "ended" ? "font-medium text-[#8A3E2A]" : step.state === "pending" ? "text-[#8490A3]" : "font-medium text-[#25334D]"}`}>{step.label}</span>
                 </li>
               ))}
             </ol>
@@ -255,6 +258,54 @@ export function ApplicationDetail() {
           ) : null}
         </div>
       </div>
+      {/* The job as posted, under the actions (2026-11-23). */}
+      <AppliedJobDescription jobId={item.jobId} />
     </StudentPage>
+  );
+}
+
+/** The posting the candidate applied to, exactly as the job page shows it.
+ *  A job that has since closed is off the board, so its description can only
+ *  be said to be unavailable. */
+function AppliedJobDescription({ jobId }: { jobId: string }) {
+  const job = useGetStudentJobQuery(jobId);
+  if (job.isLoading) {
+    return <p className="mt-6 text-[13px] text-[#5F6B80]" role="status">Loading the job description…</p>;
+  }
+  if (!job.data) {
+    const closed = typeof job.error === "object" && job.error !== null && "status" in job.error && job.error.status === 404;
+    return (
+      <section className="mt-6 rounded-[20px] border border-[#E7E0D4] bg-white p-5">
+        <h2 className="text-[16px] font-semibold text-[#0A1931]">Job description</h2>
+        <p className="mt-2 text-[13px] text-[#5F6B80]">
+          {closed ? "This job is no longer published, so its description is not available." : "The job description could not be loaded."}
+        </p>
+        {!closed && <button type="button" onClick={() => void job.refetch()} className="mt-2 text-[13px] font-semibold text-[#5F4DB2] underline">Try again</button>}
+      </section>
+    );
+  }
+  const listing = job.data;
+  return (
+    <section className="mt-6" aria-label="Job description">
+      <h2 className="mb-3 text-[18px] font-semibold text-[#0A1931]">Job description</h2>
+      <JobDescriptionView
+        tone="student"
+        salaryText={formatSalary(listing)}
+        job={{
+          title: listing.title,
+          employerName: listing.employerName,
+          employerLogoUrl: listing.employerLogoUrl,
+          location: listing.location,
+          workMode: listing.workMode,
+          experienceMinMonths: listing.experienceMinMonths,
+          salaryMinMinor: listing.salaryMinMinor,
+          salaryMaxMinor: listing.salaryMaxMinor,
+          description: listing.description ?? "",
+          skills: listing.skills,
+          details: listing.details ?? candidateDetailsWithDefaults({}),
+          postedAt: listing.publishedAt,
+        }}
+      />
+    </section>
   );
 }

@@ -186,7 +186,7 @@ export function ForgotPasswordScreen({
   return (
     <View style={styles.root}>
       <StatusBar style="dark" animated />
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
         <KeyboardAvoidingView
           style={styles.keyboardAvoid}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -600,7 +600,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xs,
   },
   title: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 26,
     lineHeight: 32,
     letterSpacing: -0.4,
@@ -637,7 +637,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: Colors.surface.border,
     paddingHorizontal: Spacing.md,
-    height: 52,
+    minHeight: 52,
     gap: Spacing.sm,
   },
   inputWrapperFocused: {

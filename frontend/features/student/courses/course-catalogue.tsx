@@ -60,7 +60,7 @@ export function CourseCatalogue() {
                     <BookOpen size={22} />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <h2 className="text-[18px] font-bold text-[#0A1931]">{course.title}</h2>
+                    <h2 className="text-[18px] font-semibold text-[#0A1931]">{course.title}</h2>
                     <p className="mt-1 text-[12px] text-[#5F6B80]">{course.code}</p>
                   </div>
                   <CommerceBadge>{money(course.priceMinor, course.currency)}</CommerceBadge>

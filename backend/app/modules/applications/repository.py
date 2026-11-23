@@ -91,6 +91,20 @@ async def active_for(
     return result.scalar_one_or_none()
 
 
+async def latest_for_jobs(
+    session: AsyncSession, *, candidate_id: uuid.UUID, job_ids: list[uuid.UUID]
+) -> list[Application]:
+    """One latest application per job, scoped to the signed-in candidate."""
+    if not job_ids:
+        return []
+    return list((await session.scalars(
+        select(Application)
+        .where(Application.candidate_id == candidate_id, Application.job_id.in_(job_ids))
+        .distinct(Application.job_id)
+        .order_by(Application.job_id, Application.created_at.desc(), Application.id.desc())
+    )).all())
+
+
 async def hired_for(
     session: AsyncSession, *, job_id: uuid.UUID, candidate_id: uuid.UUID
 ) -> Application | None:

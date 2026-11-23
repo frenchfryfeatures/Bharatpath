@@ -9,6 +9,95 @@ states. Newest entries first.
 
 ---
 
+## 2026-11-23 — Web parity and verification follow-up
+
+Implementation and verification: [round report, section H](bugfix-round-2026-11-23.md#h-web-parity-follow-up-2026-11-23).
+No commit, push or deployment.
+
+- Web notifications use server destinations with business/old-row fallbacks.
+  Jobs retain and dim results during search; obsolete responses cannot append
+  to the new list. Both API slices refresh on focus/reconnect and stale mounts;
+  accumulated jobs, board and invitations refresh explicitly.
+- Skill courses has Refresh and the purchase-gated +30 list banner. Course
+  opening starts the server clock, progress writes are serialized, and Complete
+  advances only after the server agrees. No watched or score rule changed.
+- Build resume warns about uploaded templates like Edit resume. Sign-up locks
+  and skeletons CV fields, preserves typed values, rejects obsolete responses,
+  offers retry and a different-name warning, and keeps a password-free draft.
+- Logout clears both API caches, student state/storage and onboarding drafts.
+  Browser restores recheck identity; delayed auth refresh cannot restore a
+  logged-out account. Original resume viewers reset when the file changes.
+- Included original viewers, read-only resume tiles/Edit resume, Add-ons,
+  profile labels, application job description, preview-500 fallback and the
+  local demo-job seeder in the report. Nine new web regression tests pass.
+- Browser QA: the available account redirects to incomplete onboarding.
+  Authenticated viewers/Edit resume/Add-ons/application pages remain visually
+  unverified; no account data was changed to bypass onboarding.
+- Final verification: backend **3,612 pass / 22 inherited failures / 3
+  deselected**, using the temporary Windows selector runner after an IOCP
+  teardown stall. Both client TypeScript checks pass. Web has **72 pass / 2
+  inherited failures** (all 9 new tests pass) and no lint errors; mobile has
+  **25 passing scripts / 5 inherited failures**. The report lists remaining
+  static-check failures and clean-HEAD reproductions; no assertions weakened.
+- Restored **600 local published jobs from 27 roles** after integration tests.
+  Fixed the demo seeder's direct-script import path; its real run, ruff and
+  formatting checks pass. No app code changed after the full-suite run.
+- Exact verification commands, 5433 database fix and final results are in the
+  round report. Open decisions remain: leaderboard, share-card image saving,
+  mobile course-detail +30 wording, provider keys and UAT/production deploy.
+
+## 2026-11-23 — Job preferences missing fields investigation
+
+- Follow-up: switched mobile `.env.local` to
+  `http://192.168.1.10:8099/api/v1` for testing over the host's Wi-Fi network.
+  Started the local API on `0.0.0.0:8099`; its LAN health endpoint returns
+  200 and OpenAPI includes preferences GET/PUT and GET options. The phone
+  must share the host's network; restart Expo to pick up the environment.
+- At investigation start, mobile `.env.local` selected UAT. Live UAT and production OpenAPI schemas
+  both omit `/api/v1/candidate/profile/preferences` (GET/PUT) and its
+  `/options` route; both GETs return 404, while the existing profile details
+  route returns 401 without authentication. The routes already exist in the
+  working tree: the running backend needs the preferences implementation
+  deployed. Web uses these same routes; its local configuration points to
+  localhost:8099, where no API was listening during this check.
+- Removed the mobile header subtitle “What you want from your next job”.
+  A missing preferences route now offers retry instead of claiming the feature
+  is coming in an app update. No fake defaults or unsaved local form added.
+- Mobile TypeScript check, all nine preferences unit tests, and all four
+  preferences integration tests against local Postgres pass (load, options,
+  save/persistence, completion gate, and recommendation ranking).
+- UAT SSH access timed out; no backend deployment performed.
+
+## 2026-11-23 — 31-item bug-fix round and the job engine
+
+Full table, root causes and deploy steps: [`bugfix-round-2026-11-23.md`](bugfix-round-2026-11-23.md).
+Nothing committed or deployed.
+
+- **Job engine**: `jobs.domain.score_job`, nine weighted dimensions over
+  what both sides fill; weights in config `jobs.match_weights`; reason codes
+  out, never a number. `MatchTerms` gained preference fields (preferred
+  salary, industry, education, fresher) -- never gender, age or current pay.
+- **Search** reads employer, place and skills; **skill filter** options at
+  `/candidate/jobs/skills`; **cities** at public `/reference/cities`.
+- **Notifications** carry a server-decided `destination`; the push bridge
+  no longer replays stale taps (the "opens on Notifications" bug).
+  **End-of-day reminder** on Beat, 20:00-22:30 IST.
+- **Taxonomies were never seeded on UAT**: data not shipped, seeders manual.
+  Now in the deploy's `migrate` step with `--seed-only`.
+- **Mock interview**: the app was inventing a report while evaluation was
+  PENDING; removed. Hosts still need the providers set.
+- **Course completion**: client now honours the server's watched rule
+  instead of pretending; the rule itself is unchanged.
+- Pre-existing red, unchanged here: 11 invariant tests, 5 unit, 1
+  integration, 5 mobile `.cjs`, and the `interview -> scoring` import path.
+- **Job preferences screen** (opened from the web and mobile profile): roles, industries, work
+  mode, job type, locations, relocation, salary. `career.preferences`, kept
+  across onboarding saves; read by the engine. See the report's section G.
+- **Local tests**: a native Postgres holds 5432; the compose DB is on
+  5433, so `.test-env.sh` URLs need the port swapped.
+
+---
+
 ## 2026-11-19 — Production and UAT
 
 Asked for: the one AWS environment labelled production, and a UAT that is a

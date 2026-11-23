@@ -244,7 +244,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#0A1931',
     textAlign: 'center',
     letterSpacing: -0.2,

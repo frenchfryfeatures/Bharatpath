@@ -31,8 +31,12 @@ function useOptions(path: string, disabled: boolean, freeText: boolean) {
       try {
         const saved = await AsyncStorage.getItem(key);
         const cached = saved ? JSON.parse(saved) : null;
-        if (active && Array.isArray(cached?.items) && Date.now() - cached.at < 7 * 86400000)
+        if (active && Array.isArray(cached?.items) && Date.now() - cached.at < 7 * 86400000) {
           setLoaded({path, items: cached.items});
+          // Reference lists change rarely: a copy under six hours old is used
+          // as is, without asking the server again (2026-11-23).
+          if (Date.now() - cached.at < FRESH_FOR_MS) { setLoading(false); return; }
+        }
       } catch { /* A corrupt or unavailable device cache must not block a network read. */ }
       try {
         const items: EducationOption[] = [];
@@ -53,6 +57,9 @@ function useOptions(path: string, disabled: boolean, freeText: boolean) {
 
   return {items, loading, error, setRefresh};
 }
+
+/** How long a saved option list is used without a network read. */
+const FRESH_FOR_MS = 6 * 60 * 60 * 1000;
 
 export function EducationField({ fieldKey, details, onChange, label, invalid = false }: {
   fieldKey: EducationKey; details: CareerDetails; onChange: (details: CareerDetails) => void; label: string; invalid?: boolean;

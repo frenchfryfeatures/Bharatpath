@@ -63,7 +63,7 @@ export function AnalyticsDashboard() {
 
   usePageHeader(
     "Analytics & Outcomes",
-    "Cohort score analytics and platform-sourced outcomes",
+    "Cohort Bharatpath Score analytics and platform-sourced outcomes",
     {
       stat: seatStat(seats, isLoading),
       action: headerAction,

@@ -6,44 +6,45 @@
  * is gone. On a successful apply, navigates to `/application-sent` with the
  * employer name.
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import { ScreenSkeleton } from '@/components/feedback/ScreenSkeleton';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, View, Text, StyleSheet } from 'react-native';
+import { useScreenRefresh } from '@/hooks/useScreenRefresh';
+import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '@/theme/tokens';
 import { JobDetailScreen } from '@/screens/jobs/JobDetailScreen';
 import { BoardJobDetail } from '@/types/job';
 import { getJobDetail } from '@/services/api/jobs';
 import { ApiError } from '@/services/api/client';
-import { listMyApplications } from '@/services/api/applications';
+import { useJobApplications } from '@/hooks/useJobApplications';
+import { readScreenCache, writeScreenCache } from '@/services/cache/screenCache';
 
 export default function JobDetailRoute() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
   const jobId = params.id;
+  const cacheKey = jobId ? `job-detail:${jobId}` : null;
 
-  const [job, setJob] = useState<BoardJobDetail | null>(null);
-  const [alreadyApplied, setAlreadyApplied] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [job, setJob] = useState<BoardJobDetail | null>(() =>
+    cacheKey ? (readScreenCache<BoardJobDetail>(cacheKey) ?? null) : null,
+  );
+  const applications = useJobApplications();
+  const [loading, setLoading] = useState(() =>
+    cacheKey ? readScreenCache<BoardJobDetail>(cacheKey) === undefined : true,
+  );
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!jobId) {
-      setError('No job id.');
+      setError('Choose a job from the jobs list to view its details.');
       setLoading(false);
       return;
     }
-    setLoading(true);
     setError(null);
     try {
-      const [detail, myApps] = await Promise.all([
-        getJobDetail(jobId),
-        listMyApplications({ limit: 100 }).catch(() => null),
-      ]);
+      const detail = await getJobDetail(jobId);
       setJob(detail);
-      // Determine if the candidate already has an application for this job.
-      if (myApps) {
-        setAlreadyApplied(myApps.items.some((a) => a.job_id === jobId));
-      }
+      writeScreenCache(`job-detail:${jobId}`, detail);
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         setError('This job is no longer open.');
@@ -60,23 +61,32 @@ export default function JobDetailRoute() {
   }, [jobId]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    const cached = cacheKey ? (readScreenCache<BoardJobDetail>(cacheKey) ?? null) : null;
+    setJob(cached);
+    setLoading(cached === null);
+    setError(null);
+    void load();
+  }, [cacheKey, load]);
 
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={Colors.brandAccent} />
-      </View>
-    );
+  // Return visits (throttled by 30s) and pull-to-refresh.
+  const { refreshing, onRefresh: refreshJob } = useScreenRefresh(load, {
+    skipFirstFocus: true,
+  });
+  const onRefresh = useCallback(async () => {
+    await Promise.all([refreshJob(), applications.reload()]);
+  }, [refreshJob, applications]);
+
+  if (loading || job?.application_stage === undefined && applications.loading) {
+    return <ScreenSkeleton />;
   }
 
-  if (error || !job) {
+  if (error || !job || job.application_stage === undefined && applications.error && !applications.byJob[job.id]) {
     return (
       <View style={styles.center}>
         <Text style={styles.errorText}>
-          {error ?? 'Could not load this job.'}
+          {error ?? 'We could not check your application status. Please try again.'}
         </Text>
+        <Text style={styles.retryLink} onPress={() => { void load(); void applications.reload(); }}>Try again</Text>
         <Text style={styles.retryLink} onPress={() => router.back()}>
           Back to jobs
         </Text>
@@ -84,21 +94,26 @@ export default function JobDetailRoute() {
     );
   }
 
+  const applicationStage = applications.byJob[job.id]?.stage ?? job.application_stage;
+  const applicationId = applications.byJob[job.id]?.id ?? job.application_id;
   return (
     <JobDetailScreen
+      key={job.id}
       job={job}
-      alreadyApplied={alreadyApplied}
+      refreshing={refreshing}
+      onRefresh={onRefresh}
+      applicationStage={applicationStage}
+      onViewApplication={() => router.push(applicationId ? { pathname: '/application-detail', params: { id: applicationId } } as any : '/board' as any)}
       onBack={() => router.back()}
-      onApplied={(employerName) =>
-        router.push({
+      onApplied={(employerName, application) =>
+        router.replace({
           pathname: '/application-sent',
-          params: { employer: employerName },
+          params: { employer: employerName, id: application.id, sentAt: application.created_at, title: application.job_title || job.title },
         } as any)
       }
       onJobGone={() => router.back()}
       onSubscriptionRequired={() => {
-        // Paywall surface is out of scope for this pass; back out for now.
-        router.back();
+        router.push('/subscription' as any);
       }}
     />
   );

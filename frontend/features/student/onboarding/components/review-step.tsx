@@ -16,6 +16,9 @@ interface ReviewStepProps {
   confirmLabel?: string;
   startOverLabel?: string;
   restoreFromHistory?: boolean;
+  /** Per-section edit buttons. Off on Resume details (2026-11-23), where
+   *  changes go through Edit resume and the Bharatpath Builder. */
+  allowSectionEdits?: boolean;
 }
 
 /* -------------------------------------------------------------------------
@@ -30,6 +33,7 @@ export function ReviewStep({
   confirmLabel = "Confirm",
   startOverLabel = "Use a different resume",
   restoreFromHistory = false,
+  allowSectionEdits = true,
 }: Readonly<ReviewStepProps>) {
   const version = useGetResumeVersionQuery(resumeVersionId);
   // This deliberately lives in the review screen only. Uploading, pasting,
@@ -86,6 +90,7 @@ export function ReviewStep({
   return (
     <StructuredResumeReview
       key={version.data.resumeVersionId}
+      allowSectionEdits={allowSectionEdits}
       version={version.data}
       onConfirmed={onConfirmed}
       onStartOver={onStartOver}

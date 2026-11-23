@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -31,10 +32,17 @@ const LEVEL_STYLES = {
 export default function InterviewFeedbackPage() {
   const id = useParams<{ sessionId: string }>().sessionId;
   const router = useRouter();
+  // Poll only while the report is still being written, every 15 seconds; a
+  // READY or FAILED report never changes, so it is never asked for again.
+  const [settled, setSettled] = useState(false);
   const report = useGetInterviewReportQuery(id, {
-    pollingInterval: 5_000,
+    pollingInterval: settled ? 0 : 15_000,
     skipPollingIfUnfocused: true,
   });
+  const reportStatus = report.data?.status;
+  if (!settled && (reportStatus === "READY" || reportStatus === "FAILED")) {
+    setSettled(true);
+  }
 
   const data = report.data;
   const dimensionsByCode = new Map(
@@ -78,11 +86,11 @@ export default function InterviewFeedbackPage() {
               <span className="grid h-11 w-11 place-items-center rounded-full bg-white text-[#604BB5]">
                 <Check className="h-6 w-6 stroke-[3]" aria-hidden="true" />
               </span>
-              <h1 className="mt-5 text-2xl font-bold tracking-tight sm:text-3xl">
+              <h1 className="mt-5 text-2xl font-semibold tracking-tight sm:text-3xl">
                 Your practice feedback
               </h1>
               <p className="mt-2 max-w-xl text-[14px] leading-6 text-white/80">
-                Levels describe this interview only. They do not change your score.
+                Levels describe this interview only. They do not change your Bharatpath Score.
               </p>
             </section>
 
@@ -94,7 +102,7 @@ export default function InterviewFeedbackPage() {
                     {data.dimensions.map((dimension) => (
                       <div key={dimension.code} className="py-4">
                         <div className="flex items-start justify-between gap-3">
-                          <h2 className="text-[14px] font-bold text-[#0A1931]">
+                          <h2 className="text-[14px] font-semibold text-[#0A1931]">
                             {dimension.label}
                           </h2>
                           <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${LEVEL_STYLES[dimension.level]}`}>
@@ -112,7 +120,7 @@ export default function InterviewFeedbackPage() {
                 <section className="rounded-2xl bg-[#F1EEFB] p-5">
                   <div className="flex items-center gap-2 text-[#0A1931]">
                     <Lightbulb className="h-5 w-5 text-[#604BB5]" aria-hidden="true" />
-                    <h2 className="text-[15px] font-bold">Focus next time</h2>
+                    <h2 className="text-[15px] font-semibold">Focus next time</h2>
                   </div>
                   <p className="mt-2 text-[12px] leading-5 text-[#3A4761]">
                     {focusLabels.length ? focusLabels.join(" · ") : "Keep building on the strengths shown in this interview."}
@@ -133,7 +141,7 @@ export default function InterviewFeedbackPage() {
                           Q{question.index + 1}
                         </span>
                         <div className="min-w-0">
-                          <h2 className="text-[16px] font-bold leading-6 text-[#0A1931] sm:text-[17px]">
+                          <h2 className="text-[16px] font-semibold leading-6 text-[#0A1931] sm:text-[17px]">
                             {question.prompt}
                           </h2>
                           <p className="mt-3 text-[12px] font-medium text-[#7A8496]">
@@ -184,7 +192,7 @@ export default function InterviewFeedbackPage() {
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#5F6B80]">
+    <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#5F6B80]">
       {children}
     </h2>
   );
@@ -207,7 +215,7 @@ function FeedbackPending() {
     <div className="grid min-h-[420px] place-items-center rounded-2xl border border-[#E7E0D4] bg-white px-6 text-center">
       <div className="max-w-md">
         <LoaderCircle className="mx-auto h-9 w-9 animate-spin text-[#604BB5]" aria-hidden="true" />
-        <h1 className="mt-4 text-xl font-bold text-[#0A1931]">Your feedback is being prepared</h1>
+        <h1 className="mt-4 text-xl font-semibold text-[#0A1931]">Your feedback is being prepared</h1>
         <p className="mt-2 text-[13px] leading-6 text-[#5F6B80]">We are reviewing your answers. This page will update automatically.</p>
       </div>
     </div>
@@ -220,7 +228,7 @@ function FeedbackFailed({ reason }: { reason: string | null }) {
     : "We could not prepare feedback for this interview.";
   return (
     <div className="rounded-2xl border border-[#E9D9A9] bg-[#FFF9E8] p-6 text-center">
-      <h1 className="text-xl font-bold text-[#0A1931]">Feedback unavailable</h1>
+      <h1 className="text-xl font-semibold text-[#0A1931]">Feedback unavailable</h1>
       <p className="mt-2 text-[13px] leading-6 text-[#5F6B80]">{message}</p>
       <Link href="/student/interview" className="mt-5 inline-flex rounded-lg bg-[#604BB5] px-5 py-3 text-[12px] font-bold text-white">Back to interviews</Link>
     </div>

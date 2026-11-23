@@ -42,11 +42,14 @@ from app.core.pagination import clamp_limit, decode_cursor, encode_cursor
 from app.core.tenant import TenantContext
 from app.modules.applications import service as applications_service
 from app.modules.college import service as college_service
+from app.modules.engagement import service as engagement_service
 from app.modules.identity import service as identity_service
 from app.modules.kyb import service as kyb_service
 from app.modules.notifications import repository, unsubscribe
 from app.modules.notifications.domain import (
+    DAILY_REMINDER_TEMPLATE,
     DEFAULT_NUDGE_RULES,
+    IST,
     KYB_REVIEWER_ROLES,
     NUDGE_TEMPLATES,
     NudgeRules,
@@ -54,7 +57,9 @@ from app.modules.notifications.domain import (
     Planned,
     Preferences,
     Recipient,
+    daily_reminder_due,
     delivery_decision,
+    destination_for,
     format_amount,
     format_date,
     format_moment,
@@ -70,6 +75,7 @@ from app.modules.notifications.providers import (
     get_sms_provider,
 )
 from app.modules.notifications.schemas import (
+    InboxDestination,
     InboxItem,
     InboxPage,
     PreferencesResponse,
@@ -612,6 +618,69 @@ async def nudge_page(
     )
 
 
+async def daily_reminder_page(
+    session: AsyncSession,
+    *,
+    now: datetime | None = None,
+    after_id: uuid.UUID | None = None,
+    limit: int = NUDGE_PAGE_SIZE,
+) -> NudgePage:
+    """One page of the end-of-day reminder (2026-11-23).
+
+    A candidate is reminded when they have an opted-in device, have not
+    opened the app on today's IST day, have reminders on, and have not been
+    reminded today -- the dedupe key is the person and the day, so a second
+    run, or a second beat, writes nothing. The in-app row is what the push
+    queue turns into a push; nothing is emailed.
+    """
+    now = _now(now)
+    if not daily_reminder_due(now):
+        return NudgePage(examined=0, nudged=0, outgoing=[], next_after=None)
+    page = await identity_service.candidates_signed_up_before(
+        session, before=now, after_id=after_id, limit=limit
+    )
+    with_device = await repository.users_with_active_push_device(session, user_ids=page)
+    opened = await engagement_service.users_who_opened_today(
+        session, user_ids=[u for u in page if u in with_device], now=now
+    )
+    due = [u for u in page if u in with_device and u not in opened]
+    template = template_by_code(DAILY_REMINDER_TEMPLATE)
+    assert template is not None
+    day = now.astimezone(IST).date().isoformat()
+    outgoing: list[Outgoing] = []
+    reminded = 0
+    for addressee in await _account_addressees(session, due):
+        prefs = addressee.preferences
+        if not (prefs.push_enabled and prefs.nudges_enabled) or not (
+            addressee.recipient.account_active
+        ):
+            continue
+        assert addressee.user_id is not None
+        message = await _write(
+            session,
+            addressee=addressee,
+            template=template,
+            category="NUDGE",
+            values={},
+            dedupe_key=f"daily_reminder:{addressee.user_id}:{day}",
+            source_event_id=None,
+            mandatory=False,
+            now=now,
+        )
+        # In-app rows have nothing to send here (the push queue picks them
+        # up), so `reminded` counts people considered, a repeat included.
+        reminded += 1
+        if message is not None:
+            outgoing.append(message)
+    logger.info("daily_reminder_page", examined=len(page), reminded=reminded)
+    return NudgePage(
+        examined=len(page),
+        nudged=reminded,
+        outgoing=outgoing,
+        next_after=page[-1] if len(page) == limit else None,
+    )
+
+
 # ---------------------------------------------------------------------------
 # The reader's side
 # ---------------------------------------------------------------------------
@@ -628,8 +697,13 @@ async def inbox(
             raise ValidationError(code="invalid_cursor") from exc
     rows = await repository.inbox(session, user_id=ctx.user_id, after=after, limit=size)
     return InboxPage(
-        items=[InboxItem.model_validate(row) for row in rows],
-        next_cursor=encode_cursor({"t": rows[-1].created_at.isoformat(), "i": str(rows[-1].id)})
+        items=[
+            _inbox_item(row, aggregate_type=kind, aggregate_id=agg, payload=payload)
+            for row, kind, agg, payload in rows
+        ],
+        next_cursor=encode_cursor(
+            {"t": rows[-1][0].created_at.isoformat(), "i": str(rows[-1][0].id)}
+        )
         if len(rows) == size
         else None,
         unread=await repository.unread_count(session, user_id=ctx.user_id),
@@ -649,7 +723,26 @@ async def mark_read(
     )
     if row is None:
         raise NotificationNotFoundError()
-    return InboxItem.model_validate(row)
+    kind, agg, payload = await repository.source_event_of(session, event_id=row.source_event_id)
+    return _inbox_item(row, aggregate_type=kind, aggregate_id=agg, payload=payload)
+
+
+def _inbox_item(
+    row: Any,
+    *,
+    aggregate_type: str | None,
+    aggregate_id: str | None,
+    payload: dict[str, Any] | None,
+) -> InboxItem:
+    target = destination_for(
+        row.template_code,
+        aggregate_type=aggregate_type,
+        aggregate_id=aggregate_id,
+        payload=payload,
+    )
+    item = InboxItem.model_validate(row)
+    item.destination = InboxDestination(kind=target.kind, id=target.id)
+    return item
 
 
 async def preferences(session: AsyncSession, *, ctx: TenantContext) -> PreferencesResponse:

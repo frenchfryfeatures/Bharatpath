@@ -117,10 +117,12 @@ export interface JobResponse {
   can_apply_externally?: boolean;
   published_at: string;
   eligibility: JobListing["eligibility"];
+  application_id?: string | null;
+  application_stage?: JobListing["applicationStage"];
 }
 
 interface RecommendedJobsResponse {
-  items: Array<JobResponse & { matched_skills: string[] }>;
+  items: Array<JobResponse & { matched_skills: string[]; match_reasons?: string[] }>;
   has_basis: boolean;
 }
 
@@ -286,6 +288,8 @@ export function mapJob(response: JobResponse): JobListing {
     canApplyExternally: response.can_apply_externally ?? false,
     publishedAt: response.published_at,
     eligibility: response.eligibility,
+    applicationId: response.application_id,
+    applicationStage: response.application_stage,
   };
 }
 
@@ -294,6 +298,7 @@ function mapRecommendedJobs(response: RecommendedJobsResponse): RecommendedJobs 
     items: response.items.map((job) => ({
       ...mapJob(job),
       matchedSkills: job.matched_skills,
+      matchReasons: job.match_reasons ?? [],
     })),
     hasBasis: response.has_basis,
   };
@@ -504,7 +509,23 @@ export const studentApi = baseApi.injectEndpoints({
         nextCursor: response.next_cursor,
         total: response.total,
       }),
-      providesTags: [{ type: "Job", id: "STUDENT_LIST" }],
+      providesTags: [{ type: "Job", id: "STUDENT_LIST" }, { type: "Application", id: "STUDENT_LIST" }],
+    }),
+    // The curated Indian city catalogue for city fields (2026-11-23). Public.
+    getReferenceCities: builder.query<Array<{ key: string; label: string; state_code: string }>, string>({
+      query: (q) => ({ url: "/reference/cities", params: { q, limit: 8 } }),
+      transformResponse: (response: { items: Array<{ key: string; label: string; state_code: string }> }) =>
+        response.items,
+      keepUnusedDataFor: 600,
+    }),
+    // Skills live jobs ask for, for the board's skill filter (2026-11-23).
+    getStudentJobSkills: builder.query<string[], { q?: string; limit?: number } | void>({
+      query: (args) => ({
+        url: "/candidate/jobs/skills",
+        params: { q: args?.q || undefined, limit: args?.limit ?? 40 },
+      }),
+      transformResponse: (response: { items: string[] }) => response.items,
+      providesTags: [{ type: "Job", id: "STUDENT_SKILLS" }],
     }),
     getJobsSimilarToApplied: builder.query<RecommendedJobs, { limit: number; eligibleOnly?: boolean }>({
       query: ({ limit, eligibleOnly }) => ({
@@ -534,6 +555,7 @@ export const studentApi = baseApi.injectEndpoints({
       transformResponse: mapJob,
       providesTags: (_result, _error, jobId) => [
         { type: "Job", id: jobId },
+        { type: "Application", id: "STUDENT_LIST" },
       ],
     }),
     getStudentApplications: builder.query<
@@ -749,6 +771,8 @@ export const {
   useGetStudentStreakCalendarQuery,
   useGetStudentProfileViewsQuery,
   useGetStudentJobsQuery,
+  useGetStudentJobSkillsQuery,
+  useGetReferenceCitiesQuery,
   useGetJobsSimilarToAppliedQuery,
   useGetJobsMatchingProfileQuery,
   useLazyGetStudentJobsQuery,

@@ -12,6 +12,7 @@
  * expected to be large for a single candidate.
  */
 import { apiRequest, ApiError } from './client';
+import { publishApplicationChange } from '@/services/applicationEvents';
 import {
   ApplicationDetailResponse,
   ApplicationPage,
@@ -105,10 +106,12 @@ export async function getApplicationMessages(
 export async function withdrawApplication(
   applicationId: string,
 ): Promise<ApplicationResponse> {
-  return apiRequest<ApplicationResponse>(
+  const application = await apiRequest<ApplicationResponse>(
     `/candidate/applications/${applicationId}/withdraw`,
     { method: 'POST' },
   );
+  publishApplicationChange(application);
+  return application;
 }
 
 /**
@@ -122,10 +125,12 @@ export async function withdrawApplication(
 export async function confirmHire(
   applicationId: string,
 ): Promise<ApplicationResponse> {
-  return apiRequest<ApplicationResponse>(
+  const application = await apiRequest<ApplicationResponse>(
     `/candidate/applications/${applicationId}/hire/confirm`,
     { method: 'POST' },
   );
+  publishApplicationChange(application);
+  return application;
 }
 
 /**
@@ -139,10 +144,12 @@ export async function confirmHire(
 export async function disputeHire(
   applicationId: string,
 ): Promise<ApplicationResponse> {
-  return apiRequest<ApplicationResponse>(
+  const application = await apiRequest<ApplicationResponse>(
     `/candidate/applications/${applicationId}/hire/dispute`,
     { method: 'POST' },
   );
+  publishApplicationChange(application);
+  return application;
 }
 
 // ---------------------------------------------------------------------------

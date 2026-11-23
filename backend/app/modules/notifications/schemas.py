@@ -36,12 +36,30 @@ class _Base(ApiSchema):
     characters Postgres cannot store -- see `app/core/schemas.py`."""
 
 
+class InboxDestination(_Base):
+    """Where tapping the message leads (2026-11-23). Decided on the server
+    from the template and the event behind it, never from the text."""
+
+    kind: Literal[
+        "APPLICATION",
+        "APPLICATIONS",
+        "JOB",
+        "INTERVIEW_REPORT",
+        "SUBSCRIPTION",
+        "PROFILE",
+        "STREAK",
+        "INBOX",
+    ]
+    id: uuid.UUID | None = None
+
+
 class InboxItem(_Base):
     id: uuid.UUID
     template_code: str
     body: str
     created_at: datetime
     read_at: datetime | None
+    destination: InboxDestination = InboxDestination(kind="INBOX")
 
 
 class InboxPage(_Base):

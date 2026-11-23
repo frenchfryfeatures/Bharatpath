@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
+import { AppModal as Modal } from '@/components/layout/AppModal';
 import {
-  Modal,
   View,
   Text,
   StyleSheet,
@@ -78,7 +78,7 @@ export function AddSectionModal({
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
         <KeyboardAvoidingView
           style={styles.keyboardAvoid}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -232,7 +232,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   headerTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 20,
     lineHeight: 26,
     color: '#0A1931',

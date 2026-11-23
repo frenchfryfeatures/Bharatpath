@@ -1,3 +1,6 @@
+import { useLogout } from '@/hooks/useLogout';
+import { CitySuggestions } from '@/components/inputs/CitySuggestions';
+import { IndianCityDropdown } from '@/components/inputs/IndianCityDropdown';
 import { profileValueText } from "@/services/profile/profileDisplay";
 import { formatSalaryInput } from '@/utils/salaryInput';
 import { ResumePickerLabel } from '@/components/inputs/ResumePickerLabel';
@@ -15,7 +18,6 @@ import {
   Pressable,
   ActivityIndicator,
   StyleSheet,
-  Modal,
   KeyboardAvoidingView,
   Keyboard,
   Platform,
@@ -23,10 +25,8 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, ArrowRight, EnvelopeSimple, FileText, PencilSimple, Wallet, X } from 'phosphor-react-native';
+import { ArrowLeft, ArrowRight, EnvelopeSimple, PencilSimple, Wallet, X } from 'phosphor-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { WebView } from 'react-native-webview';
-import { useRouter } from 'expo-router';
 import { OnboardingProgress } from '@/screens/onboarding/OnboardingProgress';
 import { ConversationPrompt } from '@/screens/onboarding/ConversationPrompt';
 import { PhoneNumberInput } from '@/components/inputs/PhoneNumberInput';
@@ -65,7 +65,6 @@ import {
   prefillCareerProfile,
   previewSignupResume,
   saveCareerProfile,
-  getResumePreview,
   careerDetailsForSave,
   missingRequiredCareerFields,
   fieldRequired as baseFieldRequired,
@@ -82,22 +81,12 @@ const groups = [
   { key: 'education', title: 'Education details' },
   { key: 'preferences', title: 'Headline and preferences' },
 ];
-const escapeHtml = (s: string) =>
-  s.replace(
-    /[&<>"']/g,
-    (c) =>
-      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[
-        c
-      ]!,
-  );
-
 export function CareerDetailsScreen({
   versionId,
   resumeFilename,
   onboarding = false,
   onBack,
   onDone,
-  onUpdateResume,
   initialSection = 0,
 }: {
   versionId?: string;
@@ -105,11 +94,10 @@ export function CareerDetailsScreen({
   onboarding?: boolean;
   onBack: () => void;
   onDone: (profile: CareerProfile) => void | Promise<void>;
-  onUpdateResume?: () => void;
   initialSection?: number;
 }) {
-  const router = useRouter();
-  const { candidateFullName, session, rememberCandidate, signOut } = useAuthContext();
+  const { candidateFullName, session, rememberCandidate } = useAuthContext();
+  const logout = useLogout();
   const [fullName, setFullName] = useState(candidateFullName ?? '');
   useEffect(() => {
     if (candidateFullName) setFullName((current) => current || candidateFullName);
@@ -128,7 +116,6 @@ export function CareerDetailsScreen({
   const [error, setError] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [lists, setLists] = useState<Record<string, string>>({});
-  const [documentHtml, setDocumentHtml] = useState<string | null>(null);
   const [selectedFilename, setSelectedFilename] = useState(resumeFilename);
   const scrollRef = useRef<ScrollView>(null);
   const fieldOffsets = useRef<Record<string, number>>({});
@@ -1043,25 +1030,10 @@ export function CareerDetailsScreen({
     }
   };
 
-  const openDocument = async () => {
-    if (!profile?.resume_version_id) return;
-    setBusy(true);
-    setError('');
-    try {
-      const preview = await getResumePreview(profile.resume_version_id);
-      setDocumentHtml(
-        `<html><head><meta name="viewport" content="width=device-width, initial-scale=1" /></head><body style="margin:0;background:#f7f4ec">${preview.pages.length ? preview.pages.map((page) => `<img style="width:100%;display:block;margin-bottom:8px" src="data:image/png;base64,${page}" />`).join('') : `<pre style="white-space:pre-wrap;padding:20px;font:16px sans-serif">${escapeHtml(preview.text)}</pre>`}${preview.truncated ? '<p>Showing the first 20 pages.</p>' : ''}</body></html>`,
-      );
-    } catch {
-      setError('Your resume could not be opened. Please try again.');
-    } finally {
-      setBusy(false);
-    }
-  };
 
   if ((fields.length === 0 && busy) || (onboarding && !modeRestored)) {
     return (
-      <SafeAreaView style={styles.screen}>
+      <SafeAreaView edges={['top', 'left', 'right']} style={styles.screen}>
         <View style={styles.header}>
           <Pressable
             accessibilityLabel="Back"
@@ -1087,14 +1059,14 @@ export function CareerDetailsScreen({
   if (shouldOfferOnboardingMode({ onboarding, editing, step, restored: modeRestored, mode: onboardingMode,
     basicComplete: Boolean(fullName.trim() && draft.phone && draft.current_city && draft.work_status),
     completed: Boolean(profile?.completed) })) {
-    return <SafeAreaView style={styles.screen}>
+    return <SafeAreaView edges={['top', 'left', 'right']} style={styles.screen}>
       <View style={styles.header}>
         <Pressable accessibilityRole="button" accessibilityLabel="Back to basic details"
           style={styles.headerBackBtn} onPress={() => setStep(0)}>
           <ArrowLeft size={18} color="#0A1931" />
         </Pressable>
         <Text style={[styles.title, styles.onboardingTitle, { flex: 1 }]} numberOfLines={1} ellipsizeMode="tail" accessibilityRole="header" accessibilityLabel="Profile">Profile</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Sign out" onPress={() => void signOut()} style={styles.headerSignOutBtn}><LogOut size={20} color="#0A1931" strokeWidth={1.8} /></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Sign out" onPress={() => void logout()} style={styles.headerSignOutBtn}><LogOut size={20} color="#0A1931" strokeWidth={1.8} /></Pressable>
       </View>
       <View style={styles.modeContent}>
         <OnboardingProgress step={1} />
@@ -1292,6 +1264,13 @@ export function CareerDetailsScreen({
                       />
                       </View>
                     )}
+                    {(currentField.key === 'current_city' || currentField.key === 'preferred_locations') && (
+                      <CitySuggestions
+                        list={currentField.key === 'preferred_locations'}
+                        value={conversationInput}
+                        onPick={(picked) => { setConversationInput(picked); setConversationError(''); }}
+                      />
+                    )}
 
                     {/* Skip button for non-required fields */}
                     {!fieldRequired(currentField, draft) && (
@@ -1313,7 +1292,7 @@ export function CareerDetailsScreen({
     </ConversationPrompt>
   </View>;
   return (
-    <SafeAreaView style={[styles.screen, isConversation && styles.chatScreen]}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={[styles.screen, isConversation && styles.chatScreen]}>
       <View style={[styles.header, isConversation && styles.chatHeader]}>
         {!(onboarding && step === 0) && (
           <Pressable
@@ -1361,11 +1340,11 @@ export function CareerDetailsScreen({
                 color={onboardingMode === 'conversation' ? '#FFFFFF' : '#5F4DB2'} strokeWidth={1.8}
               />
             </Pressable>
-          </View><Pressable disabled={busy} onPress={() => void signOut()} accessibilityRole="button" accessibilityLabel="Sign out" style={styles.headerSignOutBtn}><LogOut size={20} color="#0A1931" strokeWidth={1.8} /></Pressable></>
+          </View><Pressable disabled={busy} onPress={() => void logout()} accessibilityRole="button" accessibilityLabel="Sign out" style={styles.headerSignOutBtn}><LogOut size={20} color="#0A1931" strokeWidth={1.8} /></Pressable></>
         ) : onboarding && step === 0 ? (
           <Pressable
             disabled={busy}
-            onPress={() => void signOut()}
+            onPress={() => void logout()}
             style={styles.headerSignOutBtn}
             accessibilityRole="button"
             accessibilityLabel="Sign out"
@@ -1420,40 +1399,6 @@ export function CareerDetailsScreen({
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>{fullName}</Text>
             <Text style={styles.help}>{session?.email}</Text>
-            <View style={styles.row}>
-              <FileText size={24} color="#5F4DB2" />
-              <Text style={styles.sectionTitle}>Your resume</Text>
-            </View>
-            <Pressable
-              disabled={busy}
-              onPress={() => void openDocument()}
-              style={styles.primary}
-            >
-              <Text style={styles.primaryText}>Open resume</Text>
-            </Pressable>
-            <Pressable
-              disabled={busy}
-              onPress={() => {
-                if (onUpdateResume) {
-                  onUpdateResume();
-                } else {
-                  router.push('/resume-details' as any);
-                }
-              }}
-              style={styles.back}
-            >
-              <Text style={styles.label}>Update resume</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                setEditing(true);
-                setStep(0);
-              }}
-              style={styles.back}
-            >
-              <PencilSimple size={18} color="#5F4DB2" />
-              <Text style={styles.label}>Edit profile details</Text>
-            </Pressable>
           </View>
         )}
         {editing ? (
@@ -1714,6 +1659,29 @@ export function CareerDetailsScreen({
                             onOpen={() => scrollToField(field.key)}
                             onChange={(yr) => update(field.key, yr)}
                           />
+                        ) : field.key === 'current_city' ? (
+                          <IndianCityDropdown
+                            multiple={false}
+                            value={String(value ?? '')}
+                            onChange={(city) => update(field.key, city)}
+                            placeholder="Select your city"
+                            modalTitle="Current city"
+                            invalid={!!errors[field.key]}
+                            disabled={busy}
+                          />
+                        ) : field.key === 'preferred_locations' ? (
+                          <IndianCityDropdown
+                            multiple
+                            values={Array.isArray(value) ? value : []}
+                            onChangeValues={(cities) => {
+                              setLists((current) => ({ ...current, [field.key]: cities.join(', ') }));
+                              update(field.key, cities);
+                            }}
+                            placeholder="Select preferred Indian cities"
+                            modalTitle="Preferred work locations"
+                            invalid={!!errors[field.key]}
+                            disabled={busy}
+                          />
                         ) : (
                           <TextInput
                             ref={(input) => { inputRefs.current[field.key] = input; }}
@@ -1866,35 +1834,14 @@ export function CareerDetailsScreen({
       </ScrollView>
       )}
       </KeyboardAvoidingView>
-      <Modal
-        visible={documentHtml !== null}
-        onRequestClose={() => setDocumentHtml(null)}
-        animationType="slide"
-      >
-        <SafeAreaView style={styles.screen}>
-          <View style={styles.header}>
-            <Text style={[styles.title, { flex: 1 }]}>Resume</Text>
-            <Pressable
-              accessibilityLabel="Close resume"
-              onPress={() => setDocumentHtml(null)}
-            >
-              <X size={24} />
-            </Pressable>
-          </View>
-          <WebView
-            originWhitelist={['about:blank']}
-            source={{ html: documentHtml ?? '' }}
-            javaScriptEnabled={false}
-          />
-        </SafeAreaView>
-      </Modal>
+
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   modeContent: { padding: 20, gap: 16, width: '100%', maxWidth: 600, alignSelf: 'center' },
-  modeHeading: { fontFamily: 'GeneralSans-Bold', fontSize: 26, lineHeight: 32, letterSpacing: -0.4, color: '#0A1931' },
+  modeHeading: { fontFamily: 'GeneralSans-Semibold', fontSize: 26, lineHeight: 32, letterSpacing: -0.4, color: '#0A1931' },
   modeDescription: { fontFamily: 'GeneralSans-Regular', fontSize: 14, lineHeight: 21, color: '#5F6B80' },
   modeCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, padding: 20, borderRadius: 16, borderWidth: 1, borderColor: '#C9BEEB', backgroundColor: '#FFFFFF' },
   modeLabel: { fontFamily: 'GeneralSans-Semibold', fontSize: 16, lineHeight: 22, color: '#5F4DB2' },
@@ -2169,7 +2116,7 @@ const styles = StyleSheet.create({
   },
   modeSelectTitle: {
     fontSize: 24,
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#0A1931',
     lineHeight: 32,
     letterSpacing: -0.4,
@@ -2238,7 +2185,7 @@ const styles = StyleSheet.create({
   },
   modeCardTitle: {
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#0A1931',
     marginBottom: 6,
   },

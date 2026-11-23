@@ -248,7 +248,7 @@ export function PasteStep({
       <header className="border-b border-[#E7E0D4] pb-5">
         <div className="flex min-w-0 items-center gap-3">
           <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[#F1EAF7] text-[#5F4DB2]"><ClipboardList size={23} aria-hidden="true" /></span>
-          <div className="min-w-0 flex-1"><h1 className="text-[18px] font-bold leading-6 tracking-[-0.02em] sm:text-[21px]">Paste your CV / Resume</h1><p className="mt-0.5 text-[13px] text-[#5F6B80] sm:text-[14px]">No file needed · Minimum 50 chars</p></div>
+          <div className="min-w-0 flex-1"><h1 className="text-[18px] font-semibold leading-6 tracking-[-0.02em] sm:text-[21px]">Paste your CV / Resume</h1><p className="mt-0.5 text-[13px] text-[#5F6B80] sm:text-[14px]">No file needed · Minimum 50 chars</p></div>
           <button type="button" onClick={onBack} aria-label="Close paste resume" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#F3F0E8] text-[#0A1931] transition hover:bg-[#EAE5D9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/40"><X size={23} aria-hidden="true" /></button>
         </div>
       </header>

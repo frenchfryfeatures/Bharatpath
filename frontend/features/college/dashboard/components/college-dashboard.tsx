@@ -88,7 +88,7 @@ export function CollegeDashboard() {
           />
 
           <MetricCard
-            title="Median score"
+            title="Median Bharatpath Score"
             value={formatMetric(data.medianScore)}
             icon={Gauge}
             tone="blue"

@@ -73,7 +73,7 @@ export function ReadinessProfileFragment() {
       </ul>
 
       <p className="mt-3.5 text-[12px] text-muted">
-        Your exact score stays private to you. Employers browse by readiness band and skills first.
+        Your exact Bharatpath Score stays private to you. Employers browse by readiness band and skills first.
       </p>
     </div>
   );
@@ -131,7 +131,7 @@ export function StreakFragment() {
         <span className="font-medium text-purple-deep">Next milestone: 30-day streak</span>
         <span className="font-semibold text-purple-deep">+10 streak pts</span>
       </div>
-      <p className="mt-2.5 text-[12px] text-muted">Streak points track your daily consistency and stay separate from your readiness score.</p>
+      <p className="mt-2.5 text-[12px] text-muted">Streak points track your daily consistency and stay separate from your Bharatpath Score.</p>
     </div>
   );
 }

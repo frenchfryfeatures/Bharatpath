@@ -49,6 +49,11 @@ RULES = [
     ("photo", "Add a profile photo", "Help recruiters recognise your profile.", 5),
 ]
 RULE_KEYS = tuple(row[0] for row in RULES)
+#: Rules for things the profile form does not require (2026-11-23). They
+#: stay as suggestions in `next_steps` but never count toward the score, so a
+#: candidate who filled every required field reaches 100% -- before, an
+#: unwritten headline or a missing photo held a complete profile at 85%.
+OPTIONAL_RULE_KEYS = frozenset({"headline", "photo"})
 
 
 def default_config() -> dict[str, Any]:
@@ -101,18 +106,27 @@ def strength(facts: dict[str, Any], rules: list[dict[str, Any]]) -> dict[str, An
             if str(skill).strip().casefold() not in {"general", "fresher"}
         ]
 
-    total = sum(rule["weight"] for rule in applicable)
-    earned = sum(rule["weight"] for rule in applicable if present(facts.get(rule["key"])))
+    # If staff enabled only optional rules, those are what they asked to
+    # measure, so they count.
+    counted = [rule for rule in applicable if rule["key"] not in OPTIONAL_RULE_KEYS] or applicable
+    total = sum(rule["weight"] for rule in counted)
+    earned = sum(rule["weight"] for rule in counted if present(facts.get(rule["key"])))
+    # Required steps first, then optional suggestions, each in form order.
     missing = sorted(
         [rule for rule in applicable if not present(facts.get(rule["key"]))],
-        key=lambda rule: (rule["order"], -rule["weight"]),
+        key=lambda rule: (rule["key"] in OPTIONAL_RULE_KEYS, rule["order"], -rule["weight"]),
     )
     return {
         "score": round(100 * earned / total) if total else 0,
         "earned_weight": earned,
         "total_weight": total,
         "next_steps": [
-            {"key": rule["key"], "label": rule["label"], "benefit": rule["benefit"]}
+            {
+                "key": rule["key"],
+                "label": rule["label"],
+                "benefit": rule["benefit"],
+                "optional": rule["key"] in OPTIONAL_RULE_KEYS,
+            }
             for rule in missing
         ],
     }

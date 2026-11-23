@@ -5,7 +5,7 @@
  *
  * Features:
  * - Circular back button & TopBar
- * - Title "Every unlock, logged" + subtitle
+ * - Title "Employers who viewed your profile" + subtitle
  * - Live employer activity logs fetched from /candidate/profile/views
  * - Initials badge with deterministic brand palette
  * - Empty state when no employers have unlocked/viewed yet
@@ -13,14 +13,14 @@
  * - "Let employers find me" interactive toggle switch
  * - Privacy protection banner
  */
-import React, { useState, useRef } from 'react';
+import { useScreenRefresh } from '@/hooks/useScreenRefresh';
+import React from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   Pressable,
-  Animated,
   RefreshControl,
   ActivityIndicator,
 } from 'react-native';
@@ -30,11 +30,10 @@ import { ArrowLeft, LockOpen, Info, WarningCircle, ShieldCheck } from 'phosphor-
 import { Colors, Spacing } from '@/theme/tokens';
 import { useProfileViews } from '@/hooks/useProfileViews';
 import { getInitials, pickFromString } from '@/utils/helpers';
-import { DataRightsSection } from './DataRightsSection';
 
 export interface WhoHasSeenMeScreenProps {
   onBack?: () => void;
-  defaultLetEmployersFindMe?: boolean;
+
 }
 
 const COLOR_PAIRS = [
@@ -89,7 +88,6 @@ function formatActivityDate(iso: string | null | undefined): string {
 
 export function WhoHasSeenMeScreen({
   onBack,
-  defaultLetEmployersFindMe = true,
 }: WhoHasSeenMeScreenProps) {
   const {
     views,
@@ -101,40 +99,13 @@ export function WhoHasSeenMeScreen({
     loadMore,
     reload,
   } = useProfileViews();
-
-  const [letEmployersFindMe, setLetEmployersFindMe] = useState(
-    defaultLetEmployersFindMe
-  );
-
-  // Smooth switch animation
-  const switchAnim = useRef(
-    new Animated.Value(defaultLetEmployersFindMe ? 1 : 0)
-  ).current;
-
-  const toggleSwitch = () => {
-    const nextVal = !letEmployersFindMe;
-    setLetEmployersFindMe(nextVal);
-    Animated.spring(switchAnim, {
-      toValue: nextVal ? 1 : 0,
-      useNativeDriver: false,
-      bounciness: 4,
-    }).start();
-  };
-
-  const switchTranslateX = switchAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [2, 22],
-  });
-
-  const switchBgColor = switchAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['#DDD6C7', '#5F4DB2'],
-  });
+  // Quiet refetch whenever the screen comes back into view (2026-11-23).
+  useScreenRefresh(reload);
 
   return (
     <View style={styles.root}>
       <StatusBar style="dark" animated />
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -161,14 +132,14 @@ export function WhoHasSeenMeScreen({
             >
               <ArrowLeft size={16} color={Colors.navy} weight="bold" />
             </Pressable>
-            <Text style={styles.topBarTitle}>Who has seen me</Text>
+            <Text style={styles.topBarTitle}>Profile views</Text>
           </View>
 
           {/* Heading Section */}
           <View style={styles.headingSection}>
-            <Text style={styles.mainTitle}>Every unlock, logged</Text>
+            <Text style={styles.mainTitle}>Employers who viewed your profile</Text>
             <Text style={styles.mainSubtitle}>
-              Details shows only when an employer spends an unlock.
+              See which employers have viewed your profile in the last 90 days.
             </Text>
           </View>
 
@@ -208,7 +179,7 @@ export function WhoHasSeenMeScreen({
                 </View>
                 <Text style={styles.emptyTitle}>No employer views yet</Text>
                 <Text style={styles.emptySub}>
-                  When an employer views your profile, their activity will be logged here.
+                  When an employer views your profile, their most recent visit will appear here.
                 </Text>
               </View>
             )}
@@ -234,7 +205,7 @@ export function WhoHasSeenMeScreen({
                       {item.employer_name}
                     </Text>
                     <Text style={styles.activityTime}>
-                      {`${dateLabel} · unlocked your contact`}
+                      {`${dateLabel} · viewed your profile`}
                     </Text>
                   </View>
                   <LockOpen size={18} color={Colors.indigo} weight="fill" />
@@ -255,47 +226,17 @@ export function WhoHasSeenMeScreen({
                 {loadingMore ? (
                   <ActivityIndicator size="small" color={Colors.brandAccent} />
                 ) : (
-                  <Text style={styles.loadMoreText}>Load older activity</Text>
+                  <Text style={styles.loadMoreText}>Load more profile views</Text>
                 )}
               </Pressable>
             )}
-          </View>
-
-          {/* Toggle Card: Let employers find me */}
-          <View style={styles.toggleCard}>
-            <View style={styles.toggleInfo}>
-              <Text style={styles.toggleTitle}>Let employers find me</Text>
-              <Text style={styles.toggleSub}>
-                Turn off and you only appear where you apply
-              </Text>
-            </View>
-            <Pressable
-              onPress={toggleSwitch}
-              accessibilityRole="switch"
-              accessibilityState={{ checked: letEmployersFindMe }}
-              accessibilityLabel="Let employers find me"
-            >
-              <Animated.View
-                style={[
-                  styles.switchTrack,
-                  { backgroundColor: switchBgColor },
-                ]}
-              >
-                <Animated.View
-                  style={[
-                    styles.switchThumb,
-                    { transform: [{ translateX: switchTranslateX }] },
-                  ]}
-                />
-              </Animated.View>
-            </Pressable>
           </View>
 
           {/* Bottom Privacy Disclaimer Card */}
           <View style={styles.privacyBanner}>
             <Info size={18} color="#3A4761" weight="bold" />
             <Text style={styles.privacyBannerText}>
-              Your resume file is never shared. Employers see the parsed profile only.
+              Verified employers can view your CV and contact details when they open your profile. These visits appear here.
             </Text>
           </View>
 
@@ -306,12 +247,10 @@ export function WhoHasSeenMeScreen({
               <Text style={styles.protectedTitle}>Your privacy is protected</Text>
             </View>
             <Text style={styles.protectedSub}>
-              We show the employer organisation, never the individual recruiter or how many times they opened your profile.
+              This list shows employer organisations and their most recent visit. Individual recruiter names and repeat-view counts are not displayed.
             </Text>
           </View>
 
-          {/* Your Data Section (Request export & Account deletion) */}
-          <DataRightsSection />
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -360,7 +299,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   mainTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 26,
     lineHeight: 30,
     letterSpacing: -0.5,

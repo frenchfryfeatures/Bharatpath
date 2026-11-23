@@ -36,7 +36,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import {
   VideoCamera,
-  Eye,
   Archive,
   CheckCircle,
   Sparkle,
@@ -45,6 +44,7 @@ import {
 import { Colors, Spacing } from '@/theme/tokens';
 import { BottomTabBar, TabName } from '@/components/navigation/BottomTabBar';
 import { useApplications } from '@/hooks/useApplications';
+import { NotificationButton } from '@/components/navigation/NotificationButton';
 import {
   ApplicationResponse,
   isActiveStage,
@@ -147,7 +147,8 @@ export function ApplicationBoardScreen({
         >
           {/* Header Title and Filter Pills */}
           <View style={styles.headerSection}>
-            <Text style={styles.mainTitle}>{TITLE}</Text>
+            <View style={styles.titleRow}><Text style={[styles.mainTitle, { flex: 1 }]}>{TITLE}</Text><NotificationButton /></View>
+            <Text style={styles.headerDescription}>Track employer activity, interviews and next steps.</Text>
             <View style={styles.filterRow}>
               <Pressable
                 style={[
@@ -158,6 +159,7 @@ export function ApplicationBoardScreen({
                 ]}
                 onPress={() => setFilter('active')}
                 accessibilityRole="button"
+                accessibilityState={{ selected: filter === 'active' }}
               >
                 <Text
                   style={[
@@ -167,7 +169,7 @@ export function ApplicationBoardScreen({
                       : styles.filterPillTextInactive,
                   ]}
                 >
-                  {ACTIVE_LABEL} · {active.length}
+                  {ACTIVE_LABEL} · {active.length}{!hasReachedEnd ? '+' : ''}
                 </Text>
               </Pressable>
 
@@ -180,6 +182,7 @@ export function ApplicationBoardScreen({
                 ]}
                 onPress={() => setFilter('closed')}
                 accessibilityRole="button"
+                accessibilityState={{ selected: filter === 'closed' }}
               >
                 <Text
                   style={[
@@ -189,7 +192,7 @@ export function ApplicationBoardScreen({
                       : styles.filterPillTextInactive,
                   ]}
                 >
-                  {CLOSED_LABEL} · {closed.length}
+                  {CLOSED_LABEL} · {closed.length}{!hasReachedEnd ? '+' : ''}
                 </Text>
               </Pressable>
             </View>
@@ -208,7 +211,7 @@ export function ApplicationBoardScreen({
                 <Text style={styles.retryButtonText}>Retry</Text>
               </Pressable>
             </View>
-          ) : list.length === 0 ? (
+          ) : list.length === 0 && hasReachedEnd ? (
             <EmptyState filter={filter} onTabPress={onTabPress} />
           ) : (
             <View style={styles.listContainer}>
@@ -227,6 +230,8 @@ export function ApplicationBoardScreen({
               )}
             </View>
           )}
+          {!loading && !hasReachedEnd && <Pressable accessibilityRole="button" disabled={loadingMore} onPress={loadMore} style={styles.loadMoreButton}><Text style={styles.retryButtonText}>{loadingMore ? 'Loading applications…' : 'Load more applications'}</Text></Pressable>}
+          {!!error && applications.length > 0 && <Text accessibilityRole="alert" style={styles.errorText}>{error}</Text>}
         </ScrollView>
       </SafeAreaView>
 
@@ -351,7 +356,7 @@ function EmployerHeader({
         )}
       </View>
       <View style={styles.roleInfo}>
-        <Text style={styles.roleTitle} numberOfLines={1}>
+        <Text style={styles.roleTitle} numberOfLines={2}>
           {application.job_title || 'Untitled role'}
         </Text>
         <Text style={styles.roleSub} numberOfLines={1}>
@@ -360,9 +365,9 @@ function EmployerHeader({
             .replace('Posted ', '')
             .toLowerCase()}
         </Text>
-      </View>
       <View style={[styles.tag, { backgroundColor: tagColors.bg }]}>
         <Text style={[styles.tagText, { color: tagColors.fg }]}>{tag}</Text>
+      </View>
       </View>
     </View>
   );
@@ -383,8 +388,8 @@ function StageCard({
   const chip = stageChipStyle(application.stage);
   const tag =
     application.stage === 'SUBMITTED'
-      ? 'SENT'
-      : stageLabel(application.stage).toUpperCase();
+      ? 'Applied'
+      : stageLabel(application.stage);
 
   return (
     <Pressable
@@ -416,14 +421,6 @@ function StageCard({
         </View>
       </View>
 
-      {application.stage === 'SUBMITTED' && (
-        <View style={styles.cardFooterNotice}>
-          <Eye size={14} color="#5F6B80" weight="bold" />
-          <Text style={styles.cardFooterNoticeText}>
-            Employers usually open profiles within a few days
-          </Text>
-        </View>
-      )}
     </Pressable>
   );
 }
@@ -450,7 +447,7 @@ function InterviewCard({
     >
       <EmployerHeader
         application={application}
-        tag="INTERVIEW"
+        tag="Interview"
         tagStyle="accent"
       />
 
@@ -528,7 +525,7 @@ function PendingHireCard({
 
       <EmployerHeader
         application={application}
-        tag="DECISION"
+        tag="Decision pending"
         tagStyle="accent"
       />
 
@@ -577,7 +574,7 @@ function ClosedCard({
   application: ApplicationResponse;
   onPress: () => void;
 }) {
-  const tag = stageLabel(application.stage).toUpperCase();
+  const tag = stageLabel(application.stage);
   const chip = stageChipStyle(application.stage);
   const reason = closedReason(application);
 
@@ -599,7 +596,7 @@ function ClosedCard({
           )}
         </View>
         <View style={styles.roleInfo}>
-          <Text style={styles.roleTitle} numberOfLines={1}>
+          <Text style={styles.roleTitle} numberOfLines={2}>
             {application.job_title || 'Untitled role'}
           </Text>
           <Text style={styles.roleSub} numberOfLines={1}>
@@ -609,6 +606,7 @@ function ClosedCard({
               .toLowerCase()}
           </Text>
         </View>
+      </View>
         <View
           style={[
             styles.tag,
@@ -626,7 +624,6 @@ function ClosedCard({
             {tag}
           </Text>
         </View>
-      </View>
       <Text style={styles.closedReasonText}>{reason}</Text>
     </Pressable>
   );
@@ -714,21 +711,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     gap: 14,
   },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   mainTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 24,
     lineHeight: 28,
     letterSpacing: -0.5,
     color: Colors.navy,
   },
+  headerDescription: { fontFamily: 'GeneralSans-Regular', fontSize: 14, lineHeight: 21, color: '#5F6B80' },
+  loadMoreButton: { marginHorizontal: 20, padding: 14, alignItems: 'center', borderRadius: 16, backgroundColor: '#5F4DB2' },
   filterRow: {
     flexDirection: 'row',
-    gap: 8,
+    backgroundColor: '#F1EAF7', padding: 4, borderRadius: 16,
+    gap: 4,
   },
   filterPill: {
-    paddingVertical: 8,
+    flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 10,
     paddingHorizontal: 12,
-    borderRadius: 999,
+    borderRadius: 12,
   },
   filterPillActive: {
     backgroundColor: '#5F4DB2',
@@ -882,6 +884,7 @@ const styles = StyleSheet.create({
   },
   cardHeader: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'flex-start',
     gap: 12,
   },
@@ -914,10 +917,10 @@ const styles = StyleSheet.create({
   roleInfo: {
     flex: 1,
     gap: 4,
-    minWidth: 0,
+    minWidth: 120,
   },
   roleTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 15,
     lineHeight: 20,
     letterSpacing: -0.3,
@@ -930,20 +933,15 @@ const styles = StyleSheet.create({
     color: '#5F6B80',
   },
   tag: {
+    alignSelf: 'flex-start', maxWidth: '100%',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
   },
   tagText: {
-    fontFamily: Platform.select({
-      ios: 'SpaceMono-Bold',
-      android: 'SpaceMono-Bold',
-      default: 'monospace',
-    }),
-    fontSize: 10,
-    lineHeight: 12,
-    letterSpacing: 0.8,
-    fontWeight: '700',
+    fontFamily: 'GeneralSans-Medium',
+    fontSize: 12,
+    lineHeight: 16,
   },
   progressSection: {
     gap: 8,
@@ -1016,21 +1014,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     color: '#FFFFFF',
-  },
-  cardFooterNotice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#F0EBDF',
-  },
-  cardFooterNoticeText: {
-    flex: 1,
-    fontFamily: 'GeneralSans-Regular',
-    fontSize: 12,
-    lineHeight: 16,
-    color: '#5F6B80',
   },
   closedCard: {
     backgroundColor: '#FFFFFF',

@@ -138,12 +138,12 @@ export function BulkUploadCard({ onUpload }: BulkUploadCardProps) {
     >
       <div>
         {/* TITLE & DESCRIPTION */}
-        <h3 className="text-[16px] font-bold text-[#151b2b] tracking-[-0.01em]">
+        <h3 className="text-[16px] font-semibold text-[#151b2b] tracking-[-0.01em]">
           Bulk upload a roster
         </h3>
         <p className="mt-1 text-[13px] text-[#777f90] leading-relaxed">
           CSV with name, phone, email and student_ref. Students still confirm
-          consent in their app before any score is shared.
+          consent in their app before any Bharatpath Score is shared.
         </p>
         <p className="mt-1 text-[12px] text-[#777f90] leading-relaxed">
           The template uses 91 98765 43210 so spreadsheets keep phones as

@@ -14,6 +14,7 @@
  * never explained, and the threshold/gap must never be shown).
  */
 import { apiRequest, ApiError } from './client';
+import { publishApplicationChange } from '@/services/applicationEvents';
 import {
   BoardJobSummary,
   BoardJobDetail,
@@ -62,6 +63,23 @@ export async function getJobDetail(jobId: string): Promise<BoardJobDetail> {
 }
 
 /**
+ * Skills that live jobs ask for, for the board's skill filter (2026-11-23).
+ * Labels only, most asked-for first; every one leads to at least one job.
+ */
+export async function getBoardSkills(q?: string, limit = 40): Promise<string[]> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (q && q.trim()) params.set('q', q.trim());
+  const page = await apiRequest<{ items: string[] }>(`/candidate/jobs/skills?${params.toString()}`);
+  return page.items;
+}
+
+export type RecommendationKind = 'similar-to-applied' | 'matching-profile';
+export interface RecommendedJob extends BoardJobSummary { matched_skills: string[]; match_reasons?: string[] }
+export function getRecommendedJobs(kind: RecommendationKind, limit = 12): Promise<{ items: RecommendedJob[]; has_basis: boolean }> {
+  return apiRequest(`/candidate/recommended-jobs/${kind}?limit=${limit}`);
+}
+
+/**
  * Apply to a job - `POST /candidate/applications { job_id }`.
  *
  * The request body is just `{ job_id}`: no stage, no score, no tenant.
@@ -89,10 +107,13 @@ export async function applyToJob(jobId: string): Promise<{
   created_at: string;
   updated_at: string;
 }> {
-  return apiRequest('/candidate/applications', {
+  const application = await apiRequest<Awaited<ReturnType<typeof applyToJob>>>('/candidate/applications', {
     method: 'POST',
     body: { job_id: jobId },
   });
+  // 201 new or 200 already applied: either way every screen now knows.
+  publishApplicationChange(application as any);
+  return application;
 }
 
 // ─── Error helpers ─────────────────────────────────────────────
@@ -108,9 +129,9 @@ export function applyErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof ApiError) {
     switch (error.code) {
       case 'eligibility_below_threshold':
-        return 'Your score does not meet this employer’s requirement.';
+        return 'Your Bharatpath Score does not meet this employer’s requirement.';
       case 'score_pending':
-        return 'Your score is still being calculated. Try again shortly.';
+        return 'Your Bharatpath Score is still being calculated. Try again shortly.';
       case 'application_unavailable':
         return 'This job is no longer accepting applications.';
       case 'subscription_required':

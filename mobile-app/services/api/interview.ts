@@ -246,7 +246,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   interview_device_check_required: 'Run and pass the device check before paying.',
   interview_purchase_required: 'A confirmed interview purchase is required.',
   interview_no_score_increase_unacknowledged:
-    'Confirm that this practice session will not increase your score.',
+    'Confirm that this practice session will not increase your Bharatpath Score.',
   interview_answer_not_uploaded: 'The audio did not reach storage. Try sending it again.',
   answer_too_small: 'That recording is too short to be an answer. Record it again.',
   answer_too_large: 'That recording is too long to send. Record a shorter answer.',

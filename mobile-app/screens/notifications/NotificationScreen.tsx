@@ -56,7 +56,9 @@ import {
   getInbox,
   markNotificationRead,
   getNotificationPreferences,
+  noteUnreadCount,
 } from '@/services/api/notifications';
+import { routeForInboxItem } from '@/services/notifications/destination';
 import { enablePushNotifications, getDeviceNotificationStatus } from '@/services/notifications/device';
 
 export interface NotificationScreenProps {
@@ -94,6 +96,7 @@ export function NotificationScreen({
       const page = await getInbox(null, 30);
       setItems(page.items);
       setUnread(page.unread);
+      noteUnreadCount(page.unread);
       setCursor(page.next_cursor);
       setHasMore(page.next_cursor != null);
     } catch {
@@ -158,7 +161,7 @@ export function NotificationScreen({
           n.id === item.id ? { ...n, read_at: new Date().toISOString() } : n,
         ),
       );
-      setUnread((u) => Math.max(0, u - 1));
+      setUnread((u) => { const next = Math.max(0, u - 1); noteUnreadCount(next); return next; });
       try {
         await markNotificationRead(item.id);
       } catch {
@@ -166,16 +169,16 @@ export function NotificationScreen({
         setItems((prev) =>
           prev.map((n) => (n.id === item.id ? { ...n, read_at: null } : n)),
         );
-        setUnread((u) => u + 1);
+        setUnread((u) => { noteUnreadCount(u + 1); return u + 1; });
       }
     }
-    const dest = destinationFor(item.template_code);
-    if (dest) {
-      try {
-        router.push(dest as any);
-      } catch {
-        router.push('/home');
-      }
+    const dest = routeForInboxItem(item);
+    // Already here: an item with nowhere else to go just marks itself read.
+    if (dest === '/notifications') return;
+    try {
+      router.push(dest as any);
+    } catch {
+      router.push('/home');
     }
   };
 
@@ -223,7 +226,7 @@ export function NotificationScreen({
   return (
     <View style={styles.root}>
       <StatusBar style="dark" animated />
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
         {/* Top Bar */}
         <View style={styles.topBar}>
           <Pressable
@@ -543,53 +546,6 @@ function iconFor(code: string): { node: React.ReactNode; bg: string } {
 }
 
 /** Where tapping a notification should go. Always routes to an existing valid screen. */
-function destinationFor(code: string): string {
-  switch (code) {
-    case 'IN_APP_APPLICATION_SENT':
-    case 'IN_APP_APPLICATION_UPDATE':
-    case 'IN_APP_EMPLOYER_MESSAGE':
-    case 'IN_APP_DISPUTE_ANSWERED':
-      return '/board';
-    case 'IN_APP_PAYMENT_RECEIVED':
-    case 'IN_APP_PAYMENT_FAILED':
-    case 'IN_APP_ACCESS_ENDED':
-    case 'IN_APP_PRE_DEBIT':
-      return '/you';
-    case 'IN_APP_INTERVIEW_FEEDBACK_READY':
-    case 'IN_APP_INTERVIEW_INVITATION':
-      return '/interview-sessions';
-    case 'IN_APP_ASSESSMENT_INVITATION':
-    case 'IN_APP_PROFILE_INCOMPLETE':
-      return '/attribute-check';
-    case 'IN_APP_COURSE_ENROLLED':
-    case 'IN_APP_COURSE_COMPLETED':
-      return '/courses';
-    default:
-      if (
-        code.includes('PAYMENT') ||
-        code.includes('ACCESS') ||
-        code.includes('SUB') ||
-        code.includes('BILL') ||
-        code.includes('INVOICE')
-      ) {
-        return '/you';
-      }
-      if (code.includes('INTERVIEW')) {
-        return '/interview-sessions';
-      }
-      if (code.includes('COURSE') || code.includes('LESSON')) {
-        return '/courses';
-      }
-      if (code.includes('JOB') || code.includes('APPLICAT') || code.includes('OFFER')) {
-        return '/board';
-      }
-      if (code.includes('STREAK')) {
-        return '/streak';
-      }
-      return '/home';
-  }
-}
-
 /** "2m", "3h", "Yesterday", "Mon 15 Jul" - short relative time. */
 function formatRelative(iso: string): string {
   const d = new Date(iso);
@@ -688,7 +644,7 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   onboardingTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 24,
     lineHeight: 28,
     letterSpacing: -0.5,
@@ -827,7 +783,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   centerTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 20,
     color: Colors.navy,
     textAlign: 'center',

@@ -19,6 +19,7 @@
  * - Brand Gold: #B9891A
  * - Fire Orange: #FF6B00
  */
+import { useScreenRefresh } from '@/hooks/useScreenRefresh';
 import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import {
   View,
@@ -222,6 +223,8 @@ export function StreakDetailScreen({ onBack }: StreakDetailScreenProps) {
       loadCalendar(view, streak.today);
     }
   }, [refresh, loadHistory, streak?.today, view, loadCalendar]);
+  // Quiet refetch whenever the screen comes back into view (2026-11-23).
+  useScreenRefresh(onRefresh);
 
   const handleManualCheckIn = useCallback(async () => {
     if (checkingIn) return;
@@ -499,7 +502,7 @@ export function StreakDetailScreen({ onBack }: StreakDetailScreenProps) {
                     <Text style={styles.heroStatValue}>
                       {longest} {longest === 1 ? 'day' : 'days'}
                     </Text>
-                    <Text style={styles.heroStatSub}>Personal best</Text>
+                    <Text style={styles.heroStatSub}>Longest Streak</Text>
                   </View>
                 </View>
 
@@ -513,14 +516,14 @@ export function StreakDetailScreen({ onBack }: StreakDetailScreenProps) {
                     onPress={handleManualCheckIn}
                     disabled={checkingIn}
                     accessibilityRole="button"
-                    accessibilityLabel="Check in today"
+                    accessibilityLabel="Login today"
                   >
                     {checkingIn ? (
                       <ActivityIndicator size="small" color="#FFFFFF" />
                     ) : (
                       <>
                         <Lightning size={16} color="#FFFFFF" weight="fill" />
-                        <Text style={styles.checkInText}>Check in today</Text>
+                        <Text style={styles.checkInText}>Login today</Text>
                       </>
                     )}
                   </Pressable>
@@ -582,7 +585,7 @@ export function StreakDetailScreen({ onBack }: StreakDetailScreenProps) {
             {currentCalendar ? (
               <View style={styles.calendarStatsRow}>
                 <Text style={styles.calendarStatsText}>
-                  {currentCalendar.active_days} opened · {currentCalendar.missed_days} missed · best run {currentCalendar.longest_run}
+                  {currentCalendar.active_days} opened · {currentCalendar.missed_days} missed · Longest Streak {currentCalendar.longest_run}
                 </Text>
               </View>
             ) : null}
@@ -831,7 +834,7 @@ export function StreakDetailScreen({ onBack }: StreakDetailScreenProps) {
                   {view === 'week'
                     ? status === 'ACTIVE_TODAY'
                       ? '✓ Today completed! Keep up the daily momentum.'
-                      : 'Check in before 11:59 PM IST to keep your streak alive.'
+                      : 'Login before 11:59 PM IST to keep your streak alive.'
                     : 'Colored days are days you opened the app.'}
                 </Text>
               </View>
@@ -898,9 +901,9 @@ export function StreakDetailScreen({ onBack }: StreakDetailScreenProps) {
               </View>
               {breakPenalty > 0 ? (
                 <View style={styles.breakPenaltyBox}>
-                  <Flame size={15} color="#993A22" weight="fill" />
+                  <Flame size={15} color="#5F4DB2" weight="fill" />
                   <Text style={styles.breakPenaltyNote}>
-                    Missing a day resets your streak and costs {breakPenalty} points.
+                    Login every day to build your streak and keep your points growing!
                   </Text>
                 </View>
               ) : null}
@@ -922,7 +925,7 @@ export function StreakDetailScreen({ onBack }: StreakDetailScreenProps) {
                 <Trophy size={32} color={Colors.text.muted} weight="duotone" />
                 <Text style={styles.historyEmptyTitle}>No points yet</Text>
                 <Text style={styles.historyEmptyBody}>
-                  Earn points by reaching streak milestones. Check in daily so you don't miss a day.
+                  Earn points by reaching streak milestones. Login daily so you don't miss a day.
                 </Text>
               </View>
             ) : (
@@ -1454,7 +1457,7 @@ const styles = StyleSheet.create({
     paddingBottom: 2,
   },
   monthHeaderTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 15,
     lineHeight: 20,
     color: Colors.navy,
@@ -1573,7 +1576,7 @@ const styles = StyleSheet.create({
     paddingBottom: 2,
   },
   yearHeaderTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 15,
     lineHeight: 20,
     color: Colors.navy,
@@ -1813,7 +1816,7 @@ const styles = StyleSheet.create({
   },
   milestoneTitleReached: {
     color: Colors.green.fg,
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
   },
   completedBadge: {
     backgroundColor: Colors.green.bg,
@@ -1850,9 +1853,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: Colors.red.bg,
+    backgroundColor: '#F1EAF7',
     borderWidth: 1,
-    borderColor: 'rgba(153, 58, 34, 0.2)',
+    borderColor: '#DDD4EE',
     borderRadius: Radii.card,
     padding: Spacing.md,
   },
@@ -1861,7 +1864,7 @@ const styles = StyleSheet.create({
     fontFamily: 'GeneralSans-Regular',
     fontSize: 12,
     lineHeight: 16,
-    color: Colors.red.fg,
+    color: '#5F4DB2',
   },
   historyLoading: {
     paddingVertical: Spacing.xl,

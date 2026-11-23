@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import {
   ArrowLeft,
   BookOpen,
@@ -20,6 +20,7 @@ import {
   Sparkle,
   ArrowRight,
   GraduationCap,
+  ArrowsClockwise,
 } from 'phosphor-react-native';
 import { Colors, Radii, Spacing } from '@/theme/tokens';
 import { CourseSummary } from '@/types/course';
@@ -40,26 +41,37 @@ export function CoursesListScreen({ onBack }: Props) {
   const [subscriptionRequired, setSubscriptionRequired] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const [refreshing, setRefreshing] = useState(false);
+  const inFlight = useRef(false);
+  const hasData = useRef(false);
+
+  // `manual`: the refresh button or pull-to-refresh, which show a spinner.
+  // A return to the screen refetches quietly, keeping the list on screen.
+  const load = useCallback(async (manual = false) => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    if (manual) setRefreshing(true);
     setError(null);
     setSubscriptionRequired(false);
     try {
       const data = await listCourses();
       setCourses(data);
+      hasData.current = true;
     } catch (caught) {
       if (isSubscriptionRequiredError(caught)) {
         setSubscriptionRequired(true);
-      } else {
+      } else if (!hasData.current || manual) {
         setError('Could not load courses at this time.');
       }
     } finally {
+      inFlight.current = false;
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  // Every visit: a course finished or bought elsewhere shows at once.
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   const goBack = () => {
     if (onBack) onBack();
@@ -75,7 +87,7 @@ export function CoursesListScreen({ onBack }: Props) {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable style={styles.backBtn} onPress={goBack}>
@@ -83,28 +95,40 @@ export function CoursesListScreen({ onBack }: Props) {
         </Pressable>
         <View style={styles.headerTextGroup}>
           <Text style={styles.headerTitle}>Skill Courses</Text>
-          <Text style={styles.headerSubtitle}>
-            Boost your readiness score with certified courses
-          </Text>
         </View>
+        <Pressable
+          style={[styles.backBtn, refreshing && { opacity: 0.6 }]}
+          onPress={() => void load(true)}
+          disabled={refreshing}
+          accessibilityRole="button"
+          accessibilityLabel="Refresh courses"
+          hitSlop={8}
+        >
+          {refreshing ? <ActivityIndicator size="small" color={Colors.navy} /> : <ArrowsClockwise size={18} color={Colors.navy} weight="bold" />}
+        </Pressable>
       </View>
 
       <ScrollView
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} />}
       >
-        {/* Value Proposition Hero Banner */}
+        {/* Value proposition banner. Only one course earns the +30, so once
+            any course is bought it no longer applies and is not shown
+            (2026-11-23). Hidden until the list has loaded, so it never
+            flashes for someone who already owns one. */}
+        {!loading && !courses.some((course) => course.purchased) && (
         <View style={styles.promoBanner}>
           <View style={styles.promoBadge}>
             <Sparkle size={13} color="#92400E" weight="fill" />
-            <Text style={styles.promoBadgeText}>SCORE ADVANTAGE</Text>
+            <Text style={styles.promoBadgeText}>Bharatpath Score advantage</Text>
           </View>
           <Text style={styles.promoTitle}>Earn up to +30 points</Text>
           <Text style={styles.promoBody}>
             Complete certified video courses to strengthen your CV, unlock top
-            matching jobs, and increase your score.
+            matching jobs, and increase your Bharatpath Score.
           </Text>
         </View>
+        )}
 
         {/* Loading state */}
         {loading && courses.length === 0 && (
@@ -144,7 +168,7 @@ export function CoursesListScreen({ onBack }: Props) {
         {error && !subscriptionRequired && (
           <View style={styles.errorCard}>
             <Text style={styles.errorText}>{error}</Text>
-            <Pressable style={styles.retryBtn} onPress={load}>
+            <Pressable style={styles.retryBtn} onPress={() => void load(true)}>
               <Text style={styles.retryBtnText}>Try Again</Text>
             </Pressable>
           </View>
@@ -178,11 +202,7 @@ export function CoursesListScreen({ onBack }: Props) {
               onPress={() => handleCoursePress(course.id)}
             >
               <View style={styles.cardHeader}>
-                <View style={styles.scorePill}>
-                  <Sparkle size={12} color="#92400E" weight="fill" />
-                  <Text style={styles.scorePillText}>+30 PTS</Text>
-                </View>
-
+                <Text style={styles.cardTitle} numberOfLines={2}>{course.title}</Text>
                 {isDone ? (
                   <View style={styles.completedPill}>
                     <CheckCircle size={12} color={Colors.green.fg} weight="fill" />
@@ -201,13 +221,13 @@ export function CoursesListScreen({ onBack }: Props) {
                 )}
               </View>
 
-              <Text style={styles.cardTitle}>{course.title}</Text>
-
               {/* Meta row */}
               <View style={styles.cardMetaRow}>
                 <View style={styles.metaItem}>
                   <BookOpen size={14} color={Colors.text.muted} />
-                  <Text style={styles.metaText}>{course.lessons_total} Lessons</Text>
+                  <Text style={styles.metaText}>
+                    {course.lessons_total} {course.lessons_total === 1 ? 'Lesson' : 'Lessons'}
+                  </Text>
                 </View>
                 <View style={styles.metaDot} />
                 <View style={styles.metaItem}>
@@ -287,15 +307,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 18,
     color: Colors.navy,
-  },
-  headerSubtitle: {
-    fontFamily: 'GeneralSans-Regular',
-    fontSize: 12,
-    color: Colors.text.muted,
-    marginTop: 2,
   },
   content: {
     padding: Spacing.base,
@@ -326,7 +340,7 @@ const styles = StyleSheet.create({
     color: '#92400E',
   },
   promoTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 17,
     color: Colors.navy,
     marginBottom: 4,
@@ -366,7 +380,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   subscriptionTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 16,
     color: Colors.navy,
     textAlign: 'center',
@@ -426,7 +440,7 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
   },
   emptyTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 16,
     color: Colors.navy,
     marginTop: 6,
@@ -451,22 +465,9 @@ const styles = StyleSheet.create({
   },
   cardHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-  },
-  scorePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: Radii.pill,
-  },
-  scorePillText: {
-    fontFamily: 'SpaceMono-Bold',
-    fontSize: 10,
-    color: '#92400E',
+    gap: Spacing.sm,
   },
   completedPill: {
     flexDirection: 'row',
@@ -476,6 +477,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: Radii.pill,
+    flexShrink: 0,
   },
   completedPillText: {
     fontFamily: 'GeneralSans-Bold',
@@ -487,6 +489,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: Radii.pill,
+    flexShrink: 0,
   },
   enrolledPillText: {
     fontFamily: 'GeneralSans-Bold',
@@ -498,14 +501,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: Radii.pill,
+    flexShrink: 0,
   },
   pricePillText: {
-    fontFamily: 'SpaceMono-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 12,
     color: '#1D4ED8',
   },
   cardTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    flex: 1,
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 17,
     color: Colors.navy,
     lineHeight: 22,

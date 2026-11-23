@@ -37,12 +37,27 @@ function toNotification(item: NotificationInboxItem): Notification {
     title: item.body,
     timestamp: item.created_at,
     read: item.read_at !== null,
-    href: notificationHref(item.template_code),
+    href: notificationHref(item),
   };
 }
 
 /** Where tapping a notification goes, for the templates that have a destination. */
-function notificationHref(templateCode: string): string | undefined {
+export function notificationHref(item: Pick<NotificationInboxItem, "template_code" | "destination">): string | undefined {
+  const { destination, template_code: templateCode } = item;
+  const id = destination?.id ? encodeURIComponent(destination.id) : undefined;
+  // Business templates keep their portal routes even when the server sends INBOX.
+  if (destination && destination.kind !== "INBOX") {
+    switch (destination.kind) {
+      case "APPLICATION": return id ? `/student/board/${id}` : "/student/board";
+      case "APPLICATIONS": return "/student/board";
+      case "JOB": return id ? `/student/jobs/${id}` : "/student/jobs";
+      case "INTERVIEW_REPORT": return id ? `/student/interview/${id}/feedback` : "/student/interview";
+      case "SUBSCRIPTION": return "/student/subscription";
+      case "PROFILE": return "/student/profile";
+      case "STREAK": return "/student/streak";
+    }
+  }
+  if (destination?.kind === "INBOX" && !templateCode.startsWith("IN_APP_KYB_")) return undefined;
   switch (templateCode) {
     case "IN_APP_SHORTLIST_INVITED":
       return "/student/invites";
@@ -78,6 +93,10 @@ const rawBaseQuery = fetchBaseQuery({
 });
 
 export const notificationApi = createApi({
+  refetchOnFocus: true,
+  refetchOnReconnect: true,
+  refetchOnMountOrArgChange: 30,
+
   reducerPath: "notificationApi",
 
   baseQuery: rawBaseQuery,

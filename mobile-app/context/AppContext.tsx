@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState } from 'react';
+import { clearScreenCache } from '@/services/cache/screenCache';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { useAuthContext } from '@/context/AuthContext';
 import { CareerScoreData, ResumeMetadata } from '@/types/user';
 import { mockCareerScore } from '@/mocks/mockData';
 
@@ -33,6 +35,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     },
   });
   const [activeTab, setActiveTab] = useState<'preview' | 'home' | 'jobs' | 'board' | 'you'>('preview');
+
+  // A different account (or none) must not inherit the last one's state.
+  const { session } = useAuthContext();
+  const userId = session?.userId ?? null;
+  const previousUser = useRef(userId);
+  useEffect(() => {
+    if (previousUser.current === userId) return;
+    previousUser.current = userId;
+    clearScreenCache();
+    setFileMeta(null);
+    setActiveTab('preview');
+  }, [userId]);
 
   return (
     <AppContext.Provider

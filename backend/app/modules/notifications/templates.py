@@ -642,6 +642,14 @@ IN_APP_TEMPLATES: Final[tuple[MessageTemplate, ...]] = (
         "in_app.profile_incomplete",
         "Upload your CV or type your details in to build your profile.",
     ),
+    # End-of-day reminder to a student who has not opened the app today
+    # (2026-11-23). It names nothing and carries no number.
+    MessageTemplate(
+        "IN_APP_DAILY_REMINDER",
+        "IN_APP",
+        "in_app.daily_reminder",
+        "You have not opened BharatPath today. Log in now to keep your streak going.",
+    ),
     # 2026-09-29. Short: the message itself is on the application.
     MessageTemplate(
         "IN_APP_INTERVIEW_INVITATION",

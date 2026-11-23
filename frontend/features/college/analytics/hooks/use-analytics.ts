@@ -70,7 +70,7 @@ function metricsFrom(
   return [
     {
       id: "median-score",
-      label: "Median cohort score",
+      label: "Median cohort Bharatpath Score",
       value: overview?.medianScore ?? 0,
     },
     {

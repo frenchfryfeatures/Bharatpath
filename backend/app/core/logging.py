@@ -87,6 +87,13 @@ def configure_logging(*, debug: bool = False) -> None:
     logging.basicConfig(
         format="%(message)s", stream=sys.stdout, level=logging.DEBUG if debug else logging.INFO
     )
+    # DEBUG=true should mean *our* debug output, not every HTTP hop boto3 makes
+    # to S3/SQS. Without this, one resume preview prints dozens of botocore lines.
+    for noisy in (
+        "botocore", "boto3", "s3transfer", "urllib3", "aiobotocore", "kombu", "asyncio",
+        "httpcore", "httpx", "openai", "multipart", "watchfiles",
+    ):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
     structlog.configure(
         processors=[
             structlog.contextvars.merge_contextvars,

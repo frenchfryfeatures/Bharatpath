@@ -34,6 +34,7 @@ COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini ./
 COPY scripts ./scripts
+# Reference data the taxonomy seeders load (education, job roles).
 COPY data ./data
 
 # Never run as root.

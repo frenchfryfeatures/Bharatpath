@@ -68,6 +68,8 @@ async function refresh(force: boolean): Promise<RefreshResult> {
     const session = await fetchAuthSession({ forceRefresh: force });
     const token = session.tokens?.accessToken?.toString();
     if (!token) return { status: "EXPIRED" };
+    // A response started before logout/account switch must never restore that session.
+    if (getStoredToken() !== stored) return { status: "EXPIRED" };
     if (token !== stored) setStoredToken(token);
     return { status: "OK", token };
   } catch {
@@ -100,5 +102,7 @@ export async function getFreshToken(): Promise<string | null> {
   if (isTokenFresh(stored)) return stored;
 
   const result = await refreshSession(false);
+  if (getStoredToken() !== stored) return getStoredToken();
+  if (result.status === "EXPIRED") return null;
   return result.status === "OK" ? result.token : stored;
 }

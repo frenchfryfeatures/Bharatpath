@@ -164,7 +164,7 @@ class ApplicationNotFoundError(NotFoundError):
 
 class ScorePendingError(ConflictError):
     code = "score_pending"
-    title = "Your score is not ready yet"
+    title = "Your Bharatpath Score is not ready yet"
 
 
 class ApplicationUnavailableError(ConflictError):
@@ -252,6 +252,8 @@ def _payload(row: Any, **extra: str) -> dict[str, Any]:
         "tenant_id": str(row.tenant_id),
         "job_id": str(row.job_id),
         "candidate_id": str(row.candidate_id),
+        # So a message about this application can open it (2026-11-23).
+        "application_id": str(row.id),
         **extra,
     }
 
@@ -406,6 +408,15 @@ async def apply(
         session, application_id=new_id, candidate_id=candidate_id
     )
     return (await _respond(session, ctx, [created]))[0], True
+
+
+async def states_for_jobs(
+    session: AsyncSession, *, ctx: TenantContext, job_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, dict[str, Any]]:
+    """Candidate-owned status for job cards, including terminal history."""
+    candidate_id = await jobs_service.bind_candidate(session, ctx)
+    rows = await repository.latest_for_jobs(session, candidate_id=candidate_id, job_ids=job_ids)
+    return {row.job_id: {"application_id": row.id, "application_stage": row.stage} for row in rows}
 
 
 async def list_mine(

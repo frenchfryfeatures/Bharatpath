@@ -26,6 +26,7 @@ import {
 import { StudentJobDetailSkeleton } from "@/features/student/loading";
 import { StudentPage, StudentTopBar } from "@/features/student/shell";
 import type { JobListing } from "@/features/student/types";
+import { stageLabel } from "@/features/student/formatters";
 
 export function JobDetail() {
   const params = useParams<{ id: string }>();
@@ -33,11 +34,14 @@ export function JobDetail() {
   const job = useGetStudentJobQuery(params.id);
   const applications = useGetStudentApplicationsQuery({ limit: 100 });
   const [apply, applyState] = useApplyToStudentJobMutation();
-  const applied = applications.data?.items.some(
+  const previousApplication = applications.data?.items.find(
     (application) =>
       application.jobId === params.id &&
       !["WITHDRAWN", "REJECTED", "EXPIRED"].includes(application.stage),
   );
+
+  const applicationStage = job.data?.applicationStage === undefined ? previousApplication?.stage : job.data.applicationStage;
+  const applied = !!applicationStage && !["WITHDRAWN", "REJECTED", "EXPIRED"].includes(applicationStage);
 
   if (job.isLoading) {
     return <StudentJobDetailSkeleton />;
@@ -126,10 +130,10 @@ export function JobDetail() {
             tone={eligible ? "match" : "waiting"}
             icon={eligible ? <CheckCircle2 size={12} /> : undefined}
           >
-            {eligible
+            {applicationStage ? applicationStage === "SUBMITTED" ? "Applied" : stageLabel(applicationStage) : eligible
               ? "Eligible to apply"
               : listing.eligibility === "SCORE_PENDING"
-                ? "Score pending"
+                ? "Bharatpath Score pending"
                 : "Not eligible"}
           </StatusChip>
         }
@@ -179,23 +183,24 @@ function SimilarJobs({
   skill: string | undefined;
 }) {
   const router = useRouter();
-  const similar = useGetStudentJobsQuery(
-    { skill, limit: 6 },
-    { skip: !skill },
-  );
+  const similar = useGetStudentJobsQuery({ skill, limit: 6 });
   const jobs = (similar.data?.items ?? [])
     .filter((item) => item.id !== jobId)
     .slice(0, 5);
-
-  if (!skill || (!similar.isLoading && jobs.length === 0)) return null;
-
   return (
     <StudentCard className="!p-5">
-      <h2 className="mb-3 text-[16px] font-bold text-[#0A1931]">
+      <h2 className="mb-3 text-[16px] font-semibold text-[#0A1931]">
         Jobs you might be interested in
       </h2>
       {similar.isLoading ? (
         <p className="text-[13px] text-[#5F6B80]">Finding similar jobs…</p>
+      ) : similar.isError ? (
+        <div className="text-[13px] text-[#5F6B80]">
+          <p>We couldn’t load recommended jobs.</p>
+          <button type="button" className="mt-2 text-[#5F4DB2]" onClick={() => void similar.refetch()}>Try again</button>
+        </div>
+      ) : jobs.length === 0 ? (
+        <p className="text-[13px] text-[#5F6B80]">No recommendations right now. Browse all jobs for more opportunities.</p>
       ) : (
         <ul className="flex flex-col divide-y divide-[#EEE9F3]">
           {jobs.map((item) => (
@@ -208,6 +213,7 @@ function SimilarJobs({
           ))}
         </ul>
       )}
+      <PillButton className="mt-4" onClick={() => router.push('/student/jobs')}>See all jobs</PillButton>
     </StudentCard>
   );
 }

@@ -181,6 +181,21 @@ class BoardJobSummary(_Base):
     salary_disclosed: bool = True
     published_at: datetime
     eligibility: EligibilityStatus
+    application_id: uuid.UUID | None = None
+    application_stage: (
+        Literal[
+            "SUBMITTED",
+            "VIEWED",
+            "SHORTLISTED",
+            "INTERVIEW",
+            "DECISION",
+            "HIRED",
+            "REJECTED",
+            "WITHDRAWN",
+            "EXPIRED",
+        ]
+        | None
+    ) = None
 
 
 class BoardJobDetail(BoardJobSummary):
@@ -204,17 +219,23 @@ class RecommendedJob(BoardJobSummary):
     """
 
     matched_skills: list[str]
+    #: Why it ranked here, as short codes the client words (2026-11-23):
+    #: STRONG_SKILLS_MATCH, SOME_SKILLS_MATCH, ROLE_MATCH, EXPERIENCE_FITS,
+    #: PREFERRED_LOCATION, REMOTE, SALARY_FITS, EDUCATION_FITS,
+    #: INDUSTRY_MATCH, ENTRY_LEVEL. Never a number.
+    match_reasons: list[str] = Field(default_factory=list)
 
 
 class RecommendedJobs(_Base):
-    """One home-screen section, best match first. Not paginated: a section is
-    a short list with "see all" going to the board."""
+    """One section, best match first. `next_offset` pages further into the
+    same ranking (2026-11-23); null at the end."""
 
     items: list[RecommendedJob]
     #: False when there is nothing to match on -- no applications yet, or a
     #: profile with no skills and no role. A client draws a prompt ("apply to
     #: a job", "add your skills") rather than an empty list.
     has_basis: bool
+    next_offset: int | None = None
 
 
 class ThresholdPreviewResponse(_Base):
@@ -229,3 +250,10 @@ class ThresholdPreviewResponse(_Base):
         description="Rounded down to the nearest ten. 0 when fewer_than_ten is true."
     )
     fewer_than_ten: bool
+
+
+class BoardSkillOptions(ApiSchema):
+    """Skills to offer in the board's skill filter (2026-11-23). Labels
+    only: no count, so a rare skill says nothing about how few jobs ask."""
+
+    items: list[str]

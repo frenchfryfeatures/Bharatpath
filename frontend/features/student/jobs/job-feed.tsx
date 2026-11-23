@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { BriefcaseBusiness, Check, Funnel, IndianRupee, MapPin, Search, SlidersHorizontal, Wrench, X } from "lucide-react";
+import { BriefcaseBusiness, Check, Funnel, IndianRupee, MapPin, Loader2, Search, SlidersHorizontal, Wrench, X } from "lucide-react";
 
 import { StudentJobCardSkeleton, StudentJobGridSkeleton } from "@/features/student/loading";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -18,6 +18,7 @@ import {
   selectJobWorkMode,
   setJobWorkMode,
   toggleQualifiedOnly,
+  useGetStudentJobSkillsQuery,
   useLazyGetStudentJobsQuery,
 } from "@/store/student";
 import { useDebouncedSearch } from "@/lib/hooks/use-debounced-value";
@@ -57,6 +58,8 @@ export function JobFeed() {
       [fetchJobs, debouncedSearch, location, workMode, skill, minSalaryMinor, qualifiedOnly],
     ),
     [debouncedSearch, location, workMode, skill, minSalaryMinor, qualifiedOnly],
+    true,
+    { keepPreviousData: true, refreshOnFocus: true },
   );
   const loadMoreFromObserver = useEffectEvent(jobs.loadMore);
 
@@ -67,6 +70,7 @@ export function JobFeed() {
       !jobs.hasMore ||
       jobs.isLoading ||
       jobs.isLoadingMore ||
+      jobs.isRefreshing ||
       jobs.error
     ) {
       return;
@@ -83,7 +87,7 @@ export function JobFeed() {
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [jobs.error, jobs.hasMore, jobs.isLoading, jobs.isLoadingMore]);
+  }, [jobs.error, jobs.hasMore, jobs.isLoading, jobs.isLoadingMore, jobs.isRefreshing]);
 
   return (
     <StudentPage
@@ -93,7 +97,7 @@ export function JobFeed() {
         <div className="flex flex-col gap-3.5">
           <div className="flex gap-2">
             <label className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl border border-[#E7E0D4] bg-white px-4 py-3">
-              <Search size={16} className="text-[#5F6B80]" />
+              {jobs.isRefreshing ? <Loader2 size={16} aria-label="Updating jobs" className="animate-spin text-[#5F4DB2]" /> : <Search size={16} className="text-[#5F6B80]" />}
               <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Role, company or skill" aria-label="Search jobs" className="min-w-0 flex-1 bg-transparent text-[15px] leading-5 text-[#0A1931] outline-none placeholder:text-[#8891a0]" />
             </label>
             <button type="button" onClick={() => setFiltersOpen(true)} aria-label="Open job filters" className="relative grid h-12 w-12 shrink-0 cursor-pointer place-items-center rounded-full border border-[#E7E0D4] bg-white text-[#0A1931] transition hover:border-[#C9BEEB] hover:bg-[#F7F4EC]">
@@ -120,7 +124,7 @@ export function JobFeed() {
           />
         ) : jobs.items.length ? (
           <>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div aria-busy={jobs.isRefreshing} className={`grid gap-3 transition-opacity sm:grid-cols-2 xl:grid-cols-3 ${jobs.isRefreshing ? "opacity-60" : ""}`}>
               {jobs.items.map((job) => (
                 <JobCard key={job.id} job={job} />
               ))}
@@ -132,14 +136,14 @@ export function JobFeed() {
               ) : null}
             </div>
 
-            {jobs.error && jobs.hasMore ? (
+            {jobs.error ? (
               <div className="flex flex-col items-center gap-2 pt-1">
                 <span className="text-[13px] text-[#5F6B80]">
-                  Could not load more jobs.
+                  Could not update jobs. Your last results are shown.
                 </span>
                 <button
                   type="button"
-                  onClick={jobs.loadMore}
+                  onClick={jobs.retry}
                   className="rounded-full border border-[#E7E0D4] bg-white px-5 py-2.5 text-[13px] font-semibold text-[#0A1931] transition-colors hover:bg-[#F7F3EC] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Try again
@@ -153,7 +157,7 @@ export function JobFeed() {
               className="h-px w-full"
             />
           </>
-        ) : (
+        ) : jobs.isRefreshing ? <p role="status">Finding jobs…</p> : (
           <EmptyState
             icon={debouncedSearch.trim() || qualifiedOnly || workMode || location || skill || minSalaryMinor ? <Search size={22} /> : <BriefcaseBusiness size={22} />}
             title={debouncedSearch.trim() ? "No results found" : qualifiedOnly || workMode || location || skill || minSalaryMinor ? "No jobs match these filters" : "No jobs in your area yet"}
@@ -204,6 +208,8 @@ function JobFiltersDrawer({ onClose, onApply, ...initial }: JobFilterValues & {
   onApply: (filters: JobFilterValues) => void;
 }) {
   const [draft, setDraft] = useState<JobFilterValues>(initial);
+  // Skills live jobs ask for: every suggestion leads to at least one job.
+  const skillOptions = useGetStudentJobSkillsQuery({ limit: 60 });
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -224,7 +230,7 @@ function JobFiltersDrawer({ onClose, onApply, ...initial }: JobFilterValues & {
     <div className="fixed inset-0 z-50 flex justify-end bg-[#0A1931]/35" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <aside role="dialog" aria-modal="true" aria-label="Job filters" className="flex h-full w-full max-w-[460px] flex-col bg-[#FFFCF7] font-sans text-[13px] leading-5 shadow-[-16px_0_48px_rgba(10,25,49,0.18)] lg:text-[14px]">
         <header className="flex shrink-0 items-center justify-between border-b border-[#E7E0D4] px-5 py-4 sm:px-6">
-          <div className="flex items-center gap-2.5"><span className="grid h-9 w-9 place-items-center rounded-xl bg-[#F1EAF7] text-[#5F4DB2]"><Funnel size={17} /></span><h2 className="text-[18px] font-bold text-[#0A1931]">Filters</h2></div>
+          <div className="flex items-center gap-2.5"><span className="grid h-9 w-9 place-items-center rounded-xl bg-[#F1EAF7] text-[#5F4DB2]"><Funnel size={17} /></span><h2 className="text-[18px] font-semibold text-[#0A1931]">Filters</h2></div>
           <div className="flex items-center gap-2"><button type="button" onClick={reset} className="cursor-pointer px-2 py-2 text-[12px] font-semibold text-[#5F6B80] hover:text-[#0A1931] lg:text-[13px]">Reset</button><button type="button" onClick={onClose} aria-label="Close filters" className="grid h-9 w-9 cursor-pointer place-items-center rounded-full border border-[#E7E0D4] bg-white"><X size={16} /></button></div>
         </header>
 
@@ -250,7 +256,10 @@ function JobFiltersDrawer({ onClose, onApply, ...initial }: JobFilterValues & {
           </FilterGroup>
 
           <FilterGroup icon={<Wrench size={16} />} label="Skill">
-            <input value={draft.skill} maxLength={80} onChange={(event) => update("skill", event.target.value)} placeholder="e.g. React, Nursing, Tally" className="w-full rounded-xl border border-[#E7E0D4] bg-white px-3.5 py-3 text-[13px] text-[#0A1931] outline-none placeholder:text-[#8891A0] focus:border-[#5F4DB2] lg:text-[14px]" />
+            <input value={draft.skill} maxLength={80} list="student-job-skill-options" onChange={(event) => update("skill", event.target.value)} placeholder="e.g. React, Nursing, Tally" className="w-full rounded-xl border border-[#E7E0D4] bg-white px-3.5 py-3 text-[13px] text-[#0A1931] outline-none placeholder:text-[#8891A0] focus:border-[#5F4DB2] lg:text-[14px]" />
+            <datalist id="student-job-skill-options">
+              {(skillOptions.data ?? []).map((option) => <option key={option} value={option} />)}
+            </datalist>
           </FilterGroup>
         </div>
 
@@ -263,7 +272,7 @@ function JobFiltersDrawer({ onClose, onApply, ...initial }: JobFilterValues & {
 }
 
 function FilterGroup({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
-  return <section className="flex flex-col gap-2.5"><div className="flex items-center gap-2 text-[#A77B0D]">{icon}<h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#5F6B80] lg:text-[12px]">{label}</h3></div>{children}</section>;
+  return <section className="flex flex-col gap-2.5"><div className="flex items-center gap-2 text-[#A77B0D]">{icon}<h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#5F6B80] lg:text-[12px]">{label}</h3></div>{children}</section>;
 }
 
 function Choice({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {

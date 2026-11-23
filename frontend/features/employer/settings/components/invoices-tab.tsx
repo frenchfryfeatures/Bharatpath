@@ -23,7 +23,7 @@ export function InvoicesTab() {
   return (
     <>
       <div className="mb-2.5">
-        <h2 className="m-0 text-[13px] font-bold leading-[18px]">Billing history</h2>
+        <h2 className="m-0 text-[13px] font-semibold leading-[18px]">Billing history</h2>
       </div>
 
       <section className="overflow-hidden rounded-xl border border-[#e0e4e9] bg-white shadow-[0_1px_2px_rgba(17,24,39,0.02)]">

@@ -21,7 +21,11 @@ export function NotificationBell() {
         limit: 10,
       },
       {
-        pollingInterval: 30_000,
+        // Every two minutes, and not at all while the tab is in the
+        // background; opening the panel or returning to the tab refetches.
+        pollingInterval: 120_000,
+        skipPollingIfUnfocused: true,
+        refetchOnFocus: true,
       },
     );
 

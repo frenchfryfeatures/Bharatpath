@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { CheckCircle } from "lucide-react";
 import Link from "next/link";
 import { Mail } from "lucide-react";
@@ -39,15 +39,8 @@ export function InvitesPage() {
   const pages = useCursorLoadMore(useCallback(async (cursor: string | undefined) => {
     const page = await load({ cursor, limit: 20, status: filter === "all" ? undefined : filter }).unwrap();
     return { items: page.items, nextCursor: page.next_cursor };
-  }, [load, filter]), [filter, revision]);
+  }, [load, filter]), [filter, revision], true, { keepPreviousData: true, refreshOnFocus: true });
 
-  useEffect(() => {
-    const refresh = () => {
-      if (document.visibilityState === "visible" && !responding.current) setRevision((previous) => previous + 1);
-    };
-    window.addEventListener("focus", refresh);
-    return () => window.removeEventListener("focus", refresh);
-  }, []);
 
   async function respond(id: string, action: "accept" | "decline") {
     if (responding.current) return;
@@ -96,7 +89,7 @@ export function InvitesPage() {
             <div className="flex items-start gap-3">
               <MonogramTile size={40} logoUrl={invitation.employer_logo_url}>{employerMonogram(invitation.employer_name)}</MonogramTile>
               <div className="min-w-0 flex-1 pt-0.5">
-                <h2 className="text-[15px] font-bold leading-5 tracking-[-0.025em] text-[#0A1931]">{invitation.job_title ?? "Job no longer available"}</h2>
+                <h2 className="text-[15px] font-semibold leading-5 tracking-[-0.025em] text-[#0A1931]">{invitation.job_title ?? "Job no longer available"}</h2>
                 <p className="mt-1 truncate text-[12px] leading-4 text-[#657187]">{invitation.employer_name ?? "Employer"}</p>
               </div>
               <StatusChip tone={statusTones[invitation.status]}>{statusLabels[invitation.status]}</StatusChip>

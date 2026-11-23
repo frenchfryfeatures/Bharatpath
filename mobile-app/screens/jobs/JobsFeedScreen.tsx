@@ -15,18 +15,20 @@
  *  - Money is integer paise from the backend; converted to ₹ for display.
  *  - Experience is in months; shown as years.
  */
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
+  Animated,
   View,
   Text,
   StyleSheet,
   FlatList,
   Pressable,
   TextInput,
-  Platform,
   ActivityIndicator,
   RefreshControl,
   Image,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -46,6 +48,12 @@ import { Colors, Spacing } from '@/theme/tokens';
 import { BottomTabBar, TabName } from '@/components/navigation/BottomTabBar';
 import { JobFiltersSheet } from '@/screens/jobs/JobFiltersSheet';
 import { useJobs } from '@/hooks/useJobs';
+import { NotificationButton } from '@/components/navigation/NotificationButton';
+import { useJobApplications } from '@/hooks/useJobApplications';
+import { type ApplicationStage } from '@/types/application';
+import { jobApplicationStatus } from '@/utils/jobApplicationStatus';
+import type { JobCarouselLayout } from '@/utils/jobCarouselLayout';
+import { useFocusEffect } from 'expo-router';
 import { BoardJobSummary, EligibilityStatus, JobFilters } from '@/types/job';
 import {
   formatSalaryRangePaise,
@@ -83,6 +91,7 @@ export function JobsFeedScreen({
   const {
     jobs,
     loading,
+    searching,
     loadingMore,
     hasReachedEnd,
     error,
@@ -94,10 +103,36 @@ export function JobsFeedScreen({
     hasActiveFilters,
     reset,
     reload,
+    refreshSilently,
   } = useJobs();
+  const applications = useJobApplications();
+  const reloadApplications = applications.reload;
+  const latestReload = useRef(refreshSilently);
+  latestReload.current = refreshSilently;
+  const focusedBefore = useRef(false);
+  // Coming back to the tab refreshes quietly, at most every 30 seconds:
+  // switching tabs back and forth must not re-ask the server each time.
+  const lastFocusRefreshAt = useRef(Date.now());
+  useFocusEffect(useCallback(() => {
+    if (focusedBefore.current && Date.now() - lastFocusRefreshAt.current >= 30_000) {
+      lastFocusRefreshAt.current = Date.now();
+      void latestReload.current();
+    }
+    focusedBefore.current = true;
+  }, []));
 
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  // While a search runs the current results stay put, dimmed a little, and
+  // the new ones fade in -- no full-screen reload on each keystroke.
+  const listOpacity = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    Animated.timing(listOpacity, {
+      toValue: searching ? 0.55 : 1,
+      duration: searching ? 120 : 220,
+      useNativeDriver: true,
+    }).start();
+  }, [searching, listOpacity]);
 
   const handleJobPress = useCallback(
     (jobId: string) => {
@@ -108,9 +143,9 @@ export function JobsFeedScreen({
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await reload();
+    await Promise.all([reload(), reloadApplications()]);
     setRefreshing(false);
-  }, [reload]);
+  }, [reload, reloadApplications]);
 
   const handleApplyFilters = useCallback(
     (next: JobFilters) => {
@@ -123,6 +158,15 @@ export function JobsFeedScreen({
     reset();
   }, [reset]);
 
+  const visibleJobs = React.useMemo(
+    () =>
+      jobs.filter((item) => {
+        const stage = applications.byJob[item.id]?.stage ?? item.application_stage;
+        return !stage;
+      }),
+    [applications.byJob, jobs],
+  );
+
   const renderFooter = () => {
     if (loadingMore) {
       return (
@@ -131,7 +175,7 @@ export function JobsFeedScreen({
         </View>
       );
     }
-    if (hasReachedEnd && jobs.length > 0) {
+    if (hasReachedEnd && visibleJobs.length > 0) {
       return (
         <View style={styles.footerEnd}>
           <Text style={styles.footerEndText}>{TXT_ALL_CAUGHT_UP}</Text>
@@ -142,7 +186,7 @@ export function JobsFeedScreen({
   };
 
   const renderEmpty = () => {
-    if (loading) return null; // shown by the overlay instead
+    if (loading || searching) return null; // nothing to judge "no results" on yet
     if (error) {
       return (
         <View style={styles.emptyState}>
@@ -226,12 +270,17 @@ export function JobsFeedScreen({
                 <SlidersHorizontal size={18} color={Colors.navy} weight="bold" />
                 {hasActiveFilters && <View style={styles.goldBadgeDot} />}
               </Pressable>
+              <NotificationButton />
             </View>
           </View>
 
           {/* Search bar */}
           <View style={styles.searchBar}>
-            <MagnifyingGlass size={16} color="#5F6B80" weight="bold" />
+            {searching ? (
+              <ActivityIndicator size="small" color={Colors.brandAccent} accessibilityLabel="Searching jobs" />
+            ) : (
+              <MagnifyingGlass size={16} color="#5F6B80" weight="bold" />
+            )}
             <TextInput
               style={styles.searchInput}
               placeholder="Role, company or skill"
@@ -257,16 +306,20 @@ export function JobsFeedScreen({
         </View>
 
         {/* Job list with infinite scroll */}
+        <Animated.View style={{ flex: 1, opacity: listOpacity }}>
         <FlatList
-          data={jobs}
+          data={visibleJobs}
           keyExtractor={(item) => item.id}
           keyboardShouldPersistTaps="handled"
           renderItem={({ item }) => (
-            <JobCard job={item} onPress={() => handleJobPress(item.id)} />
+            <JobCard job={item} onPress={() => handleJobPress(item.id)}
+              applicationStage={applications.byJob[item.id]?.stage ?? item.application_stage}
+              statusLoading={applications.loading && !applications.byJob[item.id] && item.application_stage === undefined}
+              statusError={applications.error && !applications.byJob[item.id] && item.application_stage === undefined} />
           )}
           contentContainerStyle={[
             styles.listContent,
-            jobs.length === 0 && styles.listContentEmpty,
+            visibleJobs.length === 0 && styles.listContentEmpty,
           ]}
           ItemSeparatorComponent={() => <View style={styles.cardGap} />}
           ListFooterComponent={renderFooter}
@@ -283,6 +336,7 @@ export function JobsFeedScreen({
             />
           }
         />
+        </Animated.View>
 
         {/* First-load loading overlay */}
         {loading && jobs.length === 0 && (
@@ -315,9 +369,17 @@ export function JobsFeedScreen({
 interface JobCardProps {
   job: BoardJobSummary;
   onPress: () => void;
+  applicationStage?: ApplicationStage | null;
+  statusLoading?: boolean;
+  statusError?: boolean;
+  style?: StyleProp<ViewStyle>;
+  carouselLayout?: JobCarouselLayout;
+  /** Why the job engine ranked it here; replaces the posted date when set. */
+  matchReason?: string | null;
 }
 
-function JobCard({ job, onPress }: JobCardProps) {
+export function JobCard({ job, onPress, applicationStage, statusLoading, statusError, style, carouselLayout, matchReason }: JobCardProps) {
+  const status = jobApplicationStatus(job.eligibility, applicationStage, statusLoading, statusError);
   const employerName = job.employer_name || 'Employer';
   const initials = getInitials(employerName);
   const bg = pickFromString(employerName, MONOGRAM_BG);
@@ -325,12 +387,12 @@ function JobCard({ job, onPress }: JobCardProps) {
 
   return (
     <Pressable
-      style={({ pressed }) => [styles.jobCard, pressed && styles.cardPressed]}
+      style={({ pressed }) => [styles.jobCard, style, pressed && styles.cardPressed]}
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${job.title} at ${employerName}`}
+      accessibilityLabel={`${job.title} at ${employerName}. ${status.label}`}
     >
-      <View style={styles.jobCardTop}>
+      <View style={[styles.jobCardTop, carouselLayout && { height: carouselLayout.header, flexShrink: 0 }]}>
         <View style={[styles.badge, { backgroundColor: bg }]}>
           {job.employer_logo_url ? (
             <Image
@@ -343,23 +405,28 @@ function JobCard({ job, onPress }: JobCardProps) {
           )}
         </View>
         <View style={styles.jobInfo}>
-          <Text style={styles.jobTitle} numberOfLines={2}>
+          <Text style={styles.jobTitle} numberOfLines={2} ellipsizeMode="tail">
             {job.title}
           </Text>
-          <Text style={styles.companyName} numberOfLines={1}>
+          <Text style={styles.companyName} numberOfLines={1} ellipsizeMode="tail">
             {employerName}
           </Text>
         </View>
       </View>
 
-      <View style={styles.jobStatusRow}>
-        <EligibilityChip eligibility={job.eligibility} />
+      <View style={[styles.jobStatusRow, carouselLayout && { height: carouselLayout.status, flexShrink: 0 }]}>
+        {applicationStage ? <View style={[styles.chipPending, applicationStage === 'HIRED' && styles.chipEligible]}><CheckCircle size={12} color={applicationStage === 'HIRED' ? Colors.green.fg : '#5F4DB2'} weight="fill"/><Text style={styles.chipPendingText} numberOfLines={carouselLayout ? 1 : undefined}>{status.label}</Text></View>
+          : status.kind === 'unknown' ? <View style={styles.chipBelow}><Text style={styles.chipBelowText} numberOfLines={carouselLayout ? 1 : undefined}>{status.label}</Text></View>
+          : <EligibilityChip eligibility={job.eligibility} singleLine={!!carouselLayout} />}
       </View>
 
-      <View style={styles.metaRow}>
+      {carouselLayout ? <Text style={[styles.metaText, { height: carouselLayout.metadata, flexShrink: 0 }]} numberOfLines={2} ellipsizeMode="tail">
+        <Text style={styles.salaryText}>{job.salary_disclosed === false ? 'Salary not disclosed' : formatSalaryRangePaise(job.salary_min_minor, job.salary_max_minor)}{job.salary_disclosed !== false && <Text style={styles.salaryPerMo}>/mo</Text>}</Text>
+        {[job.location, job.work_mode ? workModeLabel(job.work_mode) : null, job.experience_min_months != null ? job.experience_min_months === 0 ? 'Freshers welcome' : formatExperienceMonths(job.experience_min_months) : null].filter(Boolean).map(value => ` · ${value}`).join('')}
+      </Text> : <View style={styles.metaRow}>
         <Text style={styles.salaryText}>
-          {formatSalaryRangePaise(job.salary_min_minor, job.salary_max_minor)}
-          <Text style={styles.salaryPerMo}>/mo</Text>
+          {job.salary_disclosed === false ? 'Salary not disclosed' : formatSalaryRangePaise(job.salary_min_minor, job.salary_max_minor)}
+          {job.salary_disclosed !== false && <Text style={styles.salaryPerMo}>/mo</Text>}
         </Text>
         {job.location ? (
           <>
@@ -375,17 +442,22 @@ function JobCard({ job, onPress }: JobCardProps) {
             <Text style={styles.metaText}>{workModeLabel(job.work_mode)}</Text>
           </>
         ) : null}
-        {job.experience_min_months ? (
+        {job.experience_min_months != null ? (
           <>
             <View style={styles.dot} />
             <Text style={styles.metaText}>
-              {formatExperienceMonths(job.experience_min_months)}
+              {job.experience_min_months === 0 ? 'Freshers welcome' : formatExperienceMonths(job.experience_min_months)}
             </Text>
           </>
         ) : null}
-      </View>
+      </View>}
 
-      {job.skills.length > 0 && (
+      {carouselLayout ? <View style={{ height: carouselLayout.skills, gap: 6, flexShrink: 0 }}>
+        {job.skills.length ? [job.skills.slice(0, 2), job.skills.slice(2, 4)].map((row, index) => row.length > 0 && <View key={index} style={styles.carouselSkillsRow}>
+          {row.map(skill => <View key={skill} style={[styles.skillChip, styles.carouselSkillChip]}><Text style={styles.skillChipText} numberOfLines={1} ellipsizeMode="tail">{skill}</Text></View>)}
+          {index === 1 && job.skills.length > 4 && <Text style={[styles.skillsMore, { flexShrink: 0 }]}>+{job.skills.length - 4}</Text>}
+        </View>) : <Text style={styles.metaText}>Skills not specified</Text>}
+      </View> : job.skills.length > 0 && (
         <View style={styles.skillsRow}>
           {job.skills.slice(0, 4).map((skill) => (
             <View key={skill} style={styles.skillChip}>
@@ -400,10 +472,10 @@ function JobCard({ job, onPress }: JobCardProps) {
         </View>
       )}
 
-      <View style={styles.jobCardFooter}>
+      <View style={[styles.jobCardFooter, carouselLayout && { height: carouselLayout.footer, flexShrink: 0 }]}>
         <Clock size={13} color="#5F6B80" weight="bold" />
-        <Text style={styles.footerPostedText}>
-          {formatPostedAgo(job.published_at)}
+        <Text style={[styles.footerPostedText, matchReason ? { color: '#4A3E8F' } : null]} numberOfLines={carouselLayout ? 1 : undefined}>
+          {matchReason || formatPostedAgo(job.published_at)}
         </Text>
         <CaretRight size={13} color="#5F6B80" weight="bold" />
       </View>
@@ -415,15 +487,16 @@ function JobCard({ job, onPress }: JobCardProps) {
 
 interface EligibilityChipProps {
   eligibility: EligibilityStatus;
+  singleLine?: boolean;
 }
 
-function EligibilityChip({ eligibility }: EligibilityChipProps) {
+function EligibilityChip({ eligibility, singleLine }: EligibilityChipProps) {
   switch (eligibility) {
     case 'ELIGIBLE':
       return (
         <View style={styles.chipEligible}>
           <CheckCircle size={12} color={Colors.green.fg} weight="fill" />
-          <Text style={styles.chipEligibleText}>You can apply</Text>
+          <Text style={styles.chipEligibleText} numberOfLines={singleLine ? 1 : undefined}>You can apply</Text>
         </View>
       );
     case 'BELOW_THRESHOLD':
@@ -431,14 +504,14 @@ function EligibilityChip({ eligibility }: EligibilityChipProps) {
       return (
         <View style={styles.chipBelow}>
           <XCircle size={12} color="#5F6B80" weight="bold" />
-          <Text style={styles.chipBelowText}>Not eligible</Text>
+          <Text style={styles.chipBelowText} numberOfLines={singleLine ? 1 : undefined}>Not eligible</Text>
         </View>
       );
     case 'SCORE_PENDING':
       return (
         <View style={styles.chipPending}>
           <SpinnerGap size={12} color="#5F6B80" weight="bold" />
-          <Text style={styles.chipPendingText}>Score updating</Text>
+          <Text style={styles.chipPendingText} numberOfLines={singleLine ? 1 : undefined}>Bharatpath Score updating</Text>
         </View>
       );
     default:
@@ -473,7 +546,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   mainTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 24,
     lineHeight: 28,
     letterSpacing: -0.5,
@@ -589,10 +662,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-start',
-    paddingLeft: 60,
+    flexWrap: 'wrap',
   },
   jobTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 16,
     lineHeight: 20,
     letterSpacing: -0.3,
@@ -612,14 +685,10 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   salaryText: {
-    fontFamily: Platform.select({
-      ios: 'SpaceMono-Bold',
-      android: 'SpaceMono-Bold',
-      default: 'monospace',
-    }),
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 14,
     lineHeight: 18,
-    fontWeight: '700',
+
     color: Colors.navy,
   },
   salaryPerMo: {
@@ -646,6 +715,8 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 6,
   },
+  carouselSkillsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+  carouselSkillChip: { maxWidth: '100%', flexShrink: 1, minWidth: 0 },
   skillChip: {
     paddingVertical: 4,
     paddingHorizontal: 10,
@@ -685,6 +756,7 @@ const styles = StyleSheet.create({
   },
   // Eligibility chips
   chipEligible: {
+    maxWidth: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -694,19 +766,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.green.bg,
     alignSelf: 'flex-start',
   },
-  chipEligibleText: {
-    fontFamily: Platform.select({
-      ios: 'SpaceMono-Bold',
-      android: 'SpaceMono-Bold',
-      default: 'monospace',
-    }),
-    fontSize: 11,
-    lineHeight: 12,
-    letterSpacing: 0.4,
-    color: Colors.green.fg,
-    fontWeight: '700',
-  },
+  chipEligibleText: { fontFamily: 'GeneralSans-Medium', fontSize: 12, lineHeight: 17, flexShrink: 1, color: '#1F6B45' },
   chipBelow: {
+    maxWidth: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -716,19 +778,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0EBDF',
     alignSelf: 'flex-start',
   },
-  chipBelowText: {
-    fontFamily: Platform.select({
-      ios: 'SpaceMono-Bold',
-      android: 'SpaceMono-Bold',
-      default: 'monospace',
-    }),
-    fontSize: 11,
-    lineHeight: 12,
-    letterSpacing: 0.4,
-    color: '#5F6B80',
-    fontWeight: '700',
-  },
+  chipBelowText: { fontFamily: 'GeneralSans-Medium', fontSize: 12, lineHeight: 17, flexShrink: 1, color: '#5F6B80' },
   chipPending: {
+    maxWidth: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -738,18 +790,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0EBDF',
     alignSelf: 'flex-start',
   },
-  chipPendingText: {
-    fontFamily: Platform.select({
-      ios: 'SpaceMono-Bold',
-      android: 'SpaceMono-Bold',
-      default: 'monospace',
-    }),
-    fontSize: 11,
-    lineHeight: 12,
-    letterSpacing: 0.4,
-    color: '#5F6B80',
-    fontWeight: '700',
-  },
+  chipPendingText: { fontFamily: 'GeneralSans-Medium', fontSize: 12, lineHeight: 17, flexShrink: 1, color: '#5F6B80' },
   // Empty / error states
   emptyState: {
     alignItems: 'center',

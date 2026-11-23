@@ -220,7 +220,7 @@ const STATE_LABEL: Record<string, string> = {
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="text-[11px] font-bold uppercase leading-[14px] tracking-[0.06em] text-[#7b8494]">
+    <h3 className="text-[11px] font-semibold uppercase leading-[14px] tracking-[0.06em] text-[#7b8494]">
       {children}
     </h3>
   );
@@ -256,7 +256,7 @@ function IntegrityFinding({
             {signal.state === "CLEARED"
               ? "Cleared. This signal no longer affects the candidate."
               : "For review only. The candidate stays visible in search whichever you choose."}{" "}
-            Neither decision changes their score.
+            Neither decision changes their Bharatpath Score.
           </p>
         </div>
       )}
@@ -329,7 +329,7 @@ function IntegrityFinding({
             </dd>
           </div>
           <div className="rounded-[10px] border border-[#e5e7eb] px-3.5 py-2.5">
-            <dt className="text-[#7b8494]">Their score</dt>
+            <dt className="text-[#7b8494]">Their Bharatpath Score</dt>
             <dd className="mt-0.5 font-semibold text-[#172033]">
               {signal.score ? `${signal.score.display_value} · ${humanizeCode(signal.score.band)}` : "Not scored"}
             </dd>
@@ -849,7 +849,7 @@ function QueueDrawerBody() {
 
             {isKyb ? <section className="flex flex-col gap-3">
               <div className="flex items-baseline justify-between gap-3">
-                <h3 className="text-[11px] font-bold uppercase leading-[14px] tracking-[0.06em] text-[#7b8494]">
+                <h3 className="text-[11px] font-semibold uppercase leading-[14px] tracking-[0.06em] text-[#7b8494]">
                   Verification checks
                 </h3>
                 {isKyb ? (
@@ -957,7 +957,7 @@ function QueueDrawerBody() {
                 ====================================================== */}
 
             {isKyb ? <section className="flex flex-col gap-3">
-              <h3 className="text-[11px] font-bold uppercase leading-[14px] tracking-[0.06em] text-[#7b8494]">
+              <h3 className="text-[11px] font-semibold uppercase leading-[14px] tracking-[0.06em] text-[#7b8494]">
                 Documents
               </h3>
 
@@ -1050,7 +1050,7 @@ function QueueDrawerBody() {
 
             {isKyb && reviews.length > 0 ? (
               <section className="flex flex-col gap-3" aria-label="History">
-                <h3 className="flex items-center gap-1.5 text-[11px] font-bold uppercase leading-[14px] tracking-[0.06em] text-[#7b8494]">
+                <h3 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase leading-[14px] tracking-[0.06em] text-[#7b8494]">
                   <History className="h-3.5 w-3.5" aria-hidden="true" />
                   History
                 </h3>

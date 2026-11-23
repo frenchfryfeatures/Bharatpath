@@ -81,7 +81,7 @@ export function streakStatusLabel(
     case 'ACTIVE_TODAY':
       return 'Streak active today';
     case 'AT_RISK':
-      return 'Check in to keep your streak';
+      return 'Login to keep your streak';
     case 'BROKEN':
       return 'Streak broken - start again';
     default:
@@ -102,7 +102,7 @@ export function streakSubtitle(
         ? 'Day one. Come back tomorrow to keep it going.'
         : `Come back tomorrow to reach day ${current + 1}.`;
     case 'AT_RISK':
-      return `You're at ${current} day${current === 1 ? '' : 's'}. Check in today so you don't lose it.`;
+      return `You're at ${current} day${current === 1 ? '' : 's'}. Login today so you don't lose it.`;
     case 'BROKEN':
       return 'You missed a day. Start a new streak today.';
     default:

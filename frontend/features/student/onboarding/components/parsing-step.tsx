@@ -98,7 +98,9 @@ export function ParsingStep({
 
   const status = useGetResumeFileStatusQuery(resumeFileId ?? "", {
     skip: !resumeFileId,
-    pollingInterval: stopPolling ? 0 : 2000,
+    // Quick at first (most CVs read in seconds), then gentler: 2s for the
+    // first ~20s, 4s up to ~1 minute, then 8s.
+    pollingInterval: stopPolling ? 0 : elapsed < 15 ? 2000 : elapsed < 45 ? 4000 : 8000,
     skipPollingIfUnfocused: false,
   });
 

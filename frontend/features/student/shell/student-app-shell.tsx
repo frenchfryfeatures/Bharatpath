@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 
 import { useAppDispatch } from "@/store/hooks";
 import { clearUser } from "@/store/common/slices/auth.slice";
@@ -13,6 +13,11 @@ import { useScrollLock } from "@/hooks/use-scroll-lock";
 import { baseApi } from "@/store/api/base-api";
 import { notificationApi } from "@/store/api/notification-api";
 import { PortalAssistant } from "@/components/assistant/portal-assistant";
+
+import { resetStudentState } from "@/store/student/student.slice";
+import { clearAllOnboardingDrafts } from "@/features/student/profile/onboarding-draft";
+import { clearAccountDraft } from "@/features/student/onboarding/components/account-draft";
+import { clearBrowserAuthStorage, getStoredToken } from "@/lib/auth/token";
 
 import { StudentHeader } from "./student-header";
 import { StudentSidebarContent } from "./student-sidebar";
@@ -31,7 +36,6 @@ import { StudentSidebarContent } from "./student-sidebar";
 export function StudentAppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const contentRef = useRef<HTMLElement>(null);
-  const router = useRouter();
   const dispatch = useAppDispatch();
 
   const [collapsed, setCollapsed] = useState(false);
@@ -54,19 +58,39 @@ export function StudentAppShell({ children }: { children: ReactNode }) {
     }
   }, [pathname]);
 
+  useLayoutEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      // A browser Back restore must re-check identity with a fresh store.
+      if (event.persisted) {
+        if (getStoredToken()) window.location.reload();
+        else window.location.replace("/login");
+      }
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
+
   const handleLogout = async () => {
     setIsLoggingOut(true);
+    let logoutTimeout: ReturnType<typeof setTimeout> | undefined;
     try {
-      await authService.logout();
+      await Promise.race([authService.logout(), new Promise<void>((resolve) => {
+        logoutTimeout = setTimeout(resolve, 4_000);
+      })]);
     } catch {
       // The auth service clears local credentials even when remote sign-out fails.
     }
+    if (logoutTimeout !== undefined) clearTimeout(logoutTimeout);
+    clearBrowserAuthStorage();
+    clearAllOnboardingDrafts();
+    clearAccountDraft();
+    dispatch(resetStudentState());
     dispatch(clearUser());
     dispatch(clearTenant());
     dispatch(baseApi.util.resetApiState());
     dispatch(notificationApi.util.resetApiState());
     setLogoutOpen(false);
-    router.replace("/login");
+    window.location.replace("/login");
   };
 
   return (
@@ -135,7 +159,7 @@ export function StudentAppShell({ children }: { children: ReactNode }) {
         confirmLoading={isLoggingOut}
         variant="student"
         title="Log out?"
-        description="You'll need to sign in again to see your score and applications."
+        description="You'll need to sign in again to see your Bharatpath Score and applications."
         confirmLabel="Log out"
         cancelLabel="Stay"
         onConfirm={handleLogout}

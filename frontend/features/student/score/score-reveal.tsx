@@ -31,9 +31,9 @@ export function ScoreReveal() {
 
   return (
     <StudentPage>
-      <StudentTopBar title="Your resume score" />
+      <StudentTopBar title="Your Bharatpath Score" />
       {score.isLoading ? (
-        <div role="status" aria-label="Loading resume score" className="grid gap-4 lg:grid-cols-2">
+        <div role="status" aria-label="Loading Bharatpath Score" className="grid gap-4 lg:grid-cols-2">
           <div className="flex flex-col items-center gap-5 rounded-[24px] bg-[#5F4DB2] p-6">
             <Skeleton className="opacity-55" width={190} height={190} circle />
             <Skeleton className="opacity-55" width={110} height={16} radius={7} />
@@ -47,9 +47,9 @@ export function ScoreReveal() {
         </div>
       ) : score.error ? (
         <StudentErrorState
-          title="Score unavailable"
+          title="Bharatpath Score unavailable"
           error={score.error}
-          fallback="Could not load your score."
+          fallback="Could not load your Bharatpath Score."
           onRetry={() => void score.refetch()}
         />
       ) : score.data?.status === "READY" && score.data.value != null ? (
@@ -57,7 +57,7 @@ export function ScoreReveal() {
           <div className="flex flex-col items-center gap-5 rounded-[24px] bg-[#5F4DB2] p-6">
             {scale.isLoading ? (
               <div role="status" aria-busy="true" className="flex flex-col items-center gap-4">
-                <span className="sr-only">Loading score scale</span>
+                <span className="sr-only">Loading Bharatpath Score scale</span>
                 <Skeleton className="opacity-55" width={190} height={190} circle />
               </div>
             ) : scale.data ? (
@@ -91,14 +91,14 @@ export function ScoreReveal() {
                 onRetry={() => void scale.refetch()}
                 message={getApiErrorMessage(
                   scale.error,
-                  "The score scale could not be loaded.",
+                  "The Bharatpath Score scale could not be loaded.",
                 )}
               />
             ) : null}
           </div>
           <div className="flex flex-col gap-3">
             <NoteStrip>
-              Your score is computed from your confirmed resume. BharatPath does
+              Your Bharatpath Score is computed from your confirmed resume. BharatPath does
               not expose a point-by-point breakdown.
             </NoteStrip>
             {score.data.computedAt ? (
@@ -119,7 +119,7 @@ export function ScoreReveal() {
         </div>
       ) : (
         <EmptyState
-          title="Your score is being prepared"
+          title="Your Bharatpath Score is being prepared"
           message="Once your confirmed resume has been scored, it will appear here."
         />
       )}

@@ -479,7 +479,7 @@ function CourseDrawer({ title, description, onClose, closeDisabled = false, wide
       >
         <header className="flex items-start justify-between gap-4 border-b border-[#e5e7eb] px-5 py-4">
           <div>
-            <h2 id="course-drawer-title" className="text-[18px] font-bold text-[#172033]">{title}</h2>
+            <h2 id="course-drawer-title" className="text-[18px] font-semibold text-[#172033]">{title}</h2>
             <p id="course-drawer-description" className="mt-1 text-[12px] leading-[18px] text-[#7b8494]">{description}</p>
           </div>
           <button

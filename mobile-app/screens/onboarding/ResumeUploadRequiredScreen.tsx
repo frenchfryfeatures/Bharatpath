@@ -1,8 +1,8 @@
+import { useLogout } from '@/hooks/useLogout';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, ArrowRight, NotePencil, UploadSimple } from 'phosphor-react-native';
-import { useAuthContext } from '@/context/AuthContext';
 import { LogOut } from 'lucide-react-native';
 import { Colors } from '@/theme/tokens';
 
@@ -15,19 +15,19 @@ export function ResumeUploadRequiredScreen({
   onBuildResume?: () => void;
   onBack: () => void;
 }) {
-  const { signOut } = useAuthContext();
+  const logout = useLogout();
   const { height } = useWindowDimensions();
   const compact = height < 700;
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.screen}>
       <View style={styles.header}>
         <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel="Back to profile"
           style={({ pressed }) => [styles.back, pressed && styles.pressed]}>
           <ArrowLeft size={20} color={Colors.navy} />
         </Pressable>
         <Text style={styles.headerTitle} numberOfLines={1} ellipsizeMode="tail" accessibilityRole="header" accessibilityLabel="Complete your profile">Complete your profile</Text>
-        <Pressable onPress={() => void signOut()} accessibilityRole="button" accessibilityLabel="Sign out" style={styles.back}><LogOut size={20} color={Colors.navy} /></Pressable>
+        <Pressable onPress={() => void logout()} accessibilityRole="button" accessibilityLabel="Sign out" style={styles.back}><LogOut size={20} color={Colors.navy} /></Pressable>
       </View>
 
       <View style={[styles.content, compact && styles.contentCompact]}>
@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   uploadCopy: { gap: 4 },
-  uploadTitle: { fontFamily: 'GeneralSans-Bold', fontSize: 21, lineHeight: 27, letterSpacing: -0.3, color: '#FFFFFF' },
+  uploadTitle: { fontFamily: 'GeneralSans-Semibold', fontSize: 21, lineHeight: 27, letterSpacing: -0.3, color: '#FFFFFF' },
   uploadDetail: { fontFamily: 'GeneralSans-Regular', fontSize: 14, lineHeight: 20, color: '#E9E3FA' },
   uploadFooter: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12,
@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
     flexShrink: 0, alignSelf: 'flex-start', alignItems: 'center', justifyContent: 'center',
   },
   buildCopy: { flex: 1, minWidth: 0, gap: 4 },
-  buildTitle: { fontFamily: 'GeneralSans-Bold', fontSize: 16, lineHeight: 22, color: Colors.navy },
+  buildTitle: { fontFamily: 'GeneralSans-Semibold', fontSize: 16, lineHeight: 22, color: Colors.navy },
   buildDetail: { fontFamily: 'GeneralSans-Regular', fontSize: 13, lineHeight: 19, color: Colors.text.primary },
   pressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
 });

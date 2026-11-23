@@ -46,7 +46,7 @@ export function SectionCard({
 
 export function SectionTitle({ children }: { children: ReactNode }) {
   return (
-    <h2 className="mb-4 text-[11px] font-bold uppercase tracking-[0.06em] text-[#687386]">
+    <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#687386]">
       {children}
     </h2>
   );

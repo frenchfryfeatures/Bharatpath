@@ -21,7 +21,7 @@ const ROUTES = [
 export default function ContactPage() {
   return (
     <section className="shell pb-10 pt-14 lg:pt-20">
-      <h1 className="text-[clamp(40px,5.6vw,80px)] font-bold leading-[1] tracking-[-0.045em]">Talk to us</h1>
+      <h1 className="text-[clamp(40px,5.6vw,80px)] font-semibold leading-[1] tracking-[-0.045em]">Talk to us</h1>
       <p className="mt-5 max-w-[52ch] text-[17px] text-muted">
         Write to us and a person will reply, usually within one working day. Choose what it is about so it reaches the right team.
       </p>

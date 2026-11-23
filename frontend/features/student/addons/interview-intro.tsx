@@ -53,12 +53,12 @@ export function InterviewIntro() {
               </span>
             </div>
             <div className="flex flex-col gap-1">
-              <h1 className="text-[28px] font-bold text-[#0A1931]">
+              <h1 className="text-[28px] font-semibold text-[#0A1931]">
                 Practise before it counts
               </h1>
               <p className="text-[15px] leading-[22px] text-[#3A4761]">
                 Complete a device check before checkout. Your evaluation is
-                feedback and never changes your score.
+                feedback and never changes your Bharatpath Score.
               </p>
             </div>
             <StudentCard padded={false} className="px-4">
@@ -71,8 +71,8 @@ export function InterviewIntro() {
               </Fact>
               <Fact icon={<EyeOff size={19} />}>
                 {offer.data?.willIncreaseScore
-                  ? "Completion can increase your score."
-                  : "Feedback only - your score does not move."}
+                  ? "Completion can increase your Bharatpath Score."
+                  : "Feedback only - your Bharatpath Score does not move."}
               </Fact>
             </StudentCard>
             <NoteStrip icon={<Info size={16} />}>

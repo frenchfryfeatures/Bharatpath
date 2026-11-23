@@ -93,7 +93,7 @@ export function InviteStudentModal({
               <Link2 size={18} strokeWidth={2.2} />
             </div>
             <div>
-              <h3 className="text-[16px] font-bold text-[#151b2b]">
+              <h3 className="text-[16px] font-semibold text-[#151b2b]">
                 Invite students
               </h3>
               <p className="text-[12px] text-[#777f90]">
@@ -116,7 +116,7 @@ export function InviteStudentModal({
             <div className="grid h-12 w-12 place-items-center rounded-full bg-[#eaf5ef] text-[#23805d] mb-3">
               <Check size={24} strokeWidth={2.5} />
             </div>
-            <h4 className="text-[15px] font-bold text-[#151b2b]">
+            <h4 className="text-[15px] font-semibold text-[#151b2b]">
               Code ready to share
             </h4>
             <p className="mt-1 text-[13px] text-[#777f90]">

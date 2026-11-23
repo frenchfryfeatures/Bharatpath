@@ -299,7 +299,7 @@ function SubscriptionLoading() {
 function ScoreLoading() {
   return (
     <StudentPage>
-      <Region label="Loading resume score">
+      <Region label="Loading Bharatpath Score">
         <TopBar />
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="flex flex-col items-center gap-5 rounded-[24px] bg-[#5F4DB2] p-6">
@@ -328,7 +328,7 @@ function ScoreLoading() {
 function ScoreInfoLoading() {
   return (
     <StudentPage>
-      <Region label="Loading score information">
+      <Region label="Loading Bharatpath Score information">
         <TopBar />
         <Skeleton width="65%" height={29} radius={8} />
         <div className="mt-5 rounded-[20px] border border-[#E7E0D4] bg-white p-5">

@@ -205,7 +205,7 @@ export function ParsingScreen({
               await saveCareerProfile(
                 mergeResumeDetails(currentProfile.details, initialDetails),
                 created.resume_version_id,
-                false,
+                Boolean(currentProfile.completed),
                 selectedFile.fileName,
               );
             } catch (draftErr) {
@@ -248,7 +248,7 @@ export function ParsingScreen({
             await saveCareerProfile(
               mappedDetails,
               createdVersionId,
-              false,
+              Boolean(currentProfile.completed),
               (payload?.fileMeta ?? fileMeta)?.fileName,
             );
           } catch (saveErr) {
@@ -260,7 +260,7 @@ export function ParsingScreen({
               await saveCareerProfile(
                 currentProfile.details,
                 createdVersionId,
-                false,
+                Boolean(currentProfile.completed),
                 (payload?.fileMeta ?? fileMeta)?.fileName,
               );
             } catch (fallbackErr) {
@@ -284,7 +284,7 @@ export function ParsingScreen({
             await saveCareerProfile(
               currentProfile.details,
               createdVersionId,
-              false,
+              Boolean(currentProfile.completed),
               (payload?.fileMeta ?? fileMeta)?.fileName,
             );
           } catch (fallbackErr) {
@@ -356,7 +356,7 @@ export function ParsingScreen({
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <StatusBar style="dark" animated />
       <View style={styles.container}>
         <ScrollView
@@ -574,7 +574,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   title: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 28,
     lineHeight: 32,
     letterSpacing: -0.7,
@@ -599,7 +599,7 @@ const styles = StyleSheet.create({
     borderColor: '#F8B4B4',
   },
   errorTitle: {
-    fontFamily: 'GeneralSans-SemiBold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 13,
     color: '#8F3B3B',
   },

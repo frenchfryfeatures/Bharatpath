@@ -214,7 +214,7 @@ function QuestionnaireForm({
 
             <div className="flex max-w-3xl items-center gap-3 rounded-xl bg-[#F7EFD9] px-4 py-3 text-[14px] text-[#3A4761]">
               <Info size={18} aria-hidden="true" className="shrink-0" />
-              These answers never change your resume score.
+              These answers never change your Bharatpath Score.
             </div>
 
             {actionError ? (
@@ -380,7 +380,7 @@ function SectionHeader({ code, start, end, total }: { code: string; start: numbe
       <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-[#A67C12]">
         {sectionTitle(code)}
       </p>
-      <h2 className="text-[22px] font-bold leading-tight text-[#0A1931]">
+      <h2 className="text-[22px] font-semibold leading-tight text-[#0A1931]">
         {sectionTitle(code)}
       </h2>
       <p className="text-[14px] text-[#5F6B80]">

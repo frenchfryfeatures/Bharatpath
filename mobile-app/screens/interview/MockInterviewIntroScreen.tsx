@@ -1,3 +1,4 @@
+import { useScreenRefresh } from '@/hooks/useScreenRefresh';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -63,6 +64,8 @@ export function MockInterviewIntroScreen({ onBack }: Props) {
       setLoading(false);
     }
   }, []);
+  // Pull-to-refresh, and a quiet refetch on every return (2026-11-23).
+  const { refreshing: pulling, onRefresh: pullToRefresh } = useScreenRefresh(load);
 
   useEffect(() => {
     load();
@@ -80,7 +83,7 @@ export function MockInterviewIntroScreen({ onBack }: Props) {
   const handlePurchase = async () => {
     if (!offer) return;
     if (offer.requires_acknowledgement && !acknowledgedNoScore) {
-      setError('Please acknowledge that this practice session will not increase your score.');
+      setError('Please acknowledge that this practice session will not increase your Bharatpath Score.');
       return;
     }
 
@@ -161,7 +164,7 @@ export function MockInterviewIntroScreen({ onBack }: Props) {
   const priceDisplay = formatMinor(offer?.price_minor ?? 34900);
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       {/* Top Header */}
       <View style={styles.header}>
         <Pressable style={styles.backBtn} onPress={goBack}>
@@ -172,7 +175,7 @@ export function MockInterviewIntroScreen({ onBack }: Props) {
 
       <ScrollView
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
+        refreshControl={<RefreshControl refreshing={pulling} onRefresh={pullToRefresh} />}
         showsVerticalScrollIndicator={false}
       >
         {loading && !offer ? (
@@ -230,7 +233,7 @@ export function MockInterviewIntroScreen({ onBack }: Props) {
 
                   <Text style={styles.heroTitle}>Practise Before It Counts</Text>
                   <Text style={styles.heroSubtitle}>
-                    Answer 6 adaptive questions with real-time speech evaluation, instant feedback, and candidate score calibration.
+                    Answer 6 adaptive questions with real-time speech evaluation, instant feedback, and candidate Bharatpath Score calibration.
                   </Text>
                 </View>
 
@@ -279,7 +282,7 @@ export function MockInterviewIntroScreen({ onBack }: Props) {
                       <ShieldCheck size={20} color="#5F4DB2" weight="duotone" />
                     </View>
                     <View style={styles.featureContent}>
-                      <Text style={styles.featureTitle}>Score Calibration</Text>
+                      <Text style={styles.featureTitle}>Bharatpath Score calibration</Text>
                       <Text style={styles.featureDesc}>
                         {offer.will_increase_score
                           ? 'Successful completion moves you toward the next readiness band.'
@@ -294,9 +297,9 @@ export function MockInterviewIntroScreen({ onBack }: Props) {
                   <View style={styles.ackCard}>
                     <View style={styles.ackRow}>
                       <View style={styles.ackTextCol}>
-                        <Text style={styles.ackTitle}>Score Cap Reached</Text>
+                        <Text style={styles.ackTitle}>Bharatpath Score cap reached</Text>
                         <Text style={styles.ackDesc}>
-                          You have completed the maximum scored sessions. This session is for practice only and will not change your score.
+                          You have completed the maximum scored sessions. This session is for practice only and will not change your Bharatpath Score.
                         </Text>
                       </View>
                       <Switch
@@ -462,7 +465,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 16,
     color: '#0A1931',
   },
@@ -536,7 +539,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   openSessionTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 16,
     color: '#0A1931',
   },
@@ -587,7 +590,7 @@ const styles = StyleSheet.create({
     color: '#92400E',
   },
   heroTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 22,
     lineHeight: 28,
     color: '#FFFFFF',
@@ -608,7 +611,7 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   sectionHeading: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 11,
     letterSpacing: 1.2,
     color: '#64748B',
@@ -632,7 +635,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   featureTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 14,
     color: '#0A1931',
   },
@@ -661,7 +664,7 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   ackTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 13,
     color: '#92400E',
   },
@@ -758,7 +761,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   readyTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 20,
     color: '#0A1931',
   },

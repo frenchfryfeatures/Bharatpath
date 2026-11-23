@@ -105,20 +105,71 @@ export function stageLabel(stage: ApplicationStatus): string {
   }[stage];
 }
 
+/** Withdrawn, not selected or expired: closed without a hire. */
+export function isClosedWithoutHire(stage: ApplicationStatus): boolean {
+  return stage === "REJECTED" || stage === "WITHDRAWN" || stage === "EXPIRED";
+}
+
+/**
+ * "Stage N of 5" for an open application or a hire. A closed one has no
+ * stage on the bar (0): it did not finish the pipeline, so it must not read
+ * as "5 of 5" (2026-11-23).
+ */
 export function stageIndex(stage: ApplicationStatus): number {
-  if (stage === "REJECTED" || stage === "WITHDRAWN" || stage === "EXPIRED") {
-    return 5;
-  }
+  if (isClosedWithoutHire(stage)) return 0;
   const index = STAGE_ORDER.indexOf(stage);
   if (index < 0) return 1;
   return Math.min(5, index + 1);
 }
 
-export function applicationTimeline(application: JobApplication) {
-  const labels = ["Applied", "Profile viewed", "Shortlisted", "Interview", "Decision"];
-  const current = stageIndex(application.stage);
-  return labels.map((label, index) => ({
+const PIPELINE_LABELS = ["Applied", "Profile viewed", "Shortlisted", "Interview", "Decision"] as const;
+const CLOSED_LABELS: Partial<Record<ApplicationStatus, string>> = {
+  WITHDRAWN: "Withdrawn by you",
+  REJECTED: "Not selected",
+  EXPIRED: "Closed with no response",
+};
+
+export type TimelineStep = {
+  label: string;
+  /** `ended`: where a withdrawn, rejected or expired application closed. */
+  state: "done" | "current" | "pending" | "ended";
+  reached: boolean;
+};
+
+/**
+ * The timeline shows only what actually happened (2026-11-23), the same
+ * rule as the mobile app's `utils/applicationTimeline.ts`. An open
+ * application: done, current, still to come. A closed one: the stages it
+ * really reached (from its history), then how it ended -- withdrawing
+ * straight after applying is "Applied", "Withdrawn by you". A hire
+ * completes every stage.
+ */
+export function applicationTimeline(application: JobApplication): TimelineStep[] {
+  const pipeline = STAGE_ORDER.slice(0, PIPELINE_LABELS.length);
+  const indexOf = (stage: ApplicationStatus | null | undefined) =>
+    stage ? pipeline.indexOf(stage) : -1;
+  const step = (label: string, state: TimelineStep["state"]): TimelineStep => ({
     label,
-    reached: index < current,
-  }));
+    state,
+    reached: state === "done",
+  });
+  const stage = application.stage;
+
+  if (stage === "HIRED") return PIPELINE_LABELS.map((label) => step(label, "done"));
+
+  if (!isClosedWithoutHire(stage)) {
+    const current = Math.max(0, indexOf(stage));
+    return PIPELINE_LABELS.map((label, index) =>
+      step(label, index < current ? "done" : index === current ? "current" : "pending"),
+    );
+  }
+
+  let reached = 0;
+  for (const event of application.history ?? []) {
+    reached = Math.max(reached, indexOf(event.toStage), indexOf(event.fromStage));
+  }
+  return [
+    ...PIPELINE_LABELS.slice(0, reached + 1).map((label) => step(label, "done")),
+    step(CLOSED_LABELS[stage] ?? "Closed", "ended"),
+  ];
 }

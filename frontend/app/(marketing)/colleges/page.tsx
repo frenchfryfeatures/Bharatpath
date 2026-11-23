@@ -105,7 +105,7 @@ export default function CollegesPage() {
                 >
                   <Icon className="h-5 w-5" aria-hidden="true" />
                 </span>
-                <h3 className="mt-4 text-[18px] font-bold leading-snug tracking-[-0.02em]">{title}</h3>
+                <h3 className="mt-4 text-[18px] font-semibold leading-snug tracking-[-0.02em]">{title}</h3>
                 <p className={`mt-2 text-[14px] leading-relaxed ${i === 0 ? "text-white/85" : "text-muted"}`}>{body}</p>
               </div>
             </li>
@@ -120,7 +120,7 @@ export default function CollegesPage() {
             <span className="inline-flex items-center gap-1.5 rounded-full bg-paper px-3.5 py-1 text-[13px] font-semibold text-gold-ink">
               <Award className="h-4 w-4" aria-hidden="true" /> College Seat Model
             </span>
-            <h2 id="seat-value" className="mt-4 text-[28px] font-bold leading-[1.08] tracking-[-0.03em] sm:text-[38px]">
+            <h2 id="seat-value" className="mt-4 text-[28px] font-semibold leading-[1.08] tracking-[-0.03em] sm:text-[38px]">
               What one college seat unlocks for your student
             </h2>
             <p className="mt-3 text-[16px] text-body sm:text-[17px]">

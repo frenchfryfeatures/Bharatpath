@@ -11,7 +11,8 @@ from pydantic import Field, model_validator
 from app.core.schemas import ApiSchema
 from app.modules.candidate.domain import normalise_city
 from app.modules.candidate.onboarding_policy import field_rules, matches
-from app.modules.jobs.domain import MatchTerms
+from app.modules.candidate.preferences import JobPreferences
+from app.modules.jobs.domain import MatchTerms, education_rank
 
 Text = Annotated[str, Field(max_length=300)]
 
@@ -158,7 +159,12 @@ def missing_required(details: CareerDetails) -> list[str]:
     return missing
 
 
-def match_terms(details: CareerDetails, *, city: str | None = None) -> MatchTerms:
+def match_terms(
+    details: CareerDetails,
+    *,
+    city: str | None = None,
+    preferences: JobPreferences | None = None,
+) -> MatchTerms:
     """What "jobs that fit your profile" matches on (2026-10-09).
 
     Skills, the roles the candidate names, where they want to work and how
@@ -178,12 +184,69 @@ def match_terms(details: CareerDetails, *, city: str | None = None) -> MatchTerm
         experience = details.experience_years * 12 + details.experience_months
     else:
         experience = None
+    # Only what the candidate *wants* to earn, and only in rupees: their
+    # current pay is never read, and amounts are never converted (2026-11-23).
+    preferred = (
+        details.preferred_salary * 100
+        if details.preferred_salary and details.preferred_salary_currency == "INR"
+        else None
+    )
+    # The Preferences tab (2026-11-23) comes first in each list: what someone
+    # says they want outranks what they have done, and the caps keep the first.
+    wanted = preferences or JobPreferences()
     return MatchTerms.build(
         skills=details.key_skills,
-        titles=[details.job_role, details.job_title, details.role_category],
+        titles=[
+            *wanted.preferred_roles,
+            details.job_role,
+            details.job_title,
+            details.role_category,
+        ],
         locations=[*details.preferred_locations, details.current_city or city or ""],
         experience_months=experience,
+        preferred_annual_salary_minor=preferred,
+        industries=[
+            *wanted.preferred_industries,
+            *([details.industry] if details.industry else []),
+        ],
+        education_level=education_level_of(details.highest_qualification),
+        fresher=details.work_status == "FRESHER",
+        work_modes=wanted.work_modes,
+        job_types=wanted.job_types,
+        open_to_relocation=wanted.open_to_relocation,
     )
+
+
+#: The education taxonomy's qualification names, read as the job composer's
+#: minimum-education levels. First match wins, most specific first.
+_QUALIFICATION_LEVELS: tuple[tuple[str, str], ...] = (
+    ("below 10", "NONE"),
+    ("doctor", "DOCTORATE"),
+    ("phd", "DOCTORATE"),
+    ("post grad", "POST_GRADUATE"),
+    ("master", "POST_GRADUATE"),
+    ("graduat", "GRADUATE"),
+    ("bachelor", "GRADUATE"),
+    ("professional", "GRADUATE"),
+    ("diploma", "DIPLOMA"),
+    ("polytechnic", "DIPLOMA"),
+    ("iti", "DIPLOMA"),
+    ("vocational", "DIPLOMA"),
+    ("12", "CLASS_12"),
+    ("10", "CLASS_10"),
+)
+
+
+def education_level_of(qualification: str) -> int | None:
+    """`jobs.domain.education_rank` of a highest qualification, or None when
+    it names nothing we recognise -- unknown is left out, never guessed."""
+    text = qualification.strip().lower()
+    if not text:
+        return None
+    for needle, level in _QUALIFICATION_LEVELS:
+        if needle in text:
+            return education_rank(level)
+    return None
 
 
 def form_fields() -> list[dict[str, Any]]:

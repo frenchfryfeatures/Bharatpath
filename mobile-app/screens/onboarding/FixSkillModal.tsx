@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { AppModal as Modal } from '@/components/layout/AppModal';
 import {
   View,
   Text,
   StyleSheet,
-  Modal,
   Pressable,
   TextInput,
   KeyboardAvoidingView,
@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   sheetTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 20,
     lineHeight: 24,
     letterSpacing: -0.4,

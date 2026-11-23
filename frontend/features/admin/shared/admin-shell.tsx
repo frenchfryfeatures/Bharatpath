@@ -58,7 +58,7 @@ export function AdminPage({
   return (
     <div className="mx-auto w-full max-w-7xl px-5 py-8">
       <header className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
         <p className="mt-1 text-sm text-[#7b8494]">{subtitle}</p>
       </header>
       {children}
@@ -86,7 +86,7 @@ export function Drawer({
       <button type="button" className="absolute inset-0 cursor-default" aria-label="Close drawer" onClick={onClose} />
       <section className="relative h-full w-full max-w-xl overflow-y-auto bg-white p-6 shadow-xl">
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-lg font-bold">{title}</h2>
+          <h2 className="text-lg font-semibold">{title}</h2>
           <button type="button" onClick={onClose} className="rounded-lg p-2 text-[#687182] hover:bg-[#f5f6f8]" aria-label="Close">
             <X className="h-5 w-5" />
           </button>

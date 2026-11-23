@@ -54,7 +54,7 @@ const PERSONAS = [
 
 const READINESS_CRUX = [
   {
-    title: "You approve your CV before any score exists",
+    title: "You approve your CV before any Bharatpath Score exists",
     body: "Nothing is scored behind your back. You review every line we read from your CV and confirm it first, so a typo or scan error never defines you.",
   },
   {
@@ -126,7 +126,7 @@ export default function StudentsPage() {
                 >
                   <Icon className="h-5 w-5" aria-hidden="true" />
                 </span>
-                <h3 className="mt-5 text-[19px] font-bold leading-snug tracking-[-0.02em]">{title}</h3>
+                <h3 className="mt-5 text-[19px] font-semibold leading-snug tracking-[-0.02em]">{title}</h3>
                 <p className={`mt-2.5 text-[15px] ${i === 0 ? "text-white/85" : "text-muted"}`}>{body}</p>
               </div>
               <p
@@ -151,7 +151,7 @@ export default function StudentsPage() {
               </span>
               <h2
                 id="readiness-heading"
-                className="mt-4 text-[28px] font-bold leading-[1.08] tracking-[-0.03em] sm:text-[38px]"
+                className="mt-4 text-[28px] font-semibold leading-[1.08] tracking-[-0.03em] sm:text-[38px]"
               >
                 Understand your Readiness Profile
               </h2>
@@ -266,7 +266,7 @@ export default function StudentsPage() {
           body="Check in daily to build your career streak and earn milestone rewards at 30, 90 and 365 days. And if your college is on BharatPath, link with its code to claim a college-sponsored seat."
           points={[
             "Daily IST check-in calendar & streak milestones",
-            "Streak points stay separate from your readiness score",
+            "Streak points stay separate from your Bharatpath Score",
             "Link with your college code for seat-covered access",
             "Share your name with your college only if you choose",
           ]}
@@ -289,7 +289,7 @@ export default function StudentsPage() {
               <span className="inline-flex rounded-full bg-sand px-3 py-1 text-[13px] font-semibold text-body">
                 Always free for everyone
               </span>
-              <h3 className="mt-4 text-[24px] font-bold tracking-[-0.025em]">Build, review and explore</h3>
+              <h3 className="mt-4 text-[24px] font-semibold tracking-[-0.025em]">Build, review and explore</h3>
               <ul className="mt-6 space-y-3.5">
                 {FREE_ITEMS.map((item) => (
                   <li key={item} className="flex items-start gap-3 text-[15px] text-body">
@@ -306,7 +306,7 @@ export default function StudentsPage() {
               <span className="inline-flex rounded-full bg-lavender px-3 py-1 text-[13px] font-semibold text-purple-deep">
                 Candidate plan or College seat
               </span>
-              <h3 className="mt-4 text-[24px] font-bold tracking-[-0.025em]">Score, apply and get discovered</h3>
+              <h3 className="mt-4 text-[24px] font-semibold tracking-[-0.025em]">Get your Bharatpath Score and get discovered</h3>
               <ul className="mt-6 space-y-3.5">
                 {UNLOCKED_ITEMS.map((item) => (
                   <li key={item} className="flex items-start gap-3 text-[15px] text-body">

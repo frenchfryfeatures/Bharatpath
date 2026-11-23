@@ -27,8 +27,10 @@ from sqlalchemy import (
     DateTime,
     String,
     Text,
+    and_,
     bindparam,
     column,
+    exists,
     false,
     func,
     literal,
@@ -36,12 +38,14 @@ from sqlalchemy import (
     select,
     table,
     text,
+    true,
     tuple_,
 )
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.models import ConfigValue
 from app.modules.applications.domain import STAGES
 from app.modules.jobs.domain import MatchTerms
 from app.modules.jobs.models import JOB_STATES, Job
@@ -81,11 +85,19 @@ async def get_job(session: AsyncSession, *, tenant_id: uuid.UUID, job_id: uuid.U
 
 
 def _has_skill(skill: str) -> Any:
-    """The job asks for `skill`, compared case-insensitively and whole."""
+    """The job asks for `skill` (or any of comma-separated skills), compared
+    case-insensitively and whole."""
+    skills = [part.strip().lower() for part in skill.split(",") if part.strip()]
+    if len(skills) <= 1:
+        target = skills[0] if skills else skill.lower()
+        return text(
+            "EXISTS (SELECT 1 FROM jsonb_array_elements_text(jobs.skills) AS s(name) "
+            "WHERE lower(s.name) = :skill)"
+        ).bindparams(skill=target)
     return text(
         "EXISTS (SELECT 1 FROM jsonb_array_elements_text(jobs.skills) AS s(name) "
-        "WHERE lower(s.name) = lower(:skill))"
-    ).bindparams(skill=skill)
+        "WHERE lower(s.name) = ANY(:skills))"
+    ).bindparams(bindparam("skills", value=skills, type_=ARRAY(Text)))
 
 
 def _employer_job_filters(
@@ -166,6 +178,33 @@ _applications = table(
     column("candidate_id", PGUUID(as_uuid=True)),
     column("created_at", DateTime(timezone=True)),
 )
+
+# Read-only view of `candidate_profiles` for re-ranking the candidate's own
+# job board without importing the `candidate` module (same boundary rule as
+# `_applications` and `_employers`).
+_candidate_profiles = table(
+    "candidate_profiles",
+    column("user_id", PGUUID(as_uuid=True)),
+    column("city", String),
+    column("career", JSONB),
+)
+
+
+async def candidate_career_snapshot(
+    session: AsyncSession, *, candidate_id: uuid.UUID
+) -> tuple[str | None, dict[str, Any]]:
+    """Return `(city, career_json)` for the signed-in candidate, or `(None, {})`."""
+    row = (
+        await session.execute(
+            select(_candidate_profiles.c.city, _candidate_profiles.c.career)
+            .where(_candidate_profiles.c.user_id == candidate_id)
+            .limit(1)
+        )
+    ).first()
+    if row is None:
+        return None, {}
+    career = row.career if isinstance(row.career, dict) else {}
+    return row.city, career
 
 #: Every stage at zero. A stage missing from the map would leave a caller
 #: guessing whether nobody is at it or it has stopped existing.
@@ -285,6 +324,56 @@ def _contains(value: str) -> str:
     return f"%{escaped}%"
 
 
+#: Read-only, three columns: the name a candidate searches by. `jobs` may
+#: not import `employer`'s models, and needs nothing else of the row.
+_employers = table(
+    "employers",
+    column("tenant_id", PGUUID(as_uuid=True)),
+    column("legal_name", String),
+    column("trade_name", String),
+)
+
+
+def _matches_query(query: str) -> Any:
+    """The board's search box (widened 2026-11-23): every word must appear in
+    the title, description, location, a skill, or the employer's name.
+
+    Before, `q` read only the title and description, so typing a company, a
+    city or a skill found nothing whenever the description did not repeat
+    it. The employer name is read through `employers` under whatever policy
+    the caller bound -- for a candidate, `employers_candidate_board`, which
+    shows only employers with a job they can see.
+    """
+    clauses: list[Any] = []
+    for word in query.split()[:8]:
+        pattern = _contains(word)
+        skill = func.jsonb_array_elements_text(Job.skills).table_valued("value").alias("qs")
+        clauses.append(
+            or_(
+                Job.title.ilike(pattern, escape="\\"),
+                Job.description.ilike(pattern, escape="\\"),
+                Job.location.ilike(pattern, escape="\\"),
+                exists(
+                    select(literal(1))
+                    .select_from(skill)
+                    .where(skill.c.value.ilike(pattern, escape="\\"))
+                ),
+                exists(
+                    select(literal(1))
+                    .where(
+                        _employers.c.tenant_id == Job.tenant_id,
+                        or_(
+                            _employers.c.legal_name.ilike(pattern, escape="\\"),
+                            _employers.c.trade_name.ilike(pattern, escape="\\"),
+                        ),
+                    )
+                    .correlate(Job)
+                ),
+            )
+        )
+    return and_(*clauses) if clauses else true()
+
+
 def _listed() -> Any:
     """Only PUBLIC jobs are searchable. PRIVATE and INVITE_ONLY jobs are
     published but unlisted: reachable by id (a shared link, an invitation),
@@ -317,12 +406,13 @@ async def search_board(
     """
     stmt = select(Job).where(Job.status == "PUBLISHED", _listed())
     if query:
-        pattern = _contains(query)
-        stmt = stmt.where(
-            or_(Job.title.ilike(pattern, escape="\\"), Job.description.ilike(pattern, escape="\\"))
-        )
+        stmt = stmt.where(_matches_query(query))
     if location:
-        stmt = stmt.where(Job.location.ilike(_contains(location), escape="\\"))
+        cities = [part.strip() for part in location.split(",") if part.strip()]
+        if len(cities) == 1:
+            stmt = stmt.where(Job.location.ilike(_contains(cities[0]), escape="\\"))
+        elif len(cities) > 1:
+            stmt = stmt.where(or_(*[Job.location.ilike(_contains(c), escape="\\") for c in cities]))
     if work_mode:
         stmt = stmt.where(Job.work_mode == work_mode)
     if skill:
@@ -344,6 +434,28 @@ async def search_board(
         stmt.order_by(Job.published_at.desc(), Job.id.desc()).limit(limit)
     )
     return list(result.scalars().all())
+
+
+async def board_skills(session: AsyncSession, *, query: str | None, limit: int) -> list[str]:
+    """Skills that listed, published jobs ask for, most asked-for first
+    (2026-11-23). For the candidate's filter: every option leads to at
+    least one job. One spelling per skill, compared case-insensitively.
+    Job skills are what employers published; nothing here is a candidate's.
+    """
+    skill = func.jsonb_array_elements_text(Job.skills).table_valued("value").alias("bs")
+    key = func.lower(func.btrim(skill.c.value))
+    stmt = (
+        select(func.min(func.btrim(skill.c.value)).label("label"))
+        .select_from(Job)
+        .join(skill, true())
+        .where(Job.status == "PUBLISHED", _listed(), func.btrim(skill.c.value) != "")
+        .group_by(key)
+        .order_by(func.count(func.distinct(Job.id)).desc(), key)
+        .limit(limit)
+    )
+    if query:
+        stmt = stmt.where(skill.c.value.ilike(_contains(query.strip()), escape="\\"))
+    return [str(row) for row in (await session.execute(stmt)).scalars().all()]
 
 
 async def get_board_job(session: AsyncSession, *, job_id: uuid.UUID) -> Job | None:
@@ -389,8 +501,8 @@ def _shares_a_term(terms: MatchTerms) -> Any:
                 "WHERE lower(btrim(s.name)) = ANY(:rec_skills))"
             ).bindparams(bindparam("rec_skills", sorted(terms.skills), type_=ARRAY(Text)))
         )
-    if terms.title_words:
-        pattern = r"\m(" + "|".join(sorted(terms.title_words)) + r")\M"
+    if terms.narrowing_words:
+        pattern = r"\m(" + "|".join(sorted(terms.narrowing_words)) + r")\M"
         clauses.append(func.lower(Job.title).regexp_match(pattern))
     return or_(*clauses) if clauses else false()
 
@@ -490,3 +602,14 @@ async def recently_applied_job_ids(
         .limit(limit)
     )
     return list(rows.scalars().all())
+
+
+async def current_config(session: AsyncSession, *, key: str, now: datetime) -> ConfigValue | None:
+    """The highest version of a config key in effect by `now`."""
+    result = await session.execute(
+        select(ConfigValue)
+        .where(ConfigValue.key == key, ConfigValue.effective_from <= now)
+        .order_by(ConfigValue.version.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()

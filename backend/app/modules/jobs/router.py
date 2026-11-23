@@ -38,6 +38,7 @@ from app.modules.jobs.domain import THRESHOLD_STEP
 from app.modules.jobs.schemas import (
     BoardJobDetail,
     BoardJobSummary,
+    BoardSkillOptions,
     CreateJobRequest,
     JobListItem,
     JobResponse,
@@ -216,11 +217,11 @@ async def search_board(
     user: CurrentUser,
     session: DbSession,
     q: Annotated[
-        str | None, Query(max_length=100, description="Words in the title or description")
+        str | None, Query(max_length=100, description="Title, text, place, skill, employer")
     ] = None,
-    location: Annotated[str | None, Query(max_length=100)] = None,
+    location: Annotated[str | None, Query(max_length=300)] = None,
     work_mode: WorkMode | None = None,
-    skill: Annotated[str | None, Query(max_length=80)] = None,
+    skill: Annotated[str | None, Query(max_length=300)] = None,
     min_salary_minor: Annotated[int | None, Query(ge=0, description="Paise")] = None,
     eligible_only: bool = False,
     cursor: Annotated[str | None, Query(max_length=512)] = None,
@@ -244,6 +245,25 @@ async def search_board(
         eligible_only=eligible_only,
         cursor=cursor,
         limit=limit,
+    )
+
+
+@candidate_router.get(
+    "/skills",
+    response_model=BoardSkillOptions,
+    dependencies=PayingCandidate,
+    summary="Skills to filter the board by",
+)
+async def board_skills(
+    user: CurrentUser,
+    session: DbSession,
+    q: Annotated[str | None, Query(max_length=80, description="Part of a skill")] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+) -> BoardSkillOptions:
+    """Skills published jobs ask for, most asked-for first. Declared before
+    `/{job_id}` so the literal path is not read as a job id."""
+    return BoardSkillOptions(
+        items=await service.board_skills(session, ctx=user, query=q, limit=limit)
     )
 
 

@@ -28,7 +28,7 @@ export function AddPaymentMethodModal() {
       >
         <div className="mb-[18px] flex items-start justify-between gap-3">
           <div>
-            <h3 className="m-0 text-[15px] font-bold">
+            <h3 className="m-0 text-[15px] font-semibold">
               Add payment method
             </h3>
             <p className="mt-0.5 text-xs leading-4 text-[#718096]">

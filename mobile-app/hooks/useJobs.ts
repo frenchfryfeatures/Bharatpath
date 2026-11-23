@@ -8,6 +8,7 @@
  * `eligibility` is the only signal a candidate gets (R11). Never show the
  * threshold or the gap.
  */
+import { readScreenCache, writeScreenCache } from '@/services/cache/screenCache';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { searchJobs } from '@/services/api/jobs';
 import { ApiError } from '@/services/api/client';
@@ -21,8 +22,11 @@ import {
 export interface UseJobsResult {
   /** All jobs loaded so far across pages. */
   jobs: BoardJobSummary[];
-  /** True while the first page is loading. */
+  /** True only while the very first page is loading (nothing to show yet). */
   loading: boolean;
+  /** A search or filter change is fetching; the previous results stay on
+   *  screen until the new ones arrive (2026-11-23). */
+  searching: boolean;
   /** True while an additional page is loading (infinite scroll). */
   loadingMore: boolean;
   /** True when `next_cursor` is null - no more pages. */
@@ -44,7 +48,9 @@ export interface UseJobsResult {
   /** Reset filters and search to defaults and reload. */
   reset: () => void;
   /** Reload from page 1 with current search + filters. */
-  reload: () => void;
+  reload: () => Promise<void>;
+  /** Reload page 1 without showing the loading state (focus refresh). */
+  refreshSilently: () => Promise<void>;
 }
 
 /** Map the UI filter state to the backend query params. */
@@ -90,33 +96,52 @@ function errorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+const JOBS_CACHE_KEY = 'jobs:first-page';
+
 export function useJobs(): UseJobsResult {
-  const [jobs, setJobs] = useState<BoardJobSummary[]>([]);
-  const [loading, setLoading] = useState(true);
+  // The unfiltered first page from the last visit, if any: drawn at once,
+  // then refreshed in the background (2026-11-23).
+  const cachedFirstPage = readScreenCache<{ items: BoardJobSummary[]; next: string | null }>(JOBS_CACHE_KEY);
+  const [jobs, setJobs] = useState<BoardJobSummary[]>(cachedFirstPage?.items ?? []);
+  const [loading, setLoading] = useState(!cachedFirstPage);
+  const [searching, setSearching] = useState(false);
+  const hasLoadedOnce = useRef(Boolean(cachedFirstPage));
   const [loadingMore, setLoadingMore] = useState(false);
-  const [hasReachedEnd, setHasReachedEnd] = useState(false);
+  const [hasReachedEnd, setHasReachedEnd] = useState(Boolean(cachedFirstPage && !cachedFirstPage.next));
   const [error, setError] = useState<string | null>(null);
   const [search, setSearchState] = useState('');
   const [filters, setFiltersState] = useState<JobFilters>(DEFAULT_JOB_FILTERS);
 
   // The cursor for the next page. Stored in a ref so loadMore doesn't need it
   // as a dependency and doesn't re-trigger the load effect.
-  const nextCursorRef = useRef<string | null>(null);
+  const nextCursorRef = useRef<string | null>(cachedFirstPage?.next ?? null);
+  // The opening load refreshes cached data quietly (no dimming).
+  const openingLoad = useRef(Boolean(cachedFirstPage));
   // A token to ignore stale responses when search/filters change mid-flight.
   const loadTokenRef = useRef(0);
 
   const loadFirstPage = useCallback(
-    async (searchText: string, currentFilters: JobFilters) => {
+    async (searchText: string, currentFilters: JobFilters, silent = false) => {
       const token = ++loadTokenRef.current;
-      setLoading(true);
+      // The full loading state is for the first page only. After that a new
+      // search keeps the current results visible and marks them `searching`,
+      // so the screen never blanks while someone types. `silent` (a refetch
+      // on return to the screen) shows nothing at all.
+      if (!hasLoadedOnce.current) setLoading(true);
+      else if (!silent) setSearching(true);
       setError(null);
       try {
         const page = await searchJobs(
           filtersToQuery(searchText, currentFilters),
         );
         if (token !== loadTokenRef.current) return; // stale
+        hasLoadedOnce.current = true;
         setJobs(page.items);
         nextCursorRef.current = page.next_cursor;
+        // Only the default view is cached: it is what the screen opens with.
+        if (!searchText.trim() && filtersEqual(currentFilters, DEFAULT_JOB_FILTERS)) {
+          writeScreenCache(JOBS_CACHE_KEY, { items: page.items, next: page.next_cursor });
+        }
         setHasReachedEnd(!page.next_cursor);
       } catch (err) {
         if (token !== loadTokenRef.current) return; // stale
@@ -125,7 +150,10 @@ export function useJobs(): UseJobsResult {
         setHasReachedEnd(true);
         setError(errorMessage(err, 'Could not load jobs. Pull to retry.'));
       } finally {
-        if (token === loadTokenRef.current) setLoading(false);
+        if (token === loadTokenRef.current) {
+          setLoading(false);
+          setSearching(false);
+        }
       }
     },
     [],
@@ -135,10 +163,11 @@ export function useJobs(): UseJobsResult {
   useEffect(() => {
     const handle = setTimeout(
       () => {
-        loadFirstPage(search, filters);
+        loadFirstPage(search, filters, openingLoad.current);
+        openingLoad.current = false;
       },
-      search ? 400 : 0,
-    ); // debounce text 400ms per S17
+      search ? 300 : 0,
+    ); // debounce typing; results stay on screen meanwhile
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, filters]);
@@ -177,12 +206,17 @@ export function useJobs(): UseJobsResult {
   }, []);
 
   const reload = useCallback(() => {
-    loadFirstPage(search, filters);
+    return loadFirstPage(search, filters);
+  }, [loadFirstPage, search, filters]);
+
+  const refreshSilently = useCallback(() => {
+    return loadFirstPage(search, filters, true);
   }, [loadFirstPage, search, filters]);
 
   return {
     jobs,
     loading,
+    searching,
     loadingMore,
     hasReachedEnd,
     error,
@@ -194,5 +228,6 @@ export function useJobs(): UseJobsResult {
     hasActiveFilters: hasActiveFiltersImpl(filters),
     reset,
     reload,
+    refreshSilently,
   };
 }

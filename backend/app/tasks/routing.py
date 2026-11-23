@@ -139,6 +139,7 @@ TASK_ARGUMENTS: Final[dict[str, Callable[[Event], dict[str, str]]]] = {
 
 #: Every module that registers a task. The worker imports exactly these.
 TASK_MODULES: Final = (
+    "app.tasks.daily_reminders",
     "app.tasks.detect_integrity",
     "app.tasks.evaluate_interview",
     "app.tasks.expire_applications",

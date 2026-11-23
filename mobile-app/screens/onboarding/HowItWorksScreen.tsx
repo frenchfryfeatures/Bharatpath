@@ -11,7 +11,7 @@ interface HowItWorksScreenProps {
 
 export function HowItWorksScreen({ onGotIt, onBack }: HowItWorksScreenProps) {
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <StatusBar style="dark" animated />
       <View style={styles.container}>
         <ScrollView
@@ -32,7 +32,7 @@ export function HowItWorksScreen({ onGotIt, onBack }: HowItWorksScreenProps) {
           <View style={styles.titleSection}>
             <Text style={styles.title}>Three steps, that's all</Text>
             <Text style={styles.subtitle}>
-              Give us your resume, check what we read, then see your score.
+              Give us your resume, check what we read, then see your Bharatpath Score.
             </Text>
           </View>
 
@@ -93,7 +93,7 @@ export function HowItWorksScreen({ onGotIt, onBack }: HowItWorksScreenProps) {
                   </View>
                   <Text style={styles.stepTitleLabel}>STEP THREE</Text>
                 </View>
-                <Text style={styles.cardTitle}>Get your score and gaps</Text>
+                <Text style={styles.cardTitle}>Get your Bharatpath Score and gaps</Text>
                 <Text style={styles.cardBody}>
                   Five categories, each explained, with the fixes worth the most points.
                 </Text>
@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   title: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 30,
     lineHeight: 34,
     letterSpacing: -0.75, // -0.025em tracking
@@ -244,14 +244,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   stepTitleLabel: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 11,
     lineHeight: 12,
     letterSpacing: 1.32, // 0.12em tracking
     color: '#566073',
   },
   cardTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 18,
     lineHeight: 23,
     letterSpacing: -0.36, // -0.02em tracking

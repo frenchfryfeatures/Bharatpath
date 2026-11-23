@@ -23,6 +23,11 @@ async def main() -> None:
         default=DEFAULT_SOURCE,
     )
     parser.add_argument("--allow-remote", action="store_true")
+    # Deploys run this on every `up` (2026-11-23): write any missing catalogue
+    # rows and touch no candidate profile. Linking old free-text answers to
+    # the catalogue (`backfill`) changes people's profiles, so it stays a
+    # deliberate, separate run without this flag.
+    parser.add_argument("--seed-only", action="store_true")
     args = parser.parse_args()
     settings = get_settings()
     if not settings.database_url_migrator:
@@ -43,7 +48,8 @@ async def main() -> None:
     try:
         async with async_sessionmaker(engine, expire_on_commit=False)() as session, session.begin():
             result = await seed(session, data)
-            result["profiles_migrated"] = await backfill(session)
+            if not args.seed_only:
+                result["profiles_migrated"] = await backfill(session)
         print(result)
     finally:
         await engine.dispose()

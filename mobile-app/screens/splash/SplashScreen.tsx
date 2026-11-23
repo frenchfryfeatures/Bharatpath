@@ -1,3 +1,4 @@
+import { BrandColors } from "@/components/BrandWordmark";
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Image, Pressable, Animated, Easing } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -162,7 +163,7 @@ export function SplashScreen({ onFinish, autoPlay = true }: SplashScreenProps) {
             />
           </Animated.View>
 
-          {/* Two-tone Wordmark: Bharat (#05255C) + Path (#FC8201) */}
+          {/* Shared navy-and-orange wordmark */}
           <Animated.View
             style={[
               styles.wordmarkWrapper,
@@ -242,15 +243,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   wordmarkBharat: {
-    color: '#05255C', // Deep Navy Blue
+    color: BrandColors.navy,
   },
   wordmarkPath: {
-    color: '#FC8201', // Saffron matching logo-safron.png
+    color: BrandColors.orange,
   },
   saffronRule: {
     height: 2,
     borderRadius: 2,
-    backgroundColor: '#FC8201', // Exact saffron color from logo-safron.png
+    backgroundColor: BrandColors.orange,
     marginTop: 22,
   },
   taglineText: {

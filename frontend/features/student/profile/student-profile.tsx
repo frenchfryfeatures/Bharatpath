@@ -13,6 +13,8 @@ import {
   ChevronRight,
   Eye,
   FileText,
+  Gift,
+  SlidersHorizontal,
   FilePenLine,
   KeyRound,
   ClipboardList,
@@ -28,6 +30,7 @@ import {
   useGetStudentProfileQuery,
   useGetStudentProfileViewsQuery,
   useGetStudentScoreQuery,
+  useGetResumeVersionsQuery,
 } from "@/store/student";
 import { employerMonogram, formatDateTime } from "@/features/student/formatters";
 import {
@@ -49,13 +52,16 @@ export function StudentProfile() {
   const accountEmail = useAppSelector((state) => state.auth.user?.email ?? "");
   const profile = useGetStudentProfileQuery();
   const score = useGetStudentScoreQuery();
+  const versions = useGetResumeVersionsQuery();
+  const currentResume = versions.data?.find((version) => version.current);
   const applications = useGetStudentApplicationCountQuery("ACTIVE");
   const courses = useGetStudentCoursesQuery();
   const isLoading =
     profile.isLoading ||
     score.isLoading ||
     applications.isLoading ||
-    courses.isLoading;
+    courses.isLoading ||
+    versions.isLoading;
   const openReportsPage = (href: string) => {
     const scrollTop = document.querySelector<HTMLElement>("main.bp-scrollbar")?.scrollTop;
     if (scrollTop !== undefined) {
@@ -86,19 +92,18 @@ export function StudentProfile() {
   return (
     <StudentPage>
       <div className="flex flex-col gap-6">
-        <ProfileInsightsCard/>
         <CareerOverview
           fullName={profile.data?.fullName ?? "Student"}
           email={accountEmail}
           summaryStats={
-            <div className="grid grid-cols-3 gap-2 sm:max-w-md">
+            <div className="grid w-full grid-cols-2 gap-3 sm:max-w-lg">
               <StatTile
                 value={
                   score.data?.status === "READY" && score.data.value != null
                     ? String(score.data.value)
                     : "-"
                 }
-                label="Score"
+                label="Bharatpath Score"
                 tone="indigo"
                 onClick={() => router.push("/student/score")}
               />
@@ -116,6 +121,7 @@ export function StudentProfile() {
           }
         >
           <div className="flex flex-col gap-4">
+            <ProfileInsightsCard />
             <section
               id="profile-reports"
               className="scroll-mt-24 rounded-[20px] border border-[#E7E0D4] bg-white p-4"
@@ -128,16 +134,30 @@ export function StudentProfile() {
               </p>
               <div className="grid gap-3 sm:grid-cols-2">
                 <ProfileAction
+                  icon={SlidersHorizontal}
+                  title="Job preferences"
+                  detail="Roles, work mode, locations and salary you want"
+                  tone="violet"
+                  onClick={() => openReportsPage("/student/profile/preferences")}
+                />
+                <ProfileAction
+                  icon={Gift}
+                  title="Add-ons"
+                  detail="Ways to earn rewards: courses, mock interviews, daily streak"
+                  tone="gold"
+                  onClick={() => openReportsPage("/student/profile/addons")}
+                />
+                <ProfileAction
                   icon={FileText}
-                  title="Resume review"
-                  detail="Review your document and scoring history"
+                  title="Bharatpath Builder"
+                  detail="Your resume, its versions and scoring history"
                   tone="violet"
                   onClick={() => openReportsPage("/student/profile/resume")}
                 />
                 <ProfileAction
                   icon={FilePenLine}
                   title="Build resume"
-                  detail="Choose a template, edit details and update your score"
+                  detail="Choose a template, edit details and update your Bharatpath Score"
                   tone="violet"
                   onClick={() => setResumeTemplatePromptOpen(true)}
                 />
@@ -196,7 +216,7 @@ export function StudentProfile() {
                 <Eye size={20} className="text-[#5F4DB2]" />
                 <span className="flex flex-1 flex-col">
                   <span className="text-[15px] font-medium text-[#0A1931]">
-                    Who has seen me
+                    Profile views
                   </span>
                   <span className="text-[12px] text-[#5F6B80]">
                     See which employers opened your profile
@@ -239,6 +259,8 @@ export function StudentProfile() {
         pool="CANDIDATE"
       />
       <ResumeTemplateDialog
+        key={`${resumeTemplatePromptOpen}-${currentResume?.resumeVersionId ?? "new"}`}
+        fromUpload={Boolean(currentResume) && currentResume?.source !== "BUILDER"}
         open={resumeTemplatePromptOpen}
         onClose={() => setResumeTemplatePromptOpen(false)}
         onKeep={() => { setResumeTemplatePromptOpen(false); openReportsPage("/student/profile/resume/edit?template=keep&from=profile"); }}
@@ -405,7 +427,7 @@ function StatTile({
       className={[
         "flex min-w-0 flex-1 flex-col gap-1 rounded-2xl border p-3 text-left",
         indigo
-          ? "border-[#5F4DB2] bg-[#5F4DB2] text-white"
+          ? "col-span-2 gap-2 border-[#5F4DB2] bg-[#5F4DB2] p-5 text-white"
           : "border-[#E7E0D4] bg-white text-[#0A1931]",
         onClick
           ? indigo
@@ -414,13 +436,14 @@ function StatTile({
           : "cursor-default",
       ].join(" ")}
     >
-      <span className="text-[22px] font-extrabold leading-6">{value}</span>
+      {indigo && <span className="text-[18px] font-semibold leading-6">{label}</span>}
+      <span className={indigo ? "text-[44px] font-semibold leading-[50px] tracking-[-0.03em]" : "text-[22px] font-bold leading-6"}>{value}{indigo && value !== "-" && <span className="ml-2 text-[16px] font-medium tracking-normal text-[#E0DBF4]">/ 1000</span>}</span>
       <span
         className={
           indigo ? "text-[12px] text-[#E0DBF4]" : "text-[12px] text-[#5F6B80]"
         }
       >
-        {label}
+        {indigo ? value === "-" ? "Your Bharatpath Score is being prepared" : "Explore your readiness band" : label}
       </span>
     </button>
   );

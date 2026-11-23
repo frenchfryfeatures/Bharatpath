@@ -25,6 +25,8 @@ export function useResumeBuilderDraft(api: ResumeBuilderApi = service, initialCo
   const [recovery, setRecovery] = useState<BuilderDraft | null>(null);
   const queue = useRef<ResumeDraftQueue<BuilderDraft> | null>(null);
   const latest = useRef<BuilderDraft | null>(null);
+  // The draft as this editing session found it: what Cancel goes back to.
+  const opened = useRef<BuilderDraft | null>(null);
   const mounted = useRef(true);
   const generation = useRef(0);
   const flash = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -44,6 +46,7 @@ export function useResumeBuilderDraft(api: ResumeBuilderApi = service, initialCo
         return;
       const initial = { template_key: response.template_key, content: initialDocument.current || response.content };
       latest.current = initial;
+      opened.current = { template_key: response.template_key, content: response.content };
       setDraft(initial);
       setTemplates(catalogue.templates);
       setTemplateVersion(catalogue.version);
@@ -113,7 +116,21 @@ export function useResumeBuilderDraft(api: ResumeBuilderApi = service, initialCo
     queue.current?.enqueue(value);
   }, [backup]);
   const flush = useCallback(async () => { await queue.current?.flush(); }, []);
+  /** Edited since this session opened the builder? */
+  const hasChanges = useCallback(
+    () => Boolean(latest.current && opened.current && JSON.stringify(latest.current) !== JSON.stringify(opened.current)),
+    [],
+  );
+  /** Put the saved draft back as this session found it, and save that. The
+   *  resume itself (any pushed version) is a separate record and untouched. */
+  const discardChanges = useCallback(async () => {
+    if (!opened.current) return;
+    update(opened.current);
+    await queue.current?.flush();
+    await backup(null).catch(() => { });
+  }, [update, backup]);
   return {
+    hasChanges, discardChanges,
     draft, templates, templateVersion, loading, error, status, recovery, load, update, flush, outOfDate, setOutOfDate,
     getLatest: () => latest.current,
     restore: () => {

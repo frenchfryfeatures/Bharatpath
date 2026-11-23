@@ -32,7 +32,7 @@ export function CtaOpen({
     <section aria-labelledby="cta-heading" className="shell py-10 sm:py-14">
       <div className="grid gap-10 rounded-[28px] bg-lilac px-6 py-12 sm:px-10 lg:grid-cols-2 lg:items-center lg:gap-12 lg:px-14 lg:py-16">
         <div>
-          <h2 id="cta-heading" className="max-w-[14ch] text-[36px] font-bold leading-[1.02] tracking-[-0.04em] sm:text-[52px] 2xl:text-[60px]">
+          <h2 id="cta-heading" className="max-w-[14ch] text-[36px] font-semibold leading-[1.02] tracking-[-0.04em] sm:text-[52px] 2xl:text-[60px]">
             {title}
           </h2>
           <p className="mt-4 max-w-[42ch] text-[17px] text-body">

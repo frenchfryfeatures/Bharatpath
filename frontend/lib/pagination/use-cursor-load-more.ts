@@ -20,6 +20,8 @@ export interface CursorLoadMore<TItem> {
   /** First-page load. */
   isLoading: boolean;
   isLoadingMore: boolean;
+  isRefreshing: boolean;
+  refresh: () => void;
   error: unknown;
   hasMore: boolean;
   loadMore: () => void;
@@ -30,11 +32,15 @@ export function useCursorLoadMore<TItem>(
   fetchPage: (cursor: string | undefined) => Promise<CursorPageResult<TItem>>,
   resetKeys: readonly unknown[] = [],
   enabled = true,
+  { keepPreviousData = false, refreshOnFocus = false } = {},
 ): CursorLoadMore<TItem> {
   const [items, setItems] = useState<TItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const hasLoadedRef = useRef(false);
+  const initialPendingRef = useRef(true);
   const [error, setError] = useState<unknown>(null);
   const [reloadToken, setReloadToken] = useState(0);
   const loadingMoreRef = useRef(false);
@@ -46,6 +52,7 @@ export function useCursorLoadMore<TItem>(
     const generation = requestGenerationRef.current + 1;
     requestGenerationRef.current = generation;
     loadingMoreRef.current = false;
+    initialPendingRef.current = true;
 
     if (!enabled) {
       return;
@@ -56,19 +63,26 @@ export function useCursorLoadMore<TItem>(
     Promise.resolve()
       .then(() => {
         if (cancelled) return;
-        setIsLoading(true);
+        setIsLoading(!keepPreviousData || !hasLoadedRef.current);
+        setIsRefreshing(keepPreviousData && hasLoadedRef.current);
+        setNextCursor(null);
         setIsLoadingMore(false);
         setError(null);
         return fetchInitialPage();
       })
       .then((page) => {
         if (cancelled || !page) return;
+        hasLoadedRef.current = true;
+        initialPendingRef.current = false;
+        setIsRefreshing(false);
         setItems(page.items);
         setNextCursor(page.nextCursor);
         setIsLoading(false);
       })
       .catch((cause) => {
         if (cancelled) return;
+        initialPendingRef.current = false;
+        setIsRefreshing(false);
         setError(cause);
         setIsLoading(false);
       });
@@ -77,10 +91,10 @@ export function useCursorLoadMore<TItem>(
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [...resetKeys, reloadToken, enabled]);
+  }, [...resetKeys, reloadToken, enabled, keepPreviousData]);
 
   const loadMore = useCallback(() => {
-    if (!nextCursor || loadingMoreRef.current) {
+    if (!enabled || initialPendingRef.current || !nextCursor || loadingMoreRef.current) {
       return;
     }
 
@@ -109,15 +123,29 @@ export function useCursorLoadMore<TItem>(
           loadingMoreRef.current = false;
         }
       });
-  }, [fetchPage, nextCursor]);
+  }, [enabled, fetchPage, nextCursor]);
 
+  const refresh = useCallback(() => setReloadToken((current) => current + 1), []);
   const retry = useCallback(() => {
-    if (items.length > 0 && nextCursor) {
+    if (!keepPreviousData && items.length > 0 && nextCursor) {
       loadMore();
       return;
     }
-    setReloadToken((current) => current + 1);
-  }, [items.length, loadMore, nextCursor]);
+    refresh();
+  }, [keepPreviousData, items.length, nextCursor, loadMore, refresh]);
+
+  useEffect(() => {
+    if (!enabled || !refreshOnFocus) return;
+    const onReturn = () => { if (document.visibilityState === "visible") refresh(); };
+    window.addEventListener("focus", onReturn);
+    window.addEventListener("online", onReturn);
+    document.addEventListener("visibilitychange", onReturn);
+    return () => {
+      window.removeEventListener("focus", onReturn);
+      window.removeEventListener("online", onReturn);
+      document.removeEventListener("visibilitychange", onReturn);
+    };
+  }, [enabled, refreshOnFocus, refresh]);
 
   return {
     items,
@@ -127,5 +155,7 @@ export function useCursorLoadMore<TItem>(
     hasMore: Boolean(nextCursor),
     loadMore,
     retry,
+    refresh,
+    isRefreshing,
   };
 }

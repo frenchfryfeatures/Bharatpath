@@ -57,7 +57,7 @@ const CODE_MESSAGES: Record<string, string> = {
   interview_device_check_required:
     "Complete a passing microphone, audio, network and storage check before checkout.",
   interview_no_score_increase_unacknowledged:
-    "Confirm that this interview will not increase your score before continuing.",
+    "Confirm that this interview will not increase your Bharatpath Score before continuing.",
   interview_unavailable:
     "Interview sessions are temporarily unavailable. Please try again later.",
   access_window_expired:

@@ -26,7 +26,7 @@
  * 409 `application_invalid_transition` / `hire_confirmation_not_pending` →
  * "This application has changed" + reload.
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AppAlert } from "@/components/feedback/AppAlert";
 import {
   View,
@@ -38,6 +38,7 @@ import {
   Alert,
   Linking,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -47,12 +48,14 @@ import {
   VideoCamera,
   CheckCircle,
   CircleDashed,
+  XCircle,
   ArrowUUpLeft,
   Sparkle,
   Warning,
   CalendarBlank,
   ArrowSquareOut,
 } from 'phosphor-react-native';
+import { buildTimeline } from '@/utils/applicationTimeline';
 import { Colors, Layout, Spacing } from '@/theme/tokens';
 import {
   getMyApplication,
@@ -64,6 +67,9 @@ import {
   applicationActionErrorMessage,
 } from '@/services/api/applications';
 import { ApiError } from '@/services/api/client';
+import { getJobDetail } from '@/services/api/jobs';
+import type { BoardJobDetail } from '@/types/job';
+import { JobDescriptionSections } from '@/screens/jobs/JobDetailScreen';
 import {
   ApplicationDetailResponse,
   ApplicationStage,
@@ -131,8 +137,13 @@ export function ApplicationDetailScreen({
   const [actionInFlight, setActionInFlight] = useState(false);
   const [changedNotice, setChangedNotice] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const loadingRef = useRef(false);
+  const focusedBeforeRef = useRef(false);
+
+  const load = useCallback(async (quiet = false) => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+    if (!quiet) setLoading(true);
     setError(null);
     try {
       const [detail, msgs] = await Promise.all([
@@ -157,20 +168,38 @@ export function ApplicationDetailScreen({
       setApp(null);
       setMessages([]);
     } finally {
+      loadingRef.current = false;
       setLoading(false);
     }
   }, [applicationId]);
 
   // Initial load.
   useEffect(() => {
-    void load();
+    void load(false);
   }, [load]);
 
-  // Re-fetch on focus - the state may have changed while away.
+  // Pull-to-refresh (2026-11-23): the application, its messages and the
+  // job description under it.
+  const [pulling, setPulling] = useState(false);
+  const [descriptionKey, setDescriptionKey] = useState(0);
+  const pullToRefresh = useCallback(async () => {
+    setPulling(true);
+    setDescriptionKey((key) => key + 1);
+    try {
+      await load(true);
+    } finally {
+      setPulling(false);
+    }
+  }, [load]);
+
+  // Re-fetch quietly only when returning to this screen (never on state change).
   useFocusEffect(
     useCallback(() => {
-      if (!loading) void load();
-    }, [load, loading]),
+      if (focusedBeforeRef.current) {
+        void load(true);
+      }
+      focusedBeforeRef.current = true;
+    }, [load]),
   );
 
   const handleActionError = useCallback(
@@ -243,11 +272,12 @@ export function ApplicationDetailScreen({
   return (
     <View style={styles.root}>
       <StatusBar style="dark" animated />
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          refreshControl={<RefreshControl refreshing={pulling} onRefresh={pullToRefresh} tintColor="#5F4DB2" colors={['#5F4DB2']} />}
         >
           {/* Top Bar */}
           <View style={styles.topBar}>
@@ -281,7 +311,7 @@ export function ApplicationDetailScreen({
           ) : error && !app ? (
             <View style={styles.loadingContainer}>
               <Text style={styles.errorText}>{error}</Text>
-              <Pressable style={styles.retryButton} onPress={load}>
+              <Pressable style={styles.retryButton} onPress={() => void load(false)}>
                 <Text style={styles.retryButtonText}>{RETRY}</Text>
               </Pressable>
             </View>
@@ -295,6 +325,7 @@ export function ApplicationDetailScreen({
               onDispute={onDispute}
             />
           ) : null}
+          {app ? <AppliedJobDescription refreshKey={descriptionKey} jobId={app.job_id} /> : null}
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -424,6 +455,51 @@ function DetailBody({
         </Pressable>
       )}
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// The job's full description, under the actions (2026-11-23)
+// ---------------------------------------------------------------------------
+
+/** The posting the candidate applied to, as the job screen shows it. A job
+ *  that has since closed is no longer on the board, so its description can
+ *  only be said to be unavailable. */
+function AppliedJobDescription({ jobId, refreshKey = 0 }: { jobId: string; refreshKey?: number }) {
+  const [job, setJob] = useState<BoardJobDetail | null>(null);
+  const [state, setState] = useState<'loading' | 'ready' | 'closed' | 'error'>('loading');
+  const load = useCallback(async () => {
+    setState((current) => (current === 'ready' ? current : 'loading'));
+    try {
+      setJob(await getJobDetail(jobId));
+      setState('ready');
+    } catch (err) {
+      setState(err instanceof ApiError && err.status === 404 ? 'closed' : 'error');
+    }
+  }, [jobId]);
+  // Refetches in place on the parent's pull (`refreshKey`), keeping the text.
+  useEffect(() => { void load(); }, [load, refreshKey]);
+
+  return (
+    <View style={styles.jobDescription}>
+      <Text accessibilityRole="header" style={styles.jobDescriptionHeading}>Job description</Text>
+      {state === 'loading' ? (
+        <ActivityIndicator color={Colors.brandAccent} accessibilityLabel="Loading the job description" />
+      ) : state === 'closed' ? (
+        <Text style={styles.jobDescriptionNote}>
+          This job is no longer published, so its description is not available.
+        </Text>
+      ) : state === 'error' || !job ? (
+        <View style={{ gap: 8 }}>
+          <Text style={styles.jobDescriptionNote}>The job description could not be loaded.</Text>
+          <Pressable accessibilityRole="button" onPress={() => void load()} hitSlop={8}>
+            <Text style={styles.jobDescriptionRetry}>Try again</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <JobDescriptionSections job={job} />
+      )}
+    </View>
   );
 }
 
@@ -579,6 +655,8 @@ function TimelineCard({
               <View style={styles.stepNodeCol}>
                 {item.state === 'done' ? (
                   <CheckCircle size={20} color="#1F6B45" weight="fill" />
+                ) : item.state === 'ended' ? (
+                  <XCircle size={20} color="#8A3E2A" weight="fill" />
                 ) : item.state === 'current' ? (
                   <CircleDashed size={20} color="#5E4DB2" weight="bold" />
                 ) : (
@@ -625,96 +703,6 @@ function TimelineCard({
       </View>
     </View>
   );
-}
-
-interface TimelineItem {
-  label: string;
-  sub: string | null;
-  state: 'done' | 'current' | 'pending';
-}
-
-/** Build a 5-step pipeline timeline from the history + current stage. */
-function buildTimeline(
-  history: CandidateHistoryItem[],
-  currentStage: ApplicationStage,
-): TimelineItem[] {
-  const PIPELINE_LABELS = [
-    'Application sent',
-    'Profile opened by employer',
-    'Shortlisted',
-    'Interview',
-    'Decision',
-  ];
-  const STAGE_TO_INDEX: Record<ApplicationStage, number> = {
-    SUBMITTED: 0,
-    VIEWED: 1,
-    SHORTLISTED: 2,
-    INTERVIEW: 3,
-    DECISION: 4,
-    HIRED: 4,
-    REJECTED: 4,
-    WITHDRAWN: 4,
-    EXPIRED: 4,
-  };
-
-  const currentIndex = STAGE_TO_INDEX[currentStage] ?? 0;
-  const isTerminal = !isActiveStage(currentStage);
-
-  // Find the timestamp for each stage from the history (first occurrence).
-  const stageTimes: Record<number, string> = {};
-  for (const h of history) {
-    const idx = STAGE_TO_INDEX[h.to_stage];
-    if (idx != null && stageTimes[idx] == null) {
-      stageTimes[idx] = h.occurred_at;
-    }
-  }
-
-  return PIPELINE_LABELS.map((label, idx) => {
-    let state: TimelineItem['state'] = 'pending';
-    let sub: string | null = null;
-
-    if (idx < currentIndex) {
-      state = 'done';
-      sub = stageTimes[idx] ? formatTimelineDate(stageTimes[idx]) : null;
-    } else if (idx === currentIndex) {
-      if (isTerminal) {
-        // Terminal stage: mark the decision step as done with the final label.
-        state = 'done';
-        sub = stageTimes[idx] ? formatTimelineDate(stageTimes[idx]) : null;
-      } else {
-        state = 'current';
-        sub = stageStatusShort(currentStage);
-      }
-    }
-    return { label, sub, state };
-  });
-}
-
-function stageStatusShort(stage: ApplicationStage): string {
-  switch (stage) {
-    case 'SUBMITTED':
-      return 'Waiting on employer';
-    case 'VIEWED':
-      return 'Profile opened';
-    case 'SHORTLISTED':
-      return 'Shortlisted';
-    case 'INTERVIEW':
-      return 'Scheduled';
-    case 'DECISION':
-      return 'Pending';
-    default:
-      return stageLabel(stage);
-  }
-}
-
-function formatTimelineDate(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    timeZone: 'Asia/Kolkata',
-  });
 }
 
 function formatInterviewLong(iso: string): string {
@@ -984,7 +972,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   companyTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 18,
     lineHeight: 22,
     letterSpacing: -0.4,
@@ -1035,7 +1023,7 @@ const styles = StyleSheet.create({
     color: '#5E4DB2',
   },
   interviewTitleText: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 20,
     lineHeight: 24,
     letterSpacing: -0.4,
@@ -1238,6 +1226,10 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: '#566073',
   },
+  jobDescription: { marginTop: 24, gap: 12 },
+  jobDescriptionHeading: { fontFamily: 'GeneralSans-Semibold', fontSize: 18, lineHeight: 24, color: '#0A1931' },
+  jobDescriptionNote: { fontFamily: 'GeneralSans-Regular', fontSize: 14, lineHeight: 21, color: '#5F6B80' },
+  jobDescriptionRetry: { fontFamily: 'GeneralSans-Semibold', fontSize: 14, color: '#5F4DB2' },
   withdrawButton: {
     width: '100%',
     flexDirection: 'row',

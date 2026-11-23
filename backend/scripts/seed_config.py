@@ -65,6 +65,7 @@ def _tunables() -> tuple[Tunable, ...]:
     from app.modules.discovery import domain as discovery
     from app.modules.engagement import domain as engagement
     from app.modules.integrity import domain as integrity
+    from app.modules.jobs import domain as jobs
     from app.modules.notifications import domain as notifications
     from app.modules.resume import domain as resume
     from app.modules.subscriptions import domain as subscriptions
@@ -140,6 +141,14 @@ def _tunables() -> tuple[Tunable, ...]:
             note="Days between confirmations, i.e. between a candidate's "
             "resumes reaching scoring (2026-10-26). Uploads are unlimited. "
             "0 switches it off.",
+        ),
+        Tunable(
+            key="jobs.match_weights",
+            document=lambda: jobs.match_weights_document(jobs.DEFAULT_MATCH_WEIGHTS),
+            verify=jobs.match_weights_from_config,
+            note="Job engine dimension weights (2026-11-23): skills, role, "
+            "experience, responsibilities, location, salary, education, "
+            "industry, job type. Ours; tune by inserting version 2.",
         ),
         Tunable(
             key="kyb.require_approval",

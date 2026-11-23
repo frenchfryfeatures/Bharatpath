@@ -877,6 +877,38 @@ async def latest_version_for_profile(
     return row
 
 
+async def profile_resume_file(
+    session: AsyncSession, *, user_id: uuid.UUID, resume_version_id: uuid.UUID
+) -> dict[str, str | None]:
+    """The version's original uploaded file (2026-11-23): a link that expires,
+    its real type and the name it was uploaded under, so a download keeps
+    the candidate's own format. All null for a version with no file."""
+    url = await profile_resume_url(session, user_id=user_id, resume_version_id=resume_version_id)
+    if url is None:
+        return {"url": None, "mime": None, "filename": None}
+    version = await get_version_for_profile(
+        session, user_id=user_id, resume_version_id=resume_version_id
+    )
+    assert version.resume_file_id is not None
+    row = await repository.get_resume_file(
+        session, resume_file_id=version.resume_file_id, user_id=user_id
+    )
+    # A link to an object that is gone would hand the client a storage error;
+    # say there is no original instead, and clients use the rendered PDF.
+    if (
+        row is None
+        or await storage.head_object(bucket=get_settings().s3_bucket_resumes, key=row.s3_key)
+        is None
+    ):
+        logger.warning("resume_original_missing", resume_file_id=str(version.resume_file_id))
+        return {"url": None, "mime": None, "filename": None}
+    return {
+        "url": url,
+        "mime": row.mime if row else None,
+        "filename": row.original_filename if row else None,
+    }
+
+
 async def profile_resume_url(
     session: AsyncSession, *, user_id: uuid.UUID, resume_version_id: uuid.UUID
 ) -> str | None:
@@ -927,7 +959,20 @@ async def profile_resume_preview(
     content = await storage.read_whole_object(
         bucket=get_settings().s3_bucket_resumes, key=row.s3_key
     )
-    pages, truncated = await asyncio.to_thread(render_pdf, content)
+    # A missing object (`b""`) or one PDFium cannot open is not the
+    # candidate's error and must not be a 500 (2026-11-23): answer with no
+    # pages, and clients draw the rendered layout instead. Local storage
+    # (LocalStack) loses every object on restart, which is how this was found.
+    if not content:
+        logger.warning("resume_original_missing", resume_file_id=str(row.id))
+        return {"pages": [], "text": text, "truncated": False, **fields}
+    try:
+        pages, truncated = await asyncio.to_thread(render_pdf, content)
+    except Exception as exc:  # PDFium raises its own error types
+        logger.warning(
+            "resume_original_unreadable", resume_file_id=str(row.id), error=type(exc).__name__
+        )
+        return {"pages": [], "text": text, "truncated": False, **fields}
     return {"pages": pages, "text": "", "truncated": truncated, **fields}
 
 

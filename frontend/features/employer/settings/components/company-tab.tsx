@@ -482,7 +482,7 @@ export function CompanyTab() {
       {/* Top Header Card */}
       <div className="flex flex-col gap-4 rounded-xl border border-[#e0e4e9] bg-white p-5 shadow-sm">
         <div className="flex items-start justify-between gap-3">
-          <h1 className="text-base font-bold text-[#111827]">Company profile</h1>
+          <h1 className="text-base font-semibold text-[#111827]">Company profile</h1>
           <StatusBadge status={company.kybStatus || "DRAFT"} />
         </div>
         <EmployerLogoCard />
@@ -505,7 +505,7 @@ export function CompanyTab() {
       <section className="rounded-xl border border-[#e0e4e9] bg-white p-5 shadow-sm sm:p-6">
         <div className="mb-5 border-b border-[#eef2f6] pb-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-[14px] font-bold text-[#111827] flex items-center gap-2">
+            <h2 className="text-[14px] font-semibold text-[#111827] flex items-center gap-2">
               Public company profile
             </h2>
             <span className="inline-flex items-center gap-1 rounded-full bg-[#ecfdf3] px-2.5 py-0.5 text-[11px] font-semibold text-[#027a48]">
@@ -622,7 +622,7 @@ export function CompanyTab() {
       <section className="rounded-xl border border-[#e0e4e9] bg-white p-5 shadow-sm sm:p-6">
         <div className="mb-5 border-b border-[#eef2f6] pb-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-[14px] font-bold text-[#111827] flex items-center gap-2">
+            <h2 className="text-[14px] font-semibold text-[#111827] flex items-center gap-2">
               Legal &amp; Business Registration
             </h2>
             <span className="inline-flex items-center gap-1 rounded-full bg-[#f1f5f9] px-2.5 py-0.5 text-[11px] font-medium text-[#475569]">
@@ -725,7 +725,7 @@ export function CompanyTab() {
       <section className="rounded-xl border border-[#e0e4e9] bg-white p-5 shadow-sm sm:p-6">
         <div className="mb-5 border-b border-[#eef2f6] pb-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-[14px] font-bold text-[#111827] flex items-center gap-2">
+            <h2 className="text-[14px] font-semibold text-[#111827] flex items-center gap-2">
               Authorised Signatory &amp; Contact
             </h2>
             <span className="inline-flex items-center gap-1 rounded-full bg-[#f1f5f9] px-2.5 py-0.5 text-[11px] font-medium text-[#475569]">
@@ -785,7 +785,7 @@ export function CompanyTab() {
       <section className="rounded-xl border border-[#e0e4e9] bg-white p-5 shadow-sm sm:p-6">
         <div className="mb-4 border-b border-[#eef2f6] pb-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-[14px] font-bold text-[#111827] flex items-center gap-2">
+            <h2 className="text-[14px] font-semibold text-[#111827] flex items-center gap-2">
               Verification Documents
             </h2>
             <span className="inline-flex items-center gap-1 rounded-full bg-[#f1f5f9] px-2.5 py-0.5 text-[11px] font-medium text-[#475569]">
@@ -976,7 +976,7 @@ export function CompanyTab() {
       </div>
 
       <section className="rounded-xl border border-[#e0e4e9] bg-white p-5 shadow-sm sm:p-6">
-        <h2 className="m-0 text-[13px] font-bold leading-[18px]">Password</h2>
+        <h2 className="m-0 text-[13px] font-semibold leading-[18px]">Password</h2>
         <p className="mt-0.5 mb-3 text-xs leading-4 text-[#718096]">
           Change the password you use to sign in
         </p>

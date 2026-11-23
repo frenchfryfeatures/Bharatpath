@@ -126,7 +126,7 @@ export function ResumeDetails() {
             ) : !current || !activeView ? (
               <div className="rounded-[24px] border border-dashed border-[#CFC6B4] bg-white p-8 text-center sm:p-12">
                 <FileText className="mx-auto h-10 w-10 text-[#5F4DB2]" aria-hidden="true" />
-                <h1 className="mt-4 text-2xl font-bold text-[#0A1931]">Add your resume</h1>
+                <h1 className="mt-4 text-2xl font-semibold text-[#0A1931]">Add your resume</h1>
                 <p className="mx-auto mt-2 max-w-md text-[14px] leading-6 text-[#5F6B80]">
                   Upload, paste, or enter your details to build your student profile and score.
                 </p>
@@ -149,7 +149,7 @@ export function ResumeDetails() {
                   <header className="min-w-0 flex-1 border-l-[3px] border-[#7B61C5] pl-3.5">
                     <div className="flex min-w-0 items-center gap-3">
                                             <div className="min-w-0">
-                        <h1 className="text-[22px] font-bold leading-7 tracking-[-0.035em] text-[#0A1931]">Your resume</h1>
+                        <h1 className="text-[22px] font-semibold leading-7 tracking-[-0.035em] text-[#0A1931]">Your resume</h1>
 
                       </div>
                     </div>
@@ -161,11 +161,13 @@ export function ResumeDetails() {
                     )}
                   </header>
                   <div role="group" aria-label="Resume actions" className="flex w-full flex-wrap items-center gap-1.5 sm:w-auto">
-                    <button type="button" onClick={() => setResumeTemplatePromptOpen(true)} className="inline-flex min-h-10 flex-1 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-full border border-[#D9CFF0] bg-[#EEE7FA] py-2 pl-3.5 pr-4 text-[12px] font-semibold text-[#5B42A3] transition-colors hover:border-[#BBA8DF] hover:bg-[#E4D8F6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2] focus-visible:ring-offset-2 sm:flex-none">
-                      <FilePenLine className="h-4 w-4 text-[#7154B5]" aria-hidden="true" /> Build resume
-                    </button>
                     <button type="button" onClick={() => fileInput.current?.click()} className="inline-flex min-h-10 flex-1 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-full px-3.5 text-[12px] font-semibold text-[#3A3156] transition-colors hover:bg-[#EEE8F7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2] focus-visible:ring-offset-2 sm:flex-none">
                       <Upload className="h-4 w-4 text-[#75639E]" aria-hidden="true" /> Upload new
+                    </button>
+                    {/* Edit resume, after Upload new (2026-11-23): every change goes
+                        through the Bharatpath Builder, template chosen first. */}
+                    <button type="button" onClick={() => setResumeTemplatePromptOpen(true)} className="inline-flex min-h-10 flex-1 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-full border border-[#D9CFF0] bg-[#EEE7FA] py-2 pl-3.5 pr-4 text-[12px] font-semibold text-[#5B42A3] transition-colors hover:border-[#BBA8DF] hover:bg-[#E4D8F6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2] focus-visible:ring-offset-2 sm:flex-none">
+                      <FilePenLine className="h-4 w-4 text-[#7154B5]" aria-hidden="true" /> Edit resume
                     </button>
                     <button type="button" onClick={() => void openResume()} disabled={documentState.isLoading} aria-busy={documentState.isLoading} className="inline-flex min-h-10 flex-1 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-full px-3 text-[12px] font-semibold text-[#5F4DB2] transition-colors hover:bg-[#EEE8F7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2] focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60 sm:ml-auto sm:flex-none">
                       {documentState.isLoading ? "Opening..." : "Open resume"}<ArrowUpRight className="h-4 w-4" aria-hidden="true" />
@@ -186,10 +188,10 @@ export function ResumeDetails() {
                   <History className="mt-0.5 h-4 w-4 shrink-0 text-[#5F4DB2]" aria-hidden="true" />
                   <div className="min-w-0">
                     <p className="break-words text-[13px] font-semibold text-[#0A1931]">Viewing: {selectedVersion?.filename || "Saved resume"}</p>
-                    <p className="mt-1 text-[12px] leading-5">{selectedVersion ? `Version from ${formatDateTime(selectedVersion.createdAt)}. ` : ""}Save this resume to use it for your profile. Its score updates only when you are eligible.</p>
+                    <p className="mt-1 text-[12px] leading-5">{selectedVersion ? `Version from ${formatDateTime(selectedVersion.createdAt)}. ` : ""}Save this resume to use it for your profile. Its Bharatpath Score updates only when you are eligible.</p>
                   </div>
                 </div>}
-                <ReviewStep key={activeView.versionId} resumeVersionId={activeView.versionId} title="Your details" subtitle="Review each section and use the edit button to update it. Changes are saved as a new version." confirmLabel="Save & update score" startOverLabel="Cancel and return to previous resume" restoreFromHistory={selectedFromHistory} onStartOver={cancelUpdate} onConfirmed={() => { showSuccessFeedback("Resume saved and score update started."); setView(null); void versions.refetch(); }} />
+                <ReviewStep key={activeView.versionId} resumeVersionId={activeView.versionId} title="Your details" subtitle="The details we read from your resume. Use Edit resume to change them." allowSectionEdits={false} confirmLabel="Update Bharatpath Score" startOverLabel="Cancel and return to previous resume" restoreFromHistory={selectedFromHistory} onStartOver={cancelUpdate} onConfirmed={() => { showSuccessFeedback("Resume saved and Bharatpath Score update started."); setView(null); void versions.refetch(); }} />
               </div>
             )}
           </main>
@@ -225,6 +227,8 @@ export function ResumeDetails() {
         </div>
       </div>
       <ResumeTemplateDialog
+        key={resumeTemplatePromptOpen ? "open" : "closed"}
+        fromUpload={Boolean(current) && current?.source !== "BUILDER"}
         open={resumeTemplatePromptOpen}
         onClose={() => setResumeTemplatePromptOpen(false)}
         onKeep={() => { setResumeTemplatePromptOpen(false); router.replace("/student/profile/resume/edit?template=keep&from=resume-details"); }}
@@ -237,11 +241,11 @@ export function ResumeDetails() {
 const HISTORY_PREVIEW = 3;
 
 function ResumeScoreStatus({ window, loading, error }: { window?: ResumeScoringWindow; loading: boolean; error: boolean }) {
-  if (loading) return <p className="mt-3 text-[11px] leading-5 text-[#5F6B80]">Checking when you can refresh your resume score…</p>;
+  if (loading) return <p className="mt-3 text-[11px] leading-5 text-[#5F6B80]">Checking when you can refresh your Bharatpath Score…</p>;
   if (error || !window) return null;
-  if (window.intervalDays === 0 || window.canConfirmNow) return <p className="mt-3 text-[11px] leading-5 text-[#5F6B80]">Your score is calculated from this resume. You can refresh it now by confirming an updated resume.</p>;
-  if (!window.nextScoringAt) return <p className="mt-3 text-[11px] leading-5 text-[#5F6B80]">Your score is calculated from this resume. Score refresh is temporarily unavailable.</p>;
-  return <p className="mt-3 text-[11px] leading-5 text-[#5F6B80]">Your score is calculated from this resume. You can refresh it again on {formatScoreRefreshTime(window.nextScoringAt)} ({timeUntil(window.nextScoringAt)}).</p>;
+  if (window.intervalDays === 0 || window.canConfirmNow) return <p className="mt-3 text-[11px] leading-5 text-[#5F6B80]">Your Bharatpath Score is calculated from this resume. You can refresh it now by confirming an updated resume.</p>;
+  if (!window.nextScoringAt) return <p className="mt-3 text-[11px] leading-5 text-[#5F6B80]">Your Bharatpath Score is calculated from this resume. Bharatpath Score refresh is temporarily unavailable.</p>;
+  return <p className="mt-3 text-[11px] leading-5 text-[#5F6B80]">Your Bharatpath Score is calculated from this resume. You can refresh it again on {formatScoreRefreshTime(window.nextScoringAt)} ({timeUntil(window.nextScoringAt)}).</p>;
 }
 
 function formatScoreRefreshTime(value: string): string {
@@ -304,7 +308,7 @@ function InfoCard({ icon, title, body }: { icon: ReactNode; title: string; body:
   return (
     <div className="rounded-[20px] border border-[#E7E0D4] bg-white p-5">
       <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[#F1EAF7] text-[#5F4DB2]">{icon}</span>
-      <h2 className="mt-4 text-[16px] font-bold text-[#0A1931]">{title}</h2>
+      <h2 className="mt-4 text-[16px] font-semibold text-[#0A1931]">{title}</h2>
       <p className="mt-2 text-[12px] leading-5 text-[#5F6B80]">{body}</p>
     </div>
   );

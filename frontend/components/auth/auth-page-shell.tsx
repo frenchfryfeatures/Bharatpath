@@ -1,3 +1,4 @@
+import { BrandWordmark } from "@/components/common/brand-wordmark";
 import Link from "next/link";
 import { BrandIcon } from "@/components/common/brand-icon";
 import {
@@ -47,7 +48,7 @@ export function AuthPageShell({
           <BrandIcon className="h-11 w-11" />
           <div>
             <p className="text-lg font-semibold tracking-tight">
-              Bharat<span className="text-[#FF8A26]">Path</span>
+              <BrandWordmark light />
             </p>
             <p className="text-xs text-white/60">
               Opportunity, made visible
@@ -92,7 +93,7 @@ export function AuthPageShell({
           <div className="mb-8 flex items-center gap-3 lg:hidden">
             <BrandIcon className="h-10 w-10" />
             <p className="font-semibold text-[#17233a]">
-              Bharat<span className="text-[#FF8A26]">Path</span>
+              <BrandWordmark />
             </p>
           </div>
 

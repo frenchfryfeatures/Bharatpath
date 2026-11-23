@@ -12,6 +12,11 @@
     },
     "scheme": "bharatpath",
     "userInterfaceStyle": "automatic",
+    "backgroundColor": "#FFFCF7",
+    "androidNavigationBar": {
+      "backgroundColor": "#FFFFFF",
+      "barStyle": "dark-content"
+    },
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
@@ -66,17 +71,23 @@
           "defaultChannel": "default"
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-navigation-bar",
+        {
+          "backgroundColor": "#FFFFFF",
+          "barStyle": "dark",
+          "visibility": "visible"
+        }
+      ],
+      "./plugins/with-system-navigation"
     ],
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "df62c601-df79-4743-9167-7666f4a705f5"
-      }
+      "router": {}
     },
-    "owner": "ritik6g"
+    "owner": "rdrishabh"
   }
 }

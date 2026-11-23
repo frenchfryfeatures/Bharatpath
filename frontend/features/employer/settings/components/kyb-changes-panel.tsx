@@ -77,7 +77,7 @@ export function KybChangesPanel({ kyb }: Readonly<{ kyb: KybSubmission }>) {
   if (kyb.state === "DRAFT" && kyb.previousSubmissionId) {
     return (
       <section className="rounded-xl border border-[#f2cf93] bg-white p-5 shadow-sm sm:p-6">
-        <h2 className="text-[14px] font-bold text-[#111827]">Continue your business verification</h2>
+        <h2 className="text-[14px] font-semibold text-[#111827]">Continue your business verification</h2>
         <p className="mt-2 text-xs leading-5 text-[#687386]">
           Your new submission is ready. Review your saved details through the onboarding steps, make corrections and submit for review.
         </p>
@@ -193,7 +193,7 @@ function RejectedNotice({
           <ShieldAlert className="h-5 w-5" aria-hidden="true" />
         </span>
         <div className="min-w-0">
-          <h2 className="text-[14px] font-bold text-[#111827]">Your verification was not approved</h2>
+          <h2 className="text-[14px] font-semibold text-[#111827]">Your verification was not approved</h2>
           {kyb.decisionReason && (
             <p className="mt-1 text-[13px] leading-5 text-[#7f1d2a]">
               <span className="font-semibold">Reviewer&apos;s note: </span>
@@ -375,7 +375,7 @@ function ChangesForm({
       className="rounded-xl border border-[#f2cf93] bg-white p-5 shadow-sm sm:p-6"
     >
       <div className="mb-4 border-b border-[#eef2f6] pb-4">
-        <h2 className="text-[14px] font-bold text-[#111827]">
+        <h2 className="text-[14px] font-semibold text-[#111827]">
           {sentBack ? "Your verification needs changes" : "Update and resubmit your verification"}
         </h2>
         <p className="mt-0.5 text-xs text-[#687386]">
@@ -398,7 +398,7 @@ function ChangesForm({
       <div className="space-y-6">
         {sections.map((section) => (
           <div key={section.code}>
-            <h3 className="mb-3 text-[12px] font-bold uppercase tracking-[0.06em] text-[#687386]">
+            <h3 className="mb-3 text-[12px] font-semibold uppercase tracking-[0.06em] text-[#687386]">
               {section.title}
             </h3>
             {isDocumentSection(section) ? (

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import uuid
-from contextlib import suppress
 
 from fastapi import status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,11 +22,37 @@ from app.modules.candidate.domain import normalise_city
 from app.modules.candidate.extraction import extract_career
 from app.modules.candidate.models import CandidateProfile
 from app.modules.candidate.onboarding_policy import EDUCATION_MAX_YEARS
-from app.modules.candidate.schemas import NameRequest
-from app.modules.candidate.service import _candidate, set_full_name
+from app.modules.candidate.preferences import (
+    JOB_TYPE_OPTIONS,
+    WORK_MODE_OPTIONS,
+    JobPreferences,
+    Option,
+    PreferenceOptions,
+    PreferencesPayload,
+    PreferencesResponse,
+    stored_preferences,
+)
+from app.modules.candidate.service import _candidate
 from app.modules.jobs import service as jobs_service
 from app.modules.jobs.schemas import RecommendedJobs
 from app.modules.resume import service as resume_service
+
+#: Blocks of `career` that live beside the onboarding answers and must survive
+#: every save of them (2026-11-23: job preferences).
+KEPT_CAREER_BLOCKS: tuple[str, ...] = ("preferences",)
+
+
+def _kept_blocks(profile: CandidateProfile | None) -> dict[str, object]:
+    career = (profile.career if profile else None) or {}
+    return {key: career[key] for key in KEPT_CAREER_BLOCKS if key in career}
+
+
+class ProfileIncompleteError(AppError):
+    """Preferences are asked once the profile exists, from the profile."""
+
+    status_code = status.HTTP_409_CONFLICT
+    code = "profile_incomplete"
+    title = "Finish your profile before setting job preferences."
 
 
 class CareerIncompleteError(AppError):
@@ -63,15 +88,21 @@ async def jobs_matching_profile(
     ctx: TenantContext,
     limit: int | None = None,
     eligible_only: bool = False,
+    offset: int = 0,
 ) -> RecommendedJobs:
-    """Board jobs that fit the candidate's career profile. The profile is read
+    """Board jobs that fit the candidate's career profile, ranked by the job
+    engine; `offset` pages further into the same ranking. The profile is read
     as saved, finished or not: a half-filled form with skills in it is
     already something to match on."""
     _candidate(ctx)
     profile = await repository.get_profile(session, user_id=ctx.user_id)
-    terms = match_terms(_response(profile).details, city=profile.city if profile else None)
+    terms = match_terms(
+        _response(profile).details,
+        city=profile.city if profile else None,
+        preferences=stored_preferences(profile.career if profile else None),
+    )
     return await jobs_service.recommend(
-        session, ctx=ctx, terms=terms, limit=limit, eligible_only=eligible_only
+        session, ctx=ctx, terms=terms, limit=limit, eligible_only=eligible_only, offset=offset
     )
 
 
@@ -110,6 +141,7 @@ async def save_details(
         version_id = version.id
         file_id = version.resume_file_id
     saved = {
+        **_kept_blocks(profile),
         "details": payload.details.model_dump(mode="json"),
         "resume_version_id": str(version_id) if version_id else None,
         "resume_file_id": str(file_id) if file_id else None,
@@ -144,6 +176,7 @@ async def attach_resume(
     _candidate(ctx)
     old = await get_details(session, ctx=ctx)
     saved = {
+        **_kept_blocks(await repository.get_profile(session, user_id=ctx.user_id)),
         "details": old.details.model_dump(mode="json"),
         "resume_version_id": str(resume_version_id),
         "resume_file_id": str(resume_file_id) if resume_file_id else None,
@@ -158,6 +191,11 @@ async def attach_resume(
         city=normalise_city(city) if city else None,
     )
     return _response(row)
+
+
+#: Fields a CV may never fill on the automatic prefill path: who the account
+#: holder is and how to reach them.
+CV_NEVER_SUPPLIES: tuple[str, ...] = ("phone",)
 
 
 async def prefill(
@@ -185,12 +223,15 @@ async def prefill(
             if key in CareerDetails.model_fields
         }
     )
-    current_profile = await repository.get_profile(session, user_id=ctx.user_id)
-    if facts.full_name and not (current_profile and current_profile.full_name):
-        with suppress(ValueError):
-            await set_full_name(session, ctx=ctx, payload=NameRequest(full_name=facts.full_name))
-    # Candidate-entered values win. A replacement CV never silently erases them.
+    # **Identity never comes from a CV here** (2026-11-23). This runs without
+    # a review step, and the file may be someone else's: it used to save the
+    # CV's name as the account's name (which employers see on cards) and its
+    # phone as the contact number. The name is asked at sign-up and the phone
+    # is the candidate's own; both stay as the candidate entered them.
     extracted = details.model_dump()
+    for identity_field in CV_NEVER_SUPPLIES:
+        extracted[identity_field] = ""
+    # Candidate-entered values win. A replacement CV never silently erases them.
     extracted.update(
         {
             key: value
@@ -208,3 +249,73 @@ async def prefill(
         ),
     )
     return result
+
+
+# ---------------------------------------------------------------------------
+# Job preferences (2026-11-23)
+# ---------------------------------------------------------------------------
+def _preferences_response(profile: CandidateProfile | None) -> PreferencesResponse:
+    career = (profile.career if profile else None) or {}
+    details = _response(profile).details
+    return PreferencesResponse(
+        **stored_preferences(career).model_dump(),
+        preferred_locations=details.preferred_locations,
+        preferred_salary=details.preferred_salary,
+        preferred_salary_currency=details.preferred_salary_currency,
+        profile_completed=bool(career.get("completed")),
+        updated_at=profile.updated_at.isoformat() if profile else None,
+    )
+
+
+async def get_preferences(session: AsyncSession, *, ctx: TenantContext) -> PreferencesResponse:
+    _candidate(ctx)
+    return _preferences_response(await repository.get_profile(session, user_id=ctx.user_id))
+
+
+async def save_preferences(
+    session: AsyncSession, *, ctx: TenantContext, payload: PreferencesPayload
+) -> PreferencesResponse:
+    """Replace the preferences. Locations and salary are written into the
+    profile details they already belong to; nothing else in the profile, its
+    completion or its resume link moves. Only a completed profile."""
+    _candidate(ctx)
+    profile = await repository.get_profile(session, user_id=ctx.user_id)
+    career = dict((profile.career if profile else None) or {})
+    if not career.get("completed"):
+        raise ProfileIncompleteError()
+    details = _response(profile).details.model_copy(
+        update={
+            "preferred_locations": payload.preferred_locations,
+            "preferred_salary": payload.preferred_salary,
+            "preferred_salary_currency": payload.preferred_salary_currency,
+        }
+    )
+    block = JobPreferences.model_validate(
+        payload.model_dump(include=set(JobPreferences.model_fields))
+    )
+    career["details"] = details.model_dump(mode="json")
+    career["preferences"] = block.model_dump(mode="json")
+    assert profile is not None
+    row = await repository.set_career(
+        session, user_id=ctx.user_id, career=career, city=profile.city
+    )
+    return _preferences_response(row)
+
+
+async def preference_options(session: AsyncSession, *, ctx: TenantContext) -> PreferenceOptions:
+    """Every dropdown on the tab, so both apps show the full list."""
+    _candidate(ctx)
+    from app.modules.taxonomy import service as taxonomy_service
+
+    industries = await taxonomy_service.visible_names(session, "industry")
+    roles = await taxonomy_service.visible_names(session, "role")
+    return PreferenceOptions(
+        work_modes=[Option(value=v, label=label) for v, label in WORK_MODE_OPTIONS],
+        job_types=[Option(value=v, label=label) for v, label in JOB_TYPE_OPTIONS],
+        industries=[Option(value=name, label=name) for name in industries],
+        roles=[Option(value=name, label=name) for name in roles],
+        salary_currencies=[
+            Option(value="INR", label="₹ INR"),
+            Option(value="USD", label="$ USD"),
+        ],
+    )

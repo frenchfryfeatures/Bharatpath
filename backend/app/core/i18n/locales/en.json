@@ -87,6 +87,7 @@
   "in_app.payment_failed": "Your payment did not go through. You can try again.",
   "in_app.payment_received": "We have received your payment. Thank you.",
   "in_app.pre_debit": "{amount} will be debited on {date} to continue your access.",
+  "in_app.daily_reminder": "You have not opened BharatPath today. Log in now to keep your streak going.",
   "in_app.profile_incomplete": "Upload your CV or type your details in to build your profile.",
   "interview.q.about_you": "Tell me about yourself and the work you have done.",
   "interview.q.career_change": "Why are you looking to change what you do, or where you do it?",

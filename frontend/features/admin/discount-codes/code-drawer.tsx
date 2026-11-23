@@ -57,7 +57,7 @@ export function CodeDrawer({ code, canWrite, onClose }: CodeDrawerProps) {
       >
         <header className="flex items-start justify-between border-b border-[#e5e7eb] px-5 py-4">
           <div>
-            <h2 className="font-mono text-[18px] font-bold text-[#172033]">{code.code}</h2>
+            <h2 className="font-mono text-[18px] font-semibold text-[#172033]">{code.code}</h2>
             <p className="mt-1 text-[12px] text-[#7b8494]">
               {AUDIENCE_LABEL[code.audience]} · {code.label || "No label"}
             </p>
@@ -98,7 +98,7 @@ export function CodeDrawer({ code, canWrite, onClose }: CodeDrawerProps) {
           ) : null}
 
           <section>
-            <h3 className="text-[13px] font-bold text-[#172033]">Successful redemptions</h3>
+            <h3 className="text-[13px] font-semibold text-[#172033]">Successful redemptions</h3>
             {filters.controls}
             <div className="my-2 flex items-center gap-3">
               <button type="button" disabled={pager.currentPage === 1 || redemptions.isFetching} onClick={pager.goToPreviousPage}>Previous</button>

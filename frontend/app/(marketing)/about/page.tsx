@@ -104,7 +104,7 @@ export default function AboutPage() {
         <span className="inline-flex items-center gap-2 rounded-full bg-lavender px-4 py-1.5 text-[14px] font-semibold text-purple-deep">
           <ShieldCheck className="h-4 w-4" aria-hidden="true" /> Made in India, for every corner of Bharat
         </span>
-        <h1 className="mt-5 max-w-[16ch] text-[clamp(40px,6vw,88px)] font-bold leading-[1] tracking-[-0.045em]">
+        <h1 className="mt-5 max-w-[16ch] text-[clamp(40px,6vw,88px)] font-semibold leading-[1] tracking-[-0.045em]">
           <span className="mask-line">
             <span>A fairer path</span>
           </span>
@@ -188,7 +188,7 @@ export default function AboutPage() {
                 <span className="inline-flex rounded-full bg-sand px-3 py-1 text-[13px] font-semibold text-purple">
                   {item.role}
                 </span>
-                <h3 className="mt-4 text-[22px] font-bold leading-snug tracking-[-0.02em]">{item.problem}</h3>
+                <h3 className="mt-4 text-[22px] font-semibold leading-snug tracking-[-0.02em]">{item.problem}</h3>
                 <p className="mt-3 text-[15px] leading-relaxed text-muted">{item.detail}</p>
               </div>
               <div className="mt-6 rounded-2xl bg-lavender p-4 text-[14px] leading-relaxed text-ink">
@@ -212,7 +212,7 @@ export default function AboutPage() {
             {AI_PRINCIPLES.map((p) => (
               <div key={p.title} data-reveal className="rounded-[24px] border border-line bg-paper p-6 shadow-card sm:p-8">
                 <p className="text-[13px] font-semibold uppercase tracking-wider text-purple">{p.step}</p>
-                <h3 className="mt-3 text-[21px] font-bold leading-snug tracking-[-0.02em]">{p.title}</h3>
+                <h3 className="mt-3 text-[21px] font-semibold leading-snug tracking-[-0.02em]">{p.title}</h3>
                 <p className="mt-3 text-[15px] leading-relaxed text-muted">{p.body}</p>
               </div>
             ))}

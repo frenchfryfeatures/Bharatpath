@@ -10,6 +10,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { SplashScreen } from '@/screens/splash/SplashScreen';
 import { IntroScreen } from '@/screens/onboarding/IntroScreen';
 import { CollegeReferralConsentScreen } from '@/screens/onboarding/CollegeReferralConsentScreen';
+import type { SignUpDraft } from '@/screens/auth/SignUpScreen';
 import {
   SignUpScreen,
   LoginScreen,
@@ -132,6 +133,9 @@ export default function FoundationPreview() {
     null,
   );
   const [onboardingSection, setOnboardingSection] = useState(0);
+  // What was typed on Sign Up, so leaving it (Back, Log in) and returning
+  // keeps the phone and the rest. Passwords are never kept.
+  const [signupDraft, setSignupDraft] = useState<SignUpDraft | null>(null);
 
   const [resumeVersionId, setResumeVersionId] = useState<string | undefined>();
   const [resumeVersionDetails, setResumeVersionDetails] =
@@ -189,6 +193,7 @@ export default function FoundationPreview() {
         if (params.step === 'intro' || params.step === 'login') {
           setUserEmail('');
           setUserName('');
+          setSignupDraft(null);
         }
         setUserPassword('');
         setResumeVersionId(undefined);
@@ -469,12 +474,13 @@ export default function FoundationPreview() {
   if (step === 'signup') {
     return (
       <SignUpScreen
-        initialFullName={userName}
-        initialEmail={userEmail}
-        initialPhone={typeof onboardingDraft?.phone === 'string' ? onboardingDraft.phone : ''}
-        initialCity={typeof onboardingDraft?.current_city === 'string' ? onboardingDraft.current_city : ''}
-        initialWorkStatus={typeof onboardingDraft?.work_status === 'string' ? onboardingDraft.work_status : ''}
-        initialReferralCode={collegeReferralCode}
+        initialFullName={userName || signupDraft?.fullName || ''}
+        initialEmail={userEmail || signupDraft?.email || ''}
+        initialPhone={typeof onboardingDraft?.phone === 'string' && onboardingDraft.phone ? onboardingDraft.phone : signupDraft?.phone || ''}
+        initialCity={typeof onboardingDraft?.current_city === 'string' && onboardingDraft.current_city ? onboardingDraft.current_city : signupDraft?.currentCity || ''}
+        initialWorkStatus={typeof onboardingDraft?.work_status === 'string' && onboardingDraft.work_status ? onboardingDraft.work_status : signupDraft?.workStatus || ''}
+        initialReferralCode={collegeReferralCode || signupDraft?.referralCode || ''}
+        onDraftChange={setSignupDraft}
         initialFileMeta={fileMeta}
         initialCareerDetails={onboardingDraft ?? undefined}
         onResumeSelected={(meta) => {

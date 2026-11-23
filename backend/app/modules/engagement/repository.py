@@ -172,3 +172,17 @@ async def purge_expired_activity_days(session: AsyncSession, *, today: date) -> 
         text("SELECT purge_streak_activity_days(:today)"), {"today": today}
     )
     return int(result.scalar_one())
+
+
+async def users_active_on(
+    session: AsyncSession, *, user_ids: list[uuid.UUID], day: date
+) -> set[uuid.UUID]:
+    """Which of these people have a calendar row for `day`."""
+    if not user_ids:
+        return set()
+    rows = await session.execute(
+        select(StreakActivityDay.user_id).where(
+            StreakActivityDay.user_id.in_(user_ids), StreakActivityDay.activity_on == day
+        )
+    )
+    return set(rows.scalars().all())

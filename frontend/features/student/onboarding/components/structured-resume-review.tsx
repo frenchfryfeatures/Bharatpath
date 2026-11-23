@@ -1,4 +1,5 @@
 "use client";
+import { ResumePreviewViewer } from "@/features/student/components/resume-preview-viewer";
 
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -11,7 +12,7 @@ import { AppSelect } from "@/components/ui/app-select";
 import { getApiErrorCode, getApiErrorMessage, getApiErrorParams } from "@/lib/api/error-message";
 import { useScrollLock } from "@/hooks/use-scroll-lock";
 import { PhoneNumberInput } from "@/components/ui/phone-number-input";
-import { useConfirmResumeVersionMutation, useEditResumeVersionMutation, useSubmitResumeDocumentMutation, useRenderResumeDocumentMutation, useLazyGetResumeVersionQuery, type ResumeScoringWindow, type ResumeVersionDetail } from "@/store/student";
+import { useConfirmResumeVersionMutation, useEditResumeVersionMutation, useSubmitResumeDocumentMutation, useRenderResumeDocumentMutation, usePreviewResumeDocumentMutation, useLazyGetResumeVersionQuery, type ResumeScoringWindow, type ResumeVersionDetail } from "@/store/student";
 import {ResumeBuilderStep} from "./resume-builder-step";
 import { Card, DoneDot, ErrorNote, fieldBorder, fieldClass, PillButton } from "./ui";
 import { validateReviewedResume, type ReviewIssue, type ReviewPath } from "./resume-review-validation";
@@ -218,7 +219,8 @@ function InputTree({ name, value, path, onChange, issues }: {
   );
 }
 
-export function StructuredResumeReview({ version, onConfirmed, onStartOver, title, subtitle, confirmLabel, startOverLabel, restoreFromHistory = false, scoringWindow, scoringWindowKnown, scoringWindowError, onRefreshScoringWindow }: {
+export function StructuredResumeReview({ version, onConfirmed, onStartOver, title, subtitle, confirmLabel, startOverLabel, restoreFromHistory = false, scoringWindow, scoringWindowKnown, scoringWindowError, onRefreshScoringWindow, allowSectionEdits = true }: {
+  allowSectionEdits?: boolean;
   version: ResumeVersionDetail; onConfirmed: (confirmedAt: string) => void; onStartOver: () => void;
   title: string; subtitle: string; confirmLabel: string; startOverLabel: string; restoreFromHistory?: boolean;
   scoringWindow?: ResumeScoringWindow; scoringWindowKnown: boolean; scoringWindowError: boolean; onRefreshScoringWindow: () => void;
@@ -235,17 +237,17 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
   const [savedWithoutScoring, setSavedWithoutScoring] = useState(false);
   const [loadEditedVersion]=useLazyGetResumeVersionQuery();
   const [renderDocument, renderState] = useRenderResumeDocumentMutation();
+  const [renderPreview, previewState] = usePreviewResumeDocumentMutation();
   const previewCloseRef = useRef<HTMLButtonElement>(null);
   const previewTriggerRef = useRef<HTMLElement|null>(null);
-  const [previewUrl,setPreviewUrl] = useState<string|null>(null);
-  useEffect(()=>()=>{if(previewUrl)URL.revokeObjectURL(previewUrl);},[previewUrl]);
+  const [previewDocument,setPreviewDocument] = useState<{pages:string[];truncated:boolean}|null>(null);
   useEffect(()=>{
-    if(!previewUrl)return;
+    if(!previewDocument)return;
     previewCloseRef.current?.focus();
-    const close=(event:KeyboardEvent)=>{if(event.key==="Escape")setPreviewUrl(null);};
+    const close=(event:KeyboardEvent)=>{if(event.key==="Escape")setPreviewDocument(null);};
     document.addEventListener("keydown",close);
     return ()=>{document.removeEventListener("keydown",close);previewTriggerRef.current?.focus();};
-  },[previewUrl]);
+  },[previewDocument]);
   const [editVersion, editState] = useEditResumeVersionMutation();
   const [submitResumeDocument, submitTextState] = useSubmitResumeDocumentMutation();
   const [confirmVersion, confirmState] = useConfirmResumeVersionMutation();
@@ -270,7 +272,7 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
   const drawerIssues = showValidation && drawerDraft && editing
     ? validateReviewedResume(drawerDraft).filter((issue) => sectionForPath(issue.path) === editing)
     : [];
-  useScrollLock(editing !== null || previewUrl !== null || builderSection !== null);
+  useScrollLock(editing !== null || previewDocument !== null || builderSection !== null);
 
   useEffect(() => {
     if (editing === null) return;
@@ -389,20 +391,24 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
   };
   const openDocument = async (download: boolean) => {
     try {
-      const result=await renderDocument(createdId ?? version.resumeVersionId).unwrap();
       if(download){
+        const result=await renderDocument(createdId ?? version.resumeVersionId).unwrap();
         const link=document.createElement("a");link.href=result.url;link.download=result.filename;link.click();
         window.setTimeout(()=>URL.revokeObjectURL(result.url),60_000);
-      }else {previewTriggerRef.current=document.activeElement instanceof HTMLElement?document.activeElement:null;setPreviewUrl(result.url);}
+      }else {
+        const result=await renderPreview(createdId ?? version.resumeVersionId).unwrap();
+        previewTriggerRef.current=document.activeElement instanceof HTMLElement?document.activeElement:null;
+        setPreviewDocument(result);
+      }
     }catch(failure){setError(getApiErrorMessage(failure,"Your resume could not be opened. Please try again."));}
   };
   return (
     <div className="flex flex-col gap-5">
       <header className="flex flex-col gap-1">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-[24px] font-bold leading-8 tracking-[-0.02em] text-[#0A1931] lg:text-[22px] lg:leading-7">{title}</h1>
+          <h1 className="text-[24px] font-semibold leading-8 tracking-[-0.02em] text-[#0A1931] lg:text-[22px] lg:leading-7">{title}</h1>
           <div className="ml-auto flex shrink-0 gap-2">
-            {[{download:false,label:"Preview resume",Icon:Eye},{download:true,label:"Download resume",Icon:Download}].map(({download,label,Icon})=><button key={label} type="button" aria-label={label} title={dirty?"Save your changes before previewing or downloading":label} disabled={dirty||renderState.isLoading} onClick={()=>void openDocument(download)} className="grid h-10 w-10 cursor-pointer place-items-center rounded-full border border-[#E7E0D4] text-[#5F4DB2] hover:bg-[#F1EAF7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2] disabled:cursor-not-allowed disabled:opacity-50">{renderState.isLoading?<Loader2 size={18} className="animate-spin"/>:<Icon size={18} aria-hidden="true"/>}</button>)}
+            {[{download:false,label:"Preview resume",Icon:Eye},{download:true,label:"Download resume",Icon:Download}].map(({download,label,Icon})=><button key={label} type="button" aria-label={label} title={dirty?"Save your changes before previewing or downloading":label} disabled={dirty||renderState.isLoading||previewState.isLoading} onClick={()=>void openDocument(download)} className="grid h-10 w-10 cursor-pointer place-items-center rounded-full border border-[#E7E0D4] text-[#5F4DB2] hover:bg-[#F1EAF7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2] disabled:cursor-not-allowed disabled:opacity-50">{renderState.isLoading?<Loader2 size={18} className="animate-spin"/>:<Icon size={18} aria-hidden="true"/>}</button>)}
           </div>
           {dirty && <span className="rounded-full bg-[#F7EFD6] px-3 py-1 text-[11px] font-bold text-[#85650F]">Unsaved changes</span>}
         </div>
@@ -416,9 +422,9 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
             setDraft(edited.structuredResume);setCreatedId(result.resume_version_id);setDirty(false);setSaved(false);setBuilderSection(null);
           }}/>
         </div>,document.body)}
-      {previewUrl && <div role="dialog" aria-modal="true" aria-label="Resume preview" className="fixed inset-0 z-[100] flex flex-col bg-[#FFFCF7] p-4 sm:p-6">
-        <div className="mb-3 flex items-center justify-between"><h2 className="text-xl font-semibold text-[#0A1931]">Resume preview</h2><button ref={previewCloseRef} type="button" aria-label="Close resume preview" onClick={()=>setPreviewUrl(null)} className="grid h-11 w-11 place-items-center rounded-full border border-[#E7E0D4]"><X size={22}/></button></div>
-        <iframe title="Resume preview" src={previewUrl} className="min-h-0 flex-1 rounded-xl border border-[#E7E0D4]"/>
+      {previewDocument && <div role="dialog" aria-modal="true" aria-label="Resume preview" className="fixed inset-0 z-[100] flex flex-col bg-[#FFFCF7] p-4 sm:p-6">
+        <div className="mb-3 flex items-center justify-between"><h2 className="text-xl font-semibold text-[#0A1931]">Resume preview</h2><button ref={previewCloseRef} type="button" aria-label="Close resume preview" onClick={()=>setPreviewDocument(null)} className="grid h-11 w-11 place-items-center rounded-full border border-[#E7E0D4]"><X size={22}/></button></div>
+        <ResumePreviewViewer pages={previewDocument.pages} truncated={previewDocument.truncated}/>
       </div>}
       {error && <div ref={errorRef}><ErrorNote>{error}</ErrorNote></div>}
       <div className="grid gap-3 xl:grid-cols-2">
@@ -431,7 +437,7 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
                 {draftIssues.some((issue) => sectionForPath(issue.path) === key)
                   ? <span className="text-[11px] font-semibold text-[#A13D37]">Needs details</span>
                   : hasContent(draft, key) && <DoneDot />}
-                <button
+                {allowSectionEdits && <button
                   type="button"
                   onClick={() => editSection(key)}
                   aria-label={isBuilderResume ? `Edit ${label} in resume builder` : `Edit ${label}`}
@@ -439,7 +445,7 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
                   className="grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-xl border border-[#E7E0D4] text-[#5F4DB2] transition hover:bg-[#F1EAF7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30"
                 >
                   <PencilLine size={17} aria-hidden="true" />
-                </button>
+                </button>}
               </div>
               <div className="mt-4"><StructuredResumeSectionView resume={draft} section={key} /></div>
             </Card>
@@ -448,16 +454,16 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
       </div>
       <div className="sticky bottom-0 -mx-1 flex flex-col gap-3 border-t border-[#E7E0D4] bg-[#FFFCF7]/95 px-1 pb-3.5 pt-4 backdrop-blur">
         <PillButton onClick={() => void confirm()} isLoading={confirmState.isLoading} disabled={busy || !canConfirm} className="w-full py-[18px] lg:py-3 lg:text-[14px]">
-          {scoringEligibilityPending ? "Checking score availability" : scoringCooldownActive ? "Score update unavailable" : canConfirm ? confirmLabel : "Already confirmed"}
+          {scoringEligibilityPending ? "Checking Bharatpath Score availability" : scoringCooldownActive ? "Bharatpath Score update unavailable" : canConfirm ? confirmLabel : "Already confirmed"}
         </PillButton>
         {scoreUpdateUnavailable && (
           <div role="status" className="space-y-1 text-center text-[12px] leading-4 text-[#5F6B80]">
             {scoringEligibilityPending
-              ? <p>{scoringWindowError ? "We could not check score availability. You can save your resume, but its score will not be updated." : "Checking whether this resume can update your score. You can still save your resume."}</p>
+              ? <p>{scoringWindowError ? "We could not check Bharatpath Score availability. You can save your resume, but its Bharatpath Score will not be updated." : "Checking whether this resume can update your Bharatpath Score. You can still save your resume."}</p>
               : nextScoringAt
                 ? <p>Your next resume can be scored on {scoringAvailabilityLabel(nextScoringAt)}.</p>
-                : <p>Your resume can be saved now, but its score cannot be updated yet.</p>}
-            {savedWithoutScoring && <p className="font-medium text-[#3A4761]">Resume saved. Your score was not updated.</p>}
+                : <p>Your resume can be saved now, but its Bharatpath Score cannot be updated yet.</p>}
+            {savedWithoutScoring && <p className="font-medium text-[#3A4761]">Resume saved. Your Bharatpath Score was not updated.</p>}
           </div>
         )}
         {scoreUpdateUnavailable && hasPendingSave && (
@@ -478,7 +484,7 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
                 <div className="flex min-w-0 items-start gap-3">
                   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[12px] bg-[#F1EAF7] text-[#5F4DB2] lg:h-9 lg:w-9"><DrawerIcon size={18} aria-hidden="true" /></span>
                   <div className="min-w-0">
-                    <h2 id={drawerTitleId} className="text-[18px] font-bold leading-6 text-[#0A1931] lg:text-[16px] lg:leading-5">Edit {selectedSection?.label.toLowerCase()}</h2>
+                    <h2 id={drawerTitleId} className="text-[18px] font-semibold leading-6 text-[#0A1931] lg:text-[16px] lg:leading-5">Edit {selectedSection?.label.toLowerCase()}</h2>
                     <p className="mt-1 text-[13px] leading-5 text-[#5F6B80] lg:text-[12px] lg:leading-4">Update the details, then apply them to your resume review.</p>
                   </div>
                 </div>
@@ -493,7 +499,7 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
                   <div className="space-y-5 lg:space-y-4">
                     {contactGroups.map(({ title: groupTitle, fields }) => (
                       <section key={groupTitle} className="space-y-3 lg:space-y-2.5">
-                        <h3 className="border-b border-[#E7E0D4] pb-2 text-[12px] font-bold uppercase tracking-[0.08em] text-[#5F6B80] lg:text-[11px]">{groupTitle}</h3>
+                        <h3 className="border-b border-[#E7E0D4] pb-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-[#5F6B80] lg:text-[11px]">{groupTitle}</h3>
                         <div className="grid gap-3 sm:grid-cols-2">
                           {fields.map((field) => <InputTree key={field} name={field} value={drawerDraft.contacts[field]} path={["contacts", field]} onChange={changeDrawer} issues={drawerIssues} />)}
                         </div>

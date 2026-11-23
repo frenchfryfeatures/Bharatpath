@@ -270,7 +270,9 @@ no "reopen" action.
 first, so an employer hitting this by mistake gets a plain `403`, not a
 "please subscribe" message meant for candidates).
 
-**Query params:** `q` (title/description search), `location`, `work_mode`,
+**Query params:** `q` (search: every word must appear in the title,
+description, location, a skill or the employer's name -- widened
+2026-11-23 from title/description only), `location`, `work_mode`,
 `skill`, `min_salary_minor`, `eligible_only`, plus `cursor`/`limit` for
 pagination (see [01-architecture.md](01-architecture.md) — cursor-based, not
 offset, because offset pagination on a growing table skips/repeats rows).
@@ -306,7 +308,25 @@ doc, just applying to a job's requirement instead of the score's own
 breakdown. `eligibility` is computed against the candidate's **stored**
 score — there's no way to pass a hypothetical score in and probe thresholds.
 
+### `GET /candidate/jobs/skills` — the skill filter's options (2026-11-23)
+
+**Auth required:** as the board. **Query params:** `q` (part of a skill,
+optional), `limit` (1-100, default 50).
+
+Skills that listed, published jobs ask for, most asked-for first, one
+spelling each: `{"items": ["Python", "SQL", ...]}`. Every option leads to
+at least one job, so a pick never empties the board for no reason. **Labels
+only, no counts.** Declared before `/{job_id}`.
+
 ### `GET /candidate/jobs/{job_id}` — one job's full detail
+
+The list and detail responses also include `application_id` and
+`application_stage` for the authenticated candidate's latest application to
+each job, or `null` when none exists. These fields include closed application
+history and never reveal another candidate's application. Clients should show
+this stage before eligibility, which only describes score eligibility. After
+withdrawal or reapplication, refetch the job and application list. This is an
+additive response change; no database migration is needed.
 
 **Auth required:** `CANDIDATE` role + active subscription.
 
@@ -337,14 +357,14 @@ PUBLIC only), so both need what the board needs.
 | Section | Endpoint | Matched on |
 |---|---|---|
 | Similar to applied | `GET /candidate/recommended-jobs/similar-to-applied` | Skills, title words and places of the candidate's last 20 applications (withdrawn ones ignored) |
-| Fits your profile | `GET /candidate/recommended-jobs/matching-profile` | The career profile from `PUT /candidate/profile/details`: `key_skills`, `job_role`, `job_title`, `role_category`, `preferred_locations`, `current_city`, experience |
+| Fits your profile | `GET /candidate/recommended-jobs/matching-profile` | The career profile from `PUT /candidate/profile/details`: `key_skills` (and the roles they imply), `job_role`, `job_title`, `role_category`, `preferred_locations`, `current_city`, experience, `preferred_salary` (INR only), `industry`, `highest_qualification`, fresher or not |
 
 **Auth required:** `CANDIDATE` role + active subscription (402
 `subscription_required` otherwise; an employer gets 403).
 
 **Query params:** `limit` (1-50, default 10), `eligible_only` (as on the
-board). **Not paginated.** A section is a short list, and "see all" goes
-to `GET /candidate/jobs`.
+board), and on `matching-profile` `offset` (0-500): the response's
+`next_offset` pages further into the same ranking (null at the end).
 
 **Response** (`RecommendedJobs`). Best match first. Each item is a
 `BoardJobSummary` plus `matched_skills`, the job's skills the candidate
@@ -358,10 +378,12 @@ shares (in the job's spelling), for a "Matches: Python, SQL" line:
       "experience_min_months": 12,
       "salary_min_minor": 8000000, "salary_max_minor": 15000000, "salary_disclosed": true,
       "published_at": "...", "eligibility": "ELIGIBLE",
-      "matched_skills": ["Python", "SQL"]
+      "matched_skills": ["Python", "SQL"],
+      "match_reasons": ["STRONG_SKILLS_MATCH", "ROLE_MATCH", "PREFERRED_LOCATION"]
     }
   ],
-  "has_basis": true
+  "has_basis": true,
+  "next_offset": 10
 }
 ```
 
@@ -373,12 +395,28 @@ shares (in the job's spelling), for a "Matches: Python, SQL" line:
 - **Jobs already applied to never appear**, in either section.
 - **No relevance number** is returned. The order is the ranking, and a
   number beside a job would read as a second score.
-- **What it never uses:** gender, salary, or anything else about who
-  someone is, and never the job's threshold. Eligibility is shown exactly
-  as on the board but plays no part in the order.
-- A job must share a skill or a title word to appear. Location and
-  experience only raise a job that already matches. Weights are in
-  `jobs/domain.py`: skill 3, title word 4, place 2, experience fit 1.
+- **`match_reasons`** say why, as codes the client words: `STRONG_SKILLS_MATCH`,
+  `SOME_SKILLS_MATCH`, `ROLE_MATCH`, `EXPERIENCE_FITS`, `PREFERRED_LOCATION`,
+  `REMOTE`, `SALARY_FITS`, `EDUCATION_FITS`, `INDUSTRY_MATCH`, `ENTRY_LEVEL`.
+- **What it never uses:** gender, age, current pay, or anything else about
+  who someone is, and never the job's threshold. Eligibility is shown
+  exactly as on the board but plays no part in the order.
+- **The job engine (2026-11-23)**, `jobs/domain.py` `score_job`: each of
+  nine dimensions -- skills (required, and "nice to have" at half), role
+  (title words; words the skills imply count half), experience range,
+  responsibilities (the candidate's skills and roles named in the
+  description and responsibilities), location or remote, salary against
+  the *preferred* salary, minimum education, industry, job type -- scores
+  0-1, and relevance is the weighted mean over the dimensions **both sides
+  fill**, times a small coverage factor. An empty optional field is left
+  out rather than scored zero. Synonyms (`JS` = `JavaScript`,
+  `Postgres` = `PostgreSQL`, ...) are one skill. A job must still share a
+  skill or a title word (chosen or implied) to appear.
+- **Weights are config**, `config_values` key `jobs.match_weights` (seeded
+  by `seed_config.py`; strict -- a bad row is `500 match_weights_invalid`):
+  skills 25, role 15, experience 15, responsibilities 10, location 10,
+  salary 10, education 5, industry 5, job type 5. Tune by inserting a new
+  version.
 
 ---
 
@@ -425,6 +463,16 @@ phone number as "text near the top of the page."
 candidate-pool count is itself a small information leak.
 
 ---
+
+## 7b. `GET /reference/cities` — Indian cities for any city field (2026-11-23)
+
+**Public** (sign-up asks for a city before an account exists); the global
+per-IP rate limit applies. **Query params:** `q`, `state` (two-letter code),
+`limit`. The same staff-curated catalogue as the employer filter panel
+(`/admin/search-filters`), matched on name and old names ("Bombay" finds
+Mumbai): `{"items": [{"key": "mumbai", "label": "Mumbai", "state_code":
+"MH"}]}`. An empty `q` returns nothing. Suggestions only: clients still
+accept any town typed.
 
 ## 8b. The filter panel — `/employer/discovery/filters*` (2026-09-24)
 
@@ -752,11 +800,50 @@ never scored, never an employer filter, never a matching term).
 
 **Response** — `200 OK`, the saved `CareerResponse`.
 
+### `GET /candidate/profile/preferences` and `PUT /candidate/profile/preferences` — job preferences (2026-11-23)
+
+The **Job preferences** screen, opened from the profile (web
+`/student/profile/preferences`, mobile `/job-preferences`). What the candidate wants from their next job;
+the job engine (§7) ranks "jobs that fit your profile" by it. `CANDIDATE`,
+not paywalled.
+
+```json
+{
+  "preferred_roles": ["Data Analyst"],
+  "preferred_industries": ["Banking"],
+  "work_modes": ["REMOTE", "HYBRID"],
+  "job_types": ["FULL_TIME", "INTERNSHIP"],
+  "open_to_relocation": true,
+  "preferred_locations": ["Pune", "Nagpur"],
+  "preferred_salary": 600000,
+  "preferred_salary_currency": "INR"
+}
+```
+
+- Every field optional; an empty one means "no preference" and the engine
+  leaves that dimension out. Lists hold up to 5, trimmed and de-duplicated.
+  `work_modes`: `ONSITE` `HYBRID` `REMOTE`. `job_types`: `FULL_TIME`
+  `PART_TIME` `CONTRACT` `INTERNSHIP` `FREELANCE`.
+- **`PUT` needs a completed profile**: `409 profile_incomplete` before. `GET`
+  always answers, with `profile_completed`, so the tab can say why.
+- **Stored as its own block** (`career.preferences`), so saving the onboarding
+  form never erases it. `preferred_locations` and `preferred_salary*` are the
+  profile details' own fields, written in place -- one copy, not two.
+- **Never asked**: anything about who someone is, or current pay. Company
+  type is not asked because jobs do not record one.
+
+### `GET /candidate/profile/preferences/options` — every dropdown's options
+
+`work_modes`, `job_types`, `salary_currencies` (fixed lists with labels) and
+`industries` / `roles` (every visible name in the job taxonomy, flat and
+sorted), each as `[{"value", "label"}]`, so both apps can show the full list.
+
 ### `POST /candidate/profile/prefill/{resume_version_id}` — fill it from a CV
 
 Reads the version's text into the profile. **Values the candidate already
-entered win**: a replacement CV never silently overwrites them. Sets the
-profile name from the CV only if none was given. Calling it again for the
+entered win**: a replacement CV never silently overwrites them. **The CV
+never supplies the account's name or contact phone** (2026-11-23): this
+path has no review step and the file may be someone else's. Calling it again for the
 version already linked, or for an older version of that CV, changes nothing.
 
 **Response** — `200 OK`, the saved `CareerResponse` (still a draft).

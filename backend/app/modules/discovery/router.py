@@ -166,3 +166,25 @@ async def suggest_locations(
 ) -> CitySuggestions:
     """As `/filters/skills`, for cities, optionally within one state."""
     return await service.suggest_cities(session, query=q, state_code=state, limit=limit)
+
+
+reference_router = APIRouter()
+
+
+@reference_router.get(
+    "/cities",
+    response_model=CitySuggestions,
+    summary="Indian cities for a city field",
+)
+async def reference_cities(
+    session: DbSession,
+    q: Annotated[str, Query(max_length=100)] = "",
+    state: Annotated[str | None, Query(min_length=2, max_length=2)] = None,
+    limit: int = Suggestions,
+) -> CitySuggestions:
+    """The same curated catalogue employers filter by (staff keep it at
+    `/admin/search-filters`), matched on name and old names ("Bombay").
+    **Public**: sign-up asks for a city before there is an account. It is
+    reference data -- no candidate's city is ever a suggestion -- and the
+    global per-IP rate limit applies. Empty `q` returns nothing."""
+    return await service.suggest_cities(session, query=q, state_code=state, limit=limit)

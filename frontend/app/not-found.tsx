@@ -9,7 +9,7 @@ export default function NotFound() {
       <SiteHeader />
       <main id="main">
         <section className="shell pb-10 pt-20">
-          <h1 className="text-[clamp(40px,5.6vw,80px)] font-bold leading-[1] tracking-[-0.045em]">
+          <h1 className="text-[clamp(40px,5.6vw,80px)] font-semibold leading-[1] tracking-[-0.045em]">
             This path ends here.
           </h1>
           <p className="mt-5 max-w-[48ch] text-[17px] text-muted">

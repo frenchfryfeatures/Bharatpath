@@ -283,7 +283,7 @@ def build_archive(*, sections: dict[str, list[dict[str, Any]]], generated_at: da
             "README.txt",
             "This archive holds the personal data BharatPath held about you on "
             f"{generated_at.isoformat()}.\n\n"
-            "One file per section. Dates are UTC. Your score is included; how it "
+            "One file per section. Dates are UTC. Your Bharatpath Score is included; how it "
             "was calculated is not, because the platform never explains a score.\n"
             f"Format version {ARCHIVE_FORMAT_VERSION}.\n",
         )

@@ -186,7 +186,7 @@ export default function StudentInterviewPage() {
                   <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
                   PRACTICE AT YOUR PACE
                 </span>
-                <h2 className="mt-3 text-xl font-bold tracking-tight text-[#0A1931] sm:text-2xl">
+                <h2 className="mt-3 text-xl font-semibold tracking-tight text-[#0A1931] sm:text-2xl">
                   Get ready for your next interview
                 </h2>
                 <p className="mt-2 max-w-lg text-[13px] leading-6 text-[#5F6B80]">
@@ -219,7 +219,7 @@ export default function StudentInterviewPage() {
                   className="h-4 w-4 text-[#5F4DB2]"
                   aria-hidden="true"
                 />
-                <h3 className="text-[14px] font-bold text-[#0A1931]">
+                <h3 className="text-[14px] font-semibold text-[#0A1931]">
                   Before you begin
                 </h3>
               </div>
@@ -431,7 +431,7 @@ export default function StudentInterviewPage() {
             <aside className="h-fit rounded-xl border border-[#E7E0D4] bg-[#FFFCF7] p-4 sm:p-5">
               <div className="flex items-center gap-2">
                 <Clock3 className="h-4 w-4 text-[#5F4DB2]" aria-hidden="true" />
-                <h3 className="text-[13px] font-bold text-[#0A1931]">
+                <h3 className="text-[13px] font-semibold text-[#0A1931]">
                   Session checkout
                 </h3>
               </div>
@@ -516,7 +516,7 @@ export default function StudentInterviewPage() {
         <section id="interview-history" className="scroll-mt-24 rounded-2xl border border-[#E7E0D4] bg-white p-5 shadow-[0_4px_20px_rgba(10,25,49,0.04)] sm:p-6">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-[14px] font-bold text-[#0A1931]">
+              <h2 className="text-[14px] font-semibold text-[#0A1931]">
                 Interview history
               </h2>
               <p className="mt-1 text-[11px] text-[#5F6B80]">
@@ -575,7 +575,7 @@ export default function StudentInterviewPage() {
 
           {selected && (
             <div className="mt-5 space-y-4 border-t border-[#F0EBDF] pt-5">
-              <h3 className="text-[13px] font-bold text-[#0A1931]">
+              <h3 className="text-[13px] font-semibold text-[#0A1931]">
                 Session review
               </h3>
               {recordings.isError ? (
@@ -615,7 +615,7 @@ export default function StudentInterviewPage() {
                 />
               ) : (
                 <>
-                  <h4 className="text-[12px] font-bold text-[#3A4761]">
+                  <h4 className="text-[12px] font-semibold text-[#3A4761]">
                     Feedback · {report.data?.status ?? "Loading"}
                   </h4>
                   {report.data?.dimensions.map((dimension) => (

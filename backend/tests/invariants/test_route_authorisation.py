@@ -41,6 +41,12 @@ PUBLIC: dict[tuple[str, str], str] = {
         "no storage, identity creation, or scoring."
     ),
     ("GET", "/api/v1/health"): "Liveness probe. Touches no data.",
+    ("GET", "/api/v1/reference/cities"): (
+        "The curated city catalogue for city fields, sign-up included, which "
+        "comes before an account exists (2026-11-23). Reference data staff "
+        "maintain; never built from any candidate's city, so it says nothing "
+        "about who uses the platform. Read-only and rate-limited per IP."
+    ),
     ("GET", "/api/v1/health/ready"): "Readiness probe. Touches no data.",
     ("POST", "/api/v1/billing/callbacks/{provider}"): (
         "Called server-to-server by the payment gateway, which holds no user "

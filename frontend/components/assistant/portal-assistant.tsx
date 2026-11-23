@@ -1,5 +1,7 @@
 "use client";
 
+import { BrandWordmark } from "@/components/common/brand-wordmark";
+
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type RefObject } from "react";
 import Link from "next/link";
 import {
@@ -127,7 +129,7 @@ export function PortalAssistant() {
       const code = getApiErrorCode(caught);
       const retryAfter = getApiErrorParams(caught)?.retry_after_seconds;
       const messageText = code === "assistant_unavailable"
-        ? "The assistant is unavailable right now. Try your message again."
+        ? "BharatPath Saathi is unavailable right now. Please try again."
         : code === "rate_limited" && typeof retryAfter === "number"
           ? `You've reached the chat limit. Try again in ${Math.ceil(retryAfter / 60)} minute(s).`
           : getApiErrorMessage(caught, "Could not send your message. Try again.");
@@ -174,13 +176,13 @@ export function PortalAssistant() {
           ref={triggerRef}
           type="button"
           onClick={() => setOpen(true)}
-          aria-label="Open job assistant"
+          aria-label="Open BharatPath Saathi"
           className="bp-assistant-launcher fixed bottom-5 right-5 z-30 flex items-center gap-3 rounded-full border border-white/25 px-3 py-2.5 pr-4 text-left text-white shadow-[0_16px_40px_rgba(48,36,105,.3)] transition-transform hover:-translate-y-1 active:scale-95 sm:bottom-7 sm:right-7"
         >
           <span className="grid size-10 place-items-center rounded-full bg-white/20 ring-1 ring-white/20"><Sparkles size={20} strokeWidth={1.9} /></span>
           <span className="flex flex-col leading-tight">
-            <span className="text-[13px] font-bold">Career assistant</span>
-            <span className="mt-0.5 text-[10px] font-medium text-white/80">Ask BharatPath anything</span>
+            <span className="text-[13px] font-bold"><BrandWordmark light /> Saathi</span>
+            <span className="mt-0.5 text-[10px] font-medium text-white/80">Ask BharatPath Saathi</span>
           </span>
           <span className="ml-1 size-2 rounded-full bg-[#B9F0C8] shadow-[0_0_0_4px_rgba(185,240,200,.18)]" aria-hidden="true" />
           <span className="absolute inset-0 -z-10 rounded-full bp-assistant-pulse" aria-hidden="true" />
@@ -189,17 +191,16 @@ export function PortalAssistant() {
 
       {(open || closing) && (
         <div data-scroll-lock-root className="fixed inset-0 z-[110]" inert={closing}>
-          <button type="button" tabIndex={-1} aria-label="Close assistant" onClick={close} data-state={closing ? "closing" : "open"} className="bp-assistant-scrim absolute inset-0 bg-[#0A1931]/35 backdrop-blur-[2px]" />
-          <section ref={dialogRef} role="dialog" aria-modal="true" aria-label="BharatPath job assistant" onKeyDown={onDialogKeyDown} data-state={closing ? "closing" : "open"} className="bp-assistant-panel absolute inset-x-0 bottom-0 flex h-[min(780px,96dvh)] flex-col overflow-hidden rounded-t-[28px] border bg-white shadow-[0_28px_90px_rgba(10,25,49,.24)] sm:inset-x-auto sm:bottom-5 sm:right-5 sm:h-[min(730px,calc(100dvh-40px))] sm:w-[min(455px,calc(100vw-40px))] sm:rounded-[28px]">
+          <button type="button" tabIndex={-1} aria-label="Close BharatPath Saathi" onClick={close} data-state={closing ? "closing" : "open"} className="bp-assistant-scrim absolute inset-0 bg-[#0A1931]/35 backdrop-blur-[2px]" />
+          <section ref={dialogRef} role="dialog" aria-modal="true" aria-label="BharatPath Saathi" onKeyDown={onDialogKeyDown} data-state={closing ? "closing" : "open"} className="bp-assistant-panel absolute inset-x-0 bottom-0 flex h-[min(780px,96dvh)] flex-col overflow-hidden rounded-t-[28px] border bg-white shadow-[0_28px_90px_rgba(10,25,49,.24)] sm:inset-x-auto sm:bottom-5 sm:right-5 sm:h-[min(730px,calc(100dvh-40px))] sm:w-[min(455px,calc(100vw-40px))] sm:rounded-[28px]">
             <header className="bp-assistant-header relative flex shrink-0 items-center gap-3 border-b border-[#EEE8E0] bg-white px-5 py-4">
               <span className="grid size-11 shrink-0 place-items-center rounded-[15px] bg-[#5F4DB2] text-white shadow-[0_7px_18px_rgba(95,77,178,.24)]"><Sparkles size={21} /></span>
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-bold uppercase tracking-[.18em] text-[#8675AE]">BharatPath</p>
-                <h2 className="text-[17px] font-bold leading-5 tracking-[-.025em] text-[#0A1931]">Career assistant</h2>
+                <h2 className="text-[17px] font-semibold leading-5 tracking-[-.025em] text-[#0A1931]"><BrandWordmark /> Saathi</h2>
                 <p className="mt-1 flex items-center gap-1.5 text-[11px] font-medium text-[#5F6B80]"><span className="size-1.5 rounded-full bg-[#31A66A]" /> Here to help you move forward</p>
               </div>
               <button type="button" onClick={reset} disabled={busy} aria-label="Start a new conversation" title="New conversation" className="grid size-9 shrink-0 place-items-center rounded-xl text-[#667085] transition-colors hover:bg-[#F1EAF7] hover:text-[#5F4DB2] disabled:opacity-40"><RotateCcw size={17} /></button>
-              <button type="button" onClick={close} aria-label="Close assistant" className="grid size-9 shrink-0 place-items-center rounded-xl text-[#667085] transition-colors hover:bg-[#F1EAF7] hover:text-[#5F4DB2]"><X size={19} /></button>
+              <button type="button" onClick={close} aria-label="Close BharatPath Saathi" className="grid size-9 shrink-0 place-items-center rounded-xl text-[#667085] transition-colors hover:bg-[#F1EAF7] hover:text-[#5F4DB2]"><X size={19} /></button>
             </header>
 
             <div ref={listRef} className="bp-assistant-body bp-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-5" aria-label="Conversation">
@@ -209,7 +210,7 @@ export function PortalAssistant() {
                     <span className="bp-assistant-hero-orbit pointer-events-none absolute -right-12 -top-16 size-44 rounded-full border border-white/20" aria-hidden="true" />
                     <span className="pointer-events-none absolute -right-4 -top-9 size-36 rounded-full border border-white/10" aria-hidden="true" />
                     <div className="relative flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.16em] text-[#E8DFFF]"><span className="grid size-7 place-items-center rounded-full bg-white/20"><Sparkles size={14} /></span> Your next step starts here</div>
-                    <h3 className="relative mt-4 max-w-[300px] text-[23px] font-bold leading-[1.15] tracking-[-.035em] sm:text-[25px]">Let&apos;s find what&apos;s next for you.</h3>
+                    <h3 className="relative mt-4 max-w-[300px] text-[23px] font-semibold leading-[1.15] tracking-[-.035em] sm:text-[25px]">Let&apos;s find what&apos;s next for you.</h3>
                     <p className="relative mt-2 max-w-[310px] text-[12px] leading-[1.55] text-[#EEE9FF]">Discover roles that fit, explore new opportunities, and stay on top of your applications.</p>
                     <div className="relative mt-5 inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[10px] font-semibold text-white/90"><ShieldCheck size={12} /> Built around your career journey</div>
                   </div>
@@ -217,7 +218,7 @@ export function PortalAssistant() {
                   <div className="mt-6 flex items-end justify-between gap-3">
                     <div>
                       <p className="text-[10px] font-bold uppercase tracking-[.15em] text-[#9B87BD]">Get started</p>
-                      <h4 className="mt-1 text-[16px] font-bold tracking-[-.02em] text-[#0A1931]">What would you like to do?</h4>
+                      <h4 className="mt-1 text-[16px] font-semibold tracking-[-.02em] text-[#0A1931]">What would you like to do?</h4>
                     </div>
                     <span className="shrink-0 text-[11px] text-[#8B8FA0]">Choose a prompt</span>
                   </div>
@@ -242,13 +243,13 @@ export function PortalAssistant() {
                 const response = entry.response;
                 return <AssistantAnswer key={entry.id} response={response} scrollRoot={listRef} onSuggestion={(text) => void send(text)} onClose={close} onApply={() => response.apply && void confirmApply(response.apply.jobId)} applyStatus={response.apply ? applied[response.apply.jobId] : undefined} applyError={response.apply ? applyErrors[response.apply.jobId] : undefined} />;
               })}
-              {busy && <div className="flex items-end gap-2" role="status" aria-label="Assistant is typing"><span className="grid size-7 place-items-center rounded-full bg-[var(--assistant-soft)] text-[var(--assistant-accent)]"><Sparkles size={13} /></span><span className="flex gap-1 rounded-[18px] rounded-bl-[5px] border border-[#E7E9EE] bg-white px-4 py-3"><i className="bp-assistant-dot" /><i className="bp-assistant-dot" /><i className="bp-assistant-dot" /></span></div>}
+              {busy && <div className="flex items-end gap-2" role="status" aria-label="BharatPath Saathi is typing"><span className="grid size-7 place-items-center rounded-full bg-[var(--assistant-soft)] text-[var(--assistant-accent)]"><Sparkles size={13} /></span><span className="flex gap-1 rounded-[18px] rounded-bl-[5px] border border-[#E7E9EE] bg-white px-4 py-3"><i className="bp-assistant-dot" /><i className="bp-assistant-dot" /><i className="bp-assistant-dot" /></span></div>}
               {error && <div className="rounded-2xl border border-[#E9C7BF] bg-[#FFF5F2] p-3 text-[12px] text-[#8D3926]" role="alert"><p>{error.message}</p><div className="mt-2 flex gap-3"><button type="button" onClick={() => void send(error.text, true)} disabled={busy || error.code === "rate_limited"} className="font-bold underline underline-offset-2 disabled:opacity-50">Try again</button>{error.code === "subscription_required" && <Link href="/student/subscription" onClick={close} className="font-bold underline underline-offset-2">View plans</Link>}</div></div>}
             </div>
 
             <form onSubmit={submit} className="bp-assistant-composer shrink-0 border-t border-[#EEE8E0] bg-white px-4 pb-[max(15px,env(safe-area-inset-bottom))] pt-3.5 sm:px-5">
               <div className="flex items-end gap-2 rounded-[19px] border border-[#DCD4EB] bg-[#FFFEFF] p-2 shadow-[0_4px_18px_rgba(55,40,105,.06)] transition-all focus-within:border-[#8D78C8] focus-within:shadow-[0_4px_22px_rgba(95,77,178,.15)]">
-                <textarea ref={inputRef} rows={1} maxLength={1000} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); if (!busy) void send(draft); } }} placeholder="Ask about jobs or applications…" aria-label="Message" className="max-h-28 min-h-11 flex-1 resize-none bg-transparent px-2 py-2.5 text-[13px] leading-5 text-[#0A1931] outline-none placeholder:text-[#9295A5]" />
+                <textarea ref={inputRef} rows={1} maxLength={1000} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); if (!busy) void send(draft); } }} placeholder="Ask BharatPath Saathi about jobs or applications…" aria-label="Message" className="max-h-28 min-h-11 flex-1 resize-none bg-transparent px-2 py-2.5 text-[13px] leading-5 text-[#0A1931] outline-none placeholder:text-[#9295A5]" />
                 <button type="submit" disabled={!draft.trim() || busy} aria-label="Send message" className="bp-assistant-send grid size-10 shrink-0 place-items-center rounded-[13px] text-white shadow-[0_5px_12px_rgba(95,77,178,.22)] transition-all hover:-translate-y-0.5 hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"><SendHorizontal size={18} /></button>
               </div>
               <div className="mt-2.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[10px] text-[#8A93A3]">
@@ -291,7 +292,7 @@ function AssistantAnswer({ response, scrollRoot, onSuggestion, onClose, onApply,
     <span className="bp-assistant-answer-avatar mt-1 grid size-8 shrink-0 place-items-center rounded-[11px] text-white shadow-[0_5px_12px_rgba(95,77,178,.2)]"><Sparkles size={15} /></span>
     <div className="min-w-0 flex-1 space-y-2.5">
       <div>
-        <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[.12em] text-[#8272AD]">BharatPath</p>
+        <p className="mb-1.5 text-[10px] font-bold tracking-[.12em]"><BrandWordmark /> Saathi</p>
         <div aria-live="polite" className="rounded-[19px] rounded-tl-[6px] border border-[#E9E2F0] bg-white px-4 py-3 text-[13px] leading-[1.6] text-[#26334B] shadow-[0_5px_16px_rgba(42,30,84,.045)]"><span className="sr-only">{response.reply}</span><span aria-hidden="true" className="whitespace-pre-wrap">{characters.slice(0, shown).join("")}{!complete && <span className="bp-assistant-caret">|</span>}</span></div>
       </div>
       {complete && <>
@@ -311,7 +312,7 @@ function AssistantJobCard({ job, index, onClose }: { job: JobListing | Recommend
     <div className="flex items-start gap-2.5">{index && <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-[var(--assistant-soft)] text-xs font-bold text-[var(--assistant-accent)]">{index}</span>}<div className="min-w-0 flex-1"><p className="text-[13px] font-bold leading-4 text-[#0A1931]">{job.title}</p><p className="mt-1 text-[11px] text-[#647087]">{job.employerName ?? "Employer"} · {job.location ?? "Location not specified"}</p></div><ArrowRight size={15} className="shrink-0 text-[var(--assistant-accent)]" /></div>
     <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[#526078]"><span>{formatSalary(job)}</span><span>·</span><span>{workModeLabel(job.workMode)}</span></div>
     {"matchedSkills" in job && job.matchedSkills.length > 0 && <p className="mt-1.5 text-[11px] text-[var(--assistant-accent)]">Matches: {job.matchedSkills.slice(0, 3).join(", ")}</p>}
-    <p className="mt-2 text-[10px] font-semibold text-[var(--assistant-accent)]">{job.eligibility === "ELIGIBLE" ? "Eligible to apply" : job.eligibility === "SCORE_PENDING" ? "Score pending" : "Not eligible"}</p>
+    <p className="mt-2 text-[10px] font-semibold text-[var(--assistant-accent)]">{job.eligibility === "ELIGIBLE" ? "Eligible to apply" : job.eligibility === "SCORE_PENDING" ? "Bharatpath Score pending" : "Not eligible"}</p>
   </Link>;
 }
 

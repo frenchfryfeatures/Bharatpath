@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { AppModal as Modal } from '@/components/layout/AppModal';
 import {
   ActivityIndicator,
-  Modal,
   Pressable,
   StyleSheet,
   Text,
@@ -81,7 +81,7 @@ export function LessonPlayerModal({
     [courseId, lesson, isCompleted, courseCompleted, onLessonCompleted]
   );
 
-  // Simulate local progress counter & send heartbeat every 15 seconds
+  // Simulate local progress counter & send heartbeat every 30 seconds
   useEffect(() => {
     if (!visible || !lesson || !lesson.media_url) return;
 
@@ -91,10 +91,10 @@ export function LessonPlayerModal({
       setPositionSeconds(currentPosRef.current);
     }, 1000);
 
-    // Sync to backend every 15 seconds
+    // Sync to backend every 30 seconds (and once more on close)
     progressTimerRef.current = setInterval(() => {
       syncProgress(currentPosRef.current);
-    }, 15000);
+    }, 30000);
 
     return () => {
       clearInterval(tickInterval);
@@ -110,7 +110,7 @@ export function LessonPlayerModal({
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
-      <SafeAreaView style={styles.safeContainer} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.safeContainer} edges={['top']}>
         {/* Top Header */}
         <View style={styles.header}>
           <View style={styles.headerTextGroup}>
@@ -197,7 +197,7 @@ export function LessonPlayerModal({
               </View>
               <Text style={styles.celebrationBody}>
                 You have watched every lesson in this course. 30 points have been
-                added to your BharatPath readiness score!
+                added to your Bharatpath Score!
               </Text>
             </View>
           )}
@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
     color: Colors.brandAccent,
   },
   headerTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 16,
     color: Colors.navy,
     marginTop: 2,
@@ -373,7 +373,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   celebrationTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 16,
     color: '#92400E',
   },
@@ -403,7 +403,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   nextLessonTitle: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 14,
     color: '#FFFFFF',
     marginTop: 2,

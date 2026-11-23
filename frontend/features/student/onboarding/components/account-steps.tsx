@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { CityDatalist } from "@/features/student/components/city-datalist";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { focusFormError } from "@/lib/ui/focus-form-error";
 import {
@@ -53,7 +54,15 @@ const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
  * 13 Create account - email and password, confirmed by a code emailed by
  * Cognito (the client has deferred phone OTP and SMS).
  * ---------------------------------------------------------------------- */
+export interface AccountDraft {
+  fullName?: string; email?: string; phone?: string; city?: string;
+  workStatus?: string; referralCode?: string; resumeDetails?: CareerDetails;
+  file?: File | null; touched?: string[]; resumeName?: string;
+}
+
 interface AccountStepProps {
+  initialDraft?: AccountDraft;
+  onDraftChange?: (draft: AccountDraft) => void;
   onSignedUp: (
     result: SignupResponse,
     email: string,
@@ -69,13 +78,15 @@ interface AccountStepProps {
 
 export function AccountStep({
   onSignedUp,
+  initialDraft,
+  onDraftChange,
   existingAccount,
   onDetailsSaved,
   onResumeSelected,
   onResumeParsed,
 }: Readonly<AccountStepProps>) {
-  const [fullName, setFullName] = useState(existingAccount?.fullName ?? "");
-  const [email, setEmail] = useState(existingAccount?.email ?? "");
+  const [fullName, setFullName] = useState(existingAccount?.fullName ?? initialDraft?.fullName ?? "");
+  const [email, setEmail] = useState(existingAccount?.email ?? initialDraft?.email ?? "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -83,19 +94,55 @@ export function AccountStep({
   const [confirmTouched, setConfirmTouched] = useState(false);
   const [code, setCode] = useState("");
   const [referralCode, setReferralCode] = useState(
-    existingAccount?.referralCode ?? "",
+    existingAccount?.referralCode ?? initialDraft?.referralCode ?? "",
   );
   const [saveName, nameState] = useUpdateStudentNameMutation();
   const [detailsError, setDetailsError] = useState<string>();
-  const [previewResume, previewState] = usePreviewSignupResumeMutation();
-  const [resumeDetails, setResumeDetails] = useState<CareerDetails>({});
-  const [phone, setPhone] = useState("");
-  const [city, setCity] = useState("");
-  const [workStatus, setWorkStatus] = useState("");
-  const [selectedResumeFile, setSelectedResumeFile] = useState<File | null>(null);
+  const [previewResume] = usePreviewSignupResumeMutation();
+  const [resumeDetails, setResumeDetails] = useState<CareerDetails>(initialDraft?.resumeDetails ?? {});
+  const [phone, setPhone] = useState(initialDraft?.phone ?? "");
+  const [city, setCity] = useState(initialDraft?.city ?? "");
+  const [workStatus, setWorkStatus] = useState(initialDraft?.workStatus ?? "");
+  const [selectedResumeFile, setSelectedResumeFile] = useState<File | null>(initialDraft?.file ?? null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const touched = useRef(new Set<string>());
+  const touched = useRef(new Set<string>(initialDraft?.touched ?? []));
   const previewRequest = useRef(0);
+  const [reading, setReading] = useState(false);
+  const [resumeError, setResumeError] = useState<string>();
+  const [resumeName, setResumeName] = useState(initialDraft?.resumeName ?? "");
+  useEffect(() => {
+    onDraftChange?.({ fullName, email, phone, city, workStatus, referralCode,
+      resumeDetails, file: selectedResumeFile, touched: [...touched.current], resumeName });
+  }, [onDraftChange, fullName, email, phone, city, workStatus, referralCode, resumeDetails, selectedResumeFile, resumeName]);
+  useEffect(() => () => { previewRequest.current++; }, []);
+
+  const readResume = async (file: File | null) => {
+    const requestId = ++previewRequest.current;
+    setResumeError(undefined);
+    if (!file) { setReading(false); return; }
+    setReading(true);
+    try {
+      const result = await previewResume(file).unwrap();
+      if (requestId !== previewRequest.current) return;
+      setResumeDetails(result.details);
+      setResumeName(result.full_name ?? "");
+      onResumeParsed?.(result);
+      // A replacement CV replaces only CV-filled fields, including blanks.
+      if (!touched.current.has("fullName")) setFullName(result.full_name ?? "");
+      if (!touched.current.has("email")) setEmail(result.email ?? "");
+      if (!touched.current.has("phone")) setPhone(String(result.details.phone ?? ""));
+      if (!touched.current.has("city")) setCity(String(result.details.current_city ?? ""));
+      if (!touched.current.has("workStatus")) setWorkStatus(String(result.details.work_status ?? ""));
+    } catch (failure) {
+      if (requestId !== previewRequest.current) return;
+      setResumeError(getApiErrorMessage(failure, "Your resume could not be read. Please try again or enter your details."));
+    } finally {
+      if (requestId === previewRequest.current) setReading(false);
+    }
+  };
+  const normalizedName = (name: string) => name.toLocaleLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+  const identityNotice = resumeName && fullName.trim() && normalizedName(resumeName) !== normalizedName(fullName);
+
   const basicDetails = (): CareerDetails => ({
     ...resumeDetails,
     phone,
@@ -140,7 +187,7 @@ export function AccountStep({
 
   const submitDetails = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (previewState.isLoading) return;
+    if (reading) return;
 
     if (existingAccount) {
       const problem = nameError(fullName);
@@ -301,39 +348,11 @@ export function AccountStep({
               type="file"
               accept=".pdf,.docx"
               className={`${fieldClass} flex-1 text-sm`}
-              onChange={async (event) => {
+              onChange={(event) => {
                 const file = event.target.files?.[0] ?? null;
                 setSelectedResumeFile(file);
                 onResumeSelected(file);
-                const requestId = ++previewRequest.current;
-                if (!file) return;
-                setDetailsError(undefined);
-                try {
-                  const result = await previewResume(file).unwrap();
-                  if (requestId !== previewRequest.current) return;
-                  setResumeDetails(result.details);
-                  onResumeParsed?.(result);
-                  if (!touched.current.has("fullName") && result.full_name)
-                    setFullName(result.full_name);
-                  if (!touched.current.has("email") && result.email)
-                    setEmail(result.email);
-                  if (!touched.current.has("phone") && result.details.phone)
-                    setPhone(String(result.details.phone));
-                  if (!touched.current.has("city") && result.details.current_city)
-                    setCity(String(result.details.current_city));
-                  if (
-                    !touched.current.has("workStatus") &&
-                    result.details.work_status
-                  )
-                    setWorkStatus(String(result.details.work_status));
-                } catch (failure) {
-                  setDetailsError(
-                    getApiErrorMessage(
-                      failure,
-                      "Your resume could not be read. Try another file or enter your details.",
-                    ),
-                  );
-                }
+                void readResume(file);
               }}
             />
             {selectedResumeFile && (
@@ -341,9 +360,16 @@ export function AccountStep({
                 type="button"
                 aria-label="Remove resume"
                 onClick={() => {
-                  previewRequest.current++;
+                  void readResume(null);
+                  setResumeName("");
+                  setResumeError(undefined);
                   setSelectedResumeFile(null);
                   setResumeDetails({});
+                  if (!touched.current.has("fullName")) setFullName("");
+                  if (!touched.current.has("email")) setEmail("");
+                  if (!touched.current.has("phone")) setPhone("");
+                  if (!touched.current.has("city")) setCity("");
+                  if (!touched.current.has("workStatus")) setWorkStatus("");
                   onResumeSelected(null);
                   if (fileInputRef.current) fileInputRef.current.value = "";
                 }}
@@ -353,15 +379,18 @@ export function AccountStep({
               </button>
             )}
           </div>
-          {previewState.isLoading && (
+          {reading && (
             <p role="status" className="text-[13px] text-[#5F4DB2]">
               Reading your resume and filling your details…
             </p>
           )}
         </Field>
       )}
+      {resumeError && <ErrorNote action={selectedResumeFile ? <button type="button" onClick={() => void readResume(selectedResumeFile)} disabled={reading} className="font-semibold underline">Try again</button> : undefined}>{resumeError}</ErrorNote>}
+      {identityNotice && <p role="status" className="rounded-xl bg-[#FFF3C7] p-3 text-[13px] text-[#9A4C17]">This resume names {resumeName}, which differs from the name you entered. Check that you uploaded your own resume. Your typed details have been kept.</p>}
       <Field
         id="signup-full-name"
+        loading={reading}
         label="Full name"
         hint="Only letters and spaces. Stored in profile upon signup."
         error={errors.fullName}
@@ -373,6 +402,7 @@ export function AccountStep({
           />
           <input
             id="signup-full-name"
+            disabled={reading}
             autoComplete="name"
             autoFocus
             placeholder="e.g. Priya Sharma"
@@ -390,6 +420,7 @@ export function AccountStep({
 
       <Field
         id="signup-email"
+        loading={reading}
         label="Email"
         error={errors.email}
         hint={existingAccount ? "Your verified account email." : undefined}
@@ -402,6 +433,7 @@ export function AccountStep({
           <input
             id="signup-email"
             type="email"
+            disabled={reading}
             autoComplete="email"
             placeholder="you@example.com"
             value={email}
@@ -424,6 +456,7 @@ export function AccountStep({
         <>
           <Field
             id="signup-mobile"
+            loading={reading}
             error={errors.phone}
             label="Mobile number *"
             hint="Select your country code, then enter your mobile number."
@@ -431,6 +464,7 @@ export function AccountStep({
             <PhoneNumberInput
               id="signup-mobile"
               variant="student"
+              disabled={reading}
               value={phone}
               onChange={(next) => {
                 touched.current.add("phone");
@@ -442,6 +476,7 @@ export function AccountStep({
           </Field>
           <Field
             id="signup-current-city"
+            loading={reading}
             label="Current city *"
             hint="Enter your city or town, without an address or PIN code."
             error={errors.city}
@@ -453,7 +488,9 @@ export function AccountStep({
               />
               <input
                 id="signup-current-city"
+                disabled={reading}
                 autoComplete="address-level2"
+                list="signup-city-options"
                 placeholder="e.g. Pune"
                 value={city}
                 maxLength={100}
@@ -466,12 +503,14 @@ export function AccountStep({
                 }}
                 className={`${fieldClass} ${fieldBorder(Boolean(errors.city))} pl-12`}
               />
+              <CityDatalist id="signup-city-options" query={city} />
             </div>
           </Field>
-          <Field id="signup-work-status" label="Work status *" error={errors.workStatus}>
+          <Field id="signup-work-status" loading={reading} label="Work status *" error={errors.workStatus}>
             <AppSelect
               ariaInvalid={Boolean(errors.workStatus)}
               value={workStatus}
+              disabled={reading}
               onChange={(value) => {
                 touched.current.add("workStatus");
                 setWorkStatus(value);
@@ -676,7 +715,7 @@ export function AccountStep({
           <PillButton
             type="submit"
             isLoading={existingAccount ? nameState.isLoading : flow.busy}
-            disabled={previewState.isLoading}
+            disabled={reading}
             className="flex-1"
           >
             {existingAccount
@@ -803,6 +842,7 @@ export function LocationStep({
             <input
               id="signup-city"
               autoComplete="address-level2"
+              list="signup-city-options-2"
               placeholder="e.g. Pune"
               value={city}
               maxLength={100}
@@ -813,6 +853,7 @@ export function LocationStep({
               }}
               className={`${fieldClass} ${fieldBorder(Boolean(errors.city))} pl-12`}
             />
+            <CityDatalist id="signup-city-options-2" query={city} />
           </div>
         </Field>
 

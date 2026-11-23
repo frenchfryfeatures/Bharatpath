@@ -51,3 +51,11 @@ def option_query(
             model.id,
         )
     return query.order_by(model.sort_order, model.name, model.id)
+
+
+async def visible_names(session: Any, level: Any) -> list[str]:
+    """Every visible option name at one level, one spelling each, by name.
+    For flat pickers (job preferences) that do not walk the hierarchy."""
+    rows = await session.scalars(option_query(level, visible=True).order_by(None))
+    names = {row.name.strip(): None for row in rows if row.name and row.name.strip()}
+    return sorted(names, key=str.casefold)

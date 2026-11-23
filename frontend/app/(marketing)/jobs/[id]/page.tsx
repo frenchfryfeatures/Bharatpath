@@ -52,7 +52,7 @@ export default async function JobPage({ params }: PageProps<"/jobs/[id]">) {
             <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
               <OrgMark job={job} size={64} />
               <div className="min-w-0 flex-1">
-                <h1 className="text-[30px] font-bold leading-[1.1] tracking-[-0.035em] sm:text-[40px]">{job.title}</h1>
+                <h1 className="text-[30px] font-semibold leading-[1.1] tracking-[-0.035em] sm:text-[40px]">{job.title}</h1>
                 <p className="mt-2 text-[17px] text-muted">{job.organisation}</p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Chip tone="lavender">{job.type}</Chip>
@@ -70,7 +70,7 @@ export default async function JobPage({ params }: PageProps<"/jobs/[id]">) {
           </p>
 
           <section aria-labelledby="facts" className="rounded-[28px] border border-line bg-paper p-6 shadow-card sm:p-8">
-            <h2 id="facts" className="text-[20px] font-bold tracking-[-0.02em]">
+            <h2 id="facts" className="text-[20px] font-semibold tracking-[-0.02em]">
               At a glance
             </h2>
             <dl className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -89,7 +89,7 @@ export default async function JobPage({ params }: PageProps<"/jobs/[id]">) {
           </section>
 
           <section aria-labelledby="skills" className="rounded-[28px] border border-line bg-paper p-6 shadow-card sm:p-8">
-            <h2 id="skills" className="text-[20px] font-bold tracking-[-0.02em]">
+            <h2 id="skills" className="text-[20px] font-semibold tracking-[-0.02em]">
               Skills asked for
             </h2>
             <ul className="mt-4 flex flex-wrap gap-2">
@@ -99,7 +99,7 @@ export default async function JobPage({ params }: PageProps<"/jobs/[id]">) {
                 </li>
               ))}
             </ul>
-            <h2 className="mt-8 text-[20px] font-bold tracking-[-0.02em]">How applying works</h2>
+            <h2 className="mt-8 text-[20px] font-semibold tracking-[-0.02em]">How applying works</h2>
             <ol className="mt-4 space-y-3 text-[16px] text-body">
               {["Create a free account and add your CV, or build one.", "Check what we read from your CV and confirm it.", "Apply in a tap and follow the application from viewed to hired."].map((s, i) => (
                 <li key={s} className="flex gap-3">
@@ -129,7 +129,7 @@ export default async function JobPage({ params }: PageProps<"/jobs/[id]">) {
 
       {similar.length > 0 && (
         <section aria-labelledby="similar" className="mt-16">
-          <h2 id="similar" className="mb-6 text-[26px] font-bold tracking-[-0.03em]">
+          <h2 id="similar" className="mb-6 text-[26px] font-semibold tracking-[-0.03em]">
             Similar roles
           </h2>
           <ul className="grid gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-3">

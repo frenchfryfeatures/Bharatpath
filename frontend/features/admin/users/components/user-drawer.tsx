@@ -119,7 +119,7 @@ export function UserDrawer({
           <div className="flex min-w-0 items-center gap-3">
             <Avatar name={title} src={isCandidate ? candidateQuery.data?.photo_url : organisationDetail?.logo_url} fit={isCandidate ? "cover" : "contain"} size="lg" />
             <div>
-            <h2 className="text-[18px] font-bold text-[#172033]">{title}</h2>
+            <h2 className="text-[18px] font-semibold text-[#172033]">{title}</h2>
             <p className="mt-1 text-[12px] text-[#7b8494]">{subjectType}</p>
             </div>
           </div>
@@ -238,7 +238,7 @@ function CandidateDetails({
 
       <section className="grid grid-cols-2 gap-3 rounded-lg border border-[#e5e7eb] p-4">
         <Detail
-          label="Score"
+          label="Bharatpath Score"
           value={
             candidate.score
               ? `${candidate.score.display_value} · ${candidate.score.band}`

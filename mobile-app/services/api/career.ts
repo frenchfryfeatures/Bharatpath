@@ -443,3 +443,48 @@ export function fieldVisible(field: CareerField, details: CareerDetails) {
     'annual_salary', 'annual_salary_currency', 'industry', 'department', 'role_category', 'job_role'];
   return !history.includes(field.key) || details.work_status === 'EXPERIENCED' || details.currently_employed === 'YES';
 }
+
+// ─── Job preferences (2026-11-23) ─────────────────────────────
+// The profile's Preferences tab. The job engine ranks "Jobs that fit your
+// profile" by these; every answer is optional.
+export type WorkModePreference = 'ONSITE' | 'HYBRID' | 'REMOTE';
+export type JobTypePreference = 'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'INTERNSHIP' | 'FREELANCE';
+
+export interface JobPreferences {
+  preferred_roles: string[];
+  preferred_industries: string[];
+  work_modes: WorkModePreference[];
+  job_types: JobTypePreference[];
+  open_to_relocation: boolean;
+  preferred_locations: string[];
+  preferred_salary: number | null;
+  preferred_salary_currency: 'INR' | 'USD';
+}
+
+export interface JobPreferencesResponse extends JobPreferences {
+  /** False until onboarding is finished; saving then answers 409. */
+  profile_completed: boolean;
+  updated_at: string | null;
+}
+
+export interface PreferenceOption { value: string; label: string }
+
+export interface JobPreferenceOptions {
+  work_modes: PreferenceOption[];
+  job_types: PreferenceOption[];
+  industries: PreferenceOption[];
+  roles: PreferenceOption[];
+  salary_currencies: PreferenceOption[];
+}
+
+export const getJobPreferences = () =>
+  apiRequest<JobPreferencesResponse>('/candidate/profile/preferences');
+
+export const getJobPreferenceOptions = () =>
+  apiRequest<JobPreferenceOptions>('/candidate/profile/preferences/options');
+
+export const saveJobPreferences = (preferences: JobPreferences) =>
+  apiRequest<JobPreferencesResponse>('/candidate/profile/preferences', {
+    method: 'PUT',
+    body: preferences,
+  });

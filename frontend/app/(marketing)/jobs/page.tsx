@@ -13,7 +13,7 @@ export default function JobsPage() {
   return (
     <>
       <section className="shell pb-8 pt-8 sm:pt-12">
-        <h1 className="text-[clamp(36px,4.6vw,64px)] font-bold leading-[1.02] tracking-[-0.045em]">
+        <h1 className="text-[clamp(36px,4.6vw,64px)] font-semibold leading-[1.02] tracking-[-0.045em]">
           Jobs across <span className="text-purple">India</span>
         </h1>
         <p className="mt-4 max-w-[60ch] text-[17px] text-body">

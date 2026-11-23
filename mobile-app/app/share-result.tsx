@@ -116,24 +116,32 @@ export default function ShareResultRoute() {
     }
   };
 
-  const handleShare = async () => {
+  // The card says the band unless the candidate turned on the exact
+  // Bharatpath Score; what leaves the phone must say no more than the card.
+  const resultText = (showExact: boolean) => {
+    const bandStr = band ? `${band} band` : 'a verified Bharatpath Score';
+    const scoreStr = showExact && scoreNum ? `${scoreNum}/${UI_SCORE_MAX} (${band ?? 'verified'})` : bandStr;
+    return `I reached ${scoreStr} on BharatPath! Verify your Bharatpath Score and get discovered by top employers.`;
+  };
+
+  const handleShare = async (showExact: boolean) => {
     try {
-      const bandStr = band ? ` (${band})` : '';
-      const scoreStr = scoreNum ? `${scoreNum}/${UI_SCORE_MAX}` : 'Verified';
-      await Share.share({
-        message: `I scored ${scoreStr}${bandStr} on BharatPath! Verify your employability score and get discovered by top employers.`,
-      });
+      await Share.share({ message: resultText(showExact) });
     } catch {
       // User cancelled share sheet
     }
   };
 
-  const handleSave = () => {
-    AppAlert.alert(
-      'Result Saved',
-      'Your BharatPath resume score card is saved to your profile.',
-      [{ text: 'OK' }]
-    );
+  // Saving the card as an image needs a screen-capture module this build
+  // does not include. Until then Save hands the same result to the phone's
+  // own sheet ("Save to Files", "Copy", Notes...) instead of claiming a save
+  // that never happened.
+  const handleSave = async (showExact: boolean) => {
+    try {
+      await Share.share({ message: resultText(showExact), title: 'My Bharatpath Score' });
+    } catch {
+      AppAlert.alert('Could not save', 'Please try again.', [{ text: 'OK' }]);
+    }
   };
 
   return (

@@ -133,7 +133,7 @@ export function DisputeDrawer() {
 
         <div className="flex flex-none items-start gap-3 border-b border-[#e5e8ee] px-4 py-3">
           <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <h2 className="text-[18px] font-bold leading-[23px] tracking-[-0.012em] text-[#172033] [text-wrap:pretty]">
+            <h2 className="text-[18px] font-semibold leading-[23px] tracking-[-0.012em] text-[#172033] [text-wrap:pretty]">
               {selectedDispute.title}
             </h2>
 

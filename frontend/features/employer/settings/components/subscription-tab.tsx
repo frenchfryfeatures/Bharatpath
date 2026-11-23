@@ -105,7 +105,7 @@ export function SubscriptionTab() {
   return (
     <div className="max-w-[760px] space-y-4">
       <section className="rounded-xl border border-[#e0e4e9] bg-white p-5">
-        <h2 className="text-[13px] font-bold">Current subscription</h2>
+        <h2 className="text-[13px] font-semibold">Current subscription</h2>
         <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
           <strong>{humanizeCode(subscription?.state ?? "NONE")}</strong>
           <span className={subscription?.has_access ? "text-[#13875e]" : "text-[#b42318]"}>{subscription?.has_access ? "Employer access active" : "Employer access inactive"}</span>
@@ -131,7 +131,7 @@ export function SubscriptionTab() {
       ) : (
         <div className="grid gap-3 md:grid-cols-3">
           {plans.map((plan) => { const current = Boolean(subscription?.has_access) && subscription?.plan_code === plan.code; return <section key={plan.code} className={`rounded-xl border bg-white p-5 ${current ? "border-[#5b4ed0] ring-2 ring-[#5b4ed0]/20" : "border-[#e0e4e9]"}`}>
-          <div className="flex items-center justify-between gap-2"><h3 className="text-sm font-bold">{humanizeCode(plan.period)}</h3>{current ? <span className="rounded-full bg-[#5b4ed0] px-2 py-0.5 text-[10px] font-bold uppercase text-white">Current plan</span> : null}</div>
+          <div className="flex items-center justify-between gap-2"><h3 className="text-sm font-semibold">{humanizeCode(plan.period)}</h3>{current ? <span className="rounded-full bg-[#5b4ed0] px-2 py-0.5 text-[10px] font-bold uppercase text-white">Current plan</span> : null}</div>
           <p className="mt-2 text-2xl font-bold">₹{(plan.price_minor / 100).toLocaleString("en-IN")}</p>
           <p className="mt-1 text-xs text-[#718096]">{plan.months} month{plan.months === 1 ? "" : "s"}{plan.seat_allowance ? ` · ${plan.seat_allowance} seats` : ""}</p>
           {isOwner ? <button disabled={checkoutState.isLoading} onClick={() => confirm({

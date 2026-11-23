@@ -40,7 +40,7 @@ const CANDIDATE_PAGE_SIZES = [10, 25, 50, 100] as const;
 export function CandidatesPage() {
   usePageHeader(
     "Candidates",
-    "Search candidates by score, skills and location"
+    "Search candidates by Bharatpath Score, skills and location"
   );
 
   const impressionRoot=useRef<HTMLDivElement>(null);

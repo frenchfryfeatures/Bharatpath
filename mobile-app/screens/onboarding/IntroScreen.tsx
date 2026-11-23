@@ -11,7 +11,7 @@ interface IntroScreenProps {
 
 export function IntroScreen({ onGetStarted, onAlreadyHaveAccount }: IntroScreenProps) {
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <StatusBar style="dark" animated />
       <View style={styles.container}>
         {/* Main Content Area */}
@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xs,
   },
   title: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 28,
     lineHeight: 34,
     letterSpacing: -0.5,

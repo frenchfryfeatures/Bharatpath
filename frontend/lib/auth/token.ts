@@ -53,7 +53,7 @@ export function clearBrowserAuthStorage(): void {
 
   const isAuthKey = (key: string) => {
     const normalized = key.toLowerCase();
-    return ["auth", "session", "token", "identity", "cognito", "amplify"]
+    return ["auth", "session", "token", "identity", "cognito", "amplify", "student", "bharatpath", "career-draft"]
       .some((term) => normalized.includes(term));
   };
 

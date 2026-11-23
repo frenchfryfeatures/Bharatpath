@@ -157,7 +157,7 @@ export function StreakCard({ streak, loading, onPress }: StreakCardProps) {
             {points.toLocaleString('en-IN')} pts
           </Text>
           {longest > 0 ? (
-            <Text style={styles.longestText}>Best: {longest}d</Text>
+            <Text style={styles.longestText}>Longest Streak: {longest}d</Text>
           ) : null}
         </View>
       </View>
@@ -239,6 +239,8 @@ const styles = StyleSheet.create({
   },
   bodyRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 2,
@@ -275,6 +277,7 @@ const styles = StyleSheet.create({
     color: Colors.text.muted,
   },
   pointsCol: {
+    flexGrow: 1,
     alignItems: 'flex-end',
     justifyContent: 'center',
     gap: 2,
@@ -287,6 +290,7 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   longestText: {
+    textAlign: 'right',
     fontFamily: 'GeneralSans-Medium',
     fontSize: 11,
     lineHeight: 14,

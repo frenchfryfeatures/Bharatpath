@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
+import { AppModal as Modal } from '@/components/layout/AppModal';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { X } from 'phosphor-react-native';
 import { Colors, Radii } from '@/theme/tokens';
 import { logger } from '@/utils/logger';
 
@@ -9,21 +11,36 @@ export type AlertButton = {
   style?: 'default' | 'cancel' | 'destructive' | 'secondary';
 };
 
+export type AlertOptions = {
+  showCloseButton?: boolean;
+  fullWidthSingleButton?: boolean;
+};
+
 export type AlertConfig = {
   title: string;
   message?: string;
   buttons?: AlertButton[];
+  showCloseButton?: boolean;
+  fullWidthSingleButton?: boolean;
 };
 
 let listeners: ((config: AlertConfig | null) => void)[] = [];
 
 export const AppAlert = {
-  alert: (title: string, message?: string, buttons?: AlertButton[]) => {
+  alert: (title: string, message?: string, buttons?: AlertButton[], options?: AlertOptions) => {
     logger.warn('AppAlert', `Showing alert dialog: "${title}"`, {
       message,
       buttons: buttons?.map((b) => b.text) || ['OK'],
     });
-    listeners.forEach((listener) => listener({ title, message, buttons }));
+    listeners.forEach((listener) =>
+      listener({
+        title,
+        message,
+        buttons,
+        showCloseButton: options?.showCloseButton,
+        fullWidthSingleButton: options?.fullWidthSingleButton,
+      })
+    );
   },
 };
 
@@ -55,20 +72,36 @@ export function AppAlertRoot() {
     <Modal visible transparent animationType="fade" onRequestClose={() => setConfig(null)}>
       <View style={styles.overlay}>
         <View style={styles.dialog}>
-          <Text style={styles.title}>{config.title}</Text>
+          {config.showCloseButton ? (
+            <View style={styles.titleRow}>
+              <Text style={[styles.title, styles.titleFlex]}>{config.title}</Text>
+              <Pressable
+                style={({ pressed }) => [styles.closeBtn, pressed && { opacity: 0.7 }]}
+                onPress={() => setConfig(null)}
+                accessibilityRole="button"
+                accessibilityLabel="Close dialog"
+                hitSlop={8}
+              >
+                <X size={18} color={Colors.navy} weight="bold" />
+              </Pressable>
+            </View>
+          ) : (
+            <Text style={styles.title}>{config.title}</Text>
+          )}
           {!!config.message && <Text style={styles.message}>{config.message}</Text>}
           <View style={[styles.actions, isStacked ? styles.actionsStacked : styles.actionsRow]}>
             {buttons.map((btn, idx) => {
               const isCancel = btn.style === 'cancel';
               const isDestructive = btn.style === 'destructive';
               const isSecondary = btn.style === 'secondary';
+              const isFullWidth = isStacked || (buttons.length === 1 && config.fullWidthSingleButton);
 
               return (
                 <Pressable
                   key={idx}
                   style={({ pressed }) => [
                     styles.button,
-                    isStacked ? styles.buttonStacked : buttons.length === 2 ? styles.buttonHalf : undefined,
+                    isFullWidth ? styles.buttonStacked : buttons.length === 2 ? styles.buttonHalf : undefined,
                     isCancel
                       ? styles.buttonCancel
                       : isDestructive
@@ -128,8 +161,25 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     elevation: 8,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  titleFlex: {
+    flex: 1,
+  },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.surface.tint,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   title: {
-    fontFamily: 'GeneralSans-Bold',
+    fontFamily: 'GeneralSans-Semibold',
     fontSize: 20,
     lineHeight: 26,
     color: '#0A1931',
@@ -155,7 +205,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   button: {
-    paddingVertical: 12,
+    paddingVertical: 13,
     paddingHorizontal: 20,
     borderRadius: Radii.pill,
     alignItems: 'center',
