@@ -14,7 +14,7 @@
  */
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
+import { saveFileToDevice } from '@/services/files/saveToDevice';
 import { apiRequest, getAccessToken, getBaseUrl, ApiError } from './client';
 export type {
   StructuredResumeContacts,
@@ -239,14 +239,8 @@ export async function downloadAndShareResumePdf(
     encoding: FileSystem.EncodingType.Base64,
   });
 
-  const isAvailable = await Sharing.isAvailableAsync();
-  if (isAvailable) {
-    await Sharing.shareAsync(fileUri, {
-      mimeType: 'application/pdf',
-      dialogTitle: 'Share or Save Your Resume',
-      UTI: 'com.adobe.pdf',
-    });
-  }
+  // Download saves; it no longer opens the share sheet on Android.
+  await saveFileToDevice(fileUri, filename, 'application/pdf');
 
   return { uri: fileUri };
 }

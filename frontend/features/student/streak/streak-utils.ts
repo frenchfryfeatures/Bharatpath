@@ -60,7 +60,7 @@ export function statusLabel(status: StreakStatus): string {
   return {
     NONE: "Start your streak today",
     ACTIVE_TODAY: "Streak active today",
-    AT_RISK: "Check in today",
+    AT_RISK: "Login today",
     BROKEN: "Streak ready to restart",
   }[status];
 }

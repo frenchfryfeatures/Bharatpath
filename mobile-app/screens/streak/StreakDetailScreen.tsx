@@ -19,6 +19,7 @@
  * - Brand Gold: #B9891A
  * - Fire Orange: #FF6B00
  */
+import { useScreenRefresh } from '@/hooks/useScreenRefresh';
 import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import {
   View,
@@ -222,6 +223,8 @@ export function StreakDetailScreen({ onBack }: StreakDetailScreenProps) {
       loadCalendar(view, streak.today);
     }
   }, [refresh, loadHistory, streak?.today, view, loadCalendar]);
+  // Quiet refetch whenever the screen comes back into view (2026-11-23).
+  useScreenRefresh(onRefresh);
 
   const handleManualCheckIn = useCallback(async () => {
     if (checkingIn) return;
@@ -513,14 +516,14 @@ export function StreakDetailScreen({ onBack }: StreakDetailScreenProps) {
                     onPress={handleManualCheckIn}
                     disabled={checkingIn}
                     accessibilityRole="button"
-                    accessibilityLabel="Check in today"
+                    accessibilityLabel="Login today"
                   >
                     {checkingIn ? (
                       <ActivityIndicator size="small" color="#FFFFFF" />
                     ) : (
                       <>
                         <Lightning size={16} color="#FFFFFF" weight="fill" />
-                        <Text style={styles.checkInText}>Check in today</Text>
+                        <Text style={styles.checkInText}>Login today</Text>
                       </>
                     )}
                   </Pressable>
@@ -831,7 +834,7 @@ export function StreakDetailScreen({ onBack }: StreakDetailScreenProps) {
                   {view === 'week'
                     ? status === 'ACTIVE_TODAY'
                       ? '✓ Today completed! Keep up the daily momentum.'
-                      : 'Check in before 11:59 PM IST to keep your streak alive.'
+                      : 'Login before 11:59 PM IST to keep your streak alive.'
                     : 'Colored days are days you opened the app.'}
                 </Text>
               </View>
@@ -900,7 +903,7 @@ export function StreakDetailScreen({ onBack }: StreakDetailScreenProps) {
                 <View style={styles.breakPenaltyBox}>
                   <Flame size={15} color="#5F4DB2" weight="fill" />
                   <Text style={styles.breakPenaltyNote}>
-                    Check in every day to build your streak and keep your points growing!
+                    Login every day to build your streak and keep your points growing!
                   </Text>
                 </View>
               ) : null}
@@ -922,7 +925,7 @@ export function StreakDetailScreen({ onBack }: StreakDetailScreenProps) {
                 <Trophy size={32} color={Colors.text.muted} weight="duotone" />
                 <Text style={styles.historyEmptyTitle}>No points yet</Text>
                 <Text style={styles.historyEmptyBody}>
-                  Earn points by reaching streak milestones. Check in daily so you don't miss a day.
+                  Earn points by reaching streak milestones. Login daily so you don't miss a day.
                 </Text>
               </View>
             ) : (

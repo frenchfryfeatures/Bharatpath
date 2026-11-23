@@ -36,7 +36,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import {
   VideoCamera,
-  Eye,
   Archive,
   CheckCircle,
   Sparkle,
@@ -422,14 +421,6 @@ function StageCard({
         </View>
       </View>
 
-      {application.stage === 'SUBMITTED' && (
-        <View style={styles.cardFooterNotice}>
-          <Eye size={14} color="#5F6B80" weight="bold" />
-          <Text style={styles.cardFooterNoticeText}>
-            Employers usually open profiles within a few days
-          </Text>
-        </View>
-      )}
     </Pressable>
   );
 }
@@ -1023,21 +1014,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     color: '#FFFFFF',
-  },
-  cardFooterNotice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#F0EBDF',
-  },
-  cardFooterNoticeText: {
-    flex: 1,
-    fontFamily: 'GeneralSans-Regular',
-    fontSize: 12,
-    lineHeight: 16,
-    color: '#5F6B80',
   },
   closedCard: {
     backgroundColor: '#FFFFFF',

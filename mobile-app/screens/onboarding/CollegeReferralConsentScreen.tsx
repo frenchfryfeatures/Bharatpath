@@ -28,7 +28,7 @@ export function CollegeReferralConsentScreen({ code, onDone }: { code: string; o
     } catch (failure) { setError(failure instanceof Error ? failure.message : 'Your college could not be linked.'); }
     finally { setBusy(false); }
   };
-  return <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFCF7' }}>
+  return <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: '#FFFCF7' }}>
     <ScrollView contentContainerStyle={{ padding: 20, gap: 20 }} keyboardShouldPersistTaps="handled">
       <OnboardingProgress step={0} />
       <Text style={{ fontFamily: 'GeneralSans-Bold', fontSize: 26, color: '#0A1931' }}>Link your college</Text>

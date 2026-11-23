@@ -26,7 +26,7 @@ interface LanguageSelectScreenProps {
 
 export function LanguageSelectScreen({ onSelectLanguage }: LanguageSelectScreenProps) {
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <StatusBar style="dark" animated />
       <ScrollView
         contentContainerStyle={styles.scrollContent}

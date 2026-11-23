@@ -151,6 +151,8 @@ export interface JobListing {
 
 export interface RecommendedJob extends JobListing {
   matchedSkills: string[];
+  /** The job engine's reason codes; see `jobs/match-reasons.ts`. */
+  matchReasons?: string[];
 }
 
 export interface RecommendedJobs {

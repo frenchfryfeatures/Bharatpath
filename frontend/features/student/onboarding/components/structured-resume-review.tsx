@@ -219,7 +219,8 @@ function InputTree({ name, value, path, onChange, issues }: {
   );
 }
 
-export function StructuredResumeReview({ version, onConfirmed, onStartOver, title, subtitle, confirmLabel, startOverLabel, restoreFromHistory = false, scoringWindow, scoringWindowKnown, scoringWindowError, onRefreshScoringWindow }: {
+export function StructuredResumeReview({ version, onConfirmed, onStartOver, title, subtitle, confirmLabel, startOverLabel, restoreFromHistory = false, scoringWindow, scoringWindowKnown, scoringWindowError, onRefreshScoringWindow, allowSectionEdits = true }: {
+  allowSectionEdits?: boolean;
   version: ResumeVersionDetail; onConfirmed: (confirmedAt: string) => void; onStartOver: () => void;
   title: string; subtitle: string; confirmLabel: string; startOverLabel: string; restoreFromHistory?: boolean;
   scoringWindow?: ResumeScoringWindow; scoringWindowKnown: boolean; scoringWindowError: boolean; onRefreshScoringWindow: () => void;
@@ -436,7 +437,7 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
                 {draftIssues.some((issue) => sectionForPath(issue.path) === key)
                   ? <span className="text-[11px] font-semibold text-[#A13D37]">Needs details</span>
                   : hasContent(draft, key) && <DoneDot />}
-                <button
+                {allowSectionEdits && <button
                   type="button"
                   onClick={() => editSection(key)}
                   aria-label={isBuilderResume ? `Edit ${label} in resume builder` : `Edit ${label}`}
@@ -444,7 +445,7 @@ export function StructuredResumeReview({ version, onConfirmed, onStartOver, titl
                   className="grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-xl border border-[#E7E0D4] text-[#5F4DB2] transition hover:bg-[#F1EAF7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30"
                 >
                   <PencilLine size={17} aria-hidden="true" />
-                </button>
+                </button>}
               </div>
               <div className="mt-4"><StructuredResumeSectionView resume={draft} section={key} /></div>
             </Card>

@@ -78,7 +78,7 @@ function RecommendationSection({
 
       {result.isLoading ? (
         <StudentJobGridSkeleton count={fullPage ? 6 : 3} label={`Loading ${section.title}`} />
-      ) : result.error ? (
+      ) : result.error && !result.data ? (
         <StudentErrorState error={result.error} title="Jobs unavailable" fallback="Could not load recommended jobs." onRetry={result.refetch} />
       ) : !result.data?.hasBasis ? (
         <EmptyState
@@ -94,7 +94,7 @@ function RecommendationSection({
         <div className="min-w-0"><div className="mb-2 flex justify-end gap-2">{([-1, 1] as const).map(direction => <button key={direction} type="button" aria-label={`Scroll ${section.title} ${direction < 0 ? 'left' : 'right'}`} onClick={() => railRef.current?.scrollBy({ left: direction * (railRef.current.clientWidth || 340), behavior: 'smooth' })} className="grid h-10 w-10 place-items-center rounded-full border border-[#E7E0D4] bg-white text-[#5F4DB2] hover:bg-[#F1EAF7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30">{direction < 0 ? <ArrowLeft size={17}/> : <ArrowRight size={17}/>}</button>)}</div>
         <div ref={railRef} tabIndex={0} aria-label={`${section.title}, scroll horizontally for more jobs`} className="flex snap-x snap-proximity gap-3 overflow-x-auto overscroll-x-contain pb-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2]/30">
           {result.data.items.map((job) => (
-            <div key={job.id} className="w-[min(85vw,340px)] shrink-0 snap-start [&>div]:h-full"><JobCard job={job} matchedSkills={job.matchedSkills} /></div>
+            <div key={job.id} className="w-[min(85vw,340px)] shrink-0 snap-start [&>div]:h-full"><JobCard job={job} matchedSkills={job.matchedSkills} matchReasons={job.matchReasons} /></div>
           ))}
         </div>
         </div>

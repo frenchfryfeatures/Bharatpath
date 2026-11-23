@@ -1,3 +1,4 @@
+import { backoffDelay } from '@/utils/backoff';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Image, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -36,11 +37,13 @@ const STATUS_MESSAGES = [
   'Computing your Bharatpath Score',
 ];
 
-const POLL_INTERVAL_MS = 2000;
 // A real model call was measured at 8-16 seconds locally and may be slower
-// under provider load. Keep polling for one minute, while the visible
-// "Continue without score" action lets the candidate leave immediately.
-const MAX_POLLS = 30;
+// under provider load. Ask after 2 s, then less often up to every 8 s
+// (2026-11-23: was every 2 s, 30 times), for about the same minute, while the
+// visible "Continue without score" action lets the candidate leave at once.
+const POLL_START_MS = 2000;
+const POLL_MAX_MS = 8000;
+const MAX_POLLS = 12;
 
 interface ScoringScreenProps {
   onReady: (score: CandidateScoreResponse) => void;
@@ -144,7 +147,7 @@ export function ScoringScreen({
         return;
       }
       setPollCount((count) => count + 1);
-    }, pollCount === 0 ? 400 : POLL_INTERVAL_MS);
+    }, pollCount === 0 ? 400 : backoffDelay(pollCount - 1, POLL_START_MS, POLL_MAX_MS));
     return () => clearTimeout(timer);
   }, [checkOnce, error, isPolling, pollCount]);
 
@@ -171,7 +174,7 @@ export function ScoringScreen({
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <StatusBar style="dark" animated />
       <View style={styles.container}>
         <ScrollView
@@ -182,7 +185,7 @@ export function ScoringScreen({
           <View style={styles.titleSection}>
             <Text style={styles.title}>Scoring your resume</Text>
             <Text style={styles.subtitle}>
-              The number is computed after you confirm. This screen waits for it.
+              Your Bharatpath Score is computed after you confirm. This screen waits for it.
             </Text>
           </View>
 
@@ -226,7 +229,7 @@ export function ScoringScreen({
           ) : (
             <View style={styles.noteCard}>
               <Text style={styles.noteText}>
-                Your resume is confirmed. This only waits for the number, and
+                Your resume is confirmed. This only waits for your Bharatpath Score, and
                 nothing you entered is lost if it takes longer.
               </Text>
             </View>
@@ -291,35 +294,36 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingTop: Spacing.xl,
-    paddingBottom: Spacing.xl,
-    gap: Spacing.lg,
+    flexGrow: 1,
+    paddingTop: 14,
+    paddingBottom: 8,
+    gap: 12,
   },
   titleSection: {
     gap: 4,
   },
   title: {
     fontFamily: 'GeneralSans-Semibold',
-    fontSize: 28,
-    lineHeight: 32,
-    letterSpacing: -0.7,
+    fontSize: 26,
+    lineHeight: 30,
+    letterSpacing: -0.6,
     color: Colors.navy,
   },
   subtitle: {
     fontFamily: 'GeneralSans-Regular',
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 14,
+    lineHeight: 20,
     color: Colors.text.primary,
   },
   heroSection: {
-    gap: Spacing.sm,
+    gap: Spacing.xs,
   },
   pillarsWrapper: {
     width: '100%',
-    height: 180,
+    height: 132,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: -16,
+    marginBottom: -12,
   },
   pillarsImage: {
     width: '100%',
@@ -328,8 +332,8 @@ const styles = StyleSheet.create({
   workingCard: {
     backgroundColor: Colors.indigo,
     borderRadius: Radii.cardLg,
-    padding: Spacing.xl,
-    gap: Spacing.base,
+    padding: 18,
+    gap: 12,
   },
   workingEyebrow: {
     fontFamily: 'SpaceMono-Bold',
@@ -366,41 +370,41 @@ const styles = StyleSheet.create({
   errorCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
+    gap: 10,
     backgroundColor: '#F8E6E0',
-    borderRadius: 20,
-    padding: 16,
+    borderRadius: 16,
+    padding: 12,
   },
   errorText: {
     flex: 1,
     fontFamily: 'GeneralSans-Regular',
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 19,
     color: '#993A22',
   },
   noteCard: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E7E0D4',
-    borderRadius: 20,
-    padding: 16,
+    borderRadius: 16,
+    padding: 12,
   },
   noteText: {
     fontFamily: 'GeneralSans-Regular',
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 19,
     color: '#3A4761',
   },
   bottomSection: {
-    gap: 12,
-    paddingBottom: 20,
-    paddingTop: 8,
+    gap: 8,
+    paddingBottom: 10,
+    paddingTop: 6,
     backgroundColor: '#FFFCF7',
   },
   showScoreButton: {
     width: '100%',
     backgroundColor: '#5F4DB2',
-    paddingVertical: 18,
+    paddingVertical: 15,
     borderRadius: Radii.pill,
     alignItems: 'center',
     justifyContent: 'center',
@@ -410,7 +414,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#DDD6C7',
-    paddingVertical: 16,
+    paddingVertical: 13,
     borderRadius: Radii.pill,
     alignItems: 'center',
     justifyContent: 'center',
@@ -426,7 +430,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     backgroundColor: '#5F4DB2',
-    paddingVertical: 18,
+    paddingVertical: 15,
     borderRadius: Radii.pill,
     alignItems: 'center',
     justifyContent: 'center',

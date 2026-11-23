@@ -110,7 +110,10 @@ services:
   # Runs to completion on every `up`, before the API starts, and then exits.
   # Alembic is idempotent, so a no-op migration costs a second. The seeds are
   # the ones `reset_local_db.sh` runs, in its order; each writes only what is
-  # missing. `seed_catalogue.py` refuses its placeholder prices outside
+  # missing. The education (qualification -> course -> specialization) and
+  # job (industry -> department -> role) taxonomies joined them 2026-11-23:
+  # they had been seeded by hand on local only, so UAT's dropdowns were
+  # empty. `--seed-only` writes catalogue rows and never touches a profile. `seed_catalogue.py` refuses its placeholder prices outside
   # local/dev (`PLACEHOLDER_PRICING`), so with ENVIRONMENT=prod this step
   # fails and nothing starts -- on purpose, until the client's prices exist.
   #
@@ -123,10 +126,12 @@ services:
       [
         "sh",
         "-c",
-        "python -m alembic upgrade head && python scripts/seed_catalogue.py && python scripts/seed_config.py && python scripts/seed_filter_options.py",
+        "python -m alembic upgrade head && python scripts/seed_catalogue.py && python scripts/seed_config.py && python scripts/seed_filter_options.py && python scripts/seed_education_taxonomy.py --allow-remote --seed-only && python scripts/seed_job_taxonomy.py --allow-remote --seed-only",
       ]
     environment:
       DATABASE_URL: ${DATABASE_URL_MIGRATOR:?set DATABASE_URL_MIGRATOR in .env}
+      # The two taxonomy seeders read the migrator URL under its own name.
+      DATABASE_URL_MIGRATOR: ${DATABASE_URL_MIGRATOR:?set DATABASE_URL_MIGRATOR in .env}
     restart: "no"
 
   # -------------------------------------------------------------------------

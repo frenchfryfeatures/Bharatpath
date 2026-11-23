@@ -81,7 +81,7 @@ export function LessonPlayerModal({
     [courseId, lesson, isCompleted, courseCompleted, onLessonCompleted]
   );
 
-  // Simulate local progress counter & send heartbeat every 15 seconds
+  // Simulate local progress counter & send heartbeat every 30 seconds
   useEffect(() => {
     if (!visible || !lesson || !lesson.media_url) return;
 
@@ -91,10 +91,10 @@ export function LessonPlayerModal({
       setPositionSeconds(currentPosRef.current);
     }, 1000);
 
-    // Sync to backend every 15 seconds
+    // Sync to backend every 30 seconds (and once more on close)
     progressTimerRef.current = setInterval(() => {
       syncProgress(currentPosRef.current);
-    }, 15000);
+    }, 30000);
 
     return () => {
       clearInterval(tickInterval);
@@ -110,7 +110,7 @@ export function LessonPlayerModal({
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
-      <SafeAreaView style={styles.safeContainer} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.safeContainer} edges={['top']}>
         {/* Top Header */}
         <View style={styles.header}>
           <View style={styles.headerTextGroup}>

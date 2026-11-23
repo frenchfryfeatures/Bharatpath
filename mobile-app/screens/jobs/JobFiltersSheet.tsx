@@ -14,7 +14,7 @@
  *
  * No distance slider - the API has no geo search.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AppModal as Modal } from '@/components/layout/AppModal';
 import {
   View,
@@ -23,7 +23,10 @@ import {
   Pressable,
   Platform,
   TextInput,
+  Keyboard,
   KeyboardAvoidingView,
+  ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import {
   Funnel,
@@ -36,6 +39,8 @@ import {
 } from 'phosphor-react-native';
 import { Colors } from '@/theme/tokens';
 import { JobFilters, DEFAULT_JOB_FILTERS, WorkMode } from '@/types/job';
+import { getBoardSkills } from '@/services/api/jobs';
+import { IndianCityDropdown } from '@/components/inputs/IndianCityDropdown';
 
 export interface JobFiltersSheetProps {
   visible: boolean;
@@ -69,21 +74,99 @@ export function JobFiltersSheet({
   currentFilters,
 }: JobFiltersSheetProps) {
   const [draft, setDraft] = useState<JobFilters>(currentFilters);
+  const [skillQuery, setSkillQuery] = useState('');
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const scrollRef = useRef<ScrollView>(null);
+
+  const selectedSkills = React.useMemo(
+    () =>
+      draft.skill
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
+    [draft.skill],
+  );
 
   // Re-seed the draft whenever the sheet opens or the parent filters change.
   useEffect(() => {
-    if (visible) setDraft(currentFilters);
+    if (visible) {
+      setDraft(currentFilters);
+      setSkillQuery('');
+    } else {
+      setKeyboardHeight(0);
+    }
   }, [visible, currentFilters]);
+
+  // Lift the bottom sheet cleanly above the Android soft keyboard so the SKILL
+  // input and its suggestion chips stay fully visible while typing.
+  useEffect(() => {
+    if (!visible || Platform.OS !== 'android') return;
+    const showSub = Keyboard.addListener('keyboardDidShow', (event) => {
+      setKeyboardHeight(event.endCoordinates?.height || 0);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
+    });
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardHeight(0);
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [visible]);
+
+  // Skill options come from the skills live jobs ask for, so a pick always
+  // finds something. Fetched as the candidate types, newest answer wins.
+  const [skillOptions, setSkillOptions] = useState<string[]>([]);
+  const [skillsLoading, setSkillsLoading] = useState(false);
+  const [skillsError, setSkillsError] = useState(false);
+  useEffect(() => {
+    if (!visible) return;
+    let active = true;
+    setSkillsLoading(true);
+    setSkillsError(false);
+    const timer = setTimeout(() => {
+      getBoardSkills(skillQuery, 24)
+        .then((items) => { if (active) setSkillOptions(items); })
+        .catch(() => { if (active) setSkillsError(true); })
+        .finally(() => { if (active) setSkillsLoading(false); });
+    }, 250);
+    return () => { active = false; clearTimeout(timer); };
+  }, [visible, skillQuery]);
 
   const update = (patch: Partial<JobFilters>) =>
     setDraft((prev) => ({ ...prev, ...patch }));
 
+  const toggleSkill = (skillName: string) => {
+    const clean = skillName.trim();
+    if (!clean) return;
+    const exists = selectedSkills.some((s) => s.toLowerCase() === clean.toLowerCase());
+    const next = exists
+      ? selectedSkills.filter((s) => s.toLowerCase() !== clean.toLowerCase())
+      : [...selectedSkills, clean];
+    update({ skill: next.join(', ') });
+  };
+
+  const commitTypedSkill = () => {
+    const clean = skillQuery.trim();
+    if (!clean) return;
+    if (!selectedSkills.some((s) => s.toLowerCase() === clean.toLowerCase())) {
+      update({ skill: [...selectedSkills, clean].join(', ') });
+    }
+    setSkillQuery('');
+  };
+
   const handleReset = () => {
     setDraft(DEFAULT_JOB_FILTERS);
+    setSkillQuery('');
   };
 
   const handleApply = () => {
-    onApply(draft);
+    const cleanTyped = skillQuery.trim();
+    let finalDraft = draft;
+    if (cleanTyped && !selectedSkills.some((s) => s.toLowerCase() === cleanTyped.toLowerCase())) {
+      finalDraft = { ...draft, skill: [...selectedSkills, cleanTyped].join(', ') };
+    }
+    onApply(finalDraft);
     onClose();
   };
 
@@ -100,7 +183,12 @@ export function JobFiltersSheet({
       >
         <Pressable style={styles.dismissOverlay} onPress={onClose} />
 
-        <View style={styles.sheetContainer}>
+        <View
+          style={[
+            styles.sheetContainer,
+            Platform.OS === 'android' && keyboardHeight > 0 && { marginBottom: keyboardHeight },
+          ]}
+        >
           {/* Top Grab Handle */}
           <View style={styles.grabHandle} />
 
@@ -112,6 +200,13 @@ export function JobFiltersSheet({
             </Pressable>
           </View>
 
+          <ScrollView
+            ref={scrollRef}
+            style={styles.sectionsScrollView}
+            contentContainerStyle={styles.sectionsScroll}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
           {/* Section 1: SHOW ME */}
           <View style={styles.filterSection}>
             <View style={styles.sectionEyebrow}>
@@ -138,28 +233,17 @@ export function JobFiltersSheet({
               <MapPin size={12} color="#A87C17" weight="bold" />
               <Text style={styles.eyebrowText}>LOCATION</Text>
             </View>
-            <View style={styles.textInputWrap}>
-              <TextInput
-                style={styles.textInput}
-                placeholder="City or area"
-                placeholderTextColor="#566073"
-                value={draft.location}
-                onChangeText={(v) => update({ location: v })}
-                autoCorrect={false}
-                autoCapitalize="words"
-                returnKeyType="done"
-              />
-              {draft.location.length > 0 && (
-                <Pressable
-                  hitSlop={8}
-                  onPress={() => update({ location: '' })}
-                  accessibilityRole="button"
-                  accessibilityLabel="Clear location"
-                >
-                  <X size={15} color="#5F6B80" weight="bold" />
-                </Pressable>
-              )}
-            </View>
+            <IndianCityDropdown
+              multiple
+              compact
+              values={draft.location
+                .split(',')
+                .map((c) => c.trim())
+                .filter(Boolean)}
+              onChangeValues={(cities) => update({ location: cities.join(', ') })}
+              placeholder="Select Indian cities"
+              modalTitle="Filter by location"
+            />
           </View>
 
           {/* Section 3: WORK MODE */}
@@ -235,31 +319,88 @@ export function JobFiltersSheet({
           <View style={styles.filterSection}>
             <View style={styles.sectionEyebrow}>
               <Wrench size={12} color="#A87C17" weight="bold" />
-              <Text style={styles.eyebrowText}>SKILL</Text>
+              <Text style={styles.eyebrowText}>SKILLS</Text>
             </View>
             <View style={styles.textInputWrap}>
               <TextInput
                 style={styles.textInput}
-                placeholder="e.g. React, Nursing, Tally"
+                placeholder="Search or add skills (e.g. React, Python)"
                 placeholderTextColor="#566073"
-                value={draft.skill}
-                onChangeText={(v) => update({ skill: v })}
+                value={skillQuery}
+                onChangeText={setSkillQuery}
+                onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 120)}
+                onSubmitEditing={commitTypedSkill}
                 autoCorrect={false}
                 autoCapitalize="none"
                 returnKeyType="done"
               />
-              {draft.skill.length > 0 && (
+              {skillQuery.length > 0 && (
                 <Pressable
                   hitSlop={8}
-                  onPress={() => update({ skill: '' })}
+                  onPress={() => setSkillQuery('')}
                   accessibilityRole="button"
-                  accessibilityLabel="Clear skill"
+                  accessibilityLabel="Clear skill search"
                 >
                   <X size={15} color="#5F6B80" weight="bold" />
                 </Pressable>
               )}
             </View>
+            {selectedSkills.length > 0 && (
+              <View style={styles.selectedChipsWrap} accessibilityLabel="Selected skills">
+                {selectedSkills.map((sk) => (
+                  <View key={sk} style={styles.selectedSkillChip}>
+                    <Text style={styles.selectedSkillChipText} numberOfLines={1}>{sk}</Text>
+                    <Pressable
+                      hitSlop={8}
+                      onPress={() => toggleSkill(sk)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove ${sk}`}
+                    >
+                      <X size={13} color="#4A3E8F" weight="bold" />
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            )}
+            {/* One horizontal row: a long list never pushes "Show jobs" off a small screen. */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ gap: 8, paddingTop: 10, alignItems: 'center' }}
+            >
+              {skillsLoading && skillOptions.length === 0 ? (
+                <ActivityIndicator size="small" color="#5F4DB2" />
+              ) : skillsError ? (
+                <Text style={styles.salaryPillText}>Could not load skills. You can still type one.</Text>
+              ) : skillOptions.length === 0 ? (
+                <Text style={styles.salaryPillText}>No live job asks for that skill yet.</Text>
+              ) : (
+                skillOptions.map((option) => {
+                  const isSelected = selectedSkills.some((s) => s.toLowerCase() === option.toLowerCase());
+                  return (
+                    <Pressable
+                      key={option}
+                      style={[styles.salaryPill, isSelected && styles.pillActive]}
+                      onPress={() => {
+                        toggleSkill(option);
+                        setSkillQuery('');
+                      }}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: isSelected }}
+                      accessibilityLabel={`Skill ${option}`}
+                    >
+                      {isSelected && <Check size={12} color="#4A3E8F" weight="bold" />}
+                      <Text style={[styles.salaryPillText, isSelected && styles.pillTextActive]} numberOfLines={1}>
+                        {option}
+                      </Text>
+                    </Pressable>
+                  );
+                })
+              )}
+            </ScrollView>
           </View>
+          </ScrollView>
 
           {/* Bottom Action - no count (board has no total) */}
           <Pressable
@@ -293,13 +434,21 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 28,
     paddingHorizontal: 20,
     paddingTop: 12,
-    paddingBottom: 36,
-    gap: 20,
+    paddingBottom: 14,
+    maxHeight: '88%',
+    gap: 14,
     shadowColor: '#0A1931',
     shadowOffset: { width: 0, height: -8 },
     shadowOpacity: 0.15,
     shadowRadius: 20,
     elevation: 20,
+  },
+  sectionsScrollView: {
+    flexShrink: 1,
+  },
+  sectionsScroll: {
+    gap: 18,
+    paddingBottom: 6,
   },
   grabHandle: {
     width: 40,
@@ -405,10 +554,37 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   salaryPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 999,
     backgroundColor: '#F7EFD6',
+  },
+  selectedChipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  selectedSkillChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#F1EAF7',
+    borderWidth: 1,
+    borderColor: '#D4C7F5',
+    borderRadius: 999,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    maxWidth: '100%',
+  },
+  selectedSkillChipText: {
+    fontFamily: 'GeneralSans-Semibold',
+    fontSize: 12,
+    color: '#4A3E8F',
+    maxWidth: 180,
   },
   salaryPillText: {
     fontFamily: 'GeneralSans-Semibold',

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -31,10 +32,17 @@ const LEVEL_STYLES = {
 export default function InterviewFeedbackPage() {
   const id = useParams<{ sessionId: string }>().sessionId;
   const router = useRouter();
+  // Poll only while the report is still being written, every 15 seconds; a
+  // READY or FAILED report never changes, so it is never asked for again.
+  const [settled, setSettled] = useState(false);
   const report = useGetInterviewReportQuery(id, {
-    pollingInterval: 5_000,
+    pollingInterval: settled ? 0 : 15_000,
     skipPollingIfUnfocused: true,
   });
+  const reportStatus = report.data?.status;
+  if (!settled && (reportStatus === "READY" || reportStatus === "FAILED")) {
+    setSettled(true);
+  }
 
   const data = report.data;
   const dimensionsByCode = new Map(

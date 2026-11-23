@@ -1,4 +1,5 @@
 import { apiRequest } from './client';
+import type { NotificationDestination } from '@/services/notifications/destination';
 
 export interface NotificationPreferences {
   locale: string;
@@ -14,6 +15,8 @@ export interface InboxItem {
   body: string;
   created_at: string;
   read_at: string | null;
+  /** Where tapping it leads. Absent on servers before 2026-11-23. */
+  destination?: NotificationDestination | null;
 }
 
 export interface InboxPage {
@@ -67,4 +70,46 @@ export async function unregisterPushDevice(token: string): Promise<void> {
     method: 'DELETE',
     body: { token },
   });
+}
+
+// ─── Unread count, shared (2026-11-23) ─────────────────────────
+// Home and every tab's bell asked the inbox for the unread count on each
+// visit. One request now serves them all: concurrent callers share it, and a
+// count younger than UNREAD_REUSE_MS is reused. The inbox screen, which has
+// the real number, reports it here so the bells stay right.
+const UNREAD_REUSE_MS = 20_000;
+let unreadValue: number | null = null;
+let unreadAt = 0;
+let unreadInFlight: Promise<number> | null = null;
+
+export function cachedUnreadCount(): number | null {
+  return unreadValue;
+}
+
+export function noteUnreadCount(count: number): void {
+  unreadValue = count;
+  unreadAt = Date.now();
+}
+
+export function forgetUnreadCount(): void {
+  unreadValue = null;
+  unreadAt = 0;
+  unreadInFlight = null;
+}
+
+export function getUnreadCount(): Promise<number> {
+  if (unreadValue !== null && Date.now() - unreadAt < UNREAD_REUSE_MS) {
+    return Promise.resolve(unreadValue);
+  }
+  if (!unreadInFlight) {
+    unreadInFlight = getInbox(null, 1)
+      .then((page) => {
+        noteUnreadCount(page.unread);
+        return page.unread;
+      })
+      .finally(() => {
+        unreadInFlight = null;
+      });
+  }
+  return unreadInFlight;
 }

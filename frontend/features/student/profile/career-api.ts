@@ -88,6 +88,23 @@ export const careerApi = baseApi.injectEndpoints({
         { type: "Student", id: "PROFILE" },
       ],
     }),
+    // The profile's Preferences tab (2026-11-23). Saving also refreshes the
+    // profile and the "fits your profile" jobs, which read the same data.
+    getJobPreferences: builder.query<JobPreferencesResponse, void>({
+      query: () => "/candidate/profile/preferences",
+      providesTags: [{ type: "Student", id: "PREFERENCES" }],
+    }),
+    getJobPreferenceOptions: builder.query<JobPreferenceOptions, void>({
+      query: () => "/candidate/profile/preferences/options",
+      keepUnusedDataFor: 600,
+    }),
+    saveJobPreferences: builder.mutation<JobPreferencesResponse, JobPreferences>({
+      query: (body) => ({ url: "/candidate/profile/preferences", method: "PUT", body }),
+      invalidatesTags: [
+        { type: "Student", id: "PREFERENCES" },
+        { type: "Student", id: "CAREER" },
+      ],
+    }),
     getProfileResumeDocument: builder.query<{ url: string | null }, string>({
       query: (id) => `/candidate/resume/versions/${id}/document`,
       keepUnusedDataFor: 0,
@@ -104,7 +121,43 @@ export const {
   usePrefillCareerProfileMutation,
   useSaveCareerProfileMutation,
   useLazyGetProfileResumeDocumentQuery,
+  useGetJobPreferencesQuery,
+  useGetJobPreferenceOptionsQuery,
+  useSaveJobPreferencesMutation,
 } = careerApi;
+
+export type WorkModePreference = "ONSITE" | "HYBRID" | "REMOTE";
+export type JobTypePreference = "FULL_TIME" | "PART_TIME" | "CONTRACT" | "INTERNSHIP" | "FREELANCE";
+
+/** What the job engine ranks by, beyond the profile itself. */
+export interface JobPreferences {
+  preferred_roles: string[];
+  preferred_industries: string[];
+  work_modes: WorkModePreference[];
+  job_types: JobTypePreference[];
+  open_to_relocation: boolean;
+  preferred_locations: string[];
+  preferred_salary: number | null;
+  preferred_salary_currency: "INR" | "USD";
+}
+
+export interface JobPreferencesResponse extends JobPreferences {
+  profile_completed: boolean;
+  updated_at: string | null;
+}
+
+export interface PreferenceOption {
+  value: string;
+  label: string;
+}
+
+export interface JobPreferenceOptions {
+  work_modes: PreferenceOption[];
+  job_types: PreferenceOption[];
+  industries: PreferenceOption[];
+  roles: PreferenceOption[];
+  salary_currencies: PreferenceOption[];
+}
 
 const inactiveEmploymentFields = [
   "company_name",

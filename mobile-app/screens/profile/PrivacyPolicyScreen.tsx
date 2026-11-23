@@ -22,7 +22,7 @@ export function PrivacyPolicyScreen({ onBack, showData = false }: { onBack: () =
   const { session } = useAuthContext();
   const scroll = useRef<ScrollView>(null);
   const jumped = useRef(false);
-  return <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+  return <SafeAreaView style={styles.screen} edges={['top']}>
     <View style={styles.header}>
       <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel="Back" style={styles.back}><ArrowLeft size={22} color="#0A1931" /></Pressable>
       <Text accessibilityRole="header" style={styles.title}>Privacy Policy</Text>

@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useScreenRefresh } from '@/hooks/useScreenRefresh';
+import React, { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { ArrowLeft, CheckCircle } from 'phosphor-react-native';
@@ -23,17 +24,27 @@ export function QuestionnaireReportScreen({
   const [report, setReport] = useState<QuestionnaireReport | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const load = useCallback(
+    () =>
+      getQuestionnaireReport()
+        .then((next) => {
+          setReport(next);
+          setError(null);
+        })
+        .catch((caught) => {
+          setError(questionnaireErrorMessage(caught, 'Could not load your answers.'));
+        }),
+    [],
+  );
   useEffect(() => {
-    getQuestionnaireReport()
-      .then(setReport)
-      .catch((caught) => {
-        setError(questionnaireErrorMessage(caught, 'Could not load your answers.'));
-      });
-  }, []);
+    void load();
+  }, [load]);
+  // Pull-to-refresh and a quiet refetch on every return (2026-11-23).
+  const { refreshing: pulling, onRefresh: pullToRefresh } = useScreenRefresh(load);
 
   if (!report) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
         <StatusBar style="dark" />
         <View style={styles.center}>
           {error ? (
@@ -66,7 +77,7 @@ export function QuestionnaireReportScreen({
   });
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <StatusBar style="dark" />
       <View style={styles.header}>
         <Pressable style={styles.backButton} onPress={onDone}>
@@ -78,7 +89,10 @@ export function QuestionnaireReportScreen({
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={pulling} onRefresh={pullToRefresh} tintColor="#5F4DB2" colors={['#5F4DB2']} />}
+      >
         <View style={styles.notice}>
           <CheckCircle size={21} color="#1F6B45" weight="fill" />
           <View style={styles.noticeCopy}>

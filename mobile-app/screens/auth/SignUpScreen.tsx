@@ -1,3 +1,5 @@
+import { FieldSkeleton } from '@/components/feedback/FieldSkeleton';
+import { CitySuggestions } from '@/components/inputs/CitySuggestions';
 import { ResumePickerLabel } from '@/components/inputs/ResumePickerLabel';
 import React, { useState, useRef, useEffect } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
@@ -66,6 +68,18 @@ export interface SignUpScreenProps {
   initialReferralCode?: string;
   initialFileMeta?: UploadedFileMeta | null;
   initialCareerDetails?: CareerDetails;
+  /** Everything typed so far except passwords, reported as it changes so
+   *  Back and forward again restores it (2026-11-23: the phone was lost). */
+  onDraftChange?: (draft: SignUpDraft) => void;
+}
+
+export interface SignUpDraft {
+  fullName: string;
+  email: string;
+  phone: string;
+  currentCity: string;
+  workStatus: string;
+  referralCode: string;
 }
 
 export function SignUpScreen({
@@ -81,6 +95,7 @@ export function SignUpScreen({
   initialReferralCode,
   initialFileMeta,
   initialCareerDetails,
+  onDraftChange,
 }: SignUpScreenProps) {
   const { rememberCandidate } = useAuthContext();
   const [fullName, setFullName] = useState(initialFullName || '');
@@ -98,6 +113,14 @@ export function SignUpScreen({
   const [workStatus, setWorkStatus] = useState(initialWorkStatus || '');
   const [referralCode, setReferralCode] = useState(initialReferralCode || '');
   const [readingResume, setReadingResume] = useState(false);
+  const [resumeReadError, setResumeReadError] = useState<string | null>(null);
+  const [identityNotice, setIdentityNotice] = useState<string | null>(null);
+  // Only the newest CV's answer may land (pick A, then B: A's late reply is
+  // dropped), and a new CV replaces only what the previous CV filled in --
+  // never what the person typed themselves.
+  const readToken = useRef(0);
+  const autoFilled = useRef(new Set<string>());
+  const pendingFileRef = useRef<any>(null);
   const careerDetails = (): CareerDetails => ({
     ...resumeDetails,
     phone,
@@ -108,6 +131,11 @@ export function SignUpScreen({
       : {}),
   });
   const [email, setEmail] = useState(initialEmail || '');
+  const draftReporter = useRef(onDraftChange);
+  draftReporter.current = onDraftChange;
+  useEffect(() => {
+    draftReporter.current?.({ fullName, email, phone, currentCity, workStatus, referralCode });
+  }, [fullName, email, phone, currentCity, workStatus, referralCode]);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
@@ -255,6 +283,48 @@ export function SignUpScreen({
 
   const requirements = passwordRequirements(password);
 
+  const readResume = async (file: any) => {
+    const token = ++readToken.current;
+    setReadingResume(true);
+    setResumeReadError(null);
+    setIdentityNotice(null);
+    try {
+      logger.step('SignUpScreen', 'Calling previewSignupResume (/auth/resume-preview)');
+      const facts = await previewSignupResume(file);
+      if (token !== readToken.current) return; // a newer CV was chosen
+      setResumeDetails(facts.details);
+      // Fill a field when it is empty or holds the previous CV's value.
+      const fill = (key: string, value: unknown, current: string, set: (v: string) => void) => {
+        const text = typeof value === 'string' ? value.trim() : value == null ? '' : String(value).trim();
+        if (!text) return;
+        if (!current.trim() || autoFilled.current.has(key)) {
+          set(text);
+          autoFilled.current.add(key);
+        }
+      };
+      fill('fullName', facts.full_name, fullName, setFullName);
+      fill('email', facts.email, email, setEmail);
+      fill('phone', facts.details?.phone, phone, setPhone);
+      fill('currentCity', facts.details?.current_city, currentCity, setCurrentCity);
+      fill('workStatus', facts.details?.work_status, workStatus, setWorkStatus);
+      // Someone else's CV: say so, and change nothing the person typed.
+      const cvName = (facts.full_name || '').trim();
+      if (cvName && fullName.trim() && !autoFilled.current.has('fullName') &&
+          cvName.toLowerCase() !== fullName.trim().toLowerCase()) {
+        setIdentityNotice(`This resume names ${cvName}. Your own details were kept as you entered them; check that the resume is yours.`);
+      }
+    } catch (err) {
+      if (token !== readToken.current) return;
+      logger.warn('SignUpScreen', 'Resume preview failed', err);
+      setResumeReadError('We could not read your resume. Fill in your details yourself, or try reading it again.');
+    } finally {
+      if (token === readToken.current) setReadingResume(false);
+    }
+  };
+
+  /** The person typed in a field: a later CV must not replace it. */
+  const typed = (key: string) => autoFilled.current.delete(key);
+
   const handleSubmit = async () => {
     logger.step('SignUpScreen', 'Submit button pressed', {
       email: email.trim().toLowerCase(),
@@ -382,7 +452,7 @@ export function SignUpScreen({
   return (
     <View style={styles.root}>
       <StatusBar style="dark" animated />
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
         <KeyboardAvoidingView
           style={styles.keyboardAvoid}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -469,32 +539,8 @@ export function SignUpScreen({
                         setResumeName(asset.name);
                         onResumeSelected?.(pending.file);
                         setErrorMsg(null);
-                        setReadingResume(true);
-                        try {
-                          logger.step('SignUpScreen', `Calling previewSignupResume (/auth/resume-preview) for ${asset.name}`);
-                          const facts = await previewSignupResume(pending.file);
-                          logger.info('SignUpScreen', 'previewSignupResume returned extracted facts', facts);
-                          setResumeDetails(facts.details);
-                          if (facts.full_name?.trim())
-                            setFullName((current) => current || facts.full_name.trim());
-                          if (facts.email?.trim())
-                            setEmail((current) => current || facts.email.trim());
-                          if (facts.details?.phone)
-                            setPhone((current) => current || String(facts.details.phone).trim());
-                          if (facts.details?.current_city)
-                            setCurrentCity(
-                              (current) =>
-                                current || String(facts.details.current_city).trim(),
-                            );
-                          if (facts.details?.work_status)
-                            setWorkStatus(
-                              (current) => current || String(facts.details.work_status).trim(),
-                            );
-                        } catch (err) {
-                          logger.warn('SignUpScreen', 'Transient resume preview skipped or unavailable', err);
-                        } finally {
-                          setReadingResume(false);
-                        }
+                        pendingFileRef.current = pending.file;
+                        await readResume(pending.file);
                       } catch (pickerErr) {
                         console.warn('Document picker error:', pickerErr);
                         setErrorMsg('Could not save this resume on your device. Please choose it again.');
@@ -510,6 +556,11 @@ export function SignUpScreen({
                       disabled={readingResume || isLoading}
                       onPress={async () => {
                         logger.step('SignUpScreen', 'User removed selected resume');
+                        readToken.current += 1;
+                        setReadingResume(false);
+                        setResumeReadError(null);
+                        setIdentityNotice(null);
+                        pendingFileRef.current = null;
                         setResumeName('');
                         setResumeDetails({});
                         onResumeSelected?.(undefined);
@@ -524,9 +575,25 @@ export function SignUpScreen({
                 </View>
                 <Text style={styles.inputHint}>
                   {readingResume
-                    ? 'Reading your resume/CV and filling your details…'
+                    ? 'Reading your resume/CV and filling your details… The fields unlock when it is done.'
                     : 'Your resume/CV fills your details now. Scoring starts after payment.'}
                 </Text>
+                {resumeReadError ? (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                    <Text style={[styles.inputHint, { color: Colors.red.fg, flexShrink: 1 }]}>{resumeReadError}</Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Read resume again"
+                      onPress={() => { if (pendingFileRef.current) void readResume(pendingFileRef.current); }}
+                      hitSlop={8}
+                    >
+                      <Text style={[styles.inputHint, { color: Colors.brandAccent, fontFamily: 'GeneralSans-Semibold' }]}>Try again</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+                {identityNotice ? (
+                  <Text style={[styles.inputHint, { color: '#7A5C0E', marginTop: 6 }]}>{identityNotice}</Text>
+                ) : null}
               </View>
             )}
             {/* Error Message Box */}
@@ -580,6 +647,7 @@ export function SignUpScreen({
                         : Colors.text.muted
                     }
                   />
+                  <FieldSkeleton visible={readingResume} />
                   <TextInput
                     ref={fullNameRef}
                     style={styles.textInput}
@@ -587,6 +655,7 @@ export function SignUpScreen({
                     placeholderTextColor={Colors.text.muted}
                     value={fullName}
                     onChangeText={(text) => {
+                      typed('fullName');
                       setFullName(text);
                       if (errorMsg) setErrorMsg(null);
                     }}
@@ -602,7 +671,7 @@ export function SignUpScreen({
                     autoCapitalize="words"
                     autoCorrect={false}
                     maxLength={100}
-                    editable={!isLoading}
+                    editable={!isLoading && !readingResume}
                     blurOnSubmit={false}
                     returnKeyType="next"
                     onSubmitEditing={() => emailRef.current?.focus()}
@@ -635,6 +704,7 @@ export function SignUpScreen({
                         : Colors.text.muted
                     }
                   />
+                  <FieldSkeleton visible={readingResume} />
                   <TextInput
                     ref={emailRef}
                     style={styles.textInput}
@@ -642,6 +712,7 @@ export function SignUpScreen({
                     placeholderTextColor={Colors.text.muted}
                     value={email}
                     onChangeText={(text) => {
+                      typed('email');
                       setEmail(text);
                       if (errorMsg) setErrorMsg(null);
                     }}
@@ -657,7 +728,7 @@ export function SignUpScreen({
                     keyboardType="email-address"
                     autoCapitalize="none"
                     autoCorrect={false}
-                    editable={!isLoading}
+                    editable={!isLoading && !readingResume}
                     blurOnSubmit={false}
                     returnKeyType="next"
                     onSubmitEditing={() => passwordRef.current?.focus()}
@@ -676,9 +747,10 @@ export function SignUpScreen({
                 onLayout={(e) => onFieldLayout('phone', e)}
               >
                 <PhoneNumberInput
-                  label="Mobile number *"
+                  label={readingResume ? 'Mobile number * (filling from your resume…)' : 'Mobile number *'}
                   value={phone}
-                  onChange={setPhone}
+                  onChange={(value) => { typed('phone'); setPhone(value); }}
+                  disabled={readingResume || isLoading}
                   onFocus={() => {
                     setFocusedField('phone');
                     scrollToField('phone');
@@ -712,6 +784,7 @@ export function SignUpScreen({
                         : Colors.text.muted
                     }
                   />
+                  <FieldSkeleton visible={readingResume} />
                   <TextInput
                     ref={currentCityRef}
                     style={styles.textInput}
@@ -720,6 +793,7 @@ export function SignUpScreen({
                     placeholderTextColor={Colors.text.muted}
                     value={currentCity}
                     onChangeText={(text) => {
+                      typed('currentCity');
                       setCurrentCity(text);
                       if (errorMsg) setErrorMsg(null);
                     }}
@@ -735,12 +809,20 @@ export function SignUpScreen({
                     autoCapitalize="words"
                     autoCorrect={false}
                     maxLength={100}
-                    editable={!isLoading}
+                    editable={!isLoading && !readingResume}
                     blurOnSubmit={false}
                     returnKeyType="next"
                     onSubmitEditing={() => passwordRef.current?.focus()}
                   />
                 </View>
+                <CitySuggestions
+                  value={currentCity}
+                  visible={focusedField === 'currentCity'}
+                  onPick={(city) => {
+                    setCurrentCity(city);
+                    if (errorMsg) setErrorMsg(null);
+                  }}
+                />
                 <Text style={styles.inputHint}>
                   Enter your city or town, without an address or PIN code.
                 </Text>
@@ -759,7 +841,8 @@ export function SignUpScreen({
                   ].map((item) => (
                     <Pressable
                       key={item.value}
-                      onPress={() => setWorkStatus(item.value)}
+                      onPress={() => { typed('workStatus'); setWorkStatus(item.value); }}
+                      disabled={readingResume}
                       style={[
                         styles.workStatusCard,
                         workStatus === item.value && styles.workStatusCardSelected,
@@ -844,9 +927,9 @@ export function SignUpScreen({
                     {requirements.map(({ label, met }) => {
                       const Icon = met ? Check : X;
                       const color = met ? '#1F6B45' : '#A33A2B';
-                      return <View key={label} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      return <View key={label} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
                         <Icon size={17} color={color} weight="bold" />
-                        <Text accessibilityLabel={`${label}: ${met ? 'met' : 'not met'}`} style={[styles.inputHint, { color, fontFamily: 'GeneralSans-Medium' }]}>{label}</Text>
+                        <Text accessibilityLabel={`${label}: ${met ? 'met' : 'not met'}`} style={[styles.inputHint, { color, fontFamily: 'GeneralSans-Medium', flexShrink: 1 }]}>{label}</Text>
                       </View>;
                     })}
                   </View>
@@ -1168,7 +1251,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.surface.border,
     borderRadius: Radii.input,
     paddingHorizontal: Spacing.base,
-    height: 52,
+    minHeight: 52,
   },
   inputWrapperFocused: {
     borderColor: Colors.brandAccent,
@@ -1178,7 +1261,8 @@ const styles = StyleSheet.create({
     fontFamily: 'GeneralSans-Regular',
     fontSize: 15,
     color: Colors.navy,
-    height: '100%',
+    minHeight: 48,
+    minWidth: 0,
   },
   eyeButton: {
     padding: Spacing.xs,

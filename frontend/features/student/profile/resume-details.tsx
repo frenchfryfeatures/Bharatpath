@@ -161,11 +161,13 @@ export function ResumeDetails() {
                     )}
                   </header>
                   <div role="group" aria-label="Resume actions" className="flex w-full flex-wrap items-center gap-1.5 sm:w-auto">
-                    <button type="button" onClick={() => setResumeTemplatePromptOpen(true)} className="inline-flex min-h-10 flex-1 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-full border border-[#D9CFF0] bg-[#EEE7FA] py-2 pl-3.5 pr-4 text-[12px] font-semibold text-[#5B42A3] transition-colors hover:border-[#BBA8DF] hover:bg-[#E4D8F6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2] focus-visible:ring-offset-2 sm:flex-none">
-                      <FilePenLine className="h-4 w-4 text-[#7154B5]" aria-hidden="true" /> Build resume
-                    </button>
                     <button type="button" onClick={() => fileInput.current?.click()} className="inline-flex min-h-10 flex-1 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-full px-3.5 text-[12px] font-semibold text-[#3A3156] transition-colors hover:bg-[#EEE8F7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2] focus-visible:ring-offset-2 sm:flex-none">
                       <Upload className="h-4 w-4 text-[#75639E]" aria-hidden="true" /> Upload new
+                    </button>
+                    {/* Edit resume, after Upload new (2026-11-23): every change goes
+                        through the Bharatpath Builder, template chosen first. */}
+                    <button type="button" onClick={() => setResumeTemplatePromptOpen(true)} className="inline-flex min-h-10 flex-1 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-full border border-[#D9CFF0] bg-[#EEE7FA] py-2 pl-3.5 pr-4 text-[12px] font-semibold text-[#5B42A3] transition-colors hover:border-[#BBA8DF] hover:bg-[#E4D8F6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2] focus-visible:ring-offset-2 sm:flex-none">
+                      <FilePenLine className="h-4 w-4 text-[#7154B5]" aria-hidden="true" /> Edit resume
                     </button>
                     <button type="button" onClick={() => void openResume()} disabled={documentState.isLoading} aria-busy={documentState.isLoading} className="inline-flex min-h-10 flex-1 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-full px-3 text-[12px] font-semibold text-[#5F4DB2] transition-colors hover:bg-[#EEE8F7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5F4DB2] focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60 sm:ml-auto sm:flex-none">
                       {documentState.isLoading ? "Opening..." : "Open resume"}<ArrowUpRight className="h-4 w-4" aria-hidden="true" />
@@ -189,7 +191,7 @@ export function ResumeDetails() {
                     <p className="mt-1 text-[12px] leading-5">{selectedVersion ? `Version from ${formatDateTime(selectedVersion.createdAt)}. ` : ""}Save this resume to use it for your profile. Its Bharatpath Score updates only when you are eligible.</p>
                   </div>
                 </div>}
-                <ReviewStep key={activeView.versionId} resumeVersionId={activeView.versionId} title="Your details" subtitle="Review each section and use the edit button to update it. Changes are saved as a new version." confirmLabel="Update Bharatpath Score" startOverLabel="Cancel and return to previous resume" restoreFromHistory={selectedFromHistory} onStartOver={cancelUpdate} onConfirmed={() => { showSuccessFeedback("Resume saved and Bharatpath Score update started."); setView(null); void versions.refetch(); }} />
+                <ReviewStep key={activeView.versionId} resumeVersionId={activeView.versionId} title="Your details" subtitle="The details we read from your resume. Use Edit resume to change them." allowSectionEdits={false} confirmLabel="Update Bharatpath Score" startOverLabel="Cancel and return to previous resume" restoreFromHistory={selectedFromHistory} onStartOver={cancelUpdate} onConfirmed={() => { showSuccessFeedback("Resume saved and Bharatpath Score update started."); setView(null); void versions.refetch(); }} />
               </div>
             )}
           </main>
@@ -225,6 +227,8 @@ export function ResumeDetails() {
         </div>
       </div>
       <ResumeTemplateDialog
+        key={resumeTemplatePromptOpen ? "open" : "closed"}
+        fromUpload={Boolean(current) && current?.source !== "BUILDER"}
         open={resumeTemplatePromptOpen}
         onClose={() => setResumeTemplatePromptOpen(false)}
         onKeep={() => { setResumeTemplatePromptOpen(false); router.replace("/student/profile/resume/edit?template=keep&from=resume-details"); }}

@@ -15,8 +15,9 @@
  *  - Money is integer paise from the backend; converted to ₹ for display.
  *  - Experience is in months; shown as years.
  */
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
+  Animated,
   View,
   Text,
   StyleSheet,
@@ -90,6 +91,7 @@ export function JobsFeedScreen({
   const {
     jobs,
     loading,
+    searching,
     loadingMore,
     hasReachedEnd,
     error,
@@ -101,19 +103,36 @@ export function JobsFeedScreen({
     hasActiveFilters,
     reset,
     reload,
+    refreshSilently,
   } = useJobs();
   const applications = useJobApplications();
   const reloadApplications = applications.reload;
-  const latestReload = useRef(reload);
-  latestReload.current = reload;
+  const latestReload = useRef(refreshSilently);
+  latestReload.current = refreshSilently;
   const focusedBefore = useRef(false);
+  // Coming back to the tab refreshes quietly, at most every 30 seconds:
+  // switching tabs back and forth must not re-ask the server each time.
+  const lastFocusRefreshAt = useRef(Date.now());
   useFocusEffect(useCallback(() => {
-    if (focusedBefore.current) void latestReload.current();
+    if (focusedBefore.current && Date.now() - lastFocusRefreshAt.current >= 30_000) {
+      lastFocusRefreshAt.current = Date.now();
+      void latestReload.current();
+    }
     focusedBefore.current = true;
   }, []));
 
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  // While a search runs the current results stay put, dimmed a little, and
+  // the new ones fade in -- no full-screen reload on each keystroke.
+  const listOpacity = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    Animated.timing(listOpacity, {
+      toValue: searching ? 0.55 : 1,
+      duration: searching ? 120 : 220,
+      useNativeDriver: true,
+    }).start();
+  }, [searching, listOpacity]);
 
   const handleJobPress = useCallback(
     (jobId: string) => {
@@ -139,6 +158,15 @@ export function JobsFeedScreen({
     reset();
   }, [reset]);
 
+  const visibleJobs = React.useMemo(
+    () =>
+      jobs.filter((item) => {
+        const stage = applications.byJob[item.id]?.stage ?? item.application_stage;
+        return !stage;
+      }),
+    [applications.byJob, jobs],
+  );
+
   const renderFooter = () => {
     if (loadingMore) {
       return (
@@ -147,7 +175,7 @@ export function JobsFeedScreen({
         </View>
       );
     }
-    if (hasReachedEnd && jobs.length > 0) {
+    if (hasReachedEnd && visibleJobs.length > 0) {
       return (
         <View style={styles.footerEnd}>
           <Text style={styles.footerEndText}>{TXT_ALL_CAUGHT_UP}</Text>
@@ -158,7 +186,7 @@ export function JobsFeedScreen({
   };
 
   const renderEmpty = () => {
-    if (loading) return null; // shown by the overlay instead
+    if (loading || searching) return null; // nothing to judge "no results" on yet
     if (error) {
       return (
         <View style={styles.emptyState}>
@@ -248,7 +276,11 @@ export function JobsFeedScreen({
 
           {/* Search bar */}
           <View style={styles.searchBar}>
-            <MagnifyingGlass size={16} color="#5F6B80" weight="bold" />
+            {searching ? (
+              <ActivityIndicator size="small" color={Colors.brandAccent} accessibilityLabel="Searching jobs" />
+            ) : (
+              <MagnifyingGlass size={16} color="#5F6B80" weight="bold" />
+            )}
             <TextInput
               style={styles.searchInput}
               placeholder="Role, company or skill"
@@ -274,8 +306,9 @@ export function JobsFeedScreen({
         </View>
 
         {/* Job list with infinite scroll */}
+        <Animated.View style={{ flex: 1, opacity: listOpacity }}>
         <FlatList
-          data={jobs}
+          data={visibleJobs}
           keyExtractor={(item) => item.id}
           keyboardShouldPersistTaps="handled"
           renderItem={({ item }) => (
@@ -286,7 +319,7 @@ export function JobsFeedScreen({
           )}
           contentContainerStyle={[
             styles.listContent,
-            jobs.length === 0 && styles.listContentEmpty,
+            visibleJobs.length === 0 && styles.listContentEmpty,
           ]}
           ItemSeparatorComponent={() => <View style={styles.cardGap} />}
           ListFooterComponent={renderFooter}
@@ -303,6 +336,7 @@ export function JobsFeedScreen({
             />
           }
         />
+        </Animated.View>
 
         {/* First-load loading overlay */}
         {loading && jobs.length === 0 && (
@@ -340,9 +374,11 @@ interface JobCardProps {
   statusError?: boolean;
   style?: StyleProp<ViewStyle>;
   carouselLayout?: JobCarouselLayout;
+  /** Why the job engine ranked it here; replaces the posted date when set. */
+  matchReason?: string | null;
 }
 
-export function JobCard({ job, onPress, applicationStage, statusLoading, statusError, style, carouselLayout }: JobCardProps) {
+export function JobCard({ job, onPress, applicationStage, statusLoading, statusError, style, carouselLayout, matchReason }: JobCardProps) {
   const status = jobApplicationStatus(job.eligibility, applicationStage, statusLoading, statusError);
   const employerName = job.employer_name || 'Employer';
   const initials = getInitials(employerName);
@@ -438,8 +474,8 @@ export function JobCard({ job, onPress, applicationStage, statusLoading, statusE
 
       <View style={[styles.jobCardFooter, carouselLayout && { height: carouselLayout.footer, flexShrink: 0 }]}>
         <Clock size={13} color="#5F6B80" weight="bold" />
-        <Text style={styles.footerPostedText} numberOfLines={carouselLayout ? 1 : undefined}>
-          {formatPostedAgo(job.published_at)}
+        <Text style={[styles.footerPostedText, matchReason ? { color: '#4A3E8F' } : null]} numberOfLines={carouselLayout ? 1 : undefined}>
+          {matchReason || formatPostedAgo(job.published_at)}
         </Text>
         <CaretRight size={13} color="#5F6B80" weight="bold" />
       </View>

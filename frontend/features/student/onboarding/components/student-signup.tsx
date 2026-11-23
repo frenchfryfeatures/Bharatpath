@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { AccountDestinationLoading } from "@/components/common/account-destination-loading";
@@ -24,7 +24,8 @@ import {
 } from "@/store/student";
 
 import { parseFailureMessage } from "../constants";
-import { AccountStep, LocationStep } from "./account-steps";
+import { AccountStep, LocationStep, type AccountDraft } from "./account-steps";
+import { clearAccountDraft, readAccountDraft, writeAccountDraft } from "./account-draft";
 import { ComputingStep } from "./computing-step";
 import { IntakeStep, ManualStep, PasteStep } from "./intake-steps";
 import { ParsingStep, type UploadPhase } from "./parsing-step";
@@ -111,7 +112,12 @@ export function StudentSignup() {
   const [profile, setProfile] = useState<Profile>(EMPTY_PROFILE);
 
   const [requiredBusy, setRequiredBusy] = useState(false);
-  const [pendingResume, setPendingResume] = useState<File | null>(null);
+  const [accountDraft, setAccountDraft] = useState<AccountDraft>(readAccountDraft);
+  const rememberAccountDraft = useCallback((draft: AccountDraft) => {
+    setAccountDraft(draft);
+    writeAccountDraft(draft);
+  }, []);
+  const [pendingResume, setPendingResume] = useState<File | null>(accountDraft.file ?? null);
   const [resumeFilename, setResumeFilename] = useState<string>();
   const [initialProfileSection, setInitialProfileSection] = useState(0);
   const [activeProfileSection, setActiveProfileSection] = useState(0);
@@ -235,6 +241,10 @@ export function StudentSignup() {
     dispatch(clearTenant());
     resetCaches();
     setSignedIn(false);
+    setAccountDraft({});
+    clearAccountDraft();
+    setPendingResume(null);
+    setBasicDraft(null);
     setProfile(EMPTY_PROFILE);
     go({ name: "account" });
   };
@@ -397,6 +407,8 @@ export function StudentSignup() {
     case "account":
       return frame(
         <AccountStep
+          initialDraft={accountDraft}
+          onDraftChange={rememberAccountDraft}
           onResumeSelected={setPendingResume}
           onSignedUp={async (
             result,

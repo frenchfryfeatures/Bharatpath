@@ -6,6 +6,7 @@ import {
   Pressable,
   ScrollView,
   Image,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -31,7 +32,7 @@ import {
 import { resolveCandidateFullName } from '@/services/profile/name';
 import { useAuthContext } from '@/context/AuthContext';
 import { RecommendedJobsSection } from '@/components/jobs/RecommendedJobsSection';
-import { getInbox } from '@/services/api/notifications';
+import { cachedUnreadCount, getInbox, getUnreadCount, noteUnreadCount } from '@/services/api/notifications';
 
 /**
  * PARTLY MOCK. `score` and `bandName` are real when the caller has read
@@ -52,6 +53,8 @@ import { getInbox } from '@/services/api/notifications';
  * not empty while that request is in flight.
  */
 export interface HomeScreenProps {
+  /** Pull-to-refresh: reload what the parent owns (score, photo...). */
+  onRefresh?: () => Promise<unknown> | void;
   candidateName?: string;
   candidateInitials?: string;
   photoUrl?: string | null;
@@ -109,11 +112,12 @@ export function HomeScreen({
   onProfilePress,
   onStreakPress,
   onCoursesPress,
+  onRefresh,
 }: HomeScreenProps) {
   // Streak + engagement points. Check-in happens in the hook on app open and
   // on return to foreground; here we only read the result. Engagement points
   // are a SEPARATE balance from the 700–990 candidate score (`docs/streaks.md` §2).
-  const { streak, loading: streakLoading } = useStreak();
+  const { streak, loading: streakLoading, refresh: refreshStreak } = useStreak();
   const { session, candidateFullName, setCandidateFullName } = useAuthContext();
   // Seed the name with the email's local part so the greeting is never blank
   // while the real profile name is still being fetched or filled in.
@@ -121,7 +125,7 @@ export function HomeScreen({
   const [profileName, setProfileName] = useState<string | null>(
     candidateFullName || candidateName || emailName || null,
   );
-  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
+  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(() => (cachedUnreadCount() ?? 0) > 0);
 
   useEffect(() => {
     const seed = candidateFullName || candidateName || emailName;
@@ -157,9 +161,9 @@ export function HomeScreen({
     useCallback(() => {
       let cancelled = false;
 
-      getInbox(null, 1)
-        .then((page) => {
-          if (!cancelled) setHasUnreadNotifications(page.unread > 0);
+      getUnreadCount()
+        .then((count) => {
+          if (!cancelled) setHasUnreadNotifications(count > 0);
         })
         .catch(() => undefined);
 
@@ -169,6 +173,30 @@ export function HomeScreen({
     }, []),
   );
 
+  // Pull-to-refresh (2026-11-23): the parent's data (score, photo), the
+  // unread badge and both recommendation carousels. Returning to the screen
+  // already refetches each of them on its own.
+  const [pulling, setPulling] = useState(false);
+  const [carouselKey, setCarouselKey] = useState(0);
+  const pullToRefresh = useCallback(async () => {
+    setPulling(true);
+    setCarouselKey((key) => key + 1);
+    refreshStreak();
+    try {
+      await Promise.all([
+        Promise.resolve(onRefresh?.()).catch(() => undefined),
+        getInbox(null, 1)
+          .then((page) => {
+            noteUnreadCount(page.unread);
+            setHasUnreadNotifications(page.unread > 0);
+          })
+          .catch(() => undefined),
+      ]);
+    } finally {
+      setPulling(false);
+    }
+  }, [onRefresh, refreshStreak]);
+
   const firstName = greetingFirstName(profileName) || 'Priya';
   const initials = candidateInitials || initialsFromName(profileName) || 'PD';
   const dateLabel = currentDate || formatHomeDate();
@@ -176,11 +204,12 @@ export function HomeScreen({
   return (
     <View style={styles.root}>
       <StatusBar style="dark" animated />
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          refreshControl={<RefreshControl refreshing={pulling} onRefresh={pullToRefresh} tintColor="#5F4DB2" colors={['#5F4DB2']} />}
         >
           {/* Top Header Row */}
           <View style={styles.headerRow}>
@@ -410,7 +439,7 @@ export function HomeScreen({
                   />
                   <View style={styles.courseBadge}>
                     <Sparkle size={9} color="#FFFFFF" weight="fill" />
-                    <Text style={styles.courseBadgeText}>+30 BOOST</Text>
+                    <Text style={styles.courseBadgeText}>+30 SCORE</Text>
                   </View>
                 </View>
                 <View style={styles.featureInfo}>
@@ -470,12 +499,12 @@ export function HomeScreen({
                   </View>
                   <View style={styles.courseBoostBadge}>
                     <Sparkle size={10} color="#92400E" weight="fill" />
-                    <Text style={styles.courseBoostBadgeText}>+30 SCORE BOOST</Text>
+                    <Text style={styles.courseBoostBadgeText}>+30 SCORE</Text>
                   </View>
                 </View>
                 <Text style={styles.coursePromoTitle}>Certified Skill Courses</Text>
                 <Text style={styles.coursePromoBody}>
-                  Complete video modules to boost your Bharatpath Score & stand out to employers
+                  Complete video modules to grow your Bharatpath Score & stand out to employers
                 </Text>
               </View>
               <View style={styles.coursePromoCaret}>
@@ -485,8 +514,8 @@ export function HomeScreen({
             */}
           </View>
 
-          <RecommendedJobsSection kind="similar-to-applied" onJobPress={onJobPress} onBrowseJobs={onAllJobsPress}/>
-          <RecommendedJobsSection kind="matching-profile" onJobPress={onJobPress} onBrowseJobs={onAllJobsPress}/>
+          <RecommendedJobsSection kind="similar-to-applied" onJobPress={onJobPress} onBrowseJobs={onAllJobsPress} refreshKey={carouselKey}/>
+          <RecommendedJobsSection kind="matching-profile" onJobPress={onJobPress} onBrowseJobs={onAllJobsPress} refreshKey={carouselKey}/>
         </ScrollView>
       </SafeAreaView>
 

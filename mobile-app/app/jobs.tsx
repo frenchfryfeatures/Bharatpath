@@ -5,6 +5,7 @@
  * declared city (from the auth profile) into the header. Tapping a card pushes
  * `/job-detail?id=<jobId>`.
  */
+import { navigateToTab } from '@/utils/tabNavigation';
 import React, { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { JobsFeedScreen } from '@/screens/jobs/JobsFeedScreen';
@@ -14,13 +15,8 @@ import { useAuth } from '@/hooks/useAuth';
 export default function JobsRoute() {
   const router = useRouter();
   const { profile } = useAuth();
-  const [activeTab, setActiveTab] = useState<TabName>('jobs');
-
   const handleTabPress = (tab: TabName, href: string) => {
-    setActiveTab(tab);
-    if (tab !== 'jobs') {
-      router.push(href as any);
-    }
+    navigateToTab(router, 'jobs', tab, href);
   };
 
   const handleJobPress = (jobId: string) => {
@@ -30,7 +26,7 @@ export default function JobsRoute() {
 
   return (
     <JobsFeedScreen
-      activeTab={activeTab}
+      activeTab="jobs"
       onTabPress={handleTabPress}
       onJobPress={handleJobPress}
       candidateCity={profile?.city ?? null}

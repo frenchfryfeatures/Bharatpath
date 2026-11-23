@@ -88,7 +88,7 @@ export function ScoreRevealScreen({
   return (
     <View style={[styles.root, isRecalculated && styles.rootRecalculated]}>
       <StatusBar style={isRecalculated ? 'dark' : 'light'} animated />
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -264,7 +264,7 @@ export function ScoreRevealScreen({
             ) : isLive ? (
               <View style={styles.liveNoteCard}>
                 <Text style={styles.liveNoteText}>
-                  This is the number employers see, with your band. There is no
+                  This is the Bharatpath Score employers see, with your band. There is no
                   category breakdown - the Bharatpath Score is shown as a single value.
                 </Text>
               </View>

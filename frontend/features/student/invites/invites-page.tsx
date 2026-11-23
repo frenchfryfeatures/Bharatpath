@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { CheckCircle } from "lucide-react";
 import Link from "next/link";
 import { Mail } from "lucide-react";
@@ -39,15 +39,8 @@ export function InvitesPage() {
   const pages = useCursorLoadMore(useCallback(async (cursor: string | undefined) => {
     const page = await load({ cursor, limit: 20, status: filter === "all" ? undefined : filter }).unwrap();
     return { items: page.items, nextCursor: page.next_cursor };
-  }, [load, filter]), [filter, revision]);
+  }, [load, filter]), [filter, revision], true, { keepPreviousData: true, refreshOnFocus: true });
 
-  useEffect(() => {
-    const refresh = () => {
-      if (document.visibilityState === "visible" && !responding.current) setRevision((previous) => previous + 1);
-    };
-    window.addEventListener("focus", refresh);
-    return () => window.removeEventListener("focus", refresh);
-  }, []);
 
   async function respond(id: string, action: "accept" | "decline") {
     if (responding.current) return;

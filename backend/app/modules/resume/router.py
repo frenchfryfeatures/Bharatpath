@@ -441,11 +441,11 @@ async def scoring_window(user: CurrentUser, session: DbSession) -> ResumeScoring
 async def resume_document(
     resume_version_id: uuid.UUID, user: CurrentUser, session: DbSession
 ) -> dict[str, str | None]:
-    return {
-        "url": await service.profile_resume_url(
-            session, user_id=user.user_id, resume_version_id=resume_version_id
-        )
-    }
+    """The original uploaded file: `url` (expires), `mime` and `filename`.
+    All null for a typed, pasted or built version."""
+    return await service.profile_resume_file(
+        session, user_id=user.user_id, resume_version_id=resume_version_id
+    )
 
 
 @router.get("/versions/{resume_version_id}/preview", dependencies=[CandidateOnly])

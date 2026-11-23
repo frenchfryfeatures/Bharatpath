@@ -83,7 +83,7 @@ export function BuilderRepeater({ section, items, onChange, primary = false }: {
       <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${config.singular} ${index + 1}`} onPress={() => onChange(items.filter((_, i) => i !== index))} style={styles.icon}><Trash size={19} color="#993A22" /></Pressable></View>
       {!!item.description && <Text style={styles.body} numberOfLines={3}>{String(item.description)}</Text>}</View>)}
     <Modal visible={editing !== undefined} animationType="slide" onRequestClose={close}>
-      <SafeAreaView style={styles.modal}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <SafeAreaView edges={['top', 'left', 'right']} style={styles.modal}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={styles.modalHeader}><Text style={styles.subheading}>{editing === null ? 'Add' : 'Edit'} {config.singular}</Text><Pressable accessibilityRole="button" accessibilityLabel="Close entry editor" onPress={close} style={styles.icon}><X size={22} color="#0A1931" /></Pressable></View>
         <BuilderScroll>{config.fields.filter(field => !(section === 'experience' && row.is_current && field.key === 'end_date')).map(field => <BuilderField key={field.key} field={field} value={row[field.key]} error={errors[field.key]} onChange={value => { setRow(previous => ({ ...previous, [field.key]: value })); setErrors(previous => ({ ...previous, [field.key]: '' })); }} />)}</BuilderScroll>
         <View style={styles.modalFooter}><Pressable onPress={close} style={styles.cancel}><Text style={styles.addText}>Cancel</Text></Pressable><Pressable accessibilityRole="button" onPress={() => {

@@ -29,6 +29,8 @@ export function writeOnboardingDraft(key: string, draft: OnboardingDraft) {
   currentVisit.set(key, draft);
   try { sessionStorage.setItem(key, JSON.stringify(draft)); } catch { /* In-memory progress still works when storage is unavailable. */ }
 }
+export function clearAllOnboardingDrafts() { currentVisit.clear(); }
+
 export function clearOnboardingDraft(key: string) {
   currentVisit.delete(key);
   try { sessionStorage.removeItem(key); } catch { /* Storage may be disabled. */ }

@@ -298,7 +298,7 @@ export function InterviewSessionScreen({ sessionId }: Props) {
   const timeFormatted = formatTime(recorderState.durationMillis);
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safe}>
       {/* Header bar */}
       <View style={styles.header}>
         <Pressable onPress={handleLeave} style={styles.backBtn} accessibilityLabel="Back">

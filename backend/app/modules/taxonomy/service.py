@@ -635,3 +635,8 @@ async def save_priorities(
         session.add(IndustryDepartmentPriority(industry_id=industry, department_id=key, rank=rank))
     await changed(session, ctx, "priorities", industry)
     return {"updated": len(payload.department_ids)}
+
+
+async def visible_names(session: AsyncSession, level: Any) -> list[str]:
+    """All visible industry or role names, flat. For the job preferences tab."""
+    return await repo.visible_names(session, level)

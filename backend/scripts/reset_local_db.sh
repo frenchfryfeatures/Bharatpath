@@ -78,6 +78,13 @@ ENVIRONMENT=local \
 AUTH_ALLOW_LOCAL_TOKENS=true \
   "${PYTHON:-python}" scripts/seed_filter_options.py
 
+# Education (qualification -> course -> specialization) and job (industry ->
+# department -> role) dropdowns. Deployments run the same two in `migrate`.
+echo "==> education and job taxonomies"
+for seeder in seed_education_taxonomy seed_job_taxonomy; do
+  DATABASE_URL="postgresql+asyncpg://bharatpath_migrator:bharatpath_migrator@localhost:5432/${DB}"   DATABASE_URL_MIGRATOR="postgresql+asyncpg://bharatpath_migrator:bharatpath_migrator@localhost:5432/${DB}"   REDIS_URL="redis://localhost:6379/0"   ENVIRONMENT=local   AUTH_ALLOW_LOCAL_TOKENS=true     "${PYTHON:-python}" "scripts/${seeder}.py" --seed-only
+done
+
 POLICIES=$(psql_run -tAc "SELECT count(*) FROM pg_policies WHERE schemaname='public'")
 TABLES=$(psql_run -tAc "SELECT count(*) FROM pg_tables WHERE schemaname='public'")
 echo "==> done: ${TABLES} tables, ${POLICIES} row-level security policies"

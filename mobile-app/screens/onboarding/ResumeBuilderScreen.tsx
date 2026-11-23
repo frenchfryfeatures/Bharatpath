@@ -11,7 +11,12 @@ import * as defaultApi from '@/services/api/resumeBuilder';
 import { contacts, steps, stepErrors, finalErrors, type Row } from './resume-builder/model';
 import type { ResumeBuilderContent } from '@/services/api/resumeBuilder';
 import { AppAlert } from '@/components/feedback/AppAlert';
-export function ResumeBuilderScreen({ onDone, onBack, onUploadCv, api = defaultApi, initialContent, initialStep = 0 }: {
+import { AppToast } from '@/components/feedback/AppToast';
+export function ResumeBuilderScreen({ onDone, onBack, onUploadCv, api = defaultApi, initialContent, initialStep = 0, startWithTemplates, templateNotice }: {
+  /** Open on the template picker even when content is handed in (2026-11-23). */
+  startWithTemplates?: boolean;
+  /** Shown above the template picker, e.g. that an upload's own design is not kept. */
+  templateNotice?: string;
   api?: ResumeBuilderApi;
   initialContent?: ResumeBuilderContent;
   initialStep?: number;
@@ -20,7 +25,7 @@ export function ResumeBuilderScreen({ onDone, onBack, onUploadCv, api = defaultA
   onUploadCv?: () => void;
 }) {
   const builder = useResumeBuilderDraft(api, initialContent);
-  const [selecting, setSelecting] = useState(!initialContent);
+  const [selecting, setSelecting] = useState(startWithTemplates ?? !initialContent);
   const [step, setStep] = useState(initialStep);
   const [completed, setCompleted] = useState<number[]>(initialContent ? steps.map((_,index)=>index) : []);
   const [templateModal, setTemplateModal] = useState(false);
@@ -46,7 +51,10 @@ export function ResumeBuilderScreen({ onDone, onBack, onUploadCv, api = defaultA
     // Edits may invalidate a completed step, so its checkmark is removed until revalidated.
     setCompleted(previous => previous.filter(index => index !== step));
   };
-  const handleFailure = (message: string) => { setErrors([message]); };
+  const handleFailure = (message: string) => {
+    setErrors([message]);
+    AppToast.error(message);
+  };
   const flushAndLeave = async (action: () => void) => {
     if (leaving.current)
       return;
@@ -90,6 +98,29 @@ export function ResumeBuilderScreen({ onDone, onBack, onUploadCv, api = defaultA
       return;
     }
     void flushAndLeave(onBack);
+  };
+  // Cancel (2026-11-23): leave without walking back through every section.
+  // Nothing changed -> leave. Changed -> ask; Discard restores the draft as
+  // this session opened it and never touches a resume already pushed.
+  const cancel = () => {
+    if (!builder.hasChanges()) { void flushAndLeave(onBack); return; }
+    AppAlert.alert('Leave Resume Builder?', 'You have unsaved changes from this session. If you discard them, your updated information will be lost.', [
+      { text: 'Keep editing', style: 'cancel' },
+      { text: 'Save and exit', onPress: () => { void flushAndLeave(onBack); } },
+      {
+        text: 'Discard changes', style: 'destructive', onPress: async () => {
+          setOperation('reset');
+          try {
+            await builder.discardChanges();
+            onBack();
+          } catch {
+            handleFailure('Your changes could not be discarded. Please try again.');
+          } finally {
+            setOperation(null);
+          }
+        },
+      },
+    ]);
   };
   const backRef = useRef(back);
   backRef.current = back;
@@ -206,14 +237,14 @@ export function ResumeBuilderScreen({ onDone, onBack, onUploadCv, api = defaultA
   const rows = (key: keyof ResumeBuilderContent) => (content[key] || []) as Row[];
   const repeater = (key: keyof ResumeBuilderContent) => <BuilderRepeater section={key} primary={step !== 5} items={rows(key)} onChange={items => patch({ [key]: items })} />;
   if (builder.loading)
-    return <SafeAreaView style={styles.screen}><View style={styles.loading}><ActivityIndicator color="#5F4DB2" /><Text style={styles.body}>Preparing your resume…</Text></View></SafeAreaView>;
+    return <SafeAreaView edges={['top', 'left', 'right']} style={styles.screen}><View style={styles.loading}><ActivityIndicator color="#5F4DB2" /><Text style={styles.body}>Preparing your resume…</Text></View></SafeAreaView>;
   if (!draft)
-    return <SafeAreaView style={styles.screen}><View style={styles.loading}><Text style={styles.error}>{builder.error}</Text><Pressable style={styles.primary} onPress={() => void builder.load()}><Text style={styles.primaryText}>Try again</Text></Pressable><Pressable style={styles.link} onPress={onBack}><Text style={styles.linkText}>Back</Text></Pressable></View></SafeAreaView>;
+    return <SafeAreaView edges={['top', 'left', 'right']} style={styles.screen}><View style={styles.loading}><Text style={styles.error}>{builder.error}</Text><Pressable style={styles.primary} onPress={() => void builder.load()}><Text style={styles.primaryText}>Try again</Text></Pressable><Pressable style={styles.link} onPress={onBack}><Text style={styles.linkText}>Back</Text></Pressable></View></SafeAreaView>;
   const templateCopy: Record<string, string> = {
     classic: 'A timeless single-column layout with clear section headings.', modern: 'A crisp layout with subtle accents and a contemporary feel.', sidebar: 'A balanced two-column layout that keeps skills and contact details in view.', minimal: 'A simple, spacious layout that puts your experience first.'
   };
   const templateName = builder.templates.find(item => item.key === draft.template_key)?.name || 'Classic';
-  return <SafeAreaView style={styles.screen}>
+  return <SafeAreaView edges={['top', 'left', 'right']} style={styles.screen}>
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.header}>
         <Pressable accessibilityRole="button" accessibilityLabel="Back" disabled={active} onPress={back} style={styles.icon}><ArrowLeft size={22} color="#0A1931" /></Pressable>
@@ -224,11 +255,12 @@ export function ResumeBuilderScreen({ onDone, onBack, onUploadCv, api = defaultA
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="Preview resume" disabled={active} onPress={() => void output('preview')} style={styles.icon}>{operation === 'preview' ? <ActivityIndicator color="#5F4DB2" /> : <Eye size={22} color="#5F4DB2" />}</Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Download resume PDF" disabled={active} onPress={() => void output('download')} style={styles.icon}>{operation === 'download' ? <ActivityIndicator color="#5F4DB2" /> : <DownloadSimple size={21} color="#5F4DB2" />}</Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Cancel and leave the resume builder" disabled={active} onPress={cancel} style={styles.icon}><X size={22} color="#0A1931" /></Pressable>
       </View>
       {!!builder.error && <View style={styles.notice}><Text accessibilityRole="alert" style={styles.error}>{builder.error}</Text><Pressable accessibilityRole="button" onPress={() => void builder.flush().catch(() => { })}><Text style={styles.linkText}>Retry save</Text></Pressable></View>}
       {!!builder.recovery && <View style={styles.notice}><Text style={styles.body}>Unsaved edits from this device are available.</Text><View style={styles.inline}><Pressable onPress={builder.restore} style={styles.link}><Text style={styles.linkText}>Restore edits</Text></Pressable><Pressable onPress={builder.dismissRecovery} style={styles.link}><Text style={styles.muted}>Keep saved version</Text></Pressable></View></View>}
       {selecting ? <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.selectionContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.selectionIntro}><Text accessibilityRole="header" style={styles.heading}>Choose your template</Text><Text style={styles.body}>A clear, professional layout for your story. You can change it later.</Text></View>
+        <View style={styles.selectionIntro}><Text accessibilityRole="header" style={styles.heading}>Choose your template</Text>{!!templateNotice && <View style={styles.notice}><Text style={styles.body}>{templateNotice}</Text></View>}<Text style={styles.body}>A clear, professional layout for your story. You can change it later.</Text></View>
         <View><TemplateSelector templates={builder.templates} value={draft.template_key} version={builder.templateVersion} renderPreview={api.previewResumeDraft} onChange={template_key => {
           if (!active)
             builder.update({ ...builder.getLatest()!, template_key });
@@ -289,11 +321,11 @@ export function ResumeBuilderScreen({ onDone, onBack, onUploadCv, api = defaultA
         <Pressable accessibilityRole="button" disabled={active} onPress={() => !selecting && step === 5 ? void output('submit') : void next()} style={[styles.primary, active && styles.disabled]}>
           {operation === 'next' || operation === 'submit' || operation === 'leave' ? <ActivityIndicator color="#fff" /> : <><Text style={styles.primaryText}>{selecting ? 'Continue with ' + templateName : step === 5 ? 'Use this resume and continue' : 'Next Step'}</Text>{(selecting || step < 5) && <ArrowRight size={20} color="#fff" />}</>}</Pressable></View>
     </KeyboardAvoidingView>
-    <Modal visible={templateModal} animationType="slide" onRequestClose={() => setTemplateModal(false)}><SafeAreaView style={styles.screen}><View style={styles.modalHeader}><Text style={styles.headerTitle}>Change template</Text><Pressable accessibilityRole="button" accessibilityLabel="Close template selector" onPress={() => setTemplateModal(false)} style={styles.icon}><X size={23} color="#0A1931" /></Pressable></View><ScrollView contentContainerStyle={styles.selectionContent}><View style={styles.selectionIntro}><Text style={styles.body}>Your details stay the same when you switch layouts.</Text></View><View><TemplateSelector templates={builder.templates} value={draft.template_key} version={builder.templateVersion} renderPreview={api.previewResumeDraft} onChange={template_key => {
+    <Modal visible={templateModal} animationType="slide" onRequestClose={() => setTemplateModal(false)}><SafeAreaView edges={['top', 'left', 'right']} style={styles.screen}><View style={styles.modalHeader}><Text style={styles.headerTitle}>Change template</Text><Pressable accessibilityRole="button" accessibilityLabel="Close template selector" onPress={() => setTemplateModal(false)} style={styles.icon}><X size={23} color="#0A1931" /></Pressable></View><ScrollView contentContainerStyle={styles.selectionContent}><View style={styles.selectionIntro}><Text style={styles.body}>Your details stay the same when you switch layouts.</Text></View><View><TemplateSelector templates={builder.templates} value={draft.template_key} version={builder.templateVersion} renderPreview={api.previewResumeDraft} onChange={template_key => {
       if (!active)
         builder.update({ ...builder.getLatest()!, template_key });
     }} /></View></ScrollView><View style={styles.footer}><Pressable accessibilityRole="button" style={styles.primary} onPress={() => setTemplateModal(false)}><Text style={styles.primaryText}>Keep {templateName}</Text></Pressable></View></SafeAreaView></Modal>
-    <Modal visible={preview !== null} animationType="slide" onRequestClose={() => setPreview(null)}><SafeAreaView style={styles.screen}><View style={styles.modalHeader}><Text style={styles.headerTitle}>Resume preview</Text><View style={styles.inline}><Pressable accessibilityRole="button" accessibilityLabel="Download preview as PDF" disabled={active} onPress={() => void output('download')} style={styles.icon}><DownloadSimple size={22} color="#5F4DB2" /></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Close resume preview" onPress={() => setPreview(null)} style={styles.icon}><X size={23} color="#0A1931" /></Pressable></View></View><>{!!errors.length && <View style={styles.notice}><Text style={styles.error}>{errors[0]}</Text></View>}<ZoomableResumePages pages={preview?.pages ?? []} mime={preview?.mime ?? "image/png"}/></></SafeAreaView></Modal>
+    <Modal visible={preview !== null} animationType="slide" onRequestClose={() => setPreview(null)}><SafeAreaView edges={['top', 'left', 'right']} style={styles.screen}><View style={styles.modalHeader}><Text style={styles.headerTitle}>Resume preview</Text><View style={styles.inline}><Pressable accessibilityRole="button" accessibilityLabel="Download preview as PDF" disabled={active} onPress={() => void output('download')} style={styles.icon}><DownloadSimple size={22} color="#5F4DB2" /></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Close resume preview" onPress={() => setPreview(null)} style={styles.icon}><X size={23} color="#0A1931" /></Pressable></View></View><>{!!errors.length && <View style={styles.notice}><Text style={styles.error}>{errors[0]}</Text></View>}<ZoomableResumePages pages={preview?.pages ?? []} mime={preview?.mime ?? "image/png"}/></></SafeAreaView></Modal>
   </SafeAreaView>;
 }
 const styles = StyleSheet.create({

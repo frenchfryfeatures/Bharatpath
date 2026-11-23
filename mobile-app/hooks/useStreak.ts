@@ -35,9 +35,32 @@ export interface UseStreakResult {
   refresh: () => void;
 }
 
+// ─── Today's check-in, remembered (2026-11-23) ────────────────────
+// A check-in counts once per India-time day, and the server ignores the
+// rest. Every screen using this hook, and every return to the foreground,
+// used to send one anyway. Now the first success of the day is remembered and
+// reused until the IST date changes; logout forgets it.
+let checkedIn: { day: string; streak: StreakResponse } | null = null;
+
+function istDay(now = Date.now()): string {
+  return new Date(now + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+function todaysCheckIn(): StreakResponse | null {
+  return checkedIn && checkedIn.day === istDay() ? checkedIn.streak : null;
+}
+
+function rememberCheckIn(streak: StreakResponse): void {
+  checkedIn = { day: istDay(), streak };
+}
+
+export function forgetCheckIn(): void {
+  checkedIn = null;
+}
+
 export function useStreak(): UseStreakResult {
-  const [streak, setStreak] = useState<StreakResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [streak, setStreak] = useState<StreakResponse | null>(() => todaysCheckIn());
+  const [loading, setLoading] = useState(() => !todaysCheckIn());
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,6 +74,8 @@ export function useStreak(): UseStreakResult {
     const token = ++loadTokenRef.current;
     try {
       const data = await getMyStreak();
+      // A fresh read is the newest truth for the rest of today too.
+      if (todaysCheckIn()) rememberCheckIn(data);
       if (token === loadTokenRef.current) {
         setStreak(data);
         setError(null);
@@ -80,7 +105,10 @@ export function useStreak(): UseStreakResult {
     inFlightRef.current = true;
     const token = ++loadTokenRef.current;
     try {
-      const result = await checkIn();
+      // Already counted today (India time): nothing for the server to do.
+      const known = todaysCheckIn();
+      const result = known ? { streak: known } : await checkIn();
+      if (!known) rememberCheckIn(result.streak);
       if (token === loadTokenRef.current) {
         // The check-in response carries the full updated streak, so we use it
         // directly - no need for a second GET.
@@ -110,7 +138,9 @@ export function useStreak(): UseStreakResult {
     let cancelled = false;
     (async () => {
       try {
-        const result = await checkIn();
+        const known = todaysCheckIn();
+        const result = known ? { streak: known } : await checkIn();
+        if (!known) rememberCheckIn(result.streak);
         if (!cancelled) {
           setStreak(result.streak);
           setError(null);

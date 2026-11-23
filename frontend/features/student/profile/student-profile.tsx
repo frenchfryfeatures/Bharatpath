@@ -13,6 +13,8 @@ import {
   ChevronRight,
   Eye,
   FileText,
+  Gift,
+  SlidersHorizontal,
   FilePenLine,
   KeyRound,
   ClipboardList,
@@ -28,6 +30,7 @@ import {
   useGetStudentProfileQuery,
   useGetStudentProfileViewsQuery,
   useGetStudentScoreQuery,
+  useGetResumeVersionsQuery,
 } from "@/store/student";
 import { employerMonogram, formatDateTime } from "@/features/student/formatters";
 import {
@@ -49,13 +52,16 @@ export function StudentProfile() {
   const accountEmail = useAppSelector((state) => state.auth.user?.email ?? "");
   const profile = useGetStudentProfileQuery();
   const score = useGetStudentScoreQuery();
+  const versions = useGetResumeVersionsQuery();
+  const currentResume = versions.data?.find((version) => version.current);
   const applications = useGetStudentApplicationCountQuery("ACTIVE");
   const courses = useGetStudentCoursesQuery();
   const isLoading =
     profile.isLoading ||
     score.isLoading ||
     applications.isLoading ||
-    courses.isLoading;
+    courses.isLoading ||
+    versions.isLoading;
   const openReportsPage = (href: string) => {
     const scrollTop = document.querySelector<HTMLElement>("main.bp-scrollbar")?.scrollTop;
     if (scrollTop !== undefined) {
@@ -128,9 +134,23 @@ export function StudentProfile() {
               </p>
               <div className="grid gap-3 sm:grid-cols-2">
                 <ProfileAction
+                  icon={SlidersHorizontal}
+                  title="Job preferences"
+                  detail="Roles, work mode, locations and salary you want"
+                  tone="violet"
+                  onClick={() => openReportsPage("/student/profile/preferences")}
+                />
+                <ProfileAction
+                  icon={Gift}
+                  title="Add-ons"
+                  detail="Ways to earn rewards: courses, mock interviews, daily streak"
+                  tone="gold"
+                  onClick={() => openReportsPage("/student/profile/addons")}
+                />
+                <ProfileAction
                   icon={FileText}
-                  title="Resume review"
-                  detail="Review your document and scoring history"
+                  title="Bharatpath Builder"
+                  detail="Your resume, its versions and scoring history"
                   tone="violet"
                   onClick={() => openReportsPage("/student/profile/resume")}
                 />
@@ -239,6 +259,8 @@ export function StudentProfile() {
         pool="CANDIDATE"
       />
       <ResumeTemplateDialog
+        key={`${resumeTemplatePromptOpen}-${currentResume?.resumeVersionId ?? "new"}`}
+        fromUpload={Boolean(currentResume) && currentResume?.source !== "BUILDER"}
         open={resumeTemplatePromptOpen}
         onClose={() => setResumeTemplatePromptOpen(false)}
         onKeep={() => { setResumeTemplatePromptOpen(false); openReportsPage("/student/profile/resume/edit?template=keep&from=profile"); }}

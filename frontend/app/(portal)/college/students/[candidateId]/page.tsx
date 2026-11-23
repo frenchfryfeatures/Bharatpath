@@ -1,11 +1,11 @@
 "use client";
 
+import { OriginalResumeView } from "@/components/resume/original-resume-view";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, BookOpen, BriefcaseBusiness, FileText, Mic2, TrendingUp } from "lucide-react";
 
 import { Skeleton } from "@/components/common/loading";
-import { StructuredResumeUnavailable, StructuredResumeView } from "@/components/resume/structured-resume";
 import { usePageHeader } from "@/components/layout/header-context";
 import { CollegeErrorState } from "@/features/college/components/college-error-state";
 import { CollegeStudentPageSkeleton } from "@/features/college/students/college-student-page-skeleton";
@@ -76,7 +76,7 @@ export default function CollegeStudentPage() {
       </Section>}
 
       {details.isLoading || (details.data?.resume_confirmed_at && resume.isLoading) ? <SectionSkeleton /> : <Section title="Resume" detail={resume.data?.confirmed_at ? `Confirmed ${formatDate(resume.data.confirmed_at)}` : undefined}>
-        {details.error ? <Notice>The student has not shared resume access with your college under the current consent.</Notice> : resume.error ? <Notice>The resume could not be opened right now.</Notice> : resume.data ? <div className="max-h-160 space-y-4 overflow-y-auto pr-2"><span className="inline-block rounded-full bg-[#eef3fb] px-2.5 py-1 text-[10px] font-bold text-[#315c9f]">{humanise(resume.data.source)}</span>{resume.data.structured_status === "READY" && resume.data.structured_resume ? <StructuredResumeView resume={resume.data.structured_resume} /> : <StructuredResumeUnavailable status={resume.data.structured_status} />}{resume.data.file_url && <a href={resume.data.file_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-[#d5dfee] px-3 py-2 text-[12px] font-semibold text-[#315c9f] hover:bg-[#f4f7fc]"><FileText size={15} /> Open uploaded resume</a>}</div> : <Notice>No confirmed resume is available.</Notice>}
+        {details.error ? <Notice>The student has not shared resume access with your college under the current consent.</Notice> : resume.error ? <Notice>The resume could not be opened right now.</Notice> : resume.data ? <div className="max-h-160 space-y-4 overflow-y-auto pr-2"><span className="inline-block rounded-full bg-[#eef3fb] px-2.5 py-1 text-[10px] font-bold text-[#315c9f]">{humanise(resume.data.source)}</span><OriginalResumeView fileUrl={resume.data.file_url} fileMime={resume.data.file_mime} structured={resume.data.structured_status === "READY" ? resume.data.structured_resume : null} structuredStatus={resume.data.structured_status} />{resume.data.file_url && <a href={resume.data.file_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-[#d5dfee] px-3 py-2 text-[12px] font-semibold text-[#315c9f] hover:bg-[#f4f7fc]"><FileText size={15} /> Open uploaded resume</a>}</div> : <Notice>No confirmed resume is available.</Notice>}
       </Section>}
 
       <Section title="Bharatpath Score and outcomes" detail={profile.scoredAt ? `Scored ${formatDate(profile.scoredAt)}` : undefined}><div className="grid gap-4 sm:grid-cols-2"><Field label="Current Bharatpath Score" value={profile.score ?? "Not scored"} /><Field label="Bharatpath Score band" value={profile.band ? humanise(profile.band) : "Not scored"} /><Field label="Applications" value={profile.applications} /><Field label="Employer interviews reached" value={profile.interviews} /></div></Section>

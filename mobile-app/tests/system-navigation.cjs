@@ -53,6 +53,7 @@ cleanup();assert.ok(calls.includes('remove-app-state')&&calls.includes('remove-v
 const {AppModal}=load('components/layout/AppModal.tsx',{
   react:{__esModule:true,default:React,...React},'react-native':native,'react-native-safe-area-context':safe,
   './SystemNavigationFrame':{SystemNavigationFrame:'ProtectedFrame',useSystemWindowMetrics:()=>metrics},
+  '@/components/feedback/AppToast':{AppToastRoot:'AppToastRoot'},
 });
 const modal=AppModal({visible:true,transparent:true,children:'dialog'});
 assert.equal(modal.props.navigationBarTranslucent,true);assert.equal(modal.props.statusBarTranslucent,true);
@@ -70,7 +71,7 @@ function audit(dir){for(const entry of fs.readdirSync(dir,{withFileTypes:true}))
   const {NotificationButton}=load('components/navigation/NotificationButton.tsx',{
     react:{__esModule:true,default:hooks,...hooks},'react-native':{Pressable:'Pressable',View:'View',StyleSheet:native.StyleSheet},
     'expo-router':{useRouter:()=>({push:value=>route=value}),useFocusEffect:fn=>focus=fn},
-    'phosphor-react-native':{Bell:'Bell'},'@/services/api/notifications':{getInbox:async()=>({unread:3})},
+    'phosphor-react-native':{Bell:'Bell'},'@/services/api/notifications':{getInbox:async()=>({unread:3}),getUnreadCount:async()=>3,cachedUnreadCount:()=>null},
   });
   NotificationButton();focus();await new Promise(resolve=>setImmediate(resolve));
   const bell=NotificationButton();assert.equal(bell.props.accessibilityLabel,'Notifications, unread updates');

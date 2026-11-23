@@ -14,7 +14,7 @@ import {ProfileInsightsSummary} from "./ProfileInsightsScreen";
  *
  * Sections:
  * - MY INFORMATION (Profile details, Attribute report, Interview report, Language)
- * - PRIVACY AND DATA (Who has seen me, Download my data, Delete my account)
+ * - PRIVACY AND DATA (Who has seen me, Download data, Privacy Policy, Logout)
  * - Sticky bottom tab bar with "You" tab active
  */
 import React from 'react';
@@ -23,6 +23,7 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  RefreshControl,
   Pressable,
   Platform,
   ActivityIndicator,
@@ -45,6 +46,7 @@ import {
   CreditCard,
   BookOpen,
   PencilSimple,
+  SlidersHorizontal,
 } from 'phosphor-react-native';
 import { Colors, Spacing } from '@/theme/tokens';
 import { BottomTabBar, TabName } from '@/components/navigation/BottomTabBar';
@@ -82,6 +84,11 @@ export interface ProfileScreenProps {
   onAppliedPress?: () => void;
   onAddonsPress?: () => void;
   onResumeDetailsPress?: () => void;
+  /** Pull-to-refresh (2026-11-23). */
+  refreshing?: boolean;
+  onRefresh?: () => void;
+  /** Opens the Job preferences screen (2026-11-23). */
+  onJobPreferencesPress?: () => void;
   onResumeReviewPress?: () => void;
   onSubscriptionPress?: () => void;
   onAttributeReportPress?: () => void;
@@ -130,6 +137,9 @@ export function ProfileScreen({
   onLogoutPress,
   onPrivacyPolicyPress,
   onDeleteAccountPress,
+  onJobPreferencesPress,
+  refreshing = false,
+  onRefresh,
 }: ProfileScreenProps) {
   const handleLogout = onLogoutPress || onDeleteAccountPress;
   const insets = useSafeAreaInsets();
@@ -149,6 +159,11 @@ export function ProfileScreen({
           ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          refreshControl={
+            onRefresh ? (
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#5F4DB2" colors={['#5F4DB2']} />
+            ) : undefined
+          }
         >
           {/* Header with avatar badge and candidate info */}
           <View style={styles.header}>
@@ -280,7 +295,21 @@ export function ProfileScreen({
               <CaretRight size={16} color="#5F6B80" weight="bold" />
             </Pressable>
 
-            {/* Resume review */}
+            {/* Job preferences (2026-11-23) */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuItem,
+                pressed && styles.cardPressed,
+              ]}
+              onPress={onJobPreferencesPress}
+              accessibilityRole="button"
+            >
+              <SlidersHorizontal size={20} color={Colors.navy} weight="duotone" />
+              <Text style={styles.menuItemTitle}>Job preferences</Text>
+              <CaretRight size={16} color="#5F6B80" weight="bold" />
+            </Pressable>
+
+            {/* Bharatpath Builder */}
             <Pressable
               style={({ pressed }) => [
                 styles.menuItem,
@@ -290,7 +319,7 @@ export function ProfileScreen({
               accessibilityRole="button"
             >
               <FileText size={20} color={Colors.navy} weight="duotone" />
-              <Text style={styles.menuItemTitle}>Resume review</Text>
+              <Text style={styles.menuItemTitle}>Bharatpath Builder</Text>
               <CaretRight size={16} color="#5F6B80" weight="bold" />
             </Pressable>
 
@@ -439,21 +468,13 @@ export function ProfileScreen({
               <CaretRight size={16} color="#5F6B80" weight="bold" />
             </Pressable>
 
-            {/* Download my data */}
-            <Pressable
-              style={({ pressed }) => [
-                styles.menuItem,
-                pressed && styles.cardPressed,
-              ]}
-              onPress={onDownloadDataPress}
-              accessibilityRole="button"
-            >
-              <DownloadSimple size={20} color="#3A4761" weight="duotone" />
-              <Text style={styles.menuItemTitle}>Download my data</Text>
+            <Pressable style={({ pressed }) => [styles.menuItem, pressed && styles.cardPressed]} onPress={onPrivacyPolicyPress} accessibilityRole="button" accessibilityLabel="Privacy Policy">
+              <LockKey size={20} color={Colors.navy} weight="duotone" />
+              <Text style={styles.menuItemTitle}>Privacy Policy</Text>
               <CaretRight size={16} color="#5F6B80" weight="bold" />
             </Pressable>
 
-            {/* Logout my account */}
+            {/* Logout -- last in the list */}
             <Pressable
               style={({ pressed }) => [
                 styles.menuItem,
@@ -463,12 +484,7 @@ export function ProfileScreen({
               accessibilityRole="button"
             >
               <SignOut size={20} color="#D9383A" weight="bold" />
-              <Text style={[styles.menuItemTitle, styles.logoutText]}>Logout my account</Text>
-              <CaretRight size={16} color="#5F6B80" weight="bold" />
-            </Pressable>
-            <Pressable style={({ pressed }) => [styles.menuItem, pressed && styles.cardPressed]} onPress={onPrivacyPolicyPress} accessibilityRole="button" accessibilityLabel="Privacy Policy">
-              <LockKey size={20} color={Colors.navy} weight="duotone" />
-              <Text style={styles.menuItemTitle}>Privacy Policy</Text>
+              <Text style={[styles.menuItemTitle, styles.logoutText]}>Logout</Text>
               <CaretRight size={16} color="#5F6B80" weight="bold" />
             </Pressable>
           </View>

@@ -2,14 +2,14 @@ import React, { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Bell } from 'phosphor-react-native';
-import { getInbox } from '@/services/api/notifications';
+import { cachedUnreadCount, getUnreadCount } from '@/services/api/notifications';
 
 export function NotificationButton() {
   const router = useRouter();
-  const [unread, setUnread] = useState(false);
+  const [unread, setUnread] = useState(() => (cachedUnreadCount() ?? 0) > 0);
   useFocusEffect(useCallback(() => {
     let active = true;
-    void getInbox(null, 1).then(page => { if (active) setUnread(page.unread > 0); }).catch(() => undefined);
+    void getUnreadCount().then(count => { if (active) setUnread(count > 0); }).catch(() => undefined);
     return () => { active = false; };
   }, []));
   return <Pressable accessibilityRole="button" accessibilityLabel={unread ? 'Notifications, unread updates' : 'Notifications'} onPress={() => router.push('/notifications' as any)} style={({ pressed }) => [styles.button, pressed && { opacity: 0.75 }]}>

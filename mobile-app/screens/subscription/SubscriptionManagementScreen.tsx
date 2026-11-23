@@ -18,6 +18,7 @@
  * - Optional discount code support
  * - Pull to refresh & live status updates
  */
+import { useScreenRefresh } from '@/hooks/useScreenRefresh';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -109,10 +110,12 @@ export function SubscriptionManagementScreen({
   const [discountError, setDiscountError] = useState<string | null>(null);
   const [isPreviewing, setIsPreviewing] = useState(false);
 
-  const loadData = useCallback(async (isRefresh = false) => {
-    if (isRefresh) {
+  // `true`: a pull (spinner). `'quiet'`: a return to the screen, which
+  // swaps the data in without any loader (2026-11-23).
+  const loadData = useCallback(async (isRefresh: boolean | 'quiet' = false) => {
+    if (isRefresh === true) {
       setRefreshing(true);
-    } else {
+    } else if (!isRefresh) {
       setLoading(true);
     }
     setError(null);
@@ -135,6 +138,7 @@ export function SubscriptionManagementScreen({
   useEffect(() => {
     loadData();
   }, [loadData]);
+  useScreenRefresh(() => loadData('quiet'));
 
   const handleApplyDiscount = async () => {
     const code = discountInput.trim();
@@ -233,7 +237,25 @@ export function SubscriptionManagementScreen({
   return (
     <View style={styles.root}>
       <StatusBar style="dark" animated />
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        {/* Standard Header matching other screens */}
+        <View style={styles.headerBar}>
+          {onBack ? (
+            <Pressable
+              style={({ pressed }) => [
+                styles.backButton,
+                pressed && styles.buttonPressed,
+              ]}
+              onPress={onBack}
+              accessibilityRole="button"
+              accessibilityLabel="Back"
+            >
+              <ArrowLeft size={18} color={Colors.navy} weight="bold" />
+            </Pressable>
+          ) : null}
+          <Text style={styles.headerTitle}>Subscription</Text>
+        </View>
+
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -247,27 +269,8 @@ export function SubscriptionManagementScreen({
             />
           }
         >
-          {/* Top Bar with back button */}
-          <View style={styles.topBar}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.backButton,
-                pressed && styles.buttonPressed,
-              ]}
-              onPress={onBack}
-              accessibilityRole="button"
-              accessibilityLabel="Back"
-            >
-              <ArrowLeft size={16} color={Colors.navy} weight="bold" />
-            </Pressable>
-            <Text style={styles.topBarTitle}>Subscription</Text>
-          </View>
-
-          {/* Heading Section */}
-          <View style={styles.headingSection}>
-            <Text style={styles.mainTitle}>Subscription</Text>
-            <Text style={styles.mainSubtitle}>Manage your plan and billing</Text>
-          </View>
+          {/* Subtitle */}
+          <Text style={styles.mainSubtitle}>Manage your path and billing</Text>
 
           {/* Error Banner */}
           {error && (
@@ -391,7 +394,7 @@ export function SubscriptionManagementScreen({
 
           {/* Plans Section Header */}
           <View style={styles.plansHeaderRow}>
-            <Text style={styles.sectionEyebrow}>CHOOSE A PLAN</Text>
+            <Text style={styles.sectionEyebrow}>CHOOSE A PATH</Text>
           </View>
 
           {/* Plans 2x2 Grid */}
@@ -485,35 +488,36 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
+  headerBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.surface.border,
+    backgroundColor: Colors.offWhite,
+  },
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.surface.tint,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  headerTitle: {
+    flex: 1,
+    fontFamily: 'GeneralSans-Semibold',
+    fontSize: 18,
+    color: Colors.navy,
+  },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: Spacing.md,
+    paddingTop: Spacing.base,
     paddingBottom: Spacing.xxl,
     gap: 16,
     flexGrow: 1,
-  },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingBottom: 4,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E7E0D4',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  topBarTitle: {
-    flex: 1,
-    fontFamily: 'GeneralSans-Semibold',
-    fontSize: 16,
-    lineHeight: 20,
-    color: Colors.navy,
   },
   headingSection: {
     gap: 4,

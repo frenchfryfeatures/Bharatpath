@@ -13,8 +13,10 @@
  * not their data). A 402 here is therefore unexpected; we surface it as a
  * generic error rather than a membership prompt.
  */
-import { useState, useCallback, useRef } from 'react';
+import { readScreenCache, writeScreenCache } from '@/services/cache/screenCache';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useFocusEffect } from 'expo-router';
+import { subscribeToApplicationChanges } from '@/services/applicationEvents';
 import { listMyApplications } from '@/services/api/applications';
 import { ApiError } from '@/services/api/client';
 import { ApplicationResponse } from '@/types/application';
@@ -44,28 +46,39 @@ function errorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+const BOARD_CACHE_KEY = 'applications:first-page';
+
 export function useApplications(): UseApplicationsResult {
-  const [applications, setApplications] = useState<ApplicationResponse[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Opens with the board from the last visit, then refreshes behind it
+  // (2026-11-23).
+  const cached = readScreenCache<{ items: ApplicationResponse[]; next: string | null }>(BOARD_CACHE_KEY);
+  const [applications, setApplications] = useState<ApplicationResponse[]>(cached?.items ?? []);
+  const [loading, setLoading] = useState(!cached);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [hasReachedEnd, setHasReachedEnd] = useState(false);
+  const [hasReachedEnd, setHasReachedEnd] = useState(Boolean(cached && !cached.next));
   const [error, setError] = useState<string | null>(null);
 
   // The cursor for the next page. Stored in a ref so loadMore doesn't need it
   // as a dependency and doesn't re-trigger the load effect.
-  const nextCursorRef = useRef<string | null>(null);
+  const nextCursorRef = useRef<string | null>(cached?.next ?? null);
   // A token to ignore stale responses when reload fires mid-flight.
   const loadTokenRef = useRef(0);
 
+  const hasDataRef = useRef(false);
+  hasDataRef.current = applications.length > 0;
+
   const loadFirstPage = useCallback(async () => {
     const token = ++loadTokenRef.current;
-    setLoading(true);
+    // A refetch on return keeps the board on screen; only an empty board
+    // shows the loading state (no flash, no lost scroll position).
+    setLoading(!hasDataRef.current);
     setLoadingMore(false);
     setError(null);
     try {
       const page = await listMyApplications({ limit: 50 });
       if (token !== loadTokenRef.current) return; // stale
       setApplications(page.items);
+      writeScreenCache(BOARD_CACHE_KEY, { items: page.items, next: page.next_cursor });
       nextCursorRef.current = page.next_cursor;
       setHasReachedEnd(!page.next_cursor);
     } catch (err) {
@@ -78,6 +91,20 @@ export function useApplications(): UseApplicationsResult {
       if (token === loadTokenRef.current) setLoading(false);
     }
   }, []);
+
+  // A withdraw/confirm/dispute/apply anywhere shows here at once; a new
+  // application goes to the top, as the server orders newest first.
+  useEffect(() => subscribeToApplicationChanges((change) => {
+    setApplications((prev) => {
+      const index = prev.findIndex((item) => item.id === change.id);
+      if (index === -1) return change.created_at ? [change as ApplicationResponse, ...prev] : prev;
+      const next = prev.slice();
+      next[index] = { ...prev[index], ...change };
+      const saved = readScreenCache<{ items: ApplicationResponse[]; next: string | null }>(BOARD_CACHE_KEY);
+      if (saved) writeScreenCache(BOARD_CACHE_KEY, { ...saved, items: next.slice(0, saved.items.length) });
+      return next;
+    });
+  }), []);
 
   // Initial load.
   useFocusEffect(useCallback(() => {

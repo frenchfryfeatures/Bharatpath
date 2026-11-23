@@ -1,5 +1,6 @@
+import { useScreenRefresh } from '@/hooks/useScreenRefresh';
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { ArrowLeft, Clock, EyeSlash, LockSimple } from 'phosphor-react-native';
@@ -28,6 +29,8 @@ export function AttributeCheckScreen({ onBack, onStartQuiz, onViewReport }: Attr
       setError(questionnaireErrorMessage(caught, 'Could not load the questionnaire.'));
     }
   }, []);
+  // Pull-to-refresh, and a quiet refetch on every return (2026-11-23).
+  const { refreshing: pulling, onRefresh: pullToRefresh } = useScreenRefresh(load);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -35,7 +38,7 @@ export function AttributeCheckScreen({ onBack, onStartQuiz, onViewReport }: Attr
   const answered = questionnaire ? Object.keys(questionnaire.answers).length : 0;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <StatusBar style="dark" />
       <View style={styles.headerBar}>
         <Pressable style={styles.backButton} onPress={onBack} accessibilityRole="button">
@@ -45,7 +48,10 @@ export function AttributeCheckScreen({ onBack, onStartQuiz, onViewReport }: Attr
         <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={pulling} onRefresh={pullToRefresh} />}
+      >
         <View style={styles.heroCard}>
           <Image source={require('../../assets/icons/card-attr.png')} style={styles.heroImage} resizeMode="contain" />
         </View>

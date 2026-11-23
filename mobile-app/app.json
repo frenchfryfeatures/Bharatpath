@@ -12,7 +12,7 @@
     },
     "scheme": "bharatpath",
     "userInterfaceStyle": "automatic",
-    "backgroundColor": "#FFFFFF",
+    "backgroundColor": "#FFFCF7",
     "androidNavigationBar": {
       "backgroundColor": "#FFFFFF",
       "barStyle": "dark-content"

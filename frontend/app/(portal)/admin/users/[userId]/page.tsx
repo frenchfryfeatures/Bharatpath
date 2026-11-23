@@ -1,11 +1,12 @@
 "use client";
 
+import { OriginalResumeView } from "@/components/resume/original-resume-view";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, BriefcaseBusiness, BookOpen, FileText, Mic2, TrendingUp } from "lucide-react";
 
 import { Skeleton } from "@/components/common/loading";
-import { StructuredResumeUnavailable, StructuredResumeView, type StructuredResume } from "@/components/resume/structured-resume";
+import { type StructuredResume } from "@/components/resume/structured-resume";
 import { usePageHeader } from "@/components/layout/header-context";
 import { ErrorState } from "@/components/ui";
 import { CandidatePageSkeleton } from "@/features/admin/users/components/candidate-page-skeleton";
@@ -72,7 +73,7 @@ function ResumeContent({ version, showFileLink = true }: { version: ResumeVersio
   const structured = version.structured_status === "READY" ? version.structured_resume : storedResume;
   return <div className="space-y-4">
     <div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-[#eef3fb] px-2.5 py-1 text-[10px] font-bold text-[#315c9f]">{humanise(version.source)}</span><span className={muted}>{version.confirmed_at ? `Confirmed ${formatDate(version.confirmed_at)}` : `Added ${formatDate(version.created_at)}`}</span></div>
-    {structured ? <StructuredResumeView resume={structured} /> : <StructuredResumeUnavailable status={version.structured_status} />}
+    <OriginalResumeView fileUrl={version.file_url} fileMime={(version as { file_mime?: string | null }).file_mime} structured={structured} structuredStatus={version.structured_status} />
     {showFileLink && version.file_url && <UploadedResumeLink url={version.file_url} />}
   </div>;
 }

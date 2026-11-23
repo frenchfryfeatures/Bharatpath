@@ -379,6 +379,7 @@ interface FieldProps {
   hint?: string;
   error?: string;
   optional?: boolean;
+  loading?: boolean;
   children: ReactNode;
 }
 
@@ -387,6 +388,7 @@ export function Field({
   label,
   hint,
   error,
+  loading = false,
   children,
 }: Readonly<FieldProps>) {
   return (
@@ -394,7 +396,10 @@ export function Field({
       <label htmlFor={id} className="text-[13px] font-semibold text-[#0A1931]">
         {label}
       </label>
-      {children}
+      <div className="relative" aria-busy={loading || undefined}>
+        <div className={loading ? "invisible" : undefined} inert={loading || undefined}>{children}</div>
+        {loading && <div role="status" aria-label={`Reading ${label} from resume`} className="absolute inset-0 min-h-[54px] animate-pulse rounded-[16px] bg-[#EDE8E1]" />}
+      </div>
       {error ? (
         <p
           id={`${id}-error`}

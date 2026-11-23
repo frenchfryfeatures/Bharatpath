@@ -2,6 +2,8 @@
  * BharatPath - Home Screen Route
  * Main application landing dashboard.
  */
+import { saveStoredCandidateScore } from '@/services/storage/authStorage';
+import { navigateToTab } from '@/utils/tabNavigation';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { HomeScreen } from '@/screens/home/HomeScreen';
@@ -27,8 +29,8 @@ export default function HomeRoute() {
     refreshScore,
     candidatePhotoUrl,
     refreshPhoto,
+    setCandidateScore,
   } = useAuthContext();
-  const [activeTab, setActiveTab] = useState<TabName>('home');
   const scoreGain = useScoreChange(session?.userId, candidateScore);
 
   // Re-fetch score and photo on screen focus & ensure candidate has completed scoring
@@ -45,7 +47,10 @@ export default function HomeRoute() {
             return;
           }
           if (isMounted) {
-            refreshScore().catch(() => undefined);
+            // The gate's answer is the fresh score: use it rather than
+            // fetching it a second time (2026-11-23).
+            setCandidateScore(score);
+            saveStoredCandidateScore(score);
             refreshPhoto().catch(() => undefined);
           }
         } catch (err) {
@@ -65,18 +70,16 @@ export default function HomeRoute() {
       return () => {
         isMounted = false;
       };
-    }, [router, refreshScore, refreshPhoto])
+    }, [router, refreshPhoto, setCandidateScore])
   );
 
   const handleTabPress = (tab: TabName, href: string) => {
-    setActiveTab(tab);
-    if (tab !== 'home') {
-      router.push(href as any);
-    }
+    navigateToTab(router, 'home', tab, href);
   };
 
   return (
     <HomeScreen
+      onRefresh={() => Promise.all([refreshScore(), refreshPhoto()])}
       candidateName={candidateFullName || undefined}
       photoUrl={candidatePhotoUrl}
       score={
@@ -96,7 +99,7 @@ export default function HomeRoute() {
         ) ?? 28
       }
       nextBandName={nextBandLabel(candidateScore?.band ?? null) || undefined}
-      activeTab={activeTab}
+      activeTab="home"
       onTabPress={handleTabPress}
       onExploreJobs={() => router.push('/jobs')}
       onAllJobsPress={() => router.push('/jobs')}

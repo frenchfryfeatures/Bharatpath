@@ -168,7 +168,7 @@ export function SubscriptionStep({
       </section>
 
       <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#5F6B80]">
-        Choose a length
+        Choose Your Path
       </h2>
       {isLoading ? (
         <p className="text-sm text-[#5F6B80]">Loading membership plans…</p>

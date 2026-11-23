@@ -11,7 +11,7 @@ import type { ResumeBuilderContent } from './resumeBuilder';
 import { Platform } from 'react-native';
 import { uploadAsync, FileSystemUploadType } from 'expo-file-system/legacy';
 import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
+import { describeDownload, saveFileToDevice } from '@/services/files/saveToDevice';
 import { apiRequest, getBaseUrl } from './client';
 import { ManualResumeData } from '@/screens/onboarding/ManualResumeModal';
 import { logger } from '@/utils/logger';
@@ -541,28 +541,69 @@ export async function submitResumeDocument(document: ResumeBuilderContent): Prom
 }
 
 
-export function previewResumeVersion(id: string): Promise<{pages: string[]; truncated: boolean}> {
-  return apiRequest(`/candidate/resume/versions/${encodeURIComponent(id)}/render?format=png`);
+/**
+ * Preview a saved version. **The candidate's own uploaded PDF first**, page
+ * by page as they made it (2026-11-23): `/render` re-typesets the CV into one
+ * of our templates, which is why an uploaded resume "changed format". Only a
+ * version with no uploaded PDF (typed, pasted, built, or a .docx we cannot
+ * draw) falls back to the rendered layout.
+ */
+export async function previewResumeVersion(id: string): Promise<{pages: string[]; truncated: boolean; original: boolean}> {
+  const key = encodeURIComponent(id);
+  try {
+    const original = await apiRequest<{pages?: string[]; truncated?: boolean}>(`/candidate/resume/versions/${key}/preview`);
+    if (Array.isArray(original.pages) && original.pages.length > 0) {
+      return { pages: original.pages, truncated: Boolean(original.truncated), original: true };
+    }
+  } catch (error) {
+    logger.warn('Resume', 'Original preview unavailable; using the rendered layout', error);
+  }
+  const rendered = await apiRequest<{pages: string[]; truncated: boolean}>(`/candidate/resume/versions/${key}/render?format=png`);
+  return { ...rendered, original: false };
 }
 
-/** Export the selected saved version; never overwrite the builder draft. */
-export async function downloadResumeVersion(id: string): Promise<void> {
-  const documentBytes = await apiRequest<ArrayBuffer>(`/candidate/resume/versions/${encodeURIComponent(id)}/render`, {
-    responseType: 'arrayBuffer', headers: {Accept:'application/pdf'},
-  });
-  if (Platform.OS === 'web') {
-    const url = URL.createObjectURL(new Blob([documentBytes], {type:'application/pdf'}));
-    const link = document.createElement('a');
-    link.href = url; link.download = 'Resume.pdf'; link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    return;
-  }
-  if (!await Sharing.isAvailableAsync()) throw new Error('Saving files is not available on this device.');
+function bytesToBase64(documentBytes: ArrayBuffer): string {
   const bytes = new Uint8Array(documentBytes);
   let binary = '';
   for (const byte of bytes) binary += String.fromCharCode(byte);
-  const uri = `${FileSystem.cacheDirectory}Resume-${id}.pdf`;
-  const base64 = typeof btoa === 'function' ? btoa(binary) : Buffer.from(binary, 'binary').toString('base64');
-  await FileSystem.writeAsStringAsync(uri, base64, {encoding: FileSystem.EncodingType.Base64});
-  await Sharing.shareAsync(uri, {mimeType:'application/pdf', UTI:'com.adobe.pdf', dialogTitle:'Save or share your resume'});
+  return typeof btoa === 'function' ? btoa(binary) : Buffer.from(binary, 'binary').toString('base64');
+}
+
+/**
+ * Download a saved version: **the exact file the candidate uploaded**, in its
+ * own format (PDF or Word), when there is one; the rendered PDF only for a
+ * version with no uploaded file. Saved to the device, not shared.
+ */
+export async function downloadResumeVersion(id: string): Promise<'saved' | 'handed-to-system'> {
+  const key = encodeURIComponent(id);
+  const { url, mime, filename: uploadedName } = await apiRequest<{url: string | null; mime?: string | null; filename?: string | null}>(`/candidate/resume/versions/${key}/document`);
+  if (Platform.OS === 'web') {
+    if (url) { window.open(url, '_blank', 'noopener'); return 'saved'; }
+    const documentBytes = await apiRequest<ArrayBuffer>(`/candidate/resume/versions/${key}/render`, {
+      responseType: 'arrayBuffer', headers: {Accept:'application/pdf'},
+    });
+    const blobUrl = URL.createObjectURL(new Blob([documentBytes], {type:'application/pdf'}));
+    const link = document.createElement('a');
+    link.href = blobUrl; link.download = 'Resume.pdf'; link.click();
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+    return 'saved';
+  }
+  if (url) {
+    const temp = `${FileSystem.cacheDirectory}Resume-${id}`;
+    const fetched = await FileSystem.downloadAsync(url, temp);
+    if (fetched.status !== 200) throw new Error('Your resume could not be downloaded. Please try again.');
+    // The server's sniffed type wins over whatever S3 stored the object as.
+    const contentType = mime || fetched.headers['Content-Type'] || fetched.headers['content-type'] || fetched.mimeType || undefined;
+    const { filename, mimeType } = describeDownload(contentType ?? undefined, (uploadedName || 'Resume').replace(/[^\w .-]+/g, '_'));
+    const named = `${FileSystem.cacheDirectory}${filename}`;
+    await FileSystem.deleteAsync(named, { idempotent: true });
+    await FileSystem.moveAsync({ from: fetched.uri, to: named });
+    return saveFileToDevice(named, filename, mimeType);
+  }
+  const documentBytes = await apiRequest<ArrayBuffer>(`/candidate/resume/versions/${key}/render`, {
+    responseType: 'arrayBuffer', headers: {Accept:'application/pdf'},
+  });
+  const uri = `${FileSystem.cacheDirectory}Resume.pdf`;
+  await FileSystem.writeAsStringAsync(uri, bytesToBase64(documentBytes), {encoding: FileSystem.EncodingType.Base64});
+  return saveFileToDevice(uri, 'Resume.pdf', 'application/pdf');
 }

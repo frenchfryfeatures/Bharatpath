@@ -42,3 +42,21 @@ def test_legacy_placeholder_skills_do_not_inflate_strength():
     rules = [rule for rule in default_config()["rules"] if rule["key"] == "key_skills"]
     assert strength({"key_skills": ["General"]}, rules)["score"] == 0
     assert strength({"key_skills": ["SAP"]}, rules)["score"] == 100
+
+
+def test_a_profile_with_every_required_item_reaches_100_without_optional_ones():
+    """2026-11-23: an unwritten headline or a missing photo held a complete
+    profile at 85% with no way forward. They are suggestions now."""
+    rules = default_config()["rules"]
+    required = {rule["key"]: True for rule in rules if rule["key"] not in {"headline", "photo"}}
+    required["work_status"] = "EXPERIENCED"
+    result = strength(required, rules)
+    assert result["score"] == 100
+    assert [step["key"] for step in result["next_steps"]] == ["headline", "photo"]
+    assert all(step["optional"] for step in result["next_steps"])
+
+
+def test_required_steps_come_before_optional_suggestions():
+    steps = strength({}, default_config()["rules"])["next_steps"]
+    optional = [step["optional"] for step in steps]
+    assert optional == sorted(optional)

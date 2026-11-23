@@ -59,6 +59,19 @@ async def unregister_push_device(session: AsyncSession, *, user_id: uuid.UUID, t
     )
 
 
+async def users_with_active_push_device(
+    session: AsyncSession, *, user_ids: list[uuid.UUID]
+) -> set[uuid.UUID]:
+    if not user_ids:
+        return set()
+    rows = await session.execute(
+        select(PushDevice.user_id)
+        .where(PushDevice.user_id.in_(user_ids), PushDevice.active.is_(True))
+        .distinct()
+    )
+    return set(rows.scalars().all())
+
+
 async def deactivate_push_device(session: AsyncSession, *, device_id: uuid.UUID) -> None:
     await session.execute(update(PushDevice).where(PushDevice.id == device_id).values(active=False))
 
@@ -289,11 +302,23 @@ async def inbox(
     user_id: uuid.UUID,
     after: tuple[datetime, uuid.UUID] | None,
     limit: int,
-) -> list[Notification]:
-    stmt = select(Notification).where(
-        Notification.user_id == user_id,
-        Notification.channel == "IN_APP",
-        Notification.state == "DELIVERED",
+) -> list[tuple[Notification, str | None, str | None, dict[str, Any] | None]]:
+    """The reader's messages, each with the event that caused it (aggregate
+    type, aggregate id, payload -- ids only), so the service can say where
+    the message leads. A nudge has no event; the outer join keeps it."""
+    stmt = (
+        select(
+            Notification,
+            OutboxEvent.aggregate_type,
+            OutboxEvent.aggregate_id,
+            OutboxEvent.payload,
+        )
+        .outerjoin(OutboxEvent, OutboxEvent.id == Notification.source_event_id)
+        .where(
+            Notification.user_id == user_id,
+            Notification.channel == "IN_APP",
+            Notification.state == "DELIVERED",
+        )
     )
     if after is not None:
         stmt = stmt.where(
@@ -301,7 +326,23 @@ async def inbox(
             | ((Notification.created_at == after[0]) & (Notification.id < after[1]))
         )
     stmt = stmt.order_by(Notification.created_at.desc(), Notification.id.desc()).limit(limit)
-    return list((await session.execute(stmt)).scalars().all())
+    return [(row[0], row[1], row[2], row[3]) for row in (await session.execute(stmt)).all()]
+
+
+async def source_event_of(
+    session: AsyncSession, *, event_id: uuid.UUID | None
+) -> tuple[str | None, str | None, dict[str, Any] | None]:
+    """The aggregate and payload of the event behind one message."""
+    if event_id is None:
+        return (None, None, None)
+    row = (
+        await session.execute(
+            select(OutboxEvent.aggregate_type, OutboxEvent.aggregate_id, OutboxEvent.payload).where(
+                OutboxEvent.id == event_id
+            )
+        )
+    ).first()
+    return (row[0], row[1], row[2]) if row else (None, None, None)
 
 
 async def unread_count(session: AsyncSession, *, user_id: uuid.UUID) -> int:

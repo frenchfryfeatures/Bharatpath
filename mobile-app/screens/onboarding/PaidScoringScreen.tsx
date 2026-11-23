@@ -52,7 +52,7 @@ export function PaidScoringScreen({
   }, []); // The version is fixed for this mounted stage.
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.screen}>
       <StatusBar style="dark" animated />
       <View style={styles.content}>
         <View style={styles.icon}>

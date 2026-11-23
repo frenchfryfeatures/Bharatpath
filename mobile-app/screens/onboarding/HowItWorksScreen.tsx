@@ -11,7 +11,7 @@ interface HowItWorksScreenProps {
 
 export function HowItWorksScreen({ onGotIt, onBack }: HowItWorksScreenProps) {
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <StatusBar style="dark" animated />
       <View style={styles.container}>
         <ScrollView

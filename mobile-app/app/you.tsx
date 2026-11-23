@@ -12,6 +12,9 @@
  * subtitle is "City, ST" - never a masked phone. The score card shows a dash
  * while PENDING and a real number when READY; it never invents a value.
  */
+import { isScreenCacheFresh, readScreenCache, writeScreenCache } from '@/services/cache/screenCache';
+import { navigateToTab } from '@/utils/tabNavigation';
+import { useScreenRefresh } from '@/hooks/useScreenRefresh';
 import { AppAlert } from "@/components/feedback/AppAlert";
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -21,6 +24,7 @@ import { ChangePasswordModal } from '@/screens/profile/ChangePasswordModal';
 import { ProfilePhotoModal } from '@/components/profile/ProfilePhotoModal';
 import { TabName } from '@/components/navigation/BottomTabBar';
 import { useAuthContext } from '@/context/AuthContext';
+import { useLogout } from '@/hooks/useLogout';
 import {
   getCandidateProfile,
   CandidateProfileResponse,
@@ -40,13 +44,21 @@ import {
   SubscriptionResponse,
 } from '@/services/api/subscription';
 
+const YOU_CACHE_KEY = 'you:summary';
+interface YouSummary {
+  locationLabel: string;
+  appliedCount: number | null;
+  addonsCount: number | null;
+  subscription: SubscriptionResponse | null;
+}
+
 export default function YouRoute() {
   const router = useRouter();
+  const logout = useLogout();
   const {
     session,
     candidateFullName,
     setCandidateFullName,
-    signOut,
     candidateScore,
     refreshScore,
     candidatePhotoUrl,
@@ -71,11 +83,19 @@ export default function YouRoute() {
   const [profileName, setProfileName] = useState<string | null>(
     candidateFullName || emailName || null,
   );
-  const [locationLabel, setLocationLabel] = useState<string>('');
+  // Last visit's header and counts, drawn at once and refreshed behind
+  // (2026-11-23). A visit within a minute of the last skips the recount.
+  const cachedYou = readScreenCache<YouSummary>(YOU_CACHE_KEY);
+  const youFresh = isScreenCacheFresh(YOU_CACHE_KEY, 60_000);
+  const [locationLabel, setLocationLabel] = useState<string>(cachedYou?.locationLabel ?? '');
   const score = candidateScore;
-  const [appliedCount, setAppliedCount] = useState<number | null>(null);
-  const [addonsCount, setAddonsCount] = useState<number | null>(null);
-  const [subscription, setSubscription] = useState<SubscriptionResponse | null>(null);
+  const [appliedCount, setAppliedCount] = useState<number | null>(cachedYou?.appliedCount ?? null);
+  const [addonsCount, setAddonsCount] = useState<number | null>(cachedYou?.addonsCount ?? null);
+  const [subscription, setSubscription] = useState<SubscriptionResponse | null>(cachedYou?.subscription ?? null);
+  useEffect(() => {
+    if (appliedCount == null && addonsCount == null && !subscription && !locationLabel) return;
+    writeScreenCache(YOU_CACHE_KEY, { locationLabel, appliedCount, addonsCount, subscription });
+  }, [locationLabel, appliedCount, addonsCount, subscription]);
 
   // Profile name + location. The name is resolved (and saved for an account
   // that has none) via `resolveCandidateFullName`; the location comes straight
@@ -134,6 +154,34 @@ export default function YouRoute() {
     refreshSubscription();
   }, [refreshSubscription]);
 
+  // Counts and header details, re-read on every return and on pull
+  // (2026-11-23): they used to load once, so a new application or a finished
+  // course did not show until the app restarted.
+  const loadExtras = useCallback(async () => {
+    const [profile, applied, courses, sessions] = await Promise.all([
+      getCandidateProfile().catch(() => null),
+      countMyApplications().catch(() => null),
+      countCompletedCourses().catch(() => null),
+      listInterviewSessions()
+        .then((rows) => rows.filter((s) => s.state === 'COMPLETED' || s.state === 'EVALUATED').length)
+        .catch(() => 0),
+    ]);
+    if (profile) {
+      if (profile.full_name?.trim()) setProfileName(profile.full_name.trim());
+      setLocationLabel(formatLocation(profile));
+    }
+    if (applied != null) setAppliedCount(applied);
+    if (courses != null) setAddonsCount(courses + sessions);
+  }, []);
+  const { refreshing: pulling, onRefresh: pullToRefresh } = useScreenRefresh(() =>
+    Promise.all([
+      refreshScore().catch(() => undefined),
+      refreshPhoto().catch(() => undefined),
+      Promise.resolve(refreshSubscription()),
+      loadExtras(),
+    ]),
+  );
+
   // Re-fetches on focus so edits, recalculated score and subscriptions immediately reflect.
   useFocusEffect(
     useCallback(() => {
@@ -144,6 +192,7 @@ export default function YouRoute() {
 
   // Applied count. Walks cursor pages; 0 on any error (incl. 402).
   useEffect(() => {
+    if (youFresh && cachedYou?.appliedCount != null) return;
     let cancelled = false;
     countMyApplications()
       .then((n) => {
@@ -160,6 +209,7 @@ export default function YouRoute() {
   // Add-ons count = completed courses + completed interview sessions.
   // Both contribute to the score, so "completed" is the achievement count.
   useEffect(() => {
+    if (youFresh && cachedYou?.addonsCount != null) return;
     let cancelled = false;
     (async () => {
       const [courses, sessions] = await Promise.all([
@@ -181,12 +231,7 @@ export default function YouRoute() {
   }, []);
 
   const handleTabPress = (tab: TabName, href: string) => {
-    setActiveTab(tab);
-    if (tab === 'home') {
-      router.replace('/home');
-    } else if (tab !== 'you') {
-      router.push(href as any);
-    }
+    navigateToTab(router, 'you', tab, href);
   };
 
   const scoreValue =
@@ -196,6 +241,9 @@ export default function YouRoute() {
   return (
     <>
       <ProfileScreen
+        refreshing={pulling}
+        onRefresh={pullToRefresh}
+        onJobPreferencesPress={() => router.push('/job-preferences' as any)}
       name={profileName || undefined}
       initials={initialsFromName(profileName) || undefined}
       photoUrl={candidatePhotoUrl}
@@ -208,7 +256,7 @@ export default function YouRoute() {
       addonsCount={addonsCount ?? undefined}
       subscriptionState={subscription?.state}
       hasSubscriptionAccess={!!subscription?.has_access}
-      activeTab={activeTab}
+      activeTab="you"
       onTabPress={handleTabPress}
       onScorePress={() =>
         router.push({
@@ -220,7 +268,7 @@ export default function YouRoute() {
         } as any)
       }
       onAppliedPress={() => router.push('/board' as any)}
-      onAddonsPress={() => router.push('/courses' as any)}
+      onAddonsPress={() => router.push('/addons' as any)}
       onResumeDetailsPress={() => router.push('/profile-details' as any)}
       onResumeReviewPress={() => router.push('/resume-details' as any)}
       onSubscriptionPress={() => router.push('/subscription' as any)}
@@ -248,14 +296,7 @@ export default function YouRoute() {
             {
               text: 'Log out',
               style: 'destructive',
-              onPress: async () => {
-                try {
-                  await signOut();
-                } catch (err) {
-                  console.warn('[Profile] Error signing out:', err);
-                }
-                router.replace({ pathname: '/', params: { step: 'intro' } } as any);
-              },
+              onPress: () => { void logout(); },
             },
           ],
         );

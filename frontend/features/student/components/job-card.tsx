@@ -1,4 +1,5 @@
 "use client";
+import { matchReasonText } from "@/features/student/jobs/match-reasons";
 
 import { useRouter } from "next/navigation";
 import {
@@ -18,7 +19,8 @@ import {
 
 import { interactiveCardClass, MonogramTile, StatusChip } from "./primitives";
 
-export function JobCard({ job, matchedSkills }: { job: JobListing; matchedSkills?: string[] }) {
+export function JobCard({ job, matchedSkills, matchReasons }: { job: JobListing; matchedSkills?: string[]; matchReasons?: string[] }) {
+  const reason = matchReasonText(matchReasons);
   const router = useRouter();
   const open = () => router.push(`/student/jobs/${job.id}`);
 
@@ -68,6 +70,7 @@ export function JobCard({ job, matchedSkills }: { job: JobListing; matchedSkills
           <span className="font-semibold">Matches:</span> {matchedSkills.join(", ")}
         </p>
       ) : null}
+      {reason ? <p className="text-[12px] leading-4 text-[#4A3E8F]">{reason}</p> : null}
 
       <div className="flex items-center gap-2 border-t border-[#F0EBDF] pt-3">
         <Clock size={14} className="text-[#5F6B80]" />

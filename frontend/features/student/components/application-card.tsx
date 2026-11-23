@@ -44,7 +44,11 @@ export function ApplicationCard({
       className={`flex w-full flex-col gap-3 rounded-[20px] border border-[#E7E0D4] bg-white p-4 text-left ${interactiveCardClass}`}
     >
       <div className="flex items-center gap-3">
-        <MonogramTile tint="indigo" size={40} logoUrl={application.employerLogoUrl}>
+        <MonogramTile
+          tint="indigo"
+          size={40}
+          logoUrl={application.employerLogoUrl}
+        >
           {employerMonogram(application.employerName)}
         </MonogramTile>
         <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -61,27 +65,29 @@ export function ApplicationCard({
         </StatusChip>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <span className="flex gap-1">
-          {Array.from({ length: 5 }).map((_, index) => (
-            <span
-              key={index}
-              className="h-1 flex-1 rounded-full"
-              style={{
-                background: index < progress ? "#5E4DB2" : "#F0EBDF",
-              }}
-            />
-          ))}
-        </span>
-        <span className="flex items-center justify-between">
-          <span className="text-[11px] font-medium uppercase leading-3 tracking-[0.06em] text-[#5F6B80]">
-            Stage {progress} of 5
+      {progress === 0 ? null : (
+        <div className="flex flex-col gap-2">
+          <span className="flex gap-1">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <span
+                key={index}
+                className="h-1 flex-1 rounded-full"
+                style={{
+                  background: index < progress ? "#5E4DB2" : "#F0EBDF",
+                }}
+              />
+            ))}
           </span>
-          <span className="text-[11px] font-medium leading-3 text-[#3A4761]">
-            {stageLabel(application.stage)}
+          <span className="flex items-center justify-between">
+            <span className="text-[11px] font-medium uppercase leading-3 tracking-[0.06em] text-[#5F6B80]">
+              Stage {progress} of 5
+            </span>
+            <span className="text-[11px] font-medium leading-3 text-[#3A4761]">
+              {stageLabel(application.stage)}
+            </span>
           </span>
-        </span>
-      </div>
+        </div>
+      )}
     </button>
   );
 }

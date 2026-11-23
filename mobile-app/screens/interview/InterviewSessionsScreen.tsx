@@ -17,6 +17,7 @@
  * The score is never shown here (invariant: the report carries no number about
  * the candidate). Each row shows the session number, date, and a status pill.
  */
+import { useScreenRefresh } from '@/hooks/useScreenRefresh';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -71,6 +72,8 @@ export function InterviewSessionsScreen({ onBack }: Props) {
       setLoading(false);
     }
   }, []);
+  // Pull-to-refresh, and a quiet refetch on every return (2026-11-23).
+  const { refreshing: pulling, onRefresh: pullToRefresh } = useScreenRefresh(load);
 
   useEffect(() => {
     load();
@@ -98,7 +101,7 @@ export function InterviewSessionsScreen({ onBack }: Props) {
   );
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safe}>
       <View style={styles.header}>
         <Pressable style={styles.back} onPress={goBack}>
           <ArrowLeft size={18} color="#0A1931" weight="bold" />
@@ -110,8 +113,8 @@ export function InterviewSessionsScreen({ onBack }: Props) {
         contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl
-            refreshing={loading && sessions == null}
-            onRefresh={load}
+            refreshing={pulling}
+            onRefresh={pullToRefresh}
           />
         }
       >

@@ -3,11 +3,12 @@
  * Displays all resume sections and details with full editing, new resume uploading,
  * and automated scoring recalculation flow.
  */
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Pressable } from 'react-native';
+import { ScreenSkeleton } from '@/components/feedback/ScreenSkeleton';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { ArrowLeft } from 'phosphor-react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { ReviewDetailsScreen } from '@/screens/onboarding/ReviewDetailsScreen';
@@ -106,11 +107,26 @@ export default function ResumeDetailsRoute() {
     };
   }, [setCandidateScore]);
 
+  // Reload on every visit and after each scoring run (2026-11-23): the
+  // version shown must be the one the current Bharatpath Score was computed
+  // on, not whatever this screen first loaded. Only the first load shows the
+  // loader; later ones swap the data in place.
+  // Never overwrite an unconfirmed newly uploaded or edited draft when
+  // returning from the parsing/builder step to review.
+  const [resumeRevision, setResumeRevision] = useState(0);
+  const hasLoadedResume = React.useRef(false);
+  const hasPendingDraftRef = React.useRef(false);
+  useFocusEffect(useCallback(() => {
+    if (step === 'review' && !hasPendingDraftRef.current) {
+      setResumeRevision((value) => value + 1);
+    }
+  }, [step]));
   useEffect(() => {
+    if (resumeRevision === 0) return;
     let cancelled = false;
 
     async function loadResume() {
-      setIsLoading(true);
+      if (!hasLoadedResume.current) setIsLoading(true);
       setError(null);
       try {
         const versions = await listResumeVersions();
@@ -133,6 +149,7 @@ export default function ResumeDetailsRoute() {
 
         setVersionId(preferred.resume_version_id);
         setVersionDetails(details);
+        hasLoadedResume.current = true;
       } catch (err: any) {
         if (cancelled) return;
         setError(err?.message || 'Could not load your resume details.');
@@ -148,7 +165,7 @@ export default function ResumeDetailsRoute() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [resumeRevision]);
 
   const handlePickDocument = async () => {
     try {
@@ -270,6 +287,8 @@ export default function ResumeDetailsRoute() {
         fileMeta={fileMeta}
         payload={intakePayload}
         onReviewFound={(newVerId, newDetails) => {
+          hasPendingDraftRef.current = true;
+          hasLoadedResume.current = true;
           setVersionId(newVerId);
           setVersionDetails(newDetails);
           setHasEdited(true);
@@ -333,25 +352,19 @@ export default function ResumeDetailsRoute() {
 
   // Initial loading
   if (isLoading) {
-    return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <StatusBar style="dark" />
-        <ActivityIndicator size="large" color="#5F4DB2" />
-        <Text style={styles.loadingText}>Loading resume details...</Text>
-      </SafeAreaView>
-    );
+    return <ScreenSkeleton blocks={4} />;
   }
 
   // Initial error or empty state
   if (error || !versionId || !versionDetails) {
     return (
-      <SafeAreaView style={styles.errorContainer}>
+      <SafeAreaView edges={['top', 'left', 'right']} style={styles.errorContainer}>
         <StatusBar style="dark" />
         <View style={styles.errorHeader}>
           <Pressable style={styles.backButton} onPress={handleBack}>
             <ArrowLeft size={18} color="#0A1931" weight="bold" />
           </Pressable>
-          <Text style={styles.headerTitle}>Resume details</Text>
+          <Text style={styles.headerTitle}>Resume Builder</Text>
         </View>
         <View style={styles.errorContent}>
           <Text style={styles.errorText}>{error || 'Unable to load resume details.'}</Text>
@@ -377,9 +390,9 @@ export default function ResumeDetailsRoute() {
     <>
       <ReviewDetailsScreen
         onBack={handleBack}
-        title="Resume details"
-        subtitle="Review and edit the details extracted from your resume."
-        confirmButtonText="Update Bharatpath Score"
+        title="Resume Builder"
+        subtitle="The details we read from your resume. Use Edit resume to change them."
+        confirmButtonText="Update Resume"
         requireEditToSave={true}
         initialHasEdited={hasEdited}
         showReadyBadge={false}
@@ -393,11 +406,14 @@ export default function ResumeDetailsRoute() {
           setStep('subscribe');
         }}
         onVersionUpdated={(newVerId, newDetails) => {
+          hasPendingDraftRef.current = true;
+          hasLoadedResume.current = true;
           setHasEdited(true);
           setVersionId(newVerId);
           setVersionDetails(newDetails);
         }}
         onConfirm={async (_confirmedVerId, confAt, alreadyConfirmed) => {
+          hasPendingDraftRef.current = false;
           setConfirmedAt(confAt || new Date().toISOString());
           isReconfirmRef.current = !!alreadyConfirmed;
 

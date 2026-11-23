@@ -26,6 +26,7 @@ const studentSlice = createSlice({
   name: "student",
   initialState,
   reducers: {
+    resetStudentState: () => initialState,
     toggleSavedJob(state, action: PayloadAction<string>) {
       const id = action.payload;
       state.savedJobIds = state.savedJobIds.includes(id)
@@ -49,6 +50,7 @@ const studentSlice = createSlice({
 });
 
 export const {
+  resetStudentState,
   toggleSavedJob,
   setJobSearch,
   toggleQualifiedOnly,

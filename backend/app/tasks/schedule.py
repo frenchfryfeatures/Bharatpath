@@ -112,6 +112,14 @@ BEAT_SCHEDULE: Final[dict[str, dict[str, object]]] = {
         "schedule": crontab(minute="55"),
         "options": {"expires": 3000.0},
     },
+    # End-of-day reminder (2026-11-23). 14:30-17:00 UTC is 20:00-22:30 IST;
+    # the task enforces the window itself and sends each person at most one
+    # a day, so the repeats only catch anyone a failed tick missed.
+    "daily-reminder": {
+        "task": "notifications.daily_reminder",
+        "schedule": crontab(hour="14-17", minute="0,30"),
+        "options": {"expires": 1500.0},
+    },
     # -- daily -------------------------------------------------------------
     # `candidate_view_events` is partitioned by month and the baseline created
     # fifteen months of partitions. This keeps a rolling window ahead, so the

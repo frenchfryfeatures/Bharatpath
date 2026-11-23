@@ -176,7 +176,7 @@ export function DeviceCheckScreen({ onBack }: Props) {
     checks.quiet_env_ok !== null;
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safe}>
       <View style={styles.header}>
         <Pressable style={styles.back} onPress={back}>
           <ArrowLeft size={18} color="#0A1931" weight="bold" />

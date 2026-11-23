@@ -96,7 +96,7 @@ export function NotificationPermissionScreen({
   return (
     <View style={styles.root}>
       <StatusBar style="dark" animated />
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -214,29 +214,30 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: Spacing.lg, // 20px
-    paddingTop: Spacing.xl, // 24px
-    paddingBottom: Spacing.xxl, // 40px
+    paddingTop: 14,
+    paddingBottom: 10,
     justifyContent: 'space-between',
+    gap: 10,
   },
   headingSection: {
     gap: 4,
   },
   title: {
     fontFamily: 'GeneralSans-Semibold',
-    fontSize: 28,
-    lineHeight: 32,
-    letterSpacing: -0.7,
+    fontSize: 26,
+    lineHeight: 30,
+    letterSpacing: -0.6,
     color: Colors.navy, // #0A1931
   },
   subtitle: {
     fontFamily: 'GeneralSans-Regular',
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 14,
+    lineHeight: 20,
     color: Colors.text.primary, // #3A4761
   },
   cardsContainer: {
     gap: 8,
-    marginTop: Spacing.lg,
+    marginTop: 8,
   },
   card: {
     flexDirection: 'row',
@@ -245,37 +246,37 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E7E0D4',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   cardText: {
     flex: 1,
     fontFamily: 'GeneralSans-Medium',
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 19,
     color: Colors.navy, // #0A1931
   },
   illustrationContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: Spacing.lg,
+    marginVertical: 4,
     flex: 1,
-    minHeight: 180,
+    minHeight: 100,
   },
   bellImage: {
-    width: '85%',
-    height: 220,
-    maxWidth: 290,
+    width: '70%',
+    height: 130,
+    maxWidth: 200,
   },
   bottomActions: {
-    gap: 8,
-    marginTop: Spacing.md,
+    gap: 6,
+    marginTop: 4,
   },
   allowButton: {
     width: '100%',
     backgroundColor: '#5F4DB2',
-    paddingVertical: 18,
+    paddingVertical: 15,
     borderRadius: Radii.pill, // 999
     alignItems: 'center',
     justifyContent: 'center',
@@ -293,7 +294,7 @@ const styles = StyleSheet.create({
   notNowButton: {
     width: '100%',
     backgroundColor: 'transparent',
-    paddingVertical: 10,
+    paddingVertical: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -306,7 +307,7 @@ const styles = StyleSheet.create({
   devNoteBox: {
     backgroundColor: Colors.amber.bg,
     borderRadius: Radii.input,
-    padding: Spacing.md,
+    padding: 10,
   },
   devNoteText: {
     fontFamily: 'GeneralSans-Regular',

@@ -201,7 +201,7 @@ export function SubscribeScreen({
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
         <StatusBar style="dark" animated />
         <View style={styles.centered}>
           <ActivityIndicator size="large" color="#5F4DB2" />
@@ -213,7 +213,7 @@ export function SubscribeScreen({
 
   if (loadError) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
         <StatusBar style="dark" animated />
         <View style={styles.centered}>
           <WarningCircle size={36} color="#993A22" weight="fill" />
@@ -253,7 +253,7 @@ export function SubscribeScreen({
     .join(' · ');
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <StatusBar style="dark" animated />
       <View style={styles.container}>
         <ScrollView
@@ -280,11 +280,11 @@ export function SubscribeScreen({
             <>
               <View style={styles.titleSection}>
                 <Text style={styles.title}>
-                  {candidateName ? `Almost there, ${candidateName.split(' ')[0]}.` : 'Choose your plan'}
+                  {candidateName ? `Almost there, ${candidateName.split(' ')[0]}.` : 'Choose a path'}
                 </Text>
                 <Text style={styles.subtitle}>
                   Membership opens your Bharatpath Score, job matches and everything that builds on them.
-                  Pick a length - you pay once for it.
+                  Pick a plan - you pay once for it.
                 </Text>
               </View>
 
@@ -303,7 +303,7 @@ export function SubscribeScreen({
               </View>
 
               <View style={styles.plansSection}>
-                <Text style={styles.sectionEyebrow}>CHOOSE A LENGTH</Text>
+                <Text style={styles.sectionEyebrow}>CHOOSE YOUR PATH</Text>
                 {plans.length === 0 && (
                   <View style={styles.activeCard}>
                     <Text style={styles.centeredText}>No membership plans are available right now.</Text>

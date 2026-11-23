@@ -78,8 +78,9 @@ async def test_jobs_like_the_ones_applied_to_and_never_those(client: Any, mint_t
 
     body = await _section(client, SIMILAR, me)
     assert body["has_basis"] is True
-    # Skill and title word, then the title word (worth more), then the skill.
-    assert _ids(body, jobs) == [both["id"], by_title["id"], by_skill["id"]]
+    # Skill and title word, then the skill, then the title word: the job
+    # engine (2026-11-23) weighs skills 25 against role 15.
+    assert _ids(body, jobs) == [both["id"], by_skill["id"], by_title["id"]]
     item = next(i for i in body["items"] if i["id"] == both["id"])
     assert item["matched_skills"] == [skill]
     assert item["employer_name"] == employer["name"]
@@ -90,7 +91,7 @@ async def test_jobs_like_the_ones_applied_to_and_never_those(client: Any, mint_t
 
 async def test_no_applications_is_no_basis(client: Any, mint_token: Any) -> None:
     me = await _candidate(mint_token)
-    assert await _section(client, SIMILAR, me) == {"items": [], "has_basis": False}
+    assert await _section(client, SIMILAR, me) == {"items": [], "has_basis": False, "next_offset": None}
 
 
 async def test_a_withdrawn_application_is_not_a_preference(client: Any, mint_token: Any) -> None:
@@ -105,7 +106,7 @@ async def test_a_withdrawn_application_is_not_a_preference(client: Any, mint_tok
     )
     assert withdrawn.status_code == 200, withdrawn.text
 
-    assert await _section(client, SIMILAR, me) == {"items": [], "has_basis": False}
+    assert await _section(client, SIMILAR, me) == {"items": [], "has_basis": False, "next_offset": None}
 
 
 # --- jobs that fit your profile -------------------------------------------------
@@ -144,17 +145,18 @@ async def test_jobs_that_fit_the_profile_best_first(client: Any, mint_token: Any
 
     body = await _section(client, PROFILE, me)
     assert body["has_basis"] is True
-    # skill + city (3 + 2) > role word (4) > skill (3); each fits a fresher.
-    assert _ids(body, jobs) == [skill_here["id"], role_elsewhere["id"], skill_elsewhere["id"]]
+    # skill + city > skill elsewhere > a shared role word alone: skills weigh
+    # 25, role 15, location 10 (job engine, 2026-11-23).
+    assert _ids(body, jobs) == [skill_here["id"], skill_elsewhere["id"], role_elsewhere["id"]]
 
 
 async def test_a_profile_with_no_skill_and_no_role_is_no_basis(
     client: Any, mint_token: Any
 ) -> None:
     me = await _candidate(mint_token)
-    assert await _section(client, PROFILE, me) == {"items": [], "has_basis": False}
+    assert await _section(client, PROFILE, me) == {"items": [], "has_basis": False, "next_offset": None}
     await _profile(client, me, preferred_locations=["Pune"])
-    assert await _section(client, PROFILE, me) == {"items": [], "has_basis": False}
+    assert await _section(client, PROFILE, me) == {"items": [], "has_basis": False, "next_offset": None}
 
 
 async def test_eligible_only_filters_and_the_threshold_never_shows(

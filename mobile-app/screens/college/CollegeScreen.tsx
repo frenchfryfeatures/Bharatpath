@@ -9,7 +9,8 @@
  * - Individual visibility toggling and college disconnection
  * - Consent terms dialog before linking, accepting invitations, or sharing by name
  */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useScreenRefresh } from '@/hooks/useScreenRefresh';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppModal as Modal } from '@/components/layout/AppModal';
 import {
   View,
@@ -21,6 +22,7 @@ import {
   ActivityIndicator,
   Platform,
   Image,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -89,8 +91,10 @@ export function CollegeScreen({ onBack }: CollegeScreenProps) {
   const [termsError, setTermsError] = useState<string | null>(null);
 
   // Load links and invitations
+  const loadedOnce = useRef(false);
   const loadData = useCallback(async () => {
-    setLoading(true);
+    // Spinners only before anything has loaded; refetches swap data in place.
+    if (!loadedOnce.current) setLoading(true);
     setError(null);
     try {
       const [linksData, invitesData] = await Promise.all([
@@ -105,6 +109,7 @@ export function CollegeScreen({ onBack }: CollegeScreenProps) {
       ]);
       setLinks(linksData || []);
       setInvitations(invitesData || []);
+      loadedOnce.current = true;
     } catch (err) {
       setError('Could not load college information.');
     } finally {
@@ -115,6 +120,8 @@ export function CollegeScreen({ onBack }: CollegeScreenProps) {
   useEffect(() => {
     void loadData();
   }, [loadData]);
+  // Pull-to-refresh and a quiet refetch on every return (2026-11-23).
+  const { refreshing: pulling, onRefresh: pullToRefresh } = useScreenRefresh(loadData);
 
   // Load consent terms whenever a pending consent action begins
   useEffect(() => {
@@ -269,11 +276,12 @@ export function CollegeScreen({ onBack }: CollegeScreenProps) {
   return (
     <View style={styles.root}>
       <StatusBar style="dark" animated />
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          refreshControl={<RefreshControl refreshing={pulling} onRefresh={pullToRefresh} tintColor="#5F4DB2" colors={['#5F4DB2']} />}
         >
           {/* Top Bar */}
           <View style={styles.topBar}>

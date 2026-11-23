@@ -43,9 +43,12 @@ assert.equal(selectApplicationResume([]), undefined);
     useState(initial) { const i=stateCursor++; if (!(i in state)) state[i]=initial; return [state[i], value=>state[i]=value]; },
     useRef(initial) { const i=refCursor++; return refs[i] ||= {current:initial}; },
     useCallback: fn=>fn,
+    useEffect: ()=>{},
   };
   const {useJobApplications} = load('hooks/useJobApplications.ts', {
     react:React, 'expo-router':{useFocusEffect: fn=>focused=fn},
+    '@/services/applicationEvents':{subscribeToApplicationChanges:()=>()=>{}},
+    '@/services/cache/screenCache':{readScreenCache:()=>undefined,writeScreenCache:()=>{},isScreenCacheFresh:()=>false},
     '@/services/api/applications':{listMyApplications:async ({cursor})=>{
       requests.push(cursor);
       return cursor ? {items:[rows[100], {...rows[0],id:'new-a',stage:'WITHDRAWN',created_at:'2026-11-19'}],next_cursor:null} : {items:rows.slice(0,100),next_cursor:'page-2'};
@@ -79,6 +82,7 @@ assert.equal(selectApplicationResume([]), undefined);
       'phosphor-react-native':{DownloadSimple:'Download',FileText:'File',X:'Close'},
       '@/utils/applicationResume':{selectApplicationResume},
       '@/components/resume-builder/ZoomableResumePages': {ZoomableResumePages:'ZoomableResumePages'},
+      '@/components/feedback/AppToast': {AppToast:{show:()=>{},error:()=>{},success:()=>{},info:()=>{}}},
       '@/services/api/resume':{listResumeVersions:async()=>versions,previewResumeVersion:async()=>({pages:['page'],truncated:false}),downloadResumeVersion:async()=>{}},
     });
     const props={visible:true,jobTitle:'Engineer',companyName:'Example',submitting:false,onClose:()=>closes++,onConfirm:async()=>submissions++,onEditResume:()=>{}};

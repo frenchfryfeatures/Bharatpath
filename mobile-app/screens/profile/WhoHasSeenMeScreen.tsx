@@ -13,6 +13,7 @@
  * - "Let employers find me" interactive toggle switch
  * - Privacy protection banner
  */
+import { useScreenRefresh } from '@/hooks/useScreenRefresh';
 import React from 'react';
 import {
   View,
@@ -98,11 +99,13 @@ export function WhoHasSeenMeScreen({
     loadMore,
     reload,
   } = useProfileViews();
+  // Quiet refetch whenever the screen comes back into view (2026-11-23).
+  useScreenRefresh(reload);
 
   return (
     <View style={styles.root}>
       <StatusBar style="dark" animated />
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}

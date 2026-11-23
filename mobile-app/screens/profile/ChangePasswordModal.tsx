@@ -462,7 +462,7 @@ const styles = StyleSheet.create({
   },
   checkItem: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 8,
   },
   pendingDot: {
@@ -478,6 +478,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     color: Colors.text.muted,
+    // Wrap inside the card on narrow phones instead of running past it.
+    flexShrink: 1,
   },
   checkLabelMet: {
     color: Colors.green.fg,

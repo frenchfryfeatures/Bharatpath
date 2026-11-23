@@ -20,6 +20,7 @@ Three decisions live here, each one a table or a function a test can read:
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass, fields
 from datetime import datetime, timedelta, timezone
 from typing import Final, Literal
@@ -393,6 +394,21 @@ NUDGE_TEMPLATES: Final = (
     "EMAIL_PROFILE_INCOMPLETE",
 )
 
+#: The end-of-day reminder (2026-11-23): in-app, and so a push to every
+#: device the person has opted in. One per person per IST day, by its
+#: dedupe key; sent no earlier than this hour IST, whenever beat runs it.
+DAILY_REMINDER_TEMPLATE: Final = "IN_APP_DAILY_REMINDER"
+DAILY_REMINDER_FROM_HOUR_IST: Final = 20
+DAILY_REMINDER_UNTIL_HOUR_IST: Final = 23
+
+
+def daily_reminder_due(now: datetime) -> bool:
+    """Inside the evening window, IST. Outside it the sweep sends nothing,
+    so a late or repeated beat tick never wakes someone at 3 a.m."""
+    hour = now.astimezone(IST).hour
+    return DAILY_REMINDER_FROM_HOUR_IST <= hour < DAILY_REMINDER_UNTIL_HOUR_IST
+
+
 #: Hard limits a config row cannot cross. A row may make nudging rarer or stop
 #: it; it may not make it daily or endless.
 MIN_INTERVAL_FLOOR_HOURS: Final = 24
@@ -499,3 +515,90 @@ def message_plan(payload: dict[str, object]) -> Planned:
     return Planned(
         "CANDIDATE", ("EMAIL_EMPLOYER_MESSAGE", "IN_APP_EMPLOYER_MESSAGE"), ("employer", "message")
     )
+
+
+# ---------------------------------------------------------------------------
+# Where a message leads (2026-11-23)
+# ---------------------------------------------------------------------------
+#: What a client opens when an inbox row or its push is tapped. Decided here,
+#: from the template and the ids on the event that caused it -- never from
+#: the rendered text, which is translated.
+DestinationKind = Literal[
+    "APPLICATION",
+    "APPLICATIONS",
+    "JOB",
+    "INTERVIEW_REPORT",
+    "SUBSCRIPTION",
+    "PROFILE",
+    "STREAK",
+    "INBOX",
+]
+
+_APPLICATION_TEMPLATES: Final = frozenset(
+    {
+        "IN_APP_APPLICATION_SENT",
+        "IN_APP_APPLICATION_UPDATE",
+        "IN_APP_INTERVIEW_INVITATION",
+        "IN_APP_ASSESSMENT_INVITATION",
+        "IN_APP_EMPLOYER_MESSAGE",
+    }
+)
+_SUBSCRIPTION_TEMPLATES: Final = frozenset(
+    {
+        "IN_APP_PAYMENT_RECEIVED",
+        "IN_APP_PAYMENT_FAILED",
+        "IN_APP_ACCESS_ENDED",
+        "IN_APP_PRE_DEBIT",
+    }
+)
+
+
+@dataclass(frozen=True, slots=True)
+class Destination:
+    kind: DestinationKind
+    #: The entity to open, when there is one. Always an id the reader may
+    #: already read (their own application, a job, their own session).
+    id: str | None = None
+
+
+def _uuid_text(value: object) -> str | None:
+    try:
+        return str(uuid.UUID(str(value))) if value is not None else None
+    except ValueError:
+        return None
+
+
+def destination_for(
+    template_code: str,
+    *,
+    aggregate_type: str | None,
+    aggregate_id: str | None,
+    payload: dict[str, object] | None,
+) -> Destination:
+    """The screen a message opens. Falls back to the inbox, never guesses.
+
+    The id comes from the source event: the application for an application
+    event, the session for interview feedback, the job for a shortlist
+    invitation. A message whose event is gone still gets its kind of screen.
+    """
+    data = payload or {}
+    if template_code in _APPLICATION_TEMPLATES:
+        app_id = _uuid_text(data.get("application_id")) or (
+            _uuid_text(aggregate_id) if aggregate_type == "application" else None
+        )
+        return Destination("APPLICATION", app_id) if app_id else Destination("APPLICATIONS")
+    if template_code == "IN_APP_SHORTLIST_INVITED":
+        job_id = _uuid_text(data.get("job_id"))
+        return Destination("JOB", job_id) if job_id else Destination("APPLICATIONS")
+    if template_code == "IN_APP_INTERVIEW_FEEDBACK_READY":
+        session_id = _uuid_text(data.get("session_id")) or (
+            _uuid_text(aggregate_id) if aggregate_type == "interview_session" else None
+        )
+        return Destination("INTERVIEW_REPORT", session_id)
+    if template_code in _SUBSCRIPTION_TEMPLATES:
+        return Destination("SUBSCRIPTION")
+    if template_code == "IN_APP_PROFILE_INCOMPLETE":
+        return Destination("PROFILE")
+    if template_code == "IN_APP_DAILY_REMINDER":
+        return Destination("STREAK")
+    return Destination("INBOX")

@@ -242,3 +242,11 @@ async def get_calendar(
 async def purge_expired_activity(session: AsyncSession, *, now: datetime) -> int:
     """Forget opened days older than the retention window. The sweep's job."""
     return await repository.purge_expired_activity_days(session, today=local_day(now))
+
+
+async def users_who_opened_today(
+    session: AsyncSession, *, user_ids: list[uuid.UUID], now: datetime
+) -> set[uuid.UUID]:
+    """Of these people, those who opened the app on today's IST day. Read by
+    the end-of-day reminder; says nothing about points."""
+    return await repository.users_active_on(session, user_ids=user_ids, day=local_day(now))

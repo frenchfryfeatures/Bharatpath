@@ -1,8 +1,8 @@
+import { useLogout } from '@/hooks/useLogout';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, ArrowRight, NotePencil, UploadSimple } from 'phosphor-react-native';
-import { useAuthContext } from '@/context/AuthContext';
 import { LogOut } from 'lucide-react-native';
 import { Colors } from '@/theme/tokens';
 
@@ -15,19 +15,19 @@ export function ResumeUploadRequiredScreen({
   onBuildResume?: () => void;
   onBack: () => void;
 }) {
-  const { signOut } = useAuthContext();
+  const logout = useLogout();
   const { height } = useWindowDimensions();
   const compact = height < 700;
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.screen}>
       <View style={styles.header}>
         <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel="Back to profile"
           style={({ pressed }) => [styles.back, pressed && styles.pressed]}>
           <ArrowLeft size={20} color={Colors.navy} />
         </Pressable>
         <Text style={styles.headerTitle} numberOfLines={1} ellipsizeMode="tail" accessibilityRole="header" accessibilityLabel="Complete your profile">Complete your profile</Text>
-        <Pressable onPress={() => void signOut()} accessibilityRole="button" accessibilityLabel="Sign out" style={styles.back}><LogOut size={20} color={Colors.navy} /></Pressable>
+        <Pressable onPress={() => void logout()} accessibilityRole="button" accessibilityLabel="Sign out" style={styles.back}><LogOut size={20} color={Colors.navy} /></Pressable>
       </View>
 
       <View style={[styles.content, compact && styles.contentCompact]}>

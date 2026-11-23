@@ -41,6 +41,8 @@ export interface NotificationInboxItem {
 
   template_code: string;
 
+  destination?: { kind: "APPLICATION" | "APPLICATIONS" | "JOB" | "INTERVIEW_REPORT" | "SUBSCRIPTION" | "PROFILE" | "STREAK" | "INBOX"; id?: string | null } | null;
+
   body: string;
 
   created_at: string;

@@ -1,3 +1,6 @@
+import { forgetCheckIn } from '@/hooks/useStreak';
+import { forgetUnreadCount } from '@/services/api/notifications';
+import { clearScreenCache } from '@/services/cache/screenCache';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import {
@@ -291,16 +294,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [candidateFullName, session]);
 
   const handleSignOut = useCallback(async () => {
-    await unregisterCurrentPushDevice().catch((error) =>
-      console.warn('[Notifications] could not unregister on sign out', error));
-    await apiSignOut();
-    await AsyncStorage.getAllKeys().then(keys=>AsyncStorage.multiRemove(keys.filter(key=>key.startsWith('profile-insights:')))).catch(()=>{});
-    setSession(null);
-    setProfile(null);
-    setCandidateFullName(null);
-    setCandidateScore(null);
-    setCandidatePhotoUrl(null);
-    await clearAllAuthData();
+    // Stop pushes to this phone for this account, but never let a slow or
+    // offline request hold the user inside the app (2026-11-23: it could
+    // hang logout indefinitely with no network).
+    await Promise.race([
+      unregisterCurrentPushDevice().catch((error) =>
+        console.warn('[Notifications] could not unregister on sign out', error)),
+      new Promise((resolve) => setTimeout(resolve, 4000)),
+    ]);
+    try {
+      await apiSignOut();
+    } finally {
+      // Local state is cleared whatever the network did: a sign-out that
+      // fails half-way must not leave this account's data for the next one.
+      await AsyncStorage.getAllKeys().then(keys=>AsyncStorage.multiRemove(keys.filter(key=>key.startsWith('profile-insights:')))).catch(()=>{});
+      setSession(null);
+      setProfile(null);
+      setCandidateFullName(null);
+      setCandidateScore(null);
+      setCandidatePhotoUrl(null);
+      clearScreenCache();
+      forgetUnreadCount();
+      forgetCheckIn();
+      await clearAllAuthData();
+    }
   }, []);
 
   return (

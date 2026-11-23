@@ -164,7 +164,7 @@ export function AttributeQuestionsScreen({
 
   if (!view || !section) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
         <StatusBar style="dark" />
         <View style={styles.center}>
           {error ? <Text style={styles.errorText}>{error}</Text> : <ActivityIndicator color="#5F4DB2" />}
@@ -174,7 +174,7 @@ export function AttributeQuestionsScreen({
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <StatusBar style="dark" />
       <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.header}>

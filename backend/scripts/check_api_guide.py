@@ -106,6 +106,7 @@ SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
         "Employer — candidate search, filters and the reveal (`discovery`, `candidate`)",
         ("/employer/discovery",),
     ),
+    ("Shared — reference data (`discovery`, `/reference`)", ("/reference",)),
     (
         "Employer — pipeline and dashboard (`applications`)",
         ("/employer/applications", "/employer/dashboard"),

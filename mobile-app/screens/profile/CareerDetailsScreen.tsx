@@ -1,3 +1,6 @@
+import { useLogout } from '@/hooks/useLogout';
+import { CitySuggestions } from '@/components/inputs/CitySuggestions';
+import { IndianCityDropdown } from '@/components/inputs/IndianCityDropdown';
 import { profileValueText } from "@/services/profile/profileDisplay";
 import { formatSalaryInput } from '@/utils/salaryInput';
 import { ResumePickerLabel } from '@/components/inputs/ResumePickerLabel';
@@ -93,7 +96,8 @@ export function CareerDetailsScreen({
   onDone: (profile: CareerProfile) => void | Promise<void>;
   initialSection?: number;
 }) {
-  const { candidateFullName, session, rememberCandidate, signOut } = useAuthContext();
+  const { candidateFullName, session, rememberCandidate } = useAuthContext();
+  const logout = useLogout();
   const [fullName, setFullName] = useState(candidateFullName ?? '');
   useEffect(() => {
     if (candidateFullName) setFullName((current) => current || candidateFullName);
@@ -1029,7 +1033,7 @@ export function CareerDetailsScreen({
 
   if ((fields.length === 0 && busy) || (onboarding && !modeRestored)) {
     return (
-      <SafeAreaView style={styles.screen}>
+      <SafeAreaView edges={['top', 'left', 'right']} style={styles.screen}>
         <View style={styles.header}>
           <Pressable
             accessibilityLabel="Back"
@@ -1055,14 +1059,14 @@ export function CareerDetailsScreen({
   if (shouldOfferOnboardingMode({ onboarding, editing, step, restored: modeRestored, mode: onboardingMode,
     basicComplete: Boolean(fullName.trim() && draft.phone && draft.current_city && draft.work_status),
     completed: Boolean(profile?.completed) })) {
-    return <SafeAreaView style={styles.screen}>
+    return <SafeAreaView edges={['top', 'left', 'right']} style={styles.screen}>
       <View style={styles.header}>
         <Pressable accessibilityRole="button" accessibilityLabel="Back to basic details"
           style={styles.headerBackBtn} onPress={() => setStep(0)}>
           <ArrowLeft size={18} color="#0A1931" />
         </Pressable>
         <Text style={[styles.title, styles.onboardingTitle, { flex: 1 }]} numberOfLines={1} ellipsizeMode="tail" accessibilityRole="header" accessibilityLabel="Profile">Profile</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Sign out" onPress={() => void signOut()} style={styles.headerSignOutBtn}><LogOut size={20} color="#0A1931" strokeWidth={1.8} /></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Sign out" onPress={() => void logout()} style={styles.headerSignOutBtn}><LogOut size={20} color="#0A1931" strokeWidth={1.8} /></Pressable>
       </View>
       <View style={styles.modeContent}>
         <OnboardingProgress step={1} />
@@ -1260,6 +1264,13 @@ export function CareerDetailsScreen({
                       />
                       </View>
                     )}
+                    {(currentField.key === 'current_city' || currentField.key === 'preferred_locations') && (
+                      <CitySuggestions
+                        list={currentField.key === 'preferred_locations'}
+                        value={conversationInput}
+                        onPick={(picked) => { setConversationInput(picked); setConversationError(''); }}
+                      />
+                    )}
 
                     {/* Skip button for non-required fields */}
                     {!fieldRequired(currentField, draft) && (
@@ -1281,7 +1292,7 @@ export function CareerDetailsScreen({
     </ConversationPrompt>
   </View>;
   return (
-    <SafeAreaView style={[styles.screen, isConversation && styles.chatScreen]}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={[styles.screen, isConversation && styles.chatScreen]}>
       <View style={[styles.header, isConversation && styles.chatHeader]}>
         {!(onboarding && step === 0) && (
           <Pressable
@@ -1329,11 +1340,11 @@ export function CareerDetailsScreen({
                 color={onboardingMode === 'conversation' ? '#FFFFFF' : '#5F4DB2'} strokeWidth={1.8}
               />
             </Pressable>
-          </View><Pressable disabled={busy} onPress={() => void signOut()} accessibilityRole="button" accessibilityLabel="Sign out" style={styles.headerSignOutBtn}><LogOut size={20} color="#0A1931" strokeWidth={1.8} /></Pressable></>
+          </View><Pressable disabled={busy} onPress={() => void logout()} accessibilityRole="button" accessibilityLabel="Sign out" style={styles.headerSignOutBtn}><LogOut size={20} color="#0A1931" strokeWidth={1.8} /></Pressable></>
         ) : onboarding && step === 0 ? (
           <Pressable
             disabled={busy}
-            onPress={() => void signOut()}
+            onPress={() => void logout()}
             style={styles.headerSignOutBtn}
             accessibilityRole="button"
             accessibilityLabel="Sign out"
@@ -1647,6 +1658,29 @@ export function CareerDetailsScreen({
                             disabled={busy}
                             onOpen={() => scrollToField(field.key)}
                             onChange={(yr) => update(field.key, yr)}
+                          />
+                        ) : field.key === 'current_city' ? (
+                          <IndianCityDropdown
+                            multiple={false}
+                            value={String(value ?? '')}
+                            onChange={(city) => update(field.key, city)}
+                            placeholder="Select your city"
+                            modalTitle="Current city"
+                            invalid={!!errors[field.key]}
+                            disabled={busy}
+                          />
+                        ) : field.key === 'preferred_locations' ? (
+                          <IndianCityDropdown
+                            multiple
+                            values={Array.isArray(value) ? value : []}
+                            onChangeValues={(cities) => {
+                              setLists((current) => ({ ...current, [field.key]: cities.join(', ') }));
+                              update(field.key, cities);
+                            }}
+                            placeholder="Select preferred Indian cities"
+                            modalTitle="Preferred work locations"
+                            invalid={!!errors[field.key]}
+                            disabled={busy}
                           />
                         ) : (
                           <TextInput

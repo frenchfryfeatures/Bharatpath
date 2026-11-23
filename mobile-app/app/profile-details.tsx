@@ -1,5 +1,5 @@
+import { ScreenSkeleton } from '@/components/feedback/ScreenSkeleton';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { listResumeVersions } from '@/services/api/resume';
 import { getCareerProfile, type CareerProfile } from '@/services/api/career';
@@ -34,11 +34,7 @@ export default function ProfileDetailsRoute() {
   };
 
   if (loading) {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator color="#5F4DB2" size="large" />
-      </View>
-    );
+    return <ScreenSkeleton blocks={4} />;
   }
 
   return (

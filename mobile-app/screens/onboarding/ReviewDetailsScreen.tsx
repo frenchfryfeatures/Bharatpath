@@ -1,7 +1,9 @@
+import { AppAlert } from '@/components/feedback/AppAlert';
+import { AppToast } from '@/components/feedback/AppToast';
 import { ZoomableResumePages } from '@/components/resume-builder/ZoomableResumePages';
 import {ResumeBuilderScreen} from './ResumeBuilderScreen';
-import {legacyResumeDocument,editorSectionForKind,type ResumeEditorSection} from '@/services/profile/resumeDocument';
-import React, { useEffect, useMemo, useState } from 'react';
+import {legacyResumeDocument} from '@/services/profile/resumeDocument';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppModal as Modal } from '@/components/layout/AppModal';
 import {
   View,
@@ -10,6 +12,7 @@ import {
   Pressable,
   ScrollView,
   ActivityIndicator,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -25,7 +28,6 @@ import {
   WarningCircle,
   PencilLine,
   ClipboardText,
-  Plus,
   Trophy,
   Globe,
   FileText,
@@ -33,7 +35,7 @@ import {
   UploadSimple,
   ArrowRight,
 } from 'phosphor-react-native';
-import { Radii, Spacing } from '@/theme/tokens';
+import { Colors, Radii, Spacing } from '@/theme/tokens';
 import type { ManualResumeData } from './ManualResumeModal';
 import {
   previewResumeVersion,
@@ -160,7 +162,6 @@ export function ReviewDetailsScreen({
   const canSave = requireEditToSave ? hasEdited : (hasEdited || !details?.confirmed);
 
   // Modals state
-  const [documentSection,setDocumentSection] = useState<ResumeEditorSection>('personal');
   const [builderOpen,setBuilderOpen] = useState(false);
   // Action status
   const isSavingEdit = builderOpen;
@@ -251,9 +252,23 @@ export function ReviewDetailsScreen({
   );
 
   const reviewDocument=useMemo(()=>legacyResumeDocument(structuredResume||{...parsed,...structuredData}),[structuredResume,structuredData,parsed]);
-  const openDocumentEditor=(kind='header')=>{
-    setConfirmError(null);setDocumentSection(editorSectionForKind(kind));
+  // Editing goes through the Bharatpath Builder only (2026-11-23), which
+  // rebuilds the resume in one of our templates. An uploaded resume reaches
+  // employers exactly as uploaded, so say so first and let the candidate
+  // choose the template before changing anything.
+  const isBuiltWithUs = details?.source === 'BUILDER';
+  const openBuilder = () => {
+    setConfirmError(null);
     setBuilderOpen(true);
+  };
+  const startEditResume = () => {
+    if (isBuiltWithUs) { openBuilder(); return; }
+    AppAlert.alert(
+      'Editing applies a Bharatpath template',
+      'Employers and colleges see your uploaded resume exactly as you uploaded it. Editing it here rebuilds it in a Bharatpath template, so choose a template first, then make your changes. Until you save and confirm the edited version, they keep seeing your uploaded file.',
+      [{ text: 'Choose template', onPress: openBuilder }],
+      { showCloseButton: true, fullWidthSingleButton: true },
+    );
   };
   const errorMessage = (error: unknown, fallback: string): string => {
     if (error instanceof ApiError) {
@@ -298,11 +313,39 @@ export function ReviewDetailsScreen({
     onVersionUpdated?.(newVersionId, newDetails);
   };
 
+  const handleAttemptBack = useCallback(() => {
+    if (!onBack) return;
+    if (requireEditToSave && hasEdited && !isConfirming) {
+      AppAlert.alert(
+        'Unsaved changes',
+        'You have unsaved changes to your resume. If you leave without tapping "Update Resume", your updated information will be lost.',
+        [
+          { text: 'Stay', style: 'cancel' },
+          { text: 'Discard and leave', style: 'destructive', onPress: onBack },
+        ]
+      );
+      return;
+    }
+    onBack();
+  }, [hasEdited, isConfirming, onBack, requireEditToSave]);
+
+  useEffect(() => {
+    if (!onBack) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (builderOpen || preview !== null) return false;
+      handleAttemptBack();
+      return true;
+    });
+    return () => sub.remove();
+  }, [builderOpen, handleAttemptBack, onBack, preview]);
+
   // Confirm gate
   const confirmCurrentVersion = async () => {
     setConfirmError(null);
     if (!activeVersionId) {
-      setConfirmError('Resume version is missing. Please return and submit your resume again.');
+      const msg = 'Resume version is missing. Please return and submit your resume again.';
+      setConfirmError(msg);
+      AppToast.error(msg);
       return;
     }
     try {
@@ -313,10 +356,12 @@ export function ReviewDetailsScreen({
         res = await confirmResumeVersion(targetId);
       } catch (firstErr: any) {
         const errCode = firstErr?.code || firstErr?.problem?.code || firstErr?.message;
+        const isCooldown = errCode === 'resume_scoring_cooldown';
         const isSuperseded =
-          errCode === 'resume_version_superseded' ||
-          String(firstErr?.message || '').includes('replaced by a newer one') ||
-          firstErr?.status === 409;
+          !isCooldown &&
+          (errCode === 'resume_version_superseded' ||
+            String(firstErr?.message || '').includes('replaced by a newer one') ||
+            firstErr?.status === 409);
 
         if (isSuperseded) {
           const freshVersions = await listResumeVersions();
@@ -338,7 +383,19 @@ export function ReviewDetailsScreen({
         onRequireSubscription?.();
         return;
       }
-      setConfirmError(errorMessage(error, 'Could not confirm this resume version.'));
+      let msg = errorMessage(error, 'Could not confirm this resume version.');
+      if (error instanceof ApiError && error.code === 'resume_scoring_cooldown') {
+        const nextAt = error.problem?.params?.next_scoring_at;
+        if (typeof nextAt === 'string') {
+          const dt = new Date(nextAt);
+          if (!Number.isNaN(dt.getTime())) {
+            const formatted = dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+            msg = `Your resume was recently scored and can be scored again after ${formatted}.`;
+          }
+        }
+      }
+      setConfirmError(msg);
+      AppToast.error(msg);
     } finally {
       setIsConfirming(false);
     }
@@ -348,10 +405,13 @@ export function ReviewDetailsScreen({
     if (!activeVersionId || documentBusy) return;
     setDocumentBusy(true); setConfirmError(null);
     try {
-      if (download) await downloadResumeVersion(activeVersionId);
+      if (download) {
+        const outcome = await downloadResumeVersion(activeVersionId);
+        if (outcome === 'saved') AppToast.success('Resume saved to your chosen folder.');
+      }
       else setPreview(await previewResumeVersion(activeVersionId));
     } catch (failure) {
-      setConfirmError(errorMessage(failure,'Your resume could not be opened. Please try again.'));
+      AppToast.error(errorMessage(failure, download ? 'The resume could not be downloaded. Please try again.' : 'Your resume could not be opened. Please try again.'));
     } finally { setDocumentBusy(false); }
   };
 
@@ -380,51 +440,75 @@ export function ReviewDetailsScreen({
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
       <StatusBar style="dark" animated />
+      <View style={styles.headerBar}>
+        {onBack ? (
+          <Pressable
+            style={({ pressed }) => [
+              styles.headerIconBtn,
+              styles.headerBackBtn,
+              pressed && styles.buttonPressed,
+            ]}
+            onPress={handleAttemptBack}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+          >
+            <ArrowLeft size={18} color={Colors.navy} weight="bold" />
+          </Pressable>
+        ) : null}
+        <Text style={styles.headerTitle} numberOfLines={1}>
+          {title || 'Resume Builder'}
+        </Text>
+        <View style={styles.headerActions}>
+          {[
+            { download: false, label: 'Preview resume', Icon: Eye },
+            { download: true, label: 'Download resume', Icon: DownloadSimple },
+          ].map(({ download, label, Icon }) => (
+            <Pressable
+              key={label}
+              accessibilityRole="button"
+              accessibilityLabel={label}
+              accessibilityState={{ disabled: documentBusy || isSavingEdit || !activeVersionId }}
+              disabled={documentBusy || isSavingEdit || !activeVersionId}
+              onPress={() => void openResumeDocument(download)}
+              style={({ pressed }) => [
+                styles.headerIconBtn,
+                { opacity: documentBusy || isSavingEdit || !activeVersionId ? 0.5 : 1 },
+                pressed && styles.buttonPressed,
+              ]}
+            >
+              {documentBusy ? (
+                <ActivityIndicator size="small" color={Colors.brandAccent} />
+              ) : (
+                <Icon size={18} color={Colors.brandAccent} weight="bold" />
+              )}
+            </Pressable>
+          ))}
+        </View>
+      </View>
       <View style={styles.container}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Header Title & Subtitle */}
+          {/* Subtitle & status badge */}
           <View style={styles.titleSection}>
-            {onBack ? (
-              <View style={styles.topBackRow}>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.backButton,
-                    pressed && styles.buttonPressed,
-                  ]}
-                  onPress={onBack}
-                  accessibilityRole="button"
-                  accessibilityLabel="Go back"
-                >
-                  <ArrowLeft size={18} color="#0A1931" weight="bold" />
-                </Pressable>
+            <Text style={styles.subtitle}>{subtitle || 'Nothing is scored until you confirm.'}</Text>
+            {totalUnclear > 0 ? (
+              <View style={styles.toFixBadge}>
+                <WarningCircle size={15} color="#7A5C0E" weight="bold" />
+                <Text style={styles.toFixBadgeText}>{totalUnclear} to fix</Text>
+              </View>
+            ) : showReadyBadge ? (
+              <View style={styles.allFixedBadge}>
+                <CheckCircle size={15} color="#1F6B45" weight="fill" />
+                <Text style={styles.allFixedBadgeText}>
+                  {details?.source === 'EDIT' ? 'New version' : 'Ready to review'}
+                </Text>
               </View>
             ) : null}
-            <View style={styles.titleRow}>
-              <Text style={[styles.title,{flex:1,minWidth:150}]}>{title || 'Review details'}</Text>
-              <View style={{flexDirection:'row',gap:8}}>
-                {[{download:false,label:'Preview resume',Icon:Eye},{download:true,label:'Download resume',Icon:DownloadSimple}].map(({download,label,Icon})=><Pressable key={label} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled:documentBusy||isSavingEdit||!activeVersionId}} disabled={documentBusy||isSavingEdit||!activeVersionId} onPress={()=>void openResumeDocument(download)} style={[styles.backButton,{opacity:documentBusy||isSavingEdit||!activeVersionId?0.5:1}]}>{documentBusy?<ActivityIndicator size="small" color="#5F4DB2"/>:<Icon size={20} color="#5F4DB2"/>}</Pressable>)}
-              </View>
-              {totalUnclear > 0 ? (
-                <View style={styles.toFixBadge}>
-                  <WarningCircle size={15} color="#7A5C0E" weight="bold" />
-                  <Text style={styles.toFixBadgeText}>{totalUnclear} to fix</Text>
-                </View>
-              ) : showReadyBadge ? (
-                <View style={styles.allFixedBadge}>
-                  <CheckCircle size={15} color="#1F6B45" weight="fill" />
-                  <Text style={styles.allFixedBadgeText}>
-                    {details?.source === 'EDIT' ? 'New version' : 'Ready to review'}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-            <Text style={styles.subtitle}>{subtitle || 'Nothing is scored until you confirm.'}</Text>
           </View>
 
           {onUploadNewResume ? (
@@ -444,6 +528,30 @@ export function ReviewDetailsScreen({
                 <Text style={styles.uploadNewBannerTitle}>Upload new resume</Text>
                 <Text style={styles.uploadNewBannerSub}>
                   Upload a PDF or DOCX file to replace current resume
+                </Text>
+              </View>
+              <ArrowRight size={16} color="#5F4DB2" weight="bold" />
+            </Pressable>
+          ) : null}
+
+          {/* Edit resume, below Upload new resume (2026-11-23) */}
+          {onUploadNewResume && activeVersionId ? (
+            <Pressable
+              style={({ pressed }) => [
+                styles.uploadNewBanner,
+                pressed && { opacity: 0.9, transform: [{ scale: 0.99 }] },
+              ]}
+              onPress={startEditResume}
+              accessibilityRole="button"
+              accessibilityLabel="Edit resume in the Bharatpath Builder"
+            >
+              <View style={styles.uploadNewBannerIcon}>
+                <PencilLine size={20} color="#5F4DB2" weight="bold" />
+              </View>
+              <View style={styles.uploadNewBannerTextCol}>
+                <Text style={styles.uploadNewBannerTitle}>Edit resume</Text>
+                <Text style={styles.uploadNewBannerSub}>
+                  {isBuiltWithUs ? 'Change your details or template in the Bharatpath Builder' : 'Rebuild it in a Bharatpath template and make changes'}
                 </Text>
               </View>
               <ArrowRight size={16} color="#5F4DB2" weight="bold" />
@@ -506,16 +614,6 @@ export function ReviewDetailsScreen({
                           <CheckCircle size={18} color="#1F6B45" weight="fill" />
                         )}
 
-                        <Pressable
-                          style={({ pressed }) => [
-                            styles.pencilRight,
-                            pressed && styles.cardPressed,
-                          ]}
-                          onPress={() => openDocumentEditor(section.kind)}
-                          hitSlop={12}
-                        >
-                          <PencilLine size={16} color="#566073" weight="bold" />
-                        </Pressable>
                       </View>
 
                       {/* Card Body by Kind */}
@@ -524,21 +622,9 @@ export function ReviewDetailsScreen({
                         <View style={styles.chipsWrapRow}>
                           {section.items.map((item, itemIdx) =>
                             item.unclear ? (
-                              <Pressable
-                                key={`${item.text}-${itemIdx}`}
-                                style={({ pressed }) => [
-                                  styles.dashedChip,
-                                  pressed && styles.cardPressed,
-                                ]}
-                                onPress={() =>
-                                  openDocumentEditor(section.kind)
-                                }
-                              >
+                              <View key={`${item.text}-${itemIdx}`} style={styles.dashedChip}>
                                 <Text style={styles.dashedChipText}>{item.text}</Text>
-                                <View style={styles.dashedChipIcon}>
-                                  <PencilLine size={13} color="#7A5C0E" weight="bold" />
-                                </View>
-                              </Pressable>
+                              </View>
                             ) : (
                               <View key={`${item.text}-${itemIdx}`} style={styles.solidChip}>
                                 <Text style={styles.solidChipText}>{item.text}</Text>
@@ -676,17 +762,6 @@ export function ReviewDetailsScreen({
                   );
                 })}
 
-                {/* Add a Section button */}
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.addSectionCardBtn,
-                    pressed && styles.cardPressed,
-                  ]}
-                  onPress={() => openDocumentEditor('projects')}
-                >
-                  <Plus size={16} color="#5F4DB2" weight="bold" />
-                  <Text style={styles.addSectionCardText}>Add missing section</Text>
-                </Pressable>
               </>
             ) : rawText ? (
               /* RAW TEXT FALLBACK (If sections are null) */
@@ -697,43 +772,16 @@ export function ReviewDetailsScreen({
                   <CheckCircle size={18} color="#1F6B45" weight="fill" />
                 </View>
                 <Text style={styles.rawText}>{rawText}</Text>
-                <View style={styles.rawActions}>
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.secondaryEditButton,
-                      pressed && styles.cardPressed,
-                    ]}
-                    onPress={() => openDocumentEditor()}
-                  >
-                    <PencilLine size={14} color="#5E4DB2" weight="bold" />
-                    <Text style={styles.secondaryEditButtonText}>Correct text</Text>
-                  </Pressable>
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.primaryEditButton,
-                      pressed && styles.buttonPressed,
-                    ]}
-                    onPress={() => openDocumentEditor()}
-                  >
-                    <Text style={styles.primaryEditButtonText}>Edit as fields</Text>
-                  </Pressable>
-                </View>
               </View>
             ) : (
               /* STRUCTURED FALLBACK (For manual resumes) */
               <>
                 {/* BASICS */}
-                <Pressable
-                  style={({ pressed }) => [styles.detailCard, pressed && styles.cardPressed]}
-                  onPress={() => openDocumentEditor()}
-                >
+                <View style={styles.detailCard}>
                   <View style={styles.cardHeaderRow}>
                     <User size={16} color="#5F6B80" weight="bold" />
                     <Text style={styles.cardEyebrow}>BASICS</Text>
                     <CheckCircle size={18} color="#1F6B45" weight="fill" />
-                    <View style={styles.pencilRight}>
-                      <PencilLine size={15} color="#566073" weight="bold" />
-                    </View>
                   </View>
                   <View style={styles.keyValueList}>
                     <View style={styles.keyValueRow}>
@@ -747,19 +795,13 @@ export function ReviewDetailsScreen({
                       </View>
                     ) : null}
                   </View>
-                </Pressable>
+                </View>
 
                 {/* EDUCATION */}
-                <Pressable
-                  style={({ pressed }) => [styles.detailCard, pressed && styles.cardPressed]}
-                  onPress={() => openDocumentEditor()}
-                >
+                <View style={styles.detailCard}>
                   <View style={styles.cardHeaderRow}>
                     <GraduationCap size={16} color="#5F6B80" weight="bold" />
                     <Text style={styles.cardEyebrow}>EDUCATION</Text>
-                    <View style={styles.pencilRight}>
-                      <PencilLine size={15} color="#566073" weight="bold" />
-                    </View>
                   </View>
                   <View style={styles.eduList}>
                     {structuredData.education.length ? (
@@ -782,19 +824,13 @@ export function ReviewDetailsScreen({
                       </View>
                     )}
                   </View>
-                </Pressable>
+                </View>
 
                 {/* SKILLS */}
-                <Pressable
-                  style={({ pressed }) => [styles.detailCard, pressed && styles.cardPressed]}
-                  onPress={() => openDocumentEditor()}
-                >
+                <View style={styles.detailCard}>
                   <View style={styles.cardHeaderRow}>
                     <Wrench size={16} color="#5F6B80" weight="bold" />
                     <Text style={styles.cardEyebrow}>SKILLS</Text>
-                    <View style={styles.pencilRight}>
-                      <PencilLine size={15} color="#566073" weight="bold" />
-                    </View>
                   </View>
                   {structuredData.skills.length ? (
                     <View style={styles.chipsWrapRow}>
@@ -807,19 +843,13 @@ export function ReviewDetailsScreen({
                   ) : (
                     <Text style={styles.eduSubtitle}>No skills added. Tap to add skills.</Text>
                   )}
-                </Pressable>
+                </View>
 
                 {/* EXPERIENCE & PROJECTS */}
-                <Pressable
-                  style={({ pressed }) => [styles.detailCard, pressed && styles.cardPressed]}
-                  onPress={() => openDocumentEditor()}
-                >
+                <View style={styles.detailCard}>
                   <View style={styles.cardHeaderRow}>
                     <Flask size={16} color="#5F6B80" weight="bold" />
                     <Text style={styles.cardEyebrow}>EXPERIENCE & PROJECTS</Text>
-                    <View style={styles.pencilRight}>
-                      <PencilLine size={15} color="#566073" weight="bold" />
-                    </View>
                   </View>
                   <View style={styles.expList}>
                     {structuredData.experience.length ? (
@@ -846,7 +876,7 @@ export function ReviewDetailsScreen({
                       </View>
                     )}
                   </View>
-                </Pressable>
+                </View>
               </>
             )}
           </View>
@@ -883,13 +913,13 @@ export function ReviewDetailsScreen({
           </Pressable>
           <Text style={styles.bottomSubtext}>
             {requireEditToSave && !canSave
-              ? 'Make changes or edit sections to Update Bharatpath Score'
+              ? 'Make changes or edit sections to Update Resume'
               : 'You can edit any of this later'}
           </Text>
         </View>
 
         <Modal visible={preview!==null} animationType="slide" onRequestClose={()=>setPreview(null)}>
-          <SafeAreaView style={{flex:1,backgroundColor:'#FFFCF7'}}>
+          <SafeAreaView edges={['top', 'left', 'right']} style={{flex:1,backgroundColor:'#FFFCF7'}}>
             <View style={{padding:16,flexDirection:'row',alignItems:'center',justifyContent:'space-between'}}>
               <Text style={{fontFamily:'GeneralSans-Semibold',fontSize:22,color:'#0A1931'}}>Resume preview</Text>
               <Pressable accessibilityRole="button" accessibilityLabel="Close resume preview" onPress={()=>setPreview(null)} style={styles.backButton}><X size={22} color="#0A1931"/></Pressable>
@@ -898,7 +928,8 @@ export function ReviewDetailsScreen({
           </SafeAreaView>
         </Modal>
         <Modal visible={builderOpen} animationType="slide" onRequestClose={()=>setBuilderOpen(false)}>
-          <ResumeBuilderScreen initialContent={reviewDocument} initialStep={(['personal','experience','education','skills','projects'].includes(documentSection) ? ['personal','experience','education','skills','projects'].indexOf(documentSection) : 5)}
+          <ResumeBuilderScreen initialContent={reviewDocument} initialStep={0} startWithTemplates
+            templateNotice={isBuiltWithUs ? undefined : 'Your edited resume will use the template you choose here. Your uploaded file stays as it is.'}
             onBack={()=>setBuilderOpen(false)} onDone={async id=>{await adoptEditedVersion(id);setBuilderOpen(false);}}/>
         </Modal>
 
@@ -910,7 +941,39 @@ export function ReviewDetailsScreen({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F5EFE6', // Warm off-white matching screenshot
+    backgroundColor: Colors.offWhite,
+  },
+  headerBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.surface.border,
+    backgroundColor: Colors.offWhite,
+  },
+  headerIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.surface.tint,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerBackBtn: {
+    marginRight: Spacing.md,
+  },
+  headerTitle: {
+    flex: 1,
+    fontFamily: 'GeneralSans-Semibold',
+    fontSize: 18,
+    color: Colors.navy,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginLeft: Spacing.sm,
   },
   container: {
     flex: 1,
@@ -918,12 +981,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   scrollContent: {
-    paddingTop: Spacing.xl, // 24px
-    paddingBottom: Spacing.xl, // 24px
-    gap: Spacing.lg, // 20px
+    paddingTop: Spacing.base, // 16px
+    paddingBottom: Spacing.base, // 16px
+    gap: Spacing.base, // 16px
   },
   titleSection: {
-    gap: 6,
+    gap: 8,
+    alignItems: 'flex-start',
   },
   topBackRow: {
     flexDirection: 'row',
@@ -1243,15 +1307,15 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   bottomSection: {
-    gap: 10,
-    paddingBottom: 24,
-    paddingTop: 10,
-    backgroundColor: 'transparent',
+    gap: 4,
+    paddingBottom: 6,
+    paddingTop: 8,
+    backgroundColor: Colors.offWhite,
   },
   confirmButton: {
     width: '100%',
     backgroundColor: '#5F4DB2', // Purple matching screenshot
-    paddingVertical: 18,
+    paddingVertical: 15,
     borderRadius: Radii.pill,
     alignItems: 'center',
     justifyContent: 'center',

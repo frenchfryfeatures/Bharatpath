@@ -6,24 +6,32 @@
  * is gone. On a successful apply, navigates to `/application-sent` with the
  * employer name.
  */
-import React, { useState, useCallback } from 'react';
-import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { ActivityIndicator, View, Text, StyleSheet } from 'react-native';
+import { ScreenSkeleton } from '@/components/feedback/ScreenSkeleton';
+import React, { useState, useCallback, useEffect } from 'react';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useScreenRefresh } from '@/hooks/useScreenRefresh';
+import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '@/theme/tokens';
 import { JobDetailScreen } from '@/screens/jobs/JobDetailScreen';
 import { BoardJobDetail } from '@/types/job';
 import { getJobDetail } from '@/services/api/jobs';
 import { ApiError } from '@/services/api/client';
 import { useJobApplications } from '@/hooks/useJobApplications';
+import { readScreenCache, writeScreenCache } from '@/services/cache/screenCache';
 
 export default function JobDetailRoute() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
   const jobId = params.id;
+  const cacheKey = jobId ? `job-detail:${jobId}` : null;
 
-  const [job, setJob] = useState<BoardJobDetail | null>(null);
+  const [job, setJob] = useState<BoardJobDetail | null>(() =>
+    cacheKey ? (readScreenCache<BoardJobDetail>(cacheKey) ?? null) : null,
+  );
   const applications = useJobApplications();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() =>
+    cacheKey ? readScreenCache<BoardJobDetail>(cacheKey) === undefined : true,
+  );
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -32,11 +40,11 @@ export default function JobDetailRoute() {
       setLoading(false);
       return;
     }
-    setLoading(true);
     setError(null);
     try {
       const detail = await getJobDetail(jobId);
       setJob(detail);
+      writeScreenCache(`job-detail:${jobId}`, detail);
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         setError('This job is no longer open.');
@@ -52,14 +60,24 @@ export default function JobDetailRoute() {
     }
   }, [jobId]);
 
-  useFocusEffect(useCallback(() => { void load(); }, [load]));
+  useEffect(() => {
+    const cached = cacheKey ? (readScreenCache<BoardJobDetail>(cacheKey) ?? null) : null;
+    setJob(cached);
+    setLoading(cached === null);
+    setError(null);
+    void load();
+  }, [cacheKey, load]);
+
+  // Return visits (throttled by 30s) and pull-to-refresh.
+  const { refreshing, onRefresh: refreshJob } = useScreenRefresh(load, {
+    skipFirstFocus: true,
+  });
+  const onRefresh = useCallback(async () => {
+    await Promise.all([refreshJob(), applications.reload()]);
+  }, [refreshJob, applications]);
 
   if (loading || job?.application_stage === undefined && applications.loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={Colors.brandAccent} />
-      </View>
-    );
+    return <ScreenSkeleton />;
   }
 
   if (error || !job || job.application_stage === undefined && applications.error && !applications.byJob[job.id]) {
@@ -82,6 +100,8 @@ export default function JobDetailRoute() {
     <JobDetailScreen
       key={job.id}
       job={job}
+      refreshing={refreshing}
+      onRefresh={onRefresh}
       applicationStage={applicationStage}
       onViewApplication={() => router.push(applicationId ? { pathname: '/application-detail', params: { id: applicationId } } as any : '/board' as any)}
       onBack={() => router.back()}

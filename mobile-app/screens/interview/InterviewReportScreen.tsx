@@ -21,153 +21,13 @@ import { Radii } from '@/theme/tokens';
 import {
   FeedbackLevel,
   InterviewReport,
-  InterviewSession,
   getInterviewReport,
-  getInterviewSession,
   interviewErrorMessage,
 } from '@/services/api/interview';
 import { formatQuestionPrompt } from './InterviewSessionScreen';
 
 interface Props {
   sessionId: string;
-}
-
-function generateSynthesizedReport(
-  sessionId: string,
-  session?: InterviewSession | null
-): InterviewReport {
-  const dimensions: Array<{
-    code: string;
-    key: string;
-    label: string;
-    level: FeedbackLevel;
-    what_good_looks_like: string;
-  }> = [
-    {
-      code: 'STRUCTURE',
-      key: 'interview.rubric.structure',
-      label: 'Structure',
-      level: 'STRONG',
-      what_good_looks_like:
-        'Situation, what they did, and what resulted — in that order, without prompting.',
-    },
-    {
-      code: 'SPECIFICITY',
-      key: 'interview.rubric.specificity',
-      label: 'Specifics',
-      level: 'DEVELOPING',
-      what_good_looks_like:
-        'Named tasks, quantities, timescales, and real consequences.',
-    },
-    {
-      code: 'OWNERSHIP',
-      key: 'interview.rubric.ownership',
-      label: 'Your own part',
-      level: 'STRONG',
-      what_good_looks_like:
-        "Their own part stated plainly, without taking the team's credit.",
-    },
-    {
-      code: 'RELEVANCE',
-      key: 'interview.rubric.relevance',
-      label: 'Answering the question',
-      level: 'STRONG',
-      what_good_looks_like:
-        'Addresses what was actually asked, including the awkward part of it.',
-    },
-    {
-      code: 'CLARITY',
-      key: 'interview.rubric.clarity',
-      label: 'Being followed',
-      level: 'STRONG',
-      what_good_looks_like: 'A listener follows it the first time.',
-    },
-  ];
-
-  const questionsSource =
-    session?.questions && Array.isArray(session.questions) && session.questions.length > 0
-      ? session.questions
-      : [
-          {
-            index: 0,
-            code: 'intro',
-            prompt: 'Tell me about yourself and your background.',
-            looking_for: 'Concise career arc, key skills, and current goals.',
-          },
-          {
-            index: 1,
-            code: 'experience',
-            prompt: 'Describe a challenging project you worked on and what you did.',
-            looking_for:
-              'Clear ownership, problem context, decisions made, and measurable outcomes.',
-          },
-          {
-            index: 2,
-            code: 'teamwork',
-            prompt: 'Share a time when you had to resolve a disagreement with a team member.',
-            looking_for:
-              'Objective communication, professional empathy, and productive resolution.',
-          },
-        ];
-
-  const answersList: any[] = Array.isArray(session?.answers)
-    ? session.answers
-    : session?.answers && typeof session.answers === 'object'
-    ? Object.values(session.answers)
-    : [];
-
-  const questions = questionsSource.map((q, idx) => {
-    const answer = answersList.find((a: any) => a?.question_index === q.index);
-    const hasSpoken =
-      (answer?.duration_ms ?? 0) > 2000 ||
-      answer?.upload_state === 'STORED' ||
-      !session;
-
-    let comment =
-      'Good engagement with the question. Providing a concrete real-world example gives the evaluator tangible proof of your skills.';
-    if (!hasSpoken) {
-      comment =
-        'No recorded speech detected for this question. Make sure your microphone is clear and unmuted.';
-    } else if (idx === 0) {
-      comment =
-        'Solid opening that introduces your background directly. Connect your experience to the core problems you enjoy solving to make your response even more memorable.';
-    } else if (idx === 1) {
-      comment =
-        'Good contextual details. For an even stronger impression, include specific metrics, tools used, and measurable results achieved.';
-    } else if (idx === 2) {
-      comment =
-        'Clear explanation of collaboration and challenge handling. Stating your individual contribution plainly alongside the team outcome enhances credibility.';
-    } else if (idx === 3) {
-      comment =
-        'Addressed the core prompt well. Structuring with Situation-Task-Action-Result (STAR) keeps your response punchy and easy to follow.';
-    }
-
-    return {
-      index: q.index,
-      code: q.code,
-      prompt: q.prompt,
-      looking_for:
-        q.looking_for ||
-        'Clear examples, structured delivery, and tangible outcomes.',
-      transcript: hasSpoken
-        ? 'Answer recorded and submitted for evaluation.'
-        : '',
-      spoken: hasSpoken,
-      comment,
-    };
-  });
-
-  return {
-    session_id: sessionId,
-    status: 'READY',
-    failure_reason: null,
-    evaluated_at: new Date().toISOString(),
-    report_version: 'report-1',
-    dimensions,
-    strengths: ['RELEVANCE', 'CLARITY', 'OWNERSHIP', 'STRUCTURE'],
-    focus_areas: ['SPECIFICITY'],
-    questions,
-  };
 }
 
 export function InterviewReportScreen({ sessionId }: Props) {
@@ -180,14 +40,9 @@ export function InterviewReportScreen({ sessionId }: Props) {
 
   const load = useCallback(async () => {
     setError(null);
+    silentPollCountRef.current = 0;
     try {
-      // Fetch report and session data concurrently for immediate display
-      const [reportRes, sessionRes] = await Promise.allSettled([
-        getInterviewReport(sessionId),
-        getInterviewSession(sessionId),
-      ]);
-
-      const sessionData = sessionRes.status === 'fulfilled' ? sessionRes.value : null;
+      const [reportRes] = await Promise.allSettled([getInterviewReport(sessionId)]);
 
       if (reportRes.status === 'fulfilled') {
         const rep = reportRes.value;
@@ -205,19 +60,13 @@ export function InterviewReportScreen({ sessionId }: Props) {
         }
       }
 
-      // Backend evaluation is PENDING or not yet completed:
-      // Never block candidate behind an endless spinner. Immediately synthesize structured report
-      // with rubric dimension ratings and questions so feedback shows instantly!
-      setReport(generateSynthesizedReport(sessionId, sessionData));
+      // PENDING (2026-11-23): say so. This used to invent a report on the
+      // device -- fixed "STRONG"/"DEVELOPING" levels shown as if an evaluator
+      // had heard the candidate. Feedback nobody gave is worse than none.
+      setReport(null);
       setIsSynthesized(true);
     } catch (caught) {
-      // In case of any network/API problem, still provide the structured feedback report
-      try {
-        setReport(generateSynthesizedReport(sessionId, null));
-        setIsSynthesized(true);
-      } catch {
-        setError(interviewErrorMessage(caught, 'Could not load the interview report.'));
-      }
+      setError(interviewErrorMessage(caught, 'Could not load the interview report.'));
     } finally {
       setLoading(false);
     }
@@ -235,7 +84,7 @@ export function InterviewReportScreen({ sessionId }: Props) {
     let isMounted = true;
 
     const silentPoll = async () => {
-      if (!isMounted || silentPollCountRef.current >= 8) return;
+      if (!isMounted || silentPollCountRef.current >= 40) return;
       try {
         const res = await getInterviewReport(sessionId);
         if (!isMounted) return;
@@ -248,8 +97,9 @@ export function InterviewReportScreen({ sessionId }: Props) {
         // Silently ignore background polling errors
       }
       silentPollCountRef.current += 1;
-      if (isMounted && silentPollCountRef.current < 8) {
-        timer = setTimeout(silentPoll, 3000);
+      if (isMounted && silentPollCountRef.current < 40) {
+        // 3s, backing off to 30s: about ten minutes in all.
+        timer = setTimeout(silentPoll, Math.min(30000, 3000 * (silentPollCountRef.current + 1)));
       }
     };
 
@@ -263,7 +113,7 @@ export function InterviewReportScreen({ sessionId }: Props) {
   const home = () => router.replace('/home');
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safe}>
       <View style={styles.header}>
         <Pressable style={styles.back} onPress={home}>
           <ArrowLeft size={18} color="#0A1931" weight="bold" />
@@ -279,6 +129,14 @@ export function InterviewReportScreen({ sessionId }: Props) {
           <State icon={<ActivityIndicator size="large" color="#5F4DB2" />} title="Loading your report" body="Reading your interview feedback…" />
         ) : error && !report ? (
           <State icon={<WarningCircle size={42} color="#993A22" weight="fill" />} title="Report unavailable" body={error} action={load} actionLabel="Try again" />
+        ) : isSynthesized && !report ? (
+          <State
+            icon={<ActivityIndicator size="large" color="#5F4DB2" />}
+            title="Your feedback is being prepared"
+            body="Your answers are saved. Feedback usually takes a few minutes; this page checks for it, or pull down to check again."
+            action={load}
+            actionLabel="Check again"
+          />
         ) : report?.status === 'FAILED' ? (
           <State
             icon={<WarningCircle size={44} color="#7A5C0E" weight="fill" />}

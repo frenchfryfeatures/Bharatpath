@@ -1,3 +1,4 @@
+import { useScreenRefresh } from '@/hooks/useScreenRefresh';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -63,6 +64,8 @@ export function MockInterviewIntroScreen({ onBack }: Props) {
       setLoading(false);
     }
   }, []);
+  // Pull-to-refresh, and a quiet refetch on every return (2026-11-23).
+  const { refreshing: pulling, onRefresh: pullToRefresh } = useScreenRefresh(load);
 
   useEffect(() => {
     load();
@@ -161,7 +164,7 @@ export function MockInterviewIntroScreen({ onBack }: Props) {
   const priceDisplay = formatMinor(offer?.price_minor ?? 34900);
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       {/* Top Header */}
       <View style={styles.header}>
         <Pressable style={styles.backBtn} onPress={goBack}>
@@ -172,7 +175,7 @@ export function MockInterviewIntroScreen({ onBack }: Props) {
 
       <ScrollView
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
+        refreshControl={<RefreshControl refreshing={pulling} onRefresh={pullToRefresh} />}
         showsVerticalScrollIndicator={false}
       >
         {loading && !offer ? (

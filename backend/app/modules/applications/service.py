@@ -252,6 +252,8 @@ def _payload(row: Any, **extra: str) -> dict[str, Any]:
         "tenant_id": str(row.tenant_id),
         "job_id": str(row.job_id),
         "candidate_id": str(row.candidate_id),
+        # So a message about this application can open it (2026-11-23).
+        "application_id": str(row.id),
         **extra,
     }
 

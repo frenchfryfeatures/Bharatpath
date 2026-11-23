@@ -1,4 +1,5 @@
 "use client";
+import { CityDatalist } from "@/features/student/components/city-datalist";
 import { focusFormError } from "@/lib/ui/focus-form-error";
 import { useStudentHasAccess } from "@/features/student/onboarding/use-student-access";
 import { Fragment, useEffect, useRef, useState } from "react";
@@ -1031,6 +1032,7 @@ export function CareerForm({
                         id={id}
                         type="text"
                         value={locationInput}
+                        list="career-location-options"
                         maxLength={100}
                         disabled={Array.isArray(value) && value.length >= 5}
                         placeholder="Enter a work location"
@@ -1054,6 +1056,7 @@ export function CareerForm({
                       >
                         <Plus size={20} />
                       </button>
+                      <CityDatalist id="career-location-options" query={locationInput} />
                     </div>
                     {Array.isArray(value) && value.length > 0 && (
                       <ul className="flex flex-wrap gap-2" aria-label="Selected work locations">
@@ -1165,8 +1168,10 @@ export function CareerForm({
                   />
                 ) : (
                   <div className="relative">
+                    {field.key === "current_city" ? <CityDatalist id="career-city-options" query={String(value ?? "")} /> : null}
                     <input
                       id={id}
+                      list={field.key === "current_city" ? "career-city-options" : undefined}
                       type={field.type === "list" ? "text" : field.type}
                       placeholder={profileFieldLabel(field.key, field.label, draft)}
                       value={field.type === "list" ? (listText[field.key] ?? (Array.isArray(value) ? value.join(", ") : "")) : String(value ?? "")}
