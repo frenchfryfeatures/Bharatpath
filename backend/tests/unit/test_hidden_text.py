@@ -21,6 +21,8 @@ dependency.
 from __future__ import annotations
 
 import io
+from collections.abc import Callable
+from typing import Any
 
 import pypdf
 import pytest
@@ -32,6 +34,7 @@ from app.modules.resume.hidden_text import (
     OFF_PAGE,
     TINY_FONT,
     HiddenTextReport,
+    find_hidden_runs,
     find_hidden_text,
     hidden_text_of,
     was_analysed,
@@ -435,3 +438,255 @@ def test_an_injection_is_now_known_to_have_been_hidden() -> None:
     )
     weaker = {s.rule_id: s for s in detect(visible_only, as_of_month=24_320)}
     assert weaker["INJECTED_INSTRUCTIONS"].evidence["in_hidden_text"] is False
+
+
+# ---------------------------------------------------------------------------
+# What is painted under the text (detector revision 2, 2026-11-26)
+# ---------------------------------------------------------------------------
+# On UAT a real candidate's two-column CV -- white summary, job titles and
+# headings on a navy sidebar -- raised HIGH on 38 of 429 chunks, every one of
+# them their own visible words. These are that template and its neighbours.
+#: A navy left column, the way a two-column template paints it.
+NAVY_SIDEBAR = "q 0.12 0.22 0.39 rg 0 0 200 792 re f Q\n"
+
+
+def _white_at(x: int, y: int, text: str = PAYLOAD, extra: str = "") -> str:
+    return f"BT /F1 12 Tf {extra}1 1 1 rg 1 0 0 1 {x} {y} Tm ({text}) Tj ET\n"
+
+
+def test_white_text_on_a_dark_sidebar_is_visible() -> None:
+    """**The UAT false positive.** White on navy is what the template is."""
+    content = NAVY_SIDEBAR + VISIBLE + _white_at(20, 650)
+    report = analyse(content)
+    assert report.analysed is True
+    assert report.text == ""
+    assert report.reasons == ()
+
+
+def test_a_whole_white_sidebar_column_is_visible_and_raises_nothing() -> None:
+    """The shape of the UAT CV end to end: many white chunks, all on the
+    band, and no signal."""
+    content = NAVY_SIDEBAR + "".join(
+        _white_at(20, 750 - i * 20, f"sidebar line {i} summary job title heading")
+        for i in range(12)
+    )
+    content += VISIBLE
+    assert analyse(content).text == ""
+    assert _signals_for(content) == []
+
+
+def test_white_text_on_a_white_page_is_still_hidden() -> None:
+    """Nothing painted, or a white rectangle painted: the page is white."""
+    for backdrop in ("", "q 1 1 1 rg 0 0 612 792 re f Q\n"):
+        report = analyse(backdrop + VISIBLE + _white_at(72, 650))
+        assert PAYLOAD in report.text, repr(backdrop)
+        assert report.reasons == (NEAR_WHITE_FILL,)
+
+
+def test_a_white_rectangle_over_a_dark_band_makes_it_white_again() -> None:
+    """Paint order matters: an exact white rectangle on top of the band is
+    the background now, so white text there is white on white. Otherwise a
+    dark band hidden under a white one would be a way past the detector."""
+    content = NAVY_SIDEBAR + "q 1 1 1 rg 0 0 612 792 re f Q\n" + VISIBLE + _white_at(20, 650)
+    assert PAYLOAD in analyse(content).text
+
+
+def test_invisible_render_mode_on_a_dark_band_is_still_hidden() -> None:
+    """The backdrop answers only the near-white question. Mode 3 paints no
+    glyph whatever is behind it."""
+    content = NAVY_SIDEBAR + VISIBLE + _white_at(20, 650, extra="3 Tr ")
+    report = analyse(content)
+    assert PAYLOAD in report.text
+    assert report.reasons == (INVISIBLE_RENDER_MODE,)
+
+
+def test_near_white_text_partly_over_a_band_reports_only_the_uncovered_part() -> None:
+    """A header band across the top: the white name on it is visible, the
+    white keywords below it, on the bare page, are not."""
+    band = "q 0.2 0.2 0.2 rg 0 700 612 92 re f Q\n"
+    on_band = "Priya Deshmukh Senior Microbiologist"
+    content = (
+        band
+        + VISIBLE
+        + (
+            "BT /F1 12 Tf 1 1 1 rg\n"
+            f"1 0 0 1 72 740 Tm ({on_band}) Tj\n"
+            f"1 0 0 1 72 400 Tm ({PAYLOAD}) Tj\n"
+            "ET\n"
+        )
+    )
+    report = analyse(content)
+    assert PAYLOAD in report.text
+    assert on_band not in report.text
+    assert report.hidden_chunks == 1
+
+
+def test_a_baseline_just_under_the_band_still_counts_as_on_it() -> None:
+    """Glyphs sit above their baseline. A run whose baseline is a hair below
+    the band's bottom edge is printed on the band."""
+    band = "q 0.2 0.2 0.2 rg 0 700 612 92 re f Q\n"
+    assert analyse(band + VISIBLE + _white_at(72, 697)).text == ""
+
+
+def test_the_band_is_placed_through_the_ctm() -> None:
+    """A rectangle drawn in a translated, scaled space lands where the CTM
+    puts it -- here the unit square becomes the left 200pt column."""
+    content = "q 200 0 0 792 0 0 cm 0.1 0.1 0.3 rg 0 0 1 1 re f Q\n" + VISIBLE + _white_at(20, 650)
+    assert analyse(content).text == ""
+    # And text outside where the CTM put it is still on the bare page.
+    assert PAYLOAD in analyse(content.replace("20 650 Tm", "300 650 Tm")).text
+
+
+def test_a_band_painted_after_the_text_does_not_count() -> None:
+    """Only what was painted *before* a glyph is behind it."""
+    content = VISIBLE + _white_at(20, 650) + NAVY_SIDEBAR
+    assert PAYLOAD in analyse(content).text
+
+
+def test_a_stroked_outline_is_not_a_background() -> None:
+    """`S` draws the edge of the box and fills nothing."""
+    content = "q 0 0 0 RG 0 0 200 792 re S Q\n" + VISIBLE + _white_at(20, 650)
+    assert PAYLOAD in analyse(content).text
+
+
+@pytest.mark.parametrize(
+    "backdrop",
+    [
+        pytest.param("q /P1 scn 0 0 200 792 re f Q\n", id="pattern fill"),
+        pytest.param(
+            "q 0.1 0.1 0.3 rg 0 0 m 200 0 l 200 792 l 0 792 c h f Q\n", id="freeform shape"
+        ),
+        pytest.param("q 0.1 0.1 0.3 rg 0 0 200 792 re B Q\n", id="fill and stroke"),
+        pytest.param("q /Sh1 sh Q\n", id="shading"),
+    ],
+)
+def test_an_undecidable_or_shaped_backdrop_counts_as_dark(backdrop: str) -> None:
+    """Built to miss rather than guess: a colour we cannot read, a shape we
+    know only by its bounding box, a shading over a clip we do not track --
+    all of them make white text over them visible."""
+    assert analyse(backdrop + VISIBLE + _white_at(20, 650)).text == ""
+
+
+def test_the_detector_version_changed_with_the_rules() -> None:
+    """A different detector produces a different analysis; the stored record
+    must say which one ran."""
+    assert analyse(VISIBLE).as_stored()["detector_version"] == "2"
+
+
+# ---------------------------------------------------------------------------
+# .docx: shading behind a white run
+# ---------------------------------------------------------------------------
+def _docx_report(build: Callable[[Any], None]) -> HiddenTextReport:
+    import docx
+
+    document = docx.Document()
+    document.add_paragraph("Priya Deshmukh Microbiology Pune")
+    build(document)
+    out = io.BytesIO()
+    document.save(out)
+    out.seek(0)
+    reloaded = docx.Document(out)
+    return find_hidden_runs(reloaded)
+
+
+def _shade(properties: Any, fill: str, val: str = "clear") -> None:
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    shd = OxmlElement("w:shd")
+    shd.set(qn("w:val"), val)
+    shd.set(qn("w:color"), "auto")
+    shd.set(qn("w:fill"), fill)
+    properties.append(shd)
+
+
+def _white_run(paragraph: Any, text: str = PAYLOAD) -> Any:
+    from docx.shared import RGBColor
+
+    run = paragraph.add_run(text)
+    run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+    return run
+
+
+def test_docx_white_run_in_a_dark_shaded_cell_is_visible() -> None:
+    """The Word version of the sidebar: a two-column table whose left cell
+    is shaded navy."""
+
+    def build(document: Any) -> None:
+        table = document.add_table(rows=1, cols=2)
+        sidebar, body = table.rows[0].cells
+        _shade(sidebar._tc.get_or_add_tcPr(), "1F3864")
+        _white_run(sidebar.paragraphs[0])
+        body.paragraphs[0].add_run("Experience at a lab in Pune")
+
+    report = _docx_report(build)
+    assert report.analysed is True
+    assert report.text == ""
+
+
+def test_docx_white_run_in_an_unshaded_or_white_cell_is_hidden() -> None:
+    def build(document: Any) -> None:
+        table = document.add_table(rows=1, cols=2)
+        white, bare = table.rows[0].cells
+        _shade(white._tc.get_or_add_tcPr(), "FFFFFF")
+        _white_run(white.paragraphs[0], "first " + PAYLOAD)
+        _white_run(bare.paragraphs[0], "second " + PAYLOAD)
+
+    report = _docx_report(build)
+    assert "first " + PAYLOAD in report.text
+    assert "second " + PAYLOAD in report.text
+    assert report.reasons == (NEAR_WHITE_FILL,)
+    assert report.hidden_chunks == 2
+
+
+def test_docx_white_run_on_the_bare_page_is_still_hidden() -> None:
+    report = _docx_report(lambda document: _white_run(document.add_paragraph()))
+    assert PAYLOAD in report.text
+    assert report.reasons == (NEAR_WHITE_FILL,)
+
+
+def test_docx_a_hidden_run_in_a_shaded_cell_is_still_hidden() -> None:
+    """`w:vanish` is not shown whatever the cell looks like."""
+
+    def build(document: Any) -> None:
+        cell = document.add_table(rows=1, cols=1).rows[0].cells[0]
+        _shade(cell._tc.get_or_add_tcPr(), "1F3864")
+        run = _white_run(cell.paragraphs[0])
+        run.font.hidden = True
+
+    report = _docx_report(build)
+    assert PAYLOAD in report.text
+    assert report.reasons == (INVISIBLE_RENDER_MODE,)
+
+
+def test_docx_paragraph_and_run_shading_count_as_a_background() -> None:
+    def build(document: Any) -> None:
+        shaded_paragraph = document.add_paragraph()
+        _shade(shaded_paragraph._p.get_or_add_pPr(), "333333")
+        _white_run(shaded_paragraph, "on a shaded paragraph " + PAYLOAD)
+        run = _white_run(document.add_paragraph(), "on a shaded run " + PAYLOAD)
+        _shade(run._r.get_or_add_rPr(), "333333")
+
+    assert _docx_report(build).text == ""
+
+
+def test_docx_a_pattern_shading_is_undecidable_and_counts_as_dark() -> None:
+    def build(document: Any) -> None:
+        cell = document.add_table(rows=1, cols=1).rows[0].cells[0]
+        _shade(cell._tc.get_or_add_tcPr(), "FFFFFF", val="pct50")
+        _white_run(cell.paragraphs[0])
+
+    assert _docx_report(build).text == ""
+
+
+def test_docx_white_run_on_a_dark_page_background_is_visible() -> None:
+    def build(document: Any) -> None:
+        from docx.oxml import OxmlElement
+        from docx.oxml.ns import qn
+
+        background = OxmlElement("w:background")
+        background.set(qn("w:color"), "1F3864")
+        document.element.insert(0, background)
+        _white_run(document.add_paragraph())
+
+    assert _docx_report(build).text == ""

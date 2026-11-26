@@ -51,12 +51,35 @@ below is set to refuse rather than guess, and two cases are deliberately
   text is reported only when it is a *minority* of the document
   (`MAX_INVISIBLE_RATIO`); when nearly all of it is invisible, this is a
   searchable scan and we say nothing.
-* **White text on a dark banner.** Common in CV templates: a coloured header
-  with the candidate's name reversed out of it. We cannot see the banner from
-  the text operators alone, so near-white text is reported as found and the
-  *rule* applies the length floor — `hidden_text_min_chars` is 80, and a name
-  and job title are nowhere near that. Tracking filled rectangles to rule this
-  out properly is possible and is not worth the machinery today.
+* **White text on a dark banner or sidebar.** Common in CV templates: a
+  coloured header with the name reversed out of it, or a two-column layout
+  whose whole left column -- summary, job titles, section headings -- is
+  white on navy. Revision 1 looked only at the text's fill colour, so it
+  called all of that hidden; on UAT, 2026-11-26, it raised HIGH on a real
+  candidate for 38 chunks of their own summary. Since revision 2 the pass
+  also records **what is painted under the text** (`_Backdrop`): every
+  filled path (`re`, and `m`/`l`/`c` shapes by bounding box), image and
+  shading, in paint order with its fill colour and the CTM. Near-white text
+  is reported only when the topmost paint under it is near-white too, or
+  nothing is painted there at all -- white on an unpainted page is still
+  white on white.
+
+  **Undecidable backgrounds count as dark**, because that is the direction
+  that misses rather than guesses: a pattern or ICC fill, an image (a photo
+  header could be any colour), a `sh` shading (it fills the clip, which we
+  do not track, so it covers the page) and a curved shape's bounding box all
+  make the white text over them visible. A *white* paint is trusted to
+  restore a white background only when it is an exact axis-aligned
+  rectangle; a white shape's bounding box over-states it, and over-stating
+  white is the false-positive direction. A chunk is judged at its start
+  (two points: the baseline origin and a third of an em above it), so a run
+  that starts on a band and runs off it is not reported. That is a miss, by
+  design.
+
+  Form XObjects are a known gap, as before: pypdf walks their operators
+  with the CTM reset, so their paints land in the wrong place. Whatever a
+  form paints is still recorded, and a misplaced dark paint can only hide a
+  finding, never make one.
 
 ## How it reads the page
 
@@ -77,7 +100,7 @@ round for a rule that hides people.
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Final
 
@@ -88,7 +111,13 @@ logger = get_logger(__name__)
 #: Bump when the detection logic changes in a way that alters what is found.
 #: Recorded alongside the text so a stored analysis says which version of
 #: these rules produced it.
-DETECTOR_REVISION: Final = "1"
+#:
+#: * "1" (2026-09-22): fill colour alone decided near-white.
+#: * "2" (2026-11-26): near-white text over a darker paint is visible (PDF:
+#:   filled paths, images, shadings; .docx: cell, paragraph and run shading,
+#:   highlight, page background). Versions analysed under "1" are not
+#:   re-checked -- see `docs/progress.md`.
+DETECTOR_REVISION: Final = "2"
 
 # ---------------------------------------------------------------------------
 # Thresholds. Every one of these is set to under-report.
@@ -233,6 +262,143 @@ def _device_origin(cm: Any, tm: Any) -> tuple[float, float] | None:
     return (a * x + c * y + e, b * x + d * y + f)
 
 
+# ---------------------------------------------------------------------------
+# What is painted under the text
+# ---------------------------------------------------------------------------
+_Matrix = tuple[float, float, float, float, float, float]
+_Box = tuple[float, float, float, float]  # left, bottom, right, top
+
+#: Operators that fill the current path (and, for the B family, stroke it).
+_FILL_OPERATORS: Final = frozenset({"f", "F", "f*", "B", "B*", "b", "b*"})
+#: Operators that build a path.
+_PATH_OPERATORS: Final = frozenset({"m", "l", "c", "v", "y", "h", "re"})
+#: Operators that end a path without filling it.
+_NO_FILL_OPERATORS: Final = frozenset({"n", "S", "s"})
+
+#: Slack around a painted box when asking whether a point is inside it, in
+#: points. A baseline sitting exactly on a band's edge is on the band.
+_BOX_SLACK: Final = 0.5
+
+#: How far above the baseline, in ems, the second sample point of a chunk
+#: sits. The baseline alone can fall just below a band that the glyphs are
+#: plainly on.
+_SAMPLE_HEIGHT_EM: Final = 0.33
+
+#: A hostile page could paint a million rectangles to make the lookup slow.
+#: Past this many the page's backdrop is undecidable, which counts as dark.
+MAX_PAINTS_PER_PAGE: Final = 5_000
+
+
+def _matrix(value: Any) -> _Matrix | None:
+    try:
+        a, b, c, d, e, f = (float(value[i]) for i in range(6))
+    except (TypeError, ValueError, IndexError):
+        return None
+    return (a, b, c, d, e, f)
+
+
+def _apply(m: _Matrix, x: float, y: float) -> tuple[float, float]:
+    a, b, c, d, e, f = m
+    return (a * x + c * y + e, b * x + d * y + f)
+
+
+def _is_axis_aligned(m: _Matrix) -> bool:
+    """Whether a rectangle stays a rectangle under this matrix: no rotation
+    other than quarter turns, and no shear."""
+    a, b, c, d, _, _ = m
+    return (b == 0.0 and c == 0.0) or (a == 0.0 and d == 0.0)
+
+
+def _bounds(points: Sequence[tuple[float, float]]) -> _Box:
+    xs = [p[0] for p in points]
+    ys = [p[1] for p in points]
+    return (min(xs), min(ys), max(xs), max(ys))
+
+
+@dataclass(frozen=True, slots=True)
+class _Paint:
+    box: _Box
+    #: None when the colour cannot be read (pattern, ICC, image, shading).
+    luminance: float | None
+    #: True only when `box` is exactly the painted area -- an axis-aligned
+    #: `re` that was the whole path. A white paint must be exact to count,
+    #: because a bounding box over-states it.
+    exact: bool
+
+    def contains(self, x: float, y: float) -> bool:
+        left, bottom, right, top = self.box
+        return (
+            left - _BOX_SLACK <= x <= right + _BOX_SLACK
+            and bottom - _BOX_SLACK <= y <= top + _BOX_SLACK
+        )
+
+
+@dataclass
+class _Backdrop:
+    """Everything painted on one page so far, in paint order.
+
+    Answers one question: is the topmost paint under a point something a
+    near-white glyph would stand out against? See the module docstring for
+    why every undecidable answer is "yes".
+    """
+
+    paints: list[_Paint] = field(default_factory=list)
+    #: Set when the page can no longer be judged (a `sh`, or too many paints).
+    #: From then on every point counts as painted dark.
+    undecidable: bool = False
+
+    def add(self, paint: _Paint) -> None:
+        if self.undecidable:
+            return
+        if len(self.paints) >= MAX_PAINTS_PER_PAGE:
+            self.undecidable = True
+            self.paints.clear()
+            return
+        self.paints.append(paint)
+
+    def is_dark_under(self, x: float, y: float) -> bool:
+        if self.undecidable:
+            return True
+        for paint in reversed(self.paints):
+            if not paint.contains(x, y):
+                continue
+            if paint.luminance is None or paint.luminance < NEAR_WHITE_LUMINANCE:
+                return True
+            if paint.exact:
+                # A white rectangle painted over whatever was below: the
+                # background here really is white again.
+                return False
+            # A white shape known only by its bounding box. It may not
+            # cover this point, so look at what is underneath.
+        return False
+
+
+@dataclass
+class _Path:
+    """The path under construction, in device space."""
+
+    rects: list[tuple[_Box, bool]] = field(default_factory=list)
+    points: list[tuple[float, float]] = field(default_factory=list)
+    #: True once anything other than `re` has been used.
+    freeform: bool = False
+
+    def clear(self) -> None:
+        self.rects.clear()
+        self.points.clear()
+        self.freeform = False
+
+    def paints(self, luminance: float | None) -> list[_Paint]:
+        if self.freeform:
+            every = self.points + [
+                corner for box, _ in self.rects for corner in ((box[0], box[1]), (box[2], box[3]))
+            ]
+            return [_Paint(_bounds(every), luminance, exact=False)] if every else []
+        # Several rectangles in one path can cut holes in each other (even-odd
+        # fill, or opposite windings), so only a lone one is exact.
+        lone = len(self.rects) == 1
+        return [_Paint(box, luminance, exact=lone and aligned) for box, aligned in self.rects]
+
+
 @dataclass
 class _GraphicsState:
     """The slice of PDF graphics state that decides visibility."""
@@ -255,21 +421,35 @@ class _Collector:
     """Walks one page's operators and text."""
 
     media_box: tuple[float, float, float, float]
+    #: The page's `/XObject` resources, to tell an image from a form.
+    xobjects: Any = None
     state: _GraphicsState = field(default_factory=_GraphicsState)
     stack: list[_GraphicsState] = field(default_factory=list)
+    backdrop: _Backdrop = field(default_factory=_Backdrop)
+    path: _Path = field(default_factory=_Path)
     chunks: int = 0
     invisible_mode_chunks: int = 0
     found: list[_Chunk] = field(default_factory=list)
 
     # -- operators ---------------------------------------------------------
-    def on_operand(self, operator: bytes, operands: list[Any], _cm: Any, _tm: Any) -> None:
+    def on_operand(self, operator: bytes, operands: list[Any], cm: Any, _tm: Any) -> None:
         op = (
             operator.decode("ascii", errors="replace")
             if isinstance(operator, bytes)
             else str(operator)
         )
 
-        if op == "q":
+        if op in _PATH_OPERATORS or op in _FILL_OPERATORS or op in _NO_FILL_OPERATORS:
+            self._on_path(op, operands, cm)
+        elif op == "Do":
+            self._on_xobject(operands, cm)
+        elif op == "INLINE IMAGE":
+            self._paint_unit_square(cm)
+        elif op == "sh":
+            # A shading fills the current clip, which this pass does not
+            # track: it may cover the whole page, in colours we cannot read.
+            self.backdrop.undecidable = True
+        elif op == "q":
             self.stack.append(self.state.copy())
         elif op == "Q":
             # An unbalanced Q is malformed; ignoring it beats raising inside
@@ -284,11 +464,87 @@ class _Collector:
             pass
         elif op in ("rg", "g", "k", "sc", "scn"):
             self.state.fill_luminance = _luminance(operands)
+        elif op == "cs":
+            # Choosing a colour space resets the colour to that space's
+            # initial value, which we do not resolve: unknown, so visible.
+            self.state.fill_luminance = None
         elif op == "Tr":
             try:
                 self.state.render_mode = int(operands[0])
             except (TypeError, ValueError, IndexError):
                 self.state.render_mode = 0
+
+    # -- painting ----------------------------------------------------------
+    def _on_path(self, op: str, operands: list[Any], cm: Any) -> None:
+        m = _matrix(cm)
+        if op in _FILL_OPERATORS:
+            for paint in self.path.paints(self.state.fill_luminance):
+                self.backdrop.add(paint)
+            self.path.clear()
+            return
+        if op in _NO_FILL_OPERATORS:
+            self.path.clear()
+            return
+        if m is None:
+            # A path we cannot place. Whatever it paints is undecidable.
+            self.backdrop.undecidable = True
+            return
+        if op == "re":
+            try:
+                x, y, w, h = (float(o) for o in operands[:4])
+            except (TypeError, ValueError):
+                return
+            corners = [_apply(m, x, y), _apply(m, x + w, y), _apply(m, x, y + h)]
+            corners.append(_apply(m, x + w, y + h))
+            self.path.rects.append((_bounds(corners), _is_axis_aligned(m)))
+            return
+        if op == "h":
+            return
+        # m, l, c, v, y: a freeform shape, kept as the bounding box of every
+        # point named -- control points included, which only makes it larger.
+        self.path.freeform = True
+        try:
+            numbers = [float(o) for o in operands]
+        except (TypeError, ValueError):
+            return
+        for i in range(0, len(numbers) - 1, 2):
+            self.path.points.append(_apply(m, numbers[i], numbers[i + 1]))
+
+    def _on_xobject(self, operands: list[Any], cm: Any) -> None:
+        """An image paints the unit square under the CTM, in colours we do not
+        read. A form's own operators reach `on_operand` through pypdf, so it
+        paints nothing here."""
+        try:
+            subtype = self.xobjects[operands[0]]["/Subtype"]
+        except Exception:
+            subtype = None
+        if subtype == "/Form":
+            return
+        self._paint_unit_square(cm)
+
+    def _paint_unit_square(self, cm: Any) -> None:
+        m = _matrix(cm)
+        if m is None:
+            self.backdrop.undecidable = True
+            return
+        corners = [_apply(m, 0, 0), _apply(m, 1, 0), _apply(m, 0, 1), _apply(m, 1, 1)]
+        self.backdrop.add(_Paint(_bounds(corners), None, exact=False))
+
+    def _covered(self, cm: Any, tm: Any, font_size: Any) -> bool:
+        """Whether something darker than the page is painted under this
+        chunk's start. Undecidable counts as covered."""
+        m_cm, m_tm = _matrix(cm), _matrix(tm)
+        if m_cm is None or m_tm is None:
+            return True
+        try:
+            size = float(font_size)
+        except (TypeError, ValueError):
+            size = 0.0
+        for tx, ty in ((0.0, 0.0), (0.0, size * _SAMPLE_HEIGHT_EM)):
+            x, y = _apply(m_cm, *_apply(m_tm, tx, ty))
+            if self.backdrop.is_dark_under(x, y):
+                return True
+        return False
 
     # -- text --------------------------------------------------------------
     def on_text(self, text: str, cm: Any, tm: Any, _font: Any, font_size: Any) -> None:
@@ -309,7 +565,11 @@ class _Collector:
             return INVISIBLE_RENDER_MODE
 
         luminance = self.state.fill_luminance
-        if luminance is not None and luminance >= NEAR_WHITE_LUMINANCE:
+        if (
+            luminance is not None
+            and luminance >= NEAR_WHITE_LUMINANCE
+            and not self._covered(cm, tm, font_size)
+        ):
             return NEAR_WHITE_FILL
 
         try:
@@ -347,6 +607,17 @@ def _media_box(page: Any) -> tuple[float, float, float, float]:
     return (0.0, 0.0, 612.0, 792.0)
 
 
+def _xobjects(page: Any) -> Any:
+    """The page's `/XObject` dictionary, or None. Only used to tell an image
+    from a form; an unreadable one makes every `Do` an image, which can only
+    make text over it visible."""
+    try:
+        resources = page["/Resources"].get_object()
+        return resources["/XObject"].get_object()
+    except Exception:
+        return None
+
+
 def find_hidden_text(pages: Sequence[Any]) -> HiddenTextReport:
     """Analyse already-loaded pypdf pages for text a reader cannot see.
 
@@ -368,7 +639,7 @@ def _find(pages: Sequence[Any]) -> HiddenTextReport:
     found: list[_Chunk] = []
 
     for page in pages:
-        collector = _Collector(media_box=_media_box(page))
+        collector = _Collector(media_box=_media_box(page), xobjects=_xobjects(page))
         # A second pass, separate from the one that produced `raw_text`, so
         # the scored text cannot be affected by anything here.
         page.extract_text(
@@ -426,27 +697,136 @@ def find_hidden_runs(document: Any) -> HiddenTextReport:
         return NOT_ANALYSED
 
 
+def _hex_luminance(value: Any) -> float | None:
+    """Luminance of a Word `RRGGBB` colour, or None when it is not one."""
+    rgb = str(value)
+    if len(rgb) != 6:
+        return None
+    try:
+        r, g, b = (int(rgb[i : i + 2], 16) / 255.0 for i in (0, 2, 4))
+    except ValueError:
+        return None
+    return 0.299 * r + 0.587 * g + 0.114 * b
+
+
 def _run_luminance(run: Any) -> float | None:
     try:
         colour = run.font.color
         if colour is None or colour.rgb is None:
             return None
-        rgb = str(colour.rgb)
-        if len(rgb) != 6:
-            return None
-        r, g, b = (int(rgb[i : i + 2], 16) / 255.0 for i in (0, 2, 4))
+        return _hex_luminance(colour.rgb)
     except Exception:
         return None
-    return 0.299 * r + 0.587 * g + 0.114 * b
+
+
+_W_NS: Final = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+
+
+def _w(name: str) -> str:
+    return f"{{{_W_NS}}}{name}"
+
+
+#: `w:highlight` values that leave the background as the page.
+_PAGE_HIGHLIGHTS: Final = frozenset({"none", "white"})
+
+#: How far up a style's `basedOn` chain to look. A damaged file can loop; a
+#: cap is cheaper than detecting the cycle.
+_MAX_STYLE_DEPTH: Final = 10
+
+
+def _shading_is_dark(shd: Any) -> bool:
+    """Whether one `w:shd` paints something a near-white run stands out
+    against. Undecidable (a pattern, a theme colour with no cached value)
+    counts as dark -- the direction that misses rather than guesses.
+
+    `clear` means "no pattern", so the background is `w:fill`; `solid` is a
+    100% pattern, so it is `w:color`; anything else mixes the two.
+    """
+    pattern = shd.get(_w("val"))
+    if pattern == "nil":
+        return False
+    if pattern == "clear":
+        colour = shd.get(_w("fill"))
+    elif pattern == "solid":
+        colour = shd.get(_w("color"))
+    else:
+        return True
+    if colour is None or colour == "auto":
+        # Nothing painted -- unless a theme colour is named without a cached
+        # value, which we cannot resolve.
+        return shd.get(_w("themeFill")) is not None
+    luminance = _hex_luminance(colour)
+    return luminance is None or luminance < NEAR_WHITE_LUMINANCE
+
+
+def _shades_dark(element: Any, properties: str) -> bool:
+    """Whether `element` (a `w:p`, `w:r`, `w:tc` or `w:tbl`) has a dark
+    `w:shd` or highlight in its `properties` child (`pPr`, `rPr`, ...)."""
+    if element is None:
+        return False
+    pr = element.find(_w(properties))
+    if pr is None:
+        return False
+    shd = pr.find(_w("shd"))
+    if shd is not None and _shading_is_dark(shd):
+        return True
+    highlight = pr.find(_w("highlight"))
+    return highlight is not None and highlight.get(_w("val")) not in _PAGE_HIGHLIGHTS
+
+
+def _style_shades_dark(style: Any) -> bool:
+    """Whether a paragraph or table style, or one it is based on, shades
+    anything dark. A table style's shading may apply only to its header row
+    or banded rows; we do not resolve which, so any dark shading anywhere in
+    the style makes the whole table count. Over-stating dark is a miss."""
+    for _ in range(_MAX_STYLE_DEPTH):
+        if style is None:
+            return False
+        element = getattr(style, "element", None)
+        if element is not None:
+            if any(_shading_is_dark(shd) for shd in element.iter(_w("shd"))):
+                return True
+            if any(h.get(_w("val")) not in _PAGE_HIGHLIGHTS for h in element.iter(_w("highlight"))):
+                return True
+        style = getattr(style, "base_style", None)
+    return False
+
+
+def _page_is_dark(document: Any) -> bool:
+    """`w:background`, the page colour. Word shows it on screen, so white
+    text on a dark page is visible."""
+    background = document.element.find(_w("background"))
+    if background is None:
+        return False
+    colour = background.get(_w("color"))
+    if colour is None or colour == "auto":
+        return background.get(_w("themeColor")) is not None
+    luminance = _hex_luminance(colour)
+    return luminance is None or luminance < NEAR_WHITE_LUMINANCE
+
+
+def _safely(check: Callable[..., bool], *args: Any) -> bool:
+    """A background check that cannot fail the analysis. An unreadable
+    background is undecidable, so it counts as dark."""
+    try:
+        return check(*args)
+    except Exception:
+        return True
 
 
 def _find_runs(document: Any) -> HiddenTextReport:
     found: list[_Chunk] = []
     chunks = 0
+    page_dark = _safely(_page_is_dark, document)
 
-    def walk(paragraphs: Any) -> None:
+    def walk(paragraphs: Any, *, behind_is_dark: bool) -> None:
         nonlocal chunks
         for paragraph in paragraphs:
+            paragraph_dark = (
+                behind_is_dark
+                or _safely(_shades_dark, paragraph._p, "pPr")
+                or _safely(_style_shades_dark, getattr(paragraph, "style", None))
+            )
             for run in paragraph.runs:
                 if not run.text or not run.text.strip():
                     continue
@@ -455,14 +835,25 @@ def _find_runs(document: Any) -> HiddenTextReport:
                     found.append(_Chunk(run.text.strip(), INVISIBLE_RENDER_MODE))
                     continue
                 luminance = _run_luminance(run)
-                if luminance is not None and luminance >= NEAR_WHITE_LUMINANCE:
-                    found.append(_Chunk(run.text.strip(), NEAR_WHITE_FILL))
+                if luminance is None or luminance < NEAR_WHITE_LUMINANCE:
+                    continue
+                if paragraph_dark or _safely(_shades_dark, run._r, "rPr"):
+                    # White on a shaded cell, paragraph or run: a sidebar or
+                    # a header band, and plainly visible.
+                    continue
+                found.append(_Chunk(run.text.strip(), NEAR_WHITE_FILL))
 
-    walk(document.paragraphs)
+    walk(document.paragraphs, behind_is_dark=page_dark)
     for table in document.tables:
+        table_dark = (
+            page_dark
+            or _safely(_shades_dark, table._tbl, "tblPr")
+            or _safely(_style_shades_dark, getattr(table, "style", None))
+        )
         for row in table.rows:
             for cell in row.cells:
-                walk(cell.paragraphs)
+                cell_dark = table_dark or _safely(_shades_dark, cell._tc, "tcPr")
+                walk(cell.paragraphs, behind_is_dark=cell_dark)
 
     if not found:
         return HiddenTextReport(analysed=True, chunks=chunks)

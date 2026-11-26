@@ -9,6 +9,43 @@ states. Newest entries first.
 
 ---
 
+## 2026-11-26 — Hidden-text detector: white on a dark band is visible
+
+Asked for: stop the hidden-text pass flagging designed CVs. On UAT a real
+candidate's two-column template (white summary, job titles and headings on
+a navy sidebar) raised a HIGH `HIDDEN_TEXT` signal on 38 of 429 chunks, so
+they vanished from search and every apply answered 409
+`application_unavailable` until staff cleared it. No migration.
+
+- **Revision 1 read only the text's fill colour.** `NEAR_WHITE_FILL` now
+  also asks what is painted under the chunk (`hidden_text._Backdrop`):
+  filled paths (`re` exactly, `m`/`l`/`c` shapes by bounding box) with their
+  fill colour and CTM, images, inline images and `sh`, in paint order.
+  Near-white text is reported only when the topmost paint under its start is
+  near-white too, or nothing is painted there. White on a bare or white page
+  is still reported; invisible mode, tiny type and off-page are unchanged.
+- **Undecidable counts as dark** -- pattern/ICC fills, images, a shading
+  (it fills an untracked clip, so the whole page), curved shapes, too many
+  paints. A white paint restores a white background only when it is an
+  exact axis-aligned rectangle. A chunk is judged at its start, so one that
+  starts on a band and runs off it is not reported. All misses, by design.
+- **.docx**: a white run counts as visible on a dark `w:shd` (cell,
+  paragraph, run, table, or anywhere in the paragraph/table style chain), a
+  non-white `w:highlight`, or a dark `w:background`. Pattern shadings and
+  unresolved theme fills count as dark.
+- **`DETECTOR_REVISION` is "2".** Versions analysed under "1" are **not
+  re-checked**: their stored analysis and any signal it raised stay as they
+  are, and staff clear those by hand in the console as before. Re-running the
+  pass over live candidates is a decision, not a migration.
+- Which rules may reach HIGH is unchanged, and `raw_text` is untouched: the
+  pass still identifies and never subtracts.
+- **Found in passing, not fixed:** `test_hidden_text_is_found_and_says_why
+  [parked far to the right]` fails on HEAD with pypdf 6.4, which delivers a
+  second chunk on the same line with an identity text matrix, losing its
+  origin. CI was last green on 2026-10-26, with an older pypdf.
+
+---
+
 ## 2026-11-23 — Web parity and verification follow-up
 
 Implementation and verification: [round report, section H](bugfix-round-2026-11-23.md#h-web-parity-follow-up-2026-11-23).
