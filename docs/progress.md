@@ -9,6 +9,48 @@ states. Newest entries first.
 
 ---
 
+## 2026-11-27 — Hidden-text detector revision 3: judged by rendering
+
+Asked for: a detector that checks *all* hidden text, not only white -- the
+case in hand was blue keywords on a blue sidebar, which revision 2 never
+looked at. No migration.
+
+- **The PDF pass renders the page** (`resume/hidden_text_render.py`).
+  pdfium draws it, every text object is set to invisible render mode in
+  memory (nested in forms too), it is drawn again, and each character's
+  glyph box is compared. A change of at most `MIN_VISIBLE_DIFFERENCE` (24 of
+  255 in any channel) is invisible. Reasons for a reviewer: `NEAR_WHITE_FILL`,
+  new `MATCHES_BACKGROUND` (blue on blue), `COVERED` (painted over),
+  `TRANSPARENT_FILL` (`/ca 0`), plus `INVISIBLE_RENDER_MODE`; `TINY_FONT`
+  and `OFF_PAGE` stay structural. Judged per character, so a line that runs
+  off a band onto bare page reports only the bare part.
+- **Still built to miss**: a character with no silenceable text object, no
+  glyph area, or a box off the bitmap but within the inch margin is visible;
+  clip-mode text (4-7) with anything varying in its box is visible (pdfium
+  keeps the clip on later objects, so silencing it changes nothing); the OCR
+  discriminator now drops both invisible-mode and `COVERED` findings when
+  over 90% of characters are hidden that way. Colour findings are never
+  dropped.
+- **Clip-mode headings are no longer reported**: text in mode 7 with an
+  image or colour painted through it is visible, and revisions 1-2 called it
+  invisible.
+- **The operator pass is the fallback** when pdfium cannot open or draw a
+  file; the stored analysis gains `method` (`render`, `operators`,
+  `structure` for .docx).
+- **.docx** compares a run's colour with what is behind it -- highlight, run,
+  paragraph, cell, table shading, page background, else white -- with the
+  same 24 (a test holds them equal). Shading from a style, a pattern or an
+  unresolved theme colour is never judged.
+- **`PDFIUM_LOCK`** (`resume/pdfium_lock.py`): pdfium is not thread-safe and
+  the parser and preview both run in the API's thread pool.
+- Checked against reality: the builder's four templates (a test now) and the
+  78 pages of PDF under `docs/` produce no finding; 55-100 ms a page.
+- `DETECTOR_REVISION` is "3". As with revision 2, **nothing analysed before
+  is re-checked**, and the pypdf 6.4 failure noted below is gone with it --
+  off-page is now read from pdfium's glyph boxes.
+
+---
+
 ## 2026-11-26 — Hidden-text detector: white on a dark band is visible
 
 Asked for: stop the hidden-text pass flagging designed CVs. On UAT a real

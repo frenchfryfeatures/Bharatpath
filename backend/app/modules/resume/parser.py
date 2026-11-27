@@ -224,7 +224,7 @@ class LocalResumeParser:
         # Outside the try, deliberately: `find_hidden_text` never raises, and
         # putting it inside would let a detector bug surface to the candidate
         # as an unreadable CV.
-        return text, len(reader.pages), find_hidden_text(pages)
+        return text, len(reader.pages), find_hidden_text(pages, content=content)
 
     def _docx(self, content: bytes) -> tuple[str, int, HiddenTextReport]:
         try:

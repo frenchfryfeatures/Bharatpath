@@ -1,5 +1,13 @@
 """Text a CV renders but a human reading it cannot see.
 
+**Since revision 3 (2026-11-27) a PDF is judged by rendering it**:
+`hidden_text_render.render_hidden_text` draws each page with pdfium and asks
+whether removing a character changes any pixel. That catches any colour on
+the same colour, transparency and text under a picture, which this module's
+operator pass cannot. The operator pass below is now the **fallback**, used
+when pdfium cannot open or draw a file, and its report says
+`method: "operators"`. Everything below describes that fallback.
+
 Populates `ResumeClaims.hidden_text`, which `_rule_hidden_text` -- one of
 only two integrity rules that may reach HIGH severity -- reads. Without this
 module that rule could never fire.
@@ -117,7 +125,11 @@ logger = get_logger(__name__)
 #:   filled paths, images, shadings; .docx: cell, paragraph and run shading,
 #:   highlight, page background). Versions analysed under "1" are not
 #:   re-checked -- see `docs/progress.md`.
-DETECTOR_REVISION: Final = "2"
+#: * "3" (2026-11-27): PDFs are judged by rendering them
+#:   (`hidden_text_render`), with the operator pass as the fallback; .docx
+#:   compares a run's colour with whatever colour is behind it, not only
+#:   white with white. Versions analysed under "1" or "2" are not re-checked.
+DETECTOR_REVISION: Final = "3"
 
 # ---------------------------------------------------------------------------
 # Thresholds. Every one of these is set to under-report.
@@ -164,6 +176,12 @@ INVISIBLE_RENDER_MODE: Final = "INVISIBLE_RENDER_MODE"
 NEAR_WHITE_FILL: Final = "NEAR_WHITE_FILL"
 TINY_FONT: Final = "TINY_FONT"
 OFF_PAGE: Final = "OFF_PAGE"
+#: Revision 3. The fill is the colour of what is behind it -- blue on blue.
+MATCHES_BACKGROUND: Final = "MATCHES_BACKGROUND"
+#: Revision 3. Something was painted over the text (a box, an image).
+COVERED: Final = "COVERED"
+#: Revision 3. The fill is fully or nearly transparent.
+TRANSPARENT_FILL: Final = "TRANSPARENT_FILL"
 
 
 @dataclass(frozen=True, slots=True)
@@ -184,6 +202,9 @@ class HiddenTextReport:
     chunks: int = 0
     hidden_chunks: int = 0
     detector_version: str = DETECTOR_REVISION
+    #: "render" (pdfium, PDFs), "operators" (the fallback PDF pass) or
+    #: "structure" (.docx). Empty only on NOT_ANALYSED.
+    method: str = ""
 
     def as_stored(self) -> dict[str, Any]:
         """The shape written into `resume_versions.parsed`."""
@@ -194,6 +215,7 @@ class HiddenTextReport:
             "chunks": self.chunks,
             "hidden_chunks": self.hidden_chunks,
             "detector_version": self.detector_version,
+            "method": self.method,
         }
 
 
@@ -618,14 +640,25 @@ def _xobjects(page: Any) -> Any:
         return None
 
 
-def find_hidden_text(pages: Sequence[Any]) -> HiddenTextReport:
-    """Analyse already-loaded pypdf pages for text a reader cannot see.
+def find_hidden_text(pages: Sequence[Any], content: bytes | None = None) -> HiddenTextReport:
+    """Analyse a PDF for text a reader cannot see.
+
+    With `content` (the file's bytes), the page is rendered and judged by its
+    pixels (`hidden_text_render`). Without it, or when rendering fails, the
+    operator pass reads the already-loaded pypdf `pages`.
 
     **Never raises.** A CV that cannot be analysed must still parse, score and
     reach an employer; a detector that could fail an upload would be a worse
     bug than the one it closes. Any failure returns `NOT_ANALYSED`, which
     stores as "nobody looked" rather than "nothing found".
     """
+    if content is not None:
+        try:
+            from app.modules.resume.hidden_text_render import render_hidden_text
+
+            return render_hidden_text(content)
+        except Exception as exc:
+            logger.warning("hidden_text_render_failed", error=str(exc))
     try:
         return _find(pages)
     except Exception as exc:
@@ -665,7 +698,7 @@ def _find(pages: Sequence[Any]) -> HiddenTextReport:
         found = [c for c in found if c.reason != INVISIBLE_RENDER_MODE]
 
     if not found:
-        return HiddenTextReport(analysed=True, chunks=total_chunks)
+        return HiddenTextReport(analysed=True, chunks=total_chunks, method="operators")
 
     text = "\n".join(c.text for c in found)[:MAX_HIDDEN_CHARS]
     return HiddenTextReport(
@@ -674,6 +707,7 @@ def _find(pages: Sequence[Any]) -> HiddenTextReport:
         analysed=True,
         chunks=total_chunks,
         hidden_chunks=len(found),
+        method="operators",
     )
 
 
@@ -684,39 +718,25 @@ def _find(pages: Sequence[Any]) -> HiddenTextReport:
 #: display it by default, and text extraction reads it regardless -- the same
 #: asymmetry the PDF tricks exploit, with a dedicated feature for it.
 def find_hidden_runs(document: Any) -> HiddenTextReport:
-    """The .docx equivalent: runs marked hidden, or coloured like the page.
+    """The .docx equivalent: runs marked hidden, or coloured like whatever is
+    behind them.
 
-    Narrower than the PDF pass by design. Word has no text render mode and no
-    absolute positioning to abuse in the same way, so the two vectors that
-    remain are the `hidden` font attribute and white-on-white.
+    Read from the document's structure, not rendered: rendering Word needs
+    LibreOffice, a large system package in the image. Word has no text render
+    mode and no absolute positioning to abuse in the same way, so the vectors
+    that remain are the `hidden` font attribute and a colour on the same
+    colour. "Behind" is resolved from the run outwards -- highlight and run
+    shading, paragraph, paragraph style, cell, table, table style, page
+    background, else white -- and compared per channel against
+    `DOCX_MIN_VISIBLE_DIFFERENCE`. Shading we cannot resolve (patterns,
+    theme colours, anything set in a style) is never judged. Text boxes and
+    shapes are not read by python-docx at all, here or in `raw_text`.
     """
     try:
         return _find_runs(document)
     except Exception as exc:
         logger.warning("hidden_runs_analysis_failed", error=str(exc))
         return NOT_ANALYSED
-
-
-def _hex_luminance(value: Any) -> float | None:
-    """Luminance of a Word `RRGGBB` colour, or None when it is not one."""
-    rgb = str(value)
-    if len(rgb) != 6:
-        return None
-    try:
-        r, g, b = (int(rgb[i : i + 2], 16) / 255.0 for i in (0, 2, 4))
-    except ValueError:
-        return None
-    return 0.299 * r + 0.587 * g + 0.114 * b
-
-
-def _run_luminance(run: Any) -> float | None:
-    try:
-        colour = run.font.color
-        if colour is None or colour.rgb is None:
-            return None
-        return _hex_luminance(colour.rgb)
-    except Exception:
-        return None
 
 
 _W_NS: Final = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -726,106 +746,177 @@ def _w(name: str) -> str:
     return f"{{{_W_NS}}}{name}"
 
 
-#: `w:highlight` values that leave the background as the page.
-_PAGE_HIGHLIGHTS: Final = frozenset({"none", "white"})
+_Rgb = tuple[float, float, float]
+
+
+class _Unknown:
+    """A background we cannot resolve: a pattern, an unresolved theme colour,
+    shading set in a style. Never judged -- the miss direction."""
+
+
+UNKNOWN: Final = _Unknown()
+
+#: What lies behind a run: a colour, nothing painted (None), or UNKNOWN.
+_Behind = _Rgb | None | _Unknown
+
+#: Word's highlight palette (ST_HighlightColor). `none` paints nothing.
+_HIGHLIGHTS: Final[dict[str, str]] = {
+    "black": "000000",
+    "blue": "0000FF",
+    "cyan": "00FFFF",
+    "green": "00FF00",
+    "magenta": "FF00FF",
+    "red": "FF0000",
+    "yellow": "FFFF00",
+    "white": "FFFFFF",
+    "darkBlue": "000080",
+    "darkCyan": "008080",
+    "darkGreen": "008000",
+    "darkMagenta": "800080",
+    "darkRed": "800000",
+    "darkYellow": "808000",
+    "darkGray": "808080",
+    "lightGray": "C0C0C0",
+}
+
+#: The page when nothing says otherwise.
+_WHITE: Final[_Rgb] = (255.0, 255.0, 255.0)
+
+#: The largest per-channel difference between a run's colour and what is
+#: behind it that still counts as invisible -- the same line the PDF render
+#: pass draws (`hidden_text_render.MIN_VISIBLE_DIFFERENCE`), kept equal by a
+#: test. 0.92 grey on white differs by 20 and is hidden; 0.85 grey by 38.
+DOCX_MIN_VISIBLE_DIFFERENCE: Final = 24
 
 #: How far up a style's `basedOn` chain to look. A damaged file can loop; a
 #: cap is cheaper than detecting the cycle.
 _MAX_STYLE_DEPTH: Final = 10
 
 
-def _shading_is_dark(shd: Any) -> bool:
-    """Whether one `w:shd` paints something a near-white run stands out
-    against. Undecidable (a pattern, a theme colour with no cached value)
-    counts as dark -- the direction that misses rather than guesses.
+def _hex_rgb(value: Any) -> _Rgb | None:
+    """A Word `RRGGBB` colour, or None when it is not one."""
+    rgb = str(value)
+    if len(rgb) != 6:
+        return None
+    try:
+        return (float(int(rgb[0:2], 16)), float(int(rgb[2:4], 16)), float(int(rgb[4:6], 16)))
+    except ValueError:
+        return None
 
-    `clear` means "no pattern", so the background is `w:fill`; `solid` is a
-    100% pattern, so it is `w:color`; anything else mixes the two.
-    """
+
+def _rgb_luminance(rgb: _Rgb) -> float:
+    r, g, b = rgb
+    return (0.299 * r + 0.587 * g + 0.114 * b) / 255.0
+
+
+def _run_colour(run: Any) -> _Rgb | None:
+    """The run's own colour. None for `auto` (Word picks black or white
+    against the background, so it is always readable) and theme colours."""
+    try:
+        colour = run.font.color
+        if colour is None or colour.rgb is None:
+            return None
+        return _hex_rgb(colour.rgb)
+    except Exception:
+        return None
+
+
+def _shading(shd: Any) -> _Behind:
+    """What one `w:shd` paints. `clear` means no pattern, so the colour is
+    `w:fill`; `solid` is a 100% pattern, so it is `w:color`; anything else
+    mixes the two and is UNKNOWN."""
     pattern = shd.get(_w("val"))
     if pattern == "nil":
-        return False
+        return None
     if pattern == "clear":
         colour = shd.get(_w("fill"))
     elif pattern == "solid":
         colour = shd.get(_w("color"))
     else:
-        return True
+        return UNKNOWN
     if colour is None or colour == "auto":
         # Nothing painted -- unless a theme colour is named without a cached
         # value, which we cannot resolve.
-        return shd.get(_w("themeFill")) is not None
-    luminance = _hex_luminance(colour)
-    return luminance is None or luminance < NEAR_WHITE_LUMINANCE
+        return UNKNOWN if shd.get(_w("themeFill")) is not None else None
+    rgb = _hex_rgb(colour)
+    return UNKNOWN if rgb is None else rgb
 
 
-def _shades_dark(element: Any, properties: str) -> bool:
-    """Whether `element` (a `w:p`, `w:r`, `w:tc` or `w:tbl`) has a dark
-    `w:shd` or highlight in its `properties` child (`pPr`, `rPr`, ...)."""
+def _own_background(element: Any, properties: str) -> _Behind:
+    """What `element` (a `w:p`, `w:r`, `w:tc` or `w:tbl`) paints behind its
+    text through its `properties` child (`pPr`, `rPr`, ...). A highlight sits
+    on top of shading, so it wins."""
     if element is None:
-        return False
+        return None
     pr = element.find(_w(properties))
     if pr is None:
-        return False
-    shd = pr.find(_w("shd"))
-    if shd is not None and _shading_is_dark(shd):
-        return True
+        return None
     highlight = pr.find(_w("highlight"))
-    return highlight is not None and highlight.get(_w("val")) not in _PAGE_HIGHLIGHTS
+    if highlight is not None:
+        value = highlight.get(_w("val"))
+        if value != "none":
+            rgb = _hex_rgb(_HIGHLIGHTS.get(str(value), ""))
+            return UNKNOWN if rgb is None else rgb
+    shd = pr.find(_w("shd"))
+    return None if shd is None else _shading(shd)
 
 
-def _style_shades_dark(style: Any) -> bool:
-    """Whether a paragraph or table style, or one it is based on, shades
-    anything dark. A table style's shading may apply only to its header row
-    or banded rows; we do not resolve which, so any dark shading anywhere in
-    the style makes the whole table count. Over-stating dark is a miss."""
+def _style_background(style: Any) -> _Behind:
+    """A paragraph or table style, and those it is based on. A style's
+    shading may apply only to some rows or conditions, which we do not
+    resolve, so any painted shading anywhere in it is UNKNOWN."""
     for _ in range(_MAX_STYLE_DEPTH):
         if style is None:
-            return False
+            return None
         element = getattr(style, "element", None)
         if element is not None:
-            if any(_shading_is_dark(shd) for shd in element.iter(_w("shd"))):
-                return True
-            if any(h.get(_w("val")) not in _PAGE_HIGHLIGHTS for h in element.iter(_w("highlight"))):
-                return True
+            for shd in element.iter(_w("shd")):
+                if _shading(shd) is not None:
+                    return UNKNOWN
+            for highlight in element.iter(_w("highlight")):
+                if highlight.get(_w("val")) != "none":
+                    return UNKNOWN
         style = getattr(style, "base_style", None)
-    return False
+    return None
 
 
-def _page_is_dark(document: Any) -> bool:
-    """`w:background`, the page colour. Word shows it on screen, so white
-    text on a dark page is visible."""
+def _page_background(document: Any) -> _Behind:
+    """`w:background`, the page colour, which Word shows on screen."""
     background = document.element.find(_w("background"))
     if background is None:
-        return False
+        return None
     colour = background.get(_w("color"))
     if colour is None or colour == "auto":
-        return background.get(_w("themeColor")) is not None
-    luminance = _hex_luminance(colour)
-    return luminance is None or luminance < NEAR_WHITE_LUMINANCE
+        return UNKNOWN if background.get(_w("themeColor")) is not None else None
+    rgb = _hex_rgb(colour)
+    return UNKNOWN if rgb is None else rgb
 
 
-def _safely(check: Callable[..., bool], *args: Any) -> bool:
-    """A background check that cannot fail the analysis. An unreadable
-    background is undecidable, so it counts as dark."""
+def _safely(check: Callable[..., _Behind], *args: Any) -> _Behind:
+    """A background lookup that cannot fail the analysis. Unreadable is
+    UNKNOWN, which is never judged."""
     try:
         return check(*args)
     except Exception:
-        return True
+        return UNKNOWN
+
+
+def _over(top: _Behind, below: _Behind) -> _Behind:
+    """Layering: whatever is painted nearer the text wins."""
+    return below if top is None else top
 
 
 def _find_runs(document: Any) -> HiddenTextReport:
     found: list[_Chunk] = []
     chunks = 0
-    page_dark = _safely(_page_is_dark, document)
+    page = _over(_safely(_page_background, document), _WHITE)
 
-    def walk(paragraphs: Any, *, behind_is_dark: bool) -> None:
+    def walk(paragraphs: Any, *, behind: _Behind) -> None:
         nonlocal chunks
         for paragraph in paragraphs:
-            paragraph_dark = (
-                behind_is_dark
-                or _safely(_shades_dark, paragraph._p, "pPr")
-                or _safely(_style_shades_dark, getattr(paragraph, "style", None))
+            paragraph_behind = _over(
+                _safely(_own_background, paragraph._p, "pPr"),
+                _over(_safely(_style_background, getattr(paragraph, "style", None)), behind),
             )
             for run in paragraph.runs:
                 if not run.text or not run.text.strip():
@@ -834,35 +925,40 @@ def _find_runs(document: Any) -> HiddenTextReport:
                 if getattr(run.font, "hidden", None) is True:
                     found.append(_Chunk(run.text.strip(), INVISIBLE_RENDER_MODE))
                     continue
-                luminance = _run_luminance(run)
-                if luminance is None or luminance < NEAR_WHITE_LUMINANCE:
+                colour = _run_colour(run)
+                under = _over(_safely(_own_background, run._r, "rPr"), paragraph_behind)
+                if colour is None or not isinstance(under, tuple):
                     continue
-                if paragraph_dark or _safely(_shades_dark, run._r, "rPr"):
-                    # White on a shaded cell, paragraph or run: a sidebar or
-                    # a header band, and plainly visible.
+                difference = max(abs(a - b) for a, b in zip(colour, under, strict=True))
+                if difference > DOCX_MIN_VISIBLE_DIFFERENCE:
                     continue
-                found.append(_Chunk(run.text.strip(), NEAR_WHITE_FILL))
+                white = (
+                    _rgb_luminance(colour) >= NEAR_WHITE_LUMINANCE
+                    and _rgb_luminance(under) >= NEAR_WHITE_LUMINANCE
+                )
+                reason = NEAR_WHITE_FILL if white else MATCHES_BACKGROUND
+                found.append(_Chunk(run.text.strip(), reason))
 
-    walk(document.paragraphs, behind_is_dark=page_dark)
+    walk(document.paragraphs, behind=page)
     for table in document.tables:
-        table_dark = (
-            page_dark
-            or _safely(_shades_dark, table._tbl, "tblPr")
-            or _safely(_style_shades_dark, getattr(table, "style", None))
+        table_behind = _over(
+            _safely(_own_background, table._tbl, "tblPr"),
+            _over(_safely(_style_background, getattr(table, "style", None)), page),
         )
         for row in table.rows:
             for cell in row.cells:
-                cell_dark = table_dark or _safely(_shades_dark, cell._tc, "tcPr")
-                walk(cell.paragraphs, behind_is_dark=cell_dark)
+                cell_behind = _over(_safely(_own_background, cell._tc, "tcPr"), table_behind)
+                walk(cell.paragraphs, behind=cell_behind)
 
     if not found:
-        return HiddenTextReport(analysed=True, chunks=chunks)
+        return HiddenTextReport(analysed=True, chunks=chunks, method="structure")
     return HiddenTextReport(
         text="\n".join(c.text for c in found)[:MAX_HIDDEN_CHARS],
         reasons=tuple(sorted({c.reason for c in found})),
         analysed=True,
         chunks=chunks,
         hidden_chunks=len(found),
+        method="structure",
     )
 
 
