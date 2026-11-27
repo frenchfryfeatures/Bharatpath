@@ -16,6 +16,11 @@ set -euo pipefail
 HOST=${1:?usage: deploy/ship.sh HOST}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 SSH=(ssh -o StrictHostKeyChecking=accept-new ${BP_SSH_KEY:+-i "$BP_SSH_KEY"} "ec2-user@$HOST")
+if [ -n "${BP_SSH_KNOWN_HOSTS:-}" ]; then
+  SSH=(ssh -o BatchMode=yes -o StrictHostKeyChecking=yes \
+       -o "UserKnownHostsFile=$BP_SSH_KNOWN_HOSTS" \
+       ${BP_SSH_KEY:+-i "$BP_SSH_KEY"} "ec2-user@$HOST")
+fi
 
 cd "$ROOT"
 REVISION="$(git rev-parse --short HEAD)$(git diff --quiet HEAD -- backend deploy || echo '-dirty')"
@@ -49,9 +54,19 @@ mv -f .incoming/init/* init/
 mv -f .incoming/docker-compose.prod.yml .incoming/Caddyfile .incoming/init_rds.sh .incoming/REVISION .
 rm -rf .incoming
 docker build -q -t bharatpath-backend:latest backend
-if [ ! -f .env ]; then echo "image built; no .env yet, so the stack was not started"; exit 0; fi
-if grep -q "<SET_BY_INIT_RDS>" .env; then echo "image built; run init_rds.sh before starting the stack"; exit 0; fi
+if [ ! -f .env ]; then echo "deployment failed: host .env is missing"; exit 1; fi
+if grep -q "<SET_BY_INIT_RDS>" .env; then echo "deployment failed: initialise RDS first"; exit 1; fi
 docker compose -f docker-compose.prod.yml up -d --remove-orphans
+MIGRATION_ID=$(docker compose -f docker-compose.prod.yml ps -a -q migrate)
+test -n "$MIGRATION_ID"
+if [ "$(docker wait "$MIGRATION_ID")" != "0" ]; then
+  docker compose -f docker-compose.prod.yml logs --tail=100 migrate
+  echo "deployment failed: migrations or seeds failed"
+  exit 1
+fi
+docker compose -f docker-compose.prod.yml exec -T api \
+  curl --fail --silent --show-error --retry 12 --retry-delay 5 --retry-connrefused \
+    http://localhost:8000/api/v1/health
 docker compose -f docker-compose.prod.yml ps'
 
 tar -C "$STAGE" -czf - . | "${SSH[@]}" "$REMOTE"

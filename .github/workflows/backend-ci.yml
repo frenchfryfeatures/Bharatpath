@@ -9,9 +9,9 @@ name: backend-ci
 on:
   push:
     branches: [main, uat]
-    paths: ["backend/**", ".github/workflows/backend-ci.yml"]
+    paths: ["backend/**", "deploy/**", ".github/workflows/backend-ci.yml"]
   pull_request:
-    paths: ["backend/**", ".github/workflows/backend-ci.yml"]
+    paths: ["backend/**", "deploy/**", ".github/workflows/backend-ci.yml"]
 
 defaults:
   run:
@@ -19,7 +19,7 @@ defaults:
 
 concurrency:
   group: backend-ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # Invariants 5 and 6 are pure static checks with no dependencies, so they run
@@ -204,3 +204,43 @@ jobs:
           tags: bharatpath-backend:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  deploy-uat:
+    name: deploy backend to AWS UAT
+    needs: [invariants, lint, test, image]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/uat'
+    # Dedicated trusted runner; never assign this runner to PR jobs.
+    runs-on: [self-hosted, linux, x64, bharatpath-uat-deploy]
+    environment: uat
+    permissions:
+      contents: read
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Configure temporary SSH credentials
+        env:
+          UAT_SSH_PRIVATE_KEY: ${{ secrets.UAT_SSH_PRIVATE_KEY }}
+          UAT_SSH_KNOWN_HOSTS: ${{ secrets.UAT_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$UAT_SSH_PRIVATE_KEY"
+          test -n "$UAT_SSH_KNOWN_HOSTS"
+          umask 077
+          mkdir -p "$RUNNER_TEMP/bharatpath-uat-ssh"
+          printf '%s\n' "$UAT_SSH_PRIVATE_KEY" > "$RUNNER_TEMP/bharatpath-uat-ssh/key"
+          printf '%s\n' "$UAT_SSH_KNOWN_HOSTS" > "$RUNNER_TEMP/bharatpath-uat-ssh/known_hosts"
+          ssh-keygen -F 13.235.1.169 -f "$RUNNER_TEMP/bharatpath-uat-ssh/known_hosts" >/dev/null
+      - name: Ship tested revision and verify migration and health
+        env:
+          BP_SSH_KEY: ${{ runner.temp }}/bharatpath-uat-ssh/key
+          BP_SSH_KNOWN_HOSTS: ${{ runner.temp }}/bharatpath-uat-ssh/known_hosts
+        run: bash deploy/ship.sh 13.235.1.169
+      - name: Remove temporary SSH credentials
+        if: always()
+        run: rm -f -- "$RUNNER_TEMP/bharatpath-uat-ssh/key" "$RUNNER_TEMP/bharatpath-uat-ssh/known_hosts"
