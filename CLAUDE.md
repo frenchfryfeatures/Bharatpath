@@ -313,8 +313,25 @@ SRS 1.4.5, enforced by the `integrity-never-imports-scoring` contract.
 `integrity/domain.py` raises signals; a human resolves them.
 
 **Hidden text is read as of 2026-09-22** (`resume/hidden_text.py`, closing
-E5): invisible render mode, near-white fill, sub-point type and off-page
-positioning, plus `w:vanish` and white runs in .docx.
+E5), and **since 2026-11-27 a PDF is judged by rendering it**
+(`resume/hidden_text_render.py`, detector revision 3): pdfium draws each
+page, every text object is set invisible in memory, the page is drawn
+again, and a character whose glyph box changes by no more than
+`MIN_VISIBLE_DIFFERENCE` cannot be seen. Any colour on the same colour,
+transparency and text painted over are caught with no rule for each; white
+on a navy sidebar is visible (the UAT false positive, revisions 1-2). Sub-point
+type and off-page stay structural. The operator pass is the **fallback**
+(`method: "operators"`) when pdfium cannot open a file. .docx compares a
+run's colour with what is behind it (highlight, shading, page), never
+judging shading it cannot resolve; `DOCX_MIN_VISIBLE_DIFFERENCE` is held
+equal to the PDF line by a test.
+
+- **pdfium is not thread-safe**: every use takes `resume/pdfium_lock.py`'s
+  `PDFIUM_LOCK` (the parser and `preview.py` both run in the API's thread
+  pool).
+- **A changed detector is not a re-check.** Versions analysed by an earlier
+  revision keep their stored analysis and signals; re-running over live
+  candidates is a decision, not a migration.
 
 - **`raw_text` is unchanged and must stay so.** pypdf returns hidden and
   visible text in one string; the detector is a **separate second pass** that

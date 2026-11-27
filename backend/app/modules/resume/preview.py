@@ -5,12 +5,14 @@ from __future__ import annotations
 import base64
 import io
 
+from app.modules.resume.pdfium_lock import PDFIUM_LOCK
+
 
 def render_pdf(content: bytes) -> tuple[list[str], bool]:
     import pypdfium2 as pdfium
 
     pages: list[str] = []
-    with pdfium.PdfDocument(content) as document:
+    with PDFIUM_LOCK, pdfium.PdfDocument(content) as document:
         count = len(document)
         for index in range(min(count, 20)):
             page = document[index]

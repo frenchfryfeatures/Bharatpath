@@ -9,6 +9,85 @@ states. Newest entries first.
 
 ---
 
+## 2026-11-27 — Hidden-text detector revision 3: judged by rendering
+
+Asked for: a detector that checks *all* hidden text, not only white -- the
+case in hand was blue keywords on a blue sidebar, which revision 2 never
+looked at. No migration.
+
+- **The PDF pass renders the page** (`resume/hidden_text_render.py`).
+  pdfium draws it, every text object is set to invisible render mode in
+  memory (nested in forms too), it is drawn again, and each character's
+  glyph box is compared. A change of at most `MIN_VISIBLE_DIFFERENCE` (24 of
+  255 in any channel) is invisible. Reasons for a reviewer: `NEAR_WHITE_FILL`,
+  new `MATCHES_BACKGROUND` (blue on blue), `COVERED` (painted over),
+  `TRANSPARENT_FILL` (`/ca 0`), plus `INVISIBLE_RENDER_MODE`; `TINY_FONT`
+  and `OFF_PAGE` stay structural. Judged per character, so a line that runs
+  off a band onto bare page reports only the bare part.
+- **Still built to miss**: a character with no silenceable text object, no
+  glyph area, or a box off the bitmap but within the inch margin is visible;
+  clip-mode text (4-7) with anything varying in its box is visible (pdfium
+  keeps the clip on later objects, so silencing it changes nothing); the OCR
+  discriminator now drops both invisible-mode and `COVERED` findings when
+  over 90% of characters are hidden that way. Colour findings are never
+  dropped.
+- **Clip-mode headings are no longer reported**: text in mode 7 with an
+  image or colour painted through it is visible, and revisions 1-2 called it
+  invisible.
+- **The operator pass is the fallback** when pdfium cannot open or draw a
+  file; the stored analysis gains `method` (`render`, `operators`,
+  `structure` for .docx).
+- **.docx** compares a run's colour with what is behind it -- highlight, run,
+  paragraph, cell, table shading, page background, else white -- with the
+  same 24 (a test holds them equal). Shading from a style, a pattern or an
+  unresolved theme colour is never judged.
+- **`PDFIUM_LOCK`** (`resume/pdfium_lock.py`): pdfium is not thread-safe and
+  the parser and preview both run in the API's thread pool.
+- Checked against reality: the builder's four templates (a test now) and the
+  78 pages of PDF under `docs/` produce no finding; 55-100 ms a page.
+- `DETECTOR_REVISION` is "3". As with revision 2, **nothing analysed before
+  is re-checked**, and the pypdf 6.4 failure noted below is gone with it --
+  off-page is now read from pdfium's glyph boxes.
+
+---
+
+## 2026-11-26 — Hidden-text detector: white on a dark band is visible
+
+Asked for: stop the hidden-text pass flagging designed CVs. On UAT a real
+candidate's two-column template (white summary, job titles and headings on
+a navy sidebar) raised a HIGH `HIDDEN_TEXT` signal on 38 of 429 chunks, so
+they vanished from search and every apply answered 409
+`application_unavailable` until staff cleared it. No migration.
+
+- **Revision 1 read only the text's fill colour.** `NEAR_WHITE_FILL` now
+  also asks what is painted under the chunk (`hidden_text._Backdrop`):
+  filled paths (`re` exactly, `m`/`l`/`c` shapes by bounding box) with their
+  fill colour and CTM, images, inline images and `sh`, in paint order.
+  Near-white text is reported only when the topmost paint under its start is
+  near-white too, or nothing is painted there. White on a bare or white page
+  is still reported; invisible mode, tiny type and off-page are unchanged.
+- **Undecidable counts as dark** -- pattern/ICC fills, images, a shading
+  (it fills an untracked clip, so the whole page), curved shapes, too many
+  paints. A white paint restores a white background only when it is an
+  exact axis-aligned rectangle. A chunk is judged at its start, so one that
+  starts on a band and runs off it is not reported. All misses, by design.
+- **.docx**: a white run counts as visible on a dark `w:shd` (cell,
+  paragraph, run, table, or anywhere in the paragraph/table style chain), a
+  non-white `w:highlight`, or a dark `w:background`. Pattern shadings and
+  unresolved theme fills count as dark.
+- **`DETECTOR_REVISION` is "2".** Versions analysed under "1" are **not
+  re-checked**: their stored analysis and any signal it raised stay as they
+  are, and staff clear those by hand in the console as before. Re-running the
+  pass over live candidates is a decision, not a migration.
+- Which rules may reach HIGH is unchanged, and `raw_text` is untouched: the
+  pass still identifies and never subtracts.
+- **Found in passing, not fixed:** `test_hidden_text_is_found_and_says_why
+  [parked far to the right]` fails on HEAD with pypdf 6.4, which delivers a
+  second chunk on the same line with an identity text matrix, losing its
+  origin. CI was last green on 2026-10-26, with an older pypdf.
+
+---
+
 ## 2026-11-23 — Web parity and verification follow-up
 
 Implementation and verification: [round report, section H](bugfix-round-2026-11-23.md#h-web-parity-follow-up-2026-11-23).
